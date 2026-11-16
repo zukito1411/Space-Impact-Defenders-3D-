@@ -1,0 +1,25 @@
+:root {
+  color-scheme: dark;
+  font-family: var(--ui-font);
+  color: var(--ui-text);
+  background: var(--ui-void);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.45;
+  font-weight: 400;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body, #root { width: 100%; min-height: 100%; overflow: hidden; }
+body { margin: 0; min-width: 280px; min-height: 100vh; min-height: 100dvh; background: var(--ui-void); }
+button, input, select, textarea { font: inherit; }
+button { cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+button:disabled { cursor: not-allowed; }
+button, a, input, select, textarea { outline-offset: 4px; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--ui-cyan); }
+button:focus:not(:focus-visible) { outline: none; }
+button svg { flex-shrink: 0; }
+img { -webkit-user-drag: none; }
+::selection { background: #58dce642; color: #fff; }

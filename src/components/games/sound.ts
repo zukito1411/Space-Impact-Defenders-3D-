@@ -1,0 +1,889 @@
+let audioContext: AudioContext | null = null
+let soundEnabledCache: boolean | null = null
+const SOUND_ENABLED_STORAGE_KEY = 'gameSoundEnabled'
+const AUDIO_PACK_STORAGE_KEY = 'spaceImpactAudioPack'
+const AUDIO_MIX_STORAGE_KEY = 'spaceImpactAudioMix'
+const GRAPHICS_QUALITY_STORAGE_KEY = 'raidGraphicsQuality'
+
+export type GraphicsQuality = 'low' | 'medium' | 'high' | 'max'
+let graphicsQualityCache: GraphicsQuality | null = null
+
+export function getGraphicsQuality(): GraphicsQuality {
+  if (graphicsQualityCache) return graphicsQualityCache
+  if (typeof window === 'undefined') return 'max'
+  const raw = localStorage.getItem(GRAPHICS_QUALITY_STORAGE_KEY)
+  graphicsQualityCache = (raw === 'low' || raw === 'medium' || raw === 'high' || raw === 'max') ? raw : 'max'
+  return graphicsQualityCache
+}
+
+export function setGraphicsQuality(quality: GraphicsQuality) {
+  graphicsQualityCache = quality
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(GRAPHICS_QUALITY_STORAGE_KEY, quality)
+  }
+}
+
+export type GameSoundKind =
+  | 'flap'
+  | 'score'
+  | 'hit'
+  | 'select'
+  | 'swap'
+  | 'clear'
+  | 'shoot'
+  | 'pop'
+  | 'gameover'
+  | 'combo'
+  | 'levelup'
+  | 'countdown'
+  | 'stinger'
+  | 'stinger_2'
+  | 'laser'
+  | 'rocket'
+  | 'artillery'
+  | 'explosion'
+  | 'explosion_big'
+  | 'nuke_explosion'
+  | 'destroyed_explosion'
+  | 'g_atk_punch_1'
+  | 'g_atk_punch_2'
+  | 'g_atk_kick'
+  | 'select_tower'
+
+type SoundPackConfig = {
+  sfx?: Partial<Record<GameSoundKind, string>>
+  bgm?: string
+  sfxVolume?: number
+  bgmVolume?: number
+}
+
+export type AudioMixSettings = {
+  master: number
+  bgm: number
+  player: number
+  explosion: number
+  beam: number
+  impact: number
+  ui: number
+}
+
+export type GameBgmDuckProfile = {
+  volumeScale: number
+  attackMs: number
+  holdMs: number
+  releaseMs: number
+}
+
+const DEFAULT_AUDIO_MIX: AudioMixSettings = {
+  master: 1,
+  bgm: 0.8,
+  player: 0.78,
+  explosion: 0.62,
+  beam: 0.48,
+  impact: 0.72,
+  ui: 0.8,
+}
+
+export function getPublicAssetUrl(path: string) {
+  if (/^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(path)) {
+    return path
+  }
+
+  return `${import.meta.env.BASE_URL}${path.replace(/^\.?\//, '')}`
+}
+
+const DEFAULT_AUDIO_PACK: SoundPackConfig = {
+  // Bundled production assets served from public/audio.
+  bgm: getPublicAssetUrl('audio/bgm_scifi_loop.ogg'),
+  bgmVolume: 0.3,
+  sfxVolume: 0.72,
+  sfx: {
+    laser: getPublicAssetUrl('audio/sfx_laser.wav'),
+    rocket: getPublicAssetUrl('audio/sfx_rocket.wav'),
+    artillery: getPublicAssetUrl('audio/sfx_cannon.wav'),
+    explosion: getPublicAssetUrl('audio/sfx_explosion_small.wav'),
+    explosion_big: getPublicAssetUrl('audio/sfx_explosion_big.wav'),
+    nuke_explosion: getPublicAssetUrl('audio/sfx_nuke.mp3'),
+    destroyed_explosion: getPublicAssetUrl('audio/sfx_destroyed_explosion.mp3'),
+    g_atk_punch_1: getPublicAssetUrl('audio/G-Atk/punch-1.mp3'),
+    g_atk_punch_2: getPublicAssetUrl('audio/G-Atk/punch-2.mp3'),
+    g_atk_kick: getPublicAssetUrl('audio/G-Atk/kick.mp3'),
+    shoot: getPublicAssetUrl('audio/sfx_shoot.wav'),
+    pop: getPublicAssetUrl('audio/sfx_hit.wav'),
+    combo: getPublicAssetUrl('audio/sfx_combo.wav'),
+    levelup: getPublicAssetUrl('audio/sfx_levelup.wav'),
+    gameover: getPublicAssetUrl('audio/sfx_gameover.wav'),
+    hit: getPublicAssetUrl('audio/sfx_damage.wav'),
+    select: getPublicAssetUrl('audio/sfx_ui_select.wav'),
+    select_tower: getPublicAssetUrl('audio/sfx_ui_tower_select.wav'),
+    swap: getPublicAssetUrl('audio/sfx_ui_swap.wav'),
+    clear: getPublicAssetUrl('audio/sfx_ui_clear.wav'),
+    countdown: getPublicAssetUrl('audio/sfx_countdown.wav'),
+    stinger: getPublicAssetUrl('audio/sfx_stinger.mp3'),
+    stinger_2: getPublicAssetUrl('audio/sfx_stinger_2.mp3'),
+    score: getPublicAssetUrl('audio/sfx_score.wav'),
+  },
+}
+
+declare global {
+  interface Window {
+    spaceImpactSetSoundPack?: (config: SoundPackConfig | null) => void
+    spaceImpactGetSoundPack?: () => SoundPackConfig
+  }
+}
+
+type GameSoundDucker = (kind: GameSoundKind) => void
+
+let soundPackCache: SoundPackConfig | null = null
+let audioMixCache: AudioMixSettings | null = null
+let bgmElement: HTMLAudioElement | null = null
+let noiseBuffer: AudioBuffer | null = null
+let bgmTargetVolume = 0
+let bgmDuckAnimation = 0
+let bgmDuckRestoreTimer = 0
+let bgmDuckRestoreAt = 0
+const recentSfxTimesMs: number[] = []
+const lastKindPlayMs: Partial<Record<GameSoundKind, number>> = {}
+const gameSoundDuckers = new Set<GameSoundDucker>()
+const activeSamples = new Set<{ kind: GameSoundKind; stop: () => void }>()
+const activeSynthSources = new Set<AudioScheduledSourceNode>()
+
+function trackGameSoundSource(source: AudioScheduledSourceNode) {
+  activeSynthSources.add(source)
+  source.onended = () => { activeSynthSources.delete(source); source.disconnect() }
+}
+
+/** Cancel transient effects, including delayed synth notes and pending media playback. */
+export function stopGameSounds() {
+  for (const sample of activeSamples) sample.stop()
+  for (const source of activeSynthSources) {
+    try { source.stop(); source.disconnect() } catch { /* Already ended. */ }
+  }
+  activeSynthSources.clear()
+  recentSfxTimesMs.length = 0
+  for (const kind of Object.keys(lastKindPlayMs) as GameSoundKind[]) delete lastKindPlayMs[kind]
+}
+
+const MAX_SFX_OUTPUT = 0.78
+const KIND_OUTPUT_GAIN: Partial<Record<GameSoundKind, number>> = {
+  laser: 0.45,
+  rocket: 0.58,
+  artillery: 0.5,
+  explosion: 0.68,
+  explosion_big: 0.6,
+  nuke_explosion: 0.74,
+  destroyed_explosion: 0.28,
+  gameover: 0.42,
+  g_atk_punch_1: 0.52,
+  g_atk_punch_2: 0.52,
+  g_atk_kick: 0.5,
+  shoot: 0.78,
+  stinger: 1.05,
+  stinger_2: 1.08,
+}
+const RECENT_SFX_WINDOW_MS = 240
+const BGM_STINGER_DUCK_VOLUME = 0.26
+const BGM_STINGER_DUCK_ATTACK_MS = 80
+const BGM_STINGER_DUCK_HOLD_MS = 760
+const BGM_STINGER_DUCK_RELEASE_MS = 620
+const RAPID_FIRE_MIN_INTERVAL_MS: Partial<Record<GameSoundKind, number>> = {
+  laser: 75,
+  shoot: 26,
+  pop: 30,
+  hit: 28,
+  explosion: 40,
+  explosion_big: 55,
+  nuke_explosion: 900,
+  destroyed_explosion: 115,
+  g_atk_punch_1: 72,
+  g_atk_punch_2: 72,
+  g_atk_kick: 82,
+  stinger: 1200,
+  stinger_2: 1200,
+}
+
+function mergeAudioMix(base: AudioMixSettings, override?: Partial<AudioMixSettings>): AudioMixSettings {
+  return {
+    ...base,
+    ...(override ?? {}),
+    master: clamp01(override?.master ?? base.master),
+    bgm: clamp01(override?.bgm ?? base.bgm),
+    player: clamp01(override?.player ?? base.player),
+    explosion: clamp01(override?.explosion ?? base.explosion),
+    beam: clamp01(override?.beam ?? base.beam),
+    impact: clamp01(override?.impact ?? base.impact),
+    ui: clamp01(override?.ui ?? base.ui),
+  }
+}
+
+function mergeSoundPack(base: SoundPackConfig, override?: SoundPackConfig): SoundPackConfig {
+  return {
+    ...base,
+    ...override,
+    sfx: {
+      ...(base.sfx ?? {}),
+      ...(override?.sfx ?? {}),
+    },
+  }
+}
+
+export function getGameSoundEnabled() {
+  if (soundEnabledCache !== null) {
+    return soundEnabledCache
+  }
+  if (typeof window === 'undefined') {
+    soundEnabledCache = true
+    return soundEnabledCache
+  }
+  const raw = localStorage.getItem(SOUND_ENABLED_STORAGE_KEY)
+  soundEnabledCache = raw === null ? true : raw === '1'
+  return soundEnabledCache
+}
+
+export function setGameSoundEnabled(enabled: boolean) {
+  soundEnabledCache = enabled
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(SOUND_ENABLED_STORAGE_KEY, enabled ? '1' : '0')
+  }
+  if (!enabled) {
+    stopGameSounds()
+    stopBGM()
+  }
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('game-audio-settings'))
+}
+
+function clamp01(v: number) {
+  return Math.max(0, Math.min(1, v))
+}
+
+function nowMs() {
+  if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+    return performance.now()
+  }
+  return Date.now()
+}
+
+function getSfxEventGain(kind: GameSoundKind) {
+  const t = nowMs()
+  const minInterval = RAPID_FIRE_MIN_INTERVAL_MS[kind] ?? 0
+  const last = lastKindPlayMs[kind]
+  if (minInterval > 0 && typeof last === 'number' && t - last < minInterval) {
+    return 0
+  }
+  lastKindPlayMs[kind] = t
+
+  while (recentSfxTimesMs.length > 0 && t - recentSfxTimesMs[0] > RECENT_SFX_WINDOW_MS) {
+    recentSfxTimesMs.shift()
+  }
+  recentSfxTimesMs.push(t)
+
+  const overlap = Math.max(0, recentSfxTimesMs.length - 4)
+  const attenuation = 1 / (1 + overlap * 0.18)
+  return clamp01(attenuation)
+}
+
+function loadAudioMixSettings(): AudioMixSettings {
+  if (audioMixCache) return audioMixCache
+  if (typeof window === 'undefined') {
+    audioMixCache = DEFAULT_AUDIO_MIX
+    return audioMixCache
+  }
+  try {
+    const raw = localStorage.getItem(AUDIO_MIX_STORAGE_KEY)
+    if (!raw) {
+      audioMixCache = DEFAULT_AUDIO_MIX
+      return audioMixCache
+    }
+    const parsed = JSON.parse(raw) as Partial<AudioMixSettings>
+    audioMixCache = mergeAudioMix(DEFAULT_AUDIO_MIX, parsed)
+    return audioMixCache
+  } catch {
+    audioMixCache = DEFAULT_AUDIO_MIX
+    return audioMixCache
+  }
+}
+
+export function getGameAudioMixSettings() {
+  return loadAudioMixSettings()
+}
+
+export function setGameAudioMixSettings(settings: Partial<AudioMixSettings>) {
+  audioMixCache = mergeAudioMix(DEFAULT_AUDIO_MIX, settings)
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(AUDIO_MIX_STORAGE_KEY, JSON.stringify(audioMixCache))
+    window.dispatchEvent(new Event('game-audio-settings'))
+  }
+}
+
+export function getCurrentGameBgm() { return bgmElement }
+
+export function registerGameSoundDucker(ducker: GameSoundDucker) {
+  gameSoundDuckers.add(ducker)
+  return () => {
+    gameSoundDuckers.delete(ducker)
+  }
+}
+
+function getKindBusGain(kind: GameSoundKind) {
+  const mix = getGameAudioMixSettings()
+  const kindGain = KIND_OUTPUT_GAIN[kind] ?? 1
+  if (
+    kind === 'explosion' ||
+    kind === 'explosion_big' ||
+    kind === 'nuke_explosion' ||
+    kind === 'destroyed_explosion'
+  ) {
+    return mix.master * mix.explosion * kindGain
+  }
+  if (kind === 'shoot' || kind === 'rocket' || kind === 'artillery') {
+    return mix.master * mix.player * kindGain
+  }
+  if (kind === 'laser') {
+    return mix.master * mix.beam * kindGain
+  }
+  if (
+    kind === 'hit' ||
+    kind === 'pop' ||
+    kind === 'combo' ||
+    kind === 'g_atk_punch_1' ||
+    kind === 'g_atk_punch_2' ||
+    kind === 'g_atk_kick'
+  ) {
+    return mix.master * mix.impact * kindGain
+  }
+  if (
+    kind === 'select' ||
+    kind === 'select_tower' ||
+    kind === 'swap' ||
+    kind === 'clear' ||
+    kind === 'countdown' ||
+    kind === 'stinger' ||
+    kind === 'stinger_2' ||
+    kind === 'score' ||
+    kind === 'levelup' ||
+    kind === 'gameover'
+  ) {
+    return mix.master * mix.ui * kindGain
+  }
+  return mix.master * kindGain
+}
+
+function getBgmTargetVolume(pack = getSoundPackConfig()) {
+  const mix = getGameAudioMixSettings()
+  return clamp01((pack.bgmVolume ?? 0.32) * mix.master * mix.bgm)
+}
+
+export function getGameSoundBgmDuckProfile(kind: GameSoundKind): GameBgmDuckProfile | null {
+  if (kind === 'stinger' || kind === 'stinger_2') {
+    return {
+      volumeScale: BGM_STINGER_DUCK_VOLUME,
+      attackMs: BGM_STINGER_DUCK_ATTACK_MS,
+      holdMs: BGM_STINGER_DUCK_HOLD_MS,
+      releaseMs: BGM_STINGER_DUCK_RELEASE_MS,
+    }
+  }
+  if (kind === 'nuke_explosion') {
+    return { volumeScale: 0.18, attackMs: 45, holdMs: 940, releaseMs: 620 }
+  }
+  if (kind === 'destroyed_explosion') {
+    return { volumeScale: 0.2, attackMs: 45, holdMs: 820, releaseMs: 560 }
+  }
+  if (kind === 'explosion_big') {
+    return { volumeScale: 0.34, attackMs: 40, holdMs: 420, releaseMs: 380 }
+  }
+  return null
+}
+
+function setBgmVolumeSmooth(target: number, durationMs: number) {
+  if (typeof window === 'undefined' || !bgmElement) return
+  const audio = bgmElement
+  const startVolume = audio.volume
+  const startedAt = nowMs()
+  if (bgmDuckAnimation) window.cancelAnimationFrame(bgmDuckAnimation)
+
+  const step = () => {
+    if (bgmElement !== audio) return
+    const progress = durationMs <= 0 ? 1 : clamp01((nowMs() - startedAt) / durationMs)
+    const eased = 1 - Math.pow(1 - progress, 3)
+    audio.volume = clamp01(startVolume + (target - startVolume) * eased)
+    if (progress < 1) {
+      bgmDuckAnimation = window.requestAnimationFrame(step)
+    } else {
+      bgmDuckAnimation = 0
+    }
+  }
+  step()
+}
+
+function duckBgmForSound(kind: GameSoundKind) {
+  if (typeof window === 'undefined' || !bgmElement) return
+  const profile = getGameSoundBgmDuckProfile(kind)
+  if (!profile) return
+  if (bgmDuckRestoreTimer) window.clearTimeout(bgmDuckRestoreTimer)
+  const now = nowMs()
+  const duckedVolume = Math.min(bgmElement.volume, bgmTargetVolume * profile.volumeScale)
+  bgmDuckRestoreAt = Math.max(bgmDuckRestoreAt, now + profile.holdMs)
+  setBgmVolumeSmooth(duckedVolume, profile.attackMs)
+  bgmDuckRestoreTimer = window.setTimeout(() => {
+    bgmDuckRestoreTimer = 0
+    bgmDuckRestoreAt = 0
+    setBgmVolumeSmooth(bgmTargetVolume, profile.releaseMs)
+  }, Math.max(0, bgmDuckRestoreAt - now))
+}
+
+function notifyGameSoundDuckers(kind: GameSoundKind) {
+  if (gameSoundDuckers.size <= 0) return
+  gameSoundDuckers.forEach((ducker) => {
+    try {
+      ducker(kind)
+    } catch {
+      // External duckers should never block sound playback.
+    }
+  })
+}
+
+function loadSoundPackConfig(): SoundPackConfig {
+  if (soundPackCache) return soundPackCache
+  if (typeof window === 'undefined') {
+    soundPackCache = DEFAULT_AUDIO_PACK
+    return soundPackCache
+  }
+  try {
+    const raw = localStorage.getItem(AUDIO_PACK_STORAGE_KEY)
+    if (!raw) {
+      soundPackCache = DEFAULT_AUDIO_PACK
+      return soundPackCache
+    }
+    const parsed = JSON.parse(raw) as SoundPackConfig
+    soundPackCache = mergeSoundPack(DEFAULT_AUDIO_PACK, parsed ?? undefined)
+    return soundPackCache
+  } catch {
+    soundPackCache = DEFAULT_AUDIO_PACK
+    return soundPackCache
+  }
+}
+
+function getSoundPackConfig() {
+  return loadSoundPackConfig()
+}
+
+export function setGameSoundPack(config: SoundPackConfig | null) {
+  soundPackCache = mergeSoundPack(DEFAULT_AUDIO_PACK, config ?? undefined)
+  if (typeof window !== 'undefined') {
+    if (!config) {
+      localStorage.removeItem(AUDIO_PACK_STORAGE_KEY)
+    } else {
+      localStorage.setItem(AUDIO_PACK_STORAGE_KEY, JSON.stringify(config))
+    }
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.spaceImpactSetSoundPack = (config: SoundPackConfig | null) => {
+    setGameSoundPack(config)
+    // Apply changes immediately to active BGM.
+    stopBGM()
+    if (getGameSoundEnabled()) {
+      startBGM()
+    }
+  }
+  window.spaceImpactGetSoundPack = () => getSoundPackConfig()
+}
+
+function tryPlaySample(kind: GameSoundKind, eventGain = 1) {
+  if (typeof window === 'undefined') return false
+  const pack = getSoundPackConfig()
+  const sampleUrl = pack.sfx?.[kind]
+  if (!sampleUrl) return false
+  try {
+    const a = new Audio(sampleUrl)
+    a.preload = 'auto'
+    a.loop = false
+    a.volume = clamp01((pack.sfxVolume ?? 0.7) * getKindBusGain(kind) * eventGain * MAX_SFX_OUTPUT)
+    // Short defeat cues keep their attack, then fade instead of playing long noisy tails.
+    const limit = kind === 'gameover' ? 1100 : kind === 'destroyed_explosion' ? 1500 : 0
+    const fadeMs = kind === 'gameover' ? 180 : 220
+    const maxVoices = kind === 'laser' ? 3 : limit ? 1 : Infinity
+    const matching = [...activeSamples].filter(sample => sample.kind === kind)
+    while (matching.length >= maxVoices) matching.shift()!.stop()
+    let timer = 0, fade = 0
+    const sample = { kind, stop: () => {
+      activeSamples.delete(sample)
+      window.clearTimeout(timer); window.clearInterval(fade)
+      a.onended = null; a.onerror = null
+      a.pause()
+      try { a.currentTime = 0 } catch { /* Metadata may still be loading. */ }
+    } }
+    activeSamples.add(sample)
+    a.onended = sample.stop
+    a.onerror = sample.stop
+    void a.play().then(() => {
+      // A late play() completion must not resurrect a closed game or muted effect.
+      if (!activeSamples.has(sample)) { a.pause(); return }
+      if (!limit) return
+      timer = window.setTimeout(() => {
+        const started = nowMs(), volume = a.volume
+        fade = window.setInterval(() => {
+          const progress = clamp01((nowMs() - started) / fadeMs)
+          a.volume = volume * (1 - progress)
+          if (progress >= 1) sample.stop()
+        }, 20)
+      }, limit - fadeMs)
+    }).catch(sample.stop)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function getNoiseBuffer(ctx: AudioContext) {
+  if (noiseBuffer) return noiseBuffer
+  const durationSec = 0.35
+  const frameCount = Math.floor(ctx.sampleRate * durationSec)
+  const buffer = ctx.createBuffer(1, frameCount, ctx.sampleRate)
+  const channel = buffer.getChannelData(0)
+  for (let i = 0; i < frameCount; i++) {
+    channel[i] = (Math.random() * 2 - 1) * 0.9
+  }
+  noiseBuffer = buffer
+  return buffer
+}
+
+function playExplosionBoom(big: boolean, eventGain = 1) {
+  const ctx = getAudioContext()
+  if (!ctx) return
+  const now = ctx.currentTime
+  const dur = big ? 0.22 : 0.14
+  const busGain = getKindBusGain(big ? 'explosion_big' : 'explosion') * eventGain * MAX_SFX_OUTPUT
+
+  // Body: short low-end thump with a steep downward pitch sweep.
+  const bodyOsc = ctx.createOscillator()
+  trackGameSoundSource(bodyOsc)
+  bodyOsc.type = 'triangle'
+  bodyOsc.frequency.setValueAtTime(big ? 170 : 210, now)
+  bodyOsc.frequency.exponentialRampToValueAtTime(big ? 42 : 58, now + dur)
+
+  const bodyGain = ctx.createGain()
+  bodyGain.gain.setValueAtTime(0.0001, now)
+  bodyGain.gain.exponentialRampToValueAtTime((big ? 0.35 : 0.25) * busGain, now + 0.006)
+  bodyGain.gain.exponentialRampToValueAtTime(0.0001, now + dur)
+
+  const bodyLowpass = ctx.createBiquadFilter()
+  bodyLowpass.type = 'lowpass'
+  bodyLowpass.frequency.setValueAtTime(big ? 240 : 300, now)
+
+  bodyOsc.connect(bodyLowpass)
+  bodyLowpass.connect(bodyGain)
+  bodyGain.connect(ctx.destination)
+  bodyOsc.start(now)
+  bodyOsc.stop(now + dur)
+
+  // Crack: very short high-passed noise burst for impact definition.
+  const crack = ctx.createBufferSource()
+  trackGameSoundSource(crack)
+  crack.buffer = getNoiseBuffer(ctx)
+  const crackHP = ctx.createBiquadFilter()
+  crackHP.type = 'highpass'
+  crackHP.frequency.setValueAtTime(1400, now)
+
+  const crackGain = ctx.createGain()
+  crackGain.gain.setValueAtTime((big ? 0.17 : 0.14) * busGain, now)
+  crackGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.038)
+
+  crack.connect(crackHP)
+  crackHP.connect(crackGain)
+  crackGain.connect(ctx.destination)
+  crack.start(now)
+  crack.stop(now + 0.04)
+
+  // Debris tail: short band-passed noise to mimic brittle crash fragments.
+  const debris = ctx.createBufferSource()
+  trackGameSoundSource(debris)
+  debris.buffer = getNoiseBuffer(ctx)
+  const debrisBP = ctx.createBiquadFilter()
+  debrisBP.type = 'bandpass'
+  debrisBP.frequency.setValueAtTime(big ? 520 : 680, now)
+  debrisBP.Q.value = 0.65
+
+  const debrisGain = ctx.createGain()
+  debrisGain.gain.setValueAtTime((big ? 0.08 : 0.06) * busGain, now + 0.015)
+  debrisGain.gain.exponentialRampToValueAtTime(0.0001, now + (big ? 0.16 : 0.11))
+
+  debris.connect(debrisBP)
+  debrisBP.connect(debrisGain)
+  debrisGain.connect(ctx.destination)
+  debris.start(now + 0.012)
+  debris.stop(now + (big ? 0.17 : 0.12))
+}
+
+function getAudioContext() {
+  if (typeof window === 'undefined') return null
+  const Context = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+  if (!Context) return null
+  if (!audioContext) {
+    audioContext = new Context()
+  }
+  if (audioContext.state === 'suspended') {
+    void audioContext.resume()
+  }
+  return audioContext
+}
+
+function tone(
+  frequency: number,
+  durationMs: number,
+  type: OscillatorType,
+  volume: number,
+  startDelayMs = 0,
+  gainScale = 1
+) {
+  const ctx = getAudioContext()
+  if (!ctx) return
+
+  const startAt = ctx.currentTime + startDelayMs / 1000
+  const endAt = startAt + durationMs / 1000
+
+  const oscillator = ctx.createOscillator()
+  trackGameSoundSource(oscillator)
+  oscillator.type = type
+  oscillator.frequency.setValueAtTime(frequency, startAt)
+
+  const gain = ctx.createGain()
+  const finalVolume = clamp01(volume * gainScale * MAX_SFX_OUTPUT)
+  gain.gain.setValueAtTime(0.0001, startAt)
+  gain.gain.exponentialRampToValueAtTime(finalVolume, startAt + 0.008)
+  gain.gain.exponentialRampToValueAtTime(0.0001, endAt)
+
+  if (type === 'square' || type === 'sawtooth') {
+    // Tame upper harmonics so stacked shots stay punchy rather than shrill.
+    const mellow = ctx.createBiquadFilter()
+    mellow.type = 'lowpass'
+    mellow.frequency.setValueAtTime(3600, startAt)
+    oscillator.connect(mellow)
+    mellow.connect(gain)
+  } else {
+    oscillator.connect(gain)
+  }
+  gain.connect(ctx.destination)
+
+  oscillator.start(startAt)
+  oscillator.stop(endAt)
+}
+
+let bgmOscillators: OscillatorNode[] = []
+
+function stopSynthBGM() {
+  bgmOscillators.forEach(osc => {
+    try { osc.stop() } catch { /* noop */ }
+  })
+  bgmOscillators = []
+}
+
+export function startBGM() {
+  if (!getGameSoundEnabled()) return
+  try {
+    stopBGM()
+    const pack = getSoundPackConfig()
+    if (!pack.bgm) return
+
+    const audio = new Audio(pack.bgm)
+    audio.loop = true
+    audio.preload = 'auto'
+    bgmTargetVolume = getBgmTargetVolume(pack)
+    audio.volume = bgmTargetVolume
+    bgmElement = audio
+    void audio.play().catch(() => {
+      // If BGM cannot play, stay silent instead of using the synth fallback.
+    })
+  } catch {
+    // BGM should never break gameplay
+  }
+}
+
+export function stopBGM() {
+  try {
+    if (typeof window !== 'undefined') {
+      if (bgmDuckAnimation) window.cancelAnimationFrame(bgmDuckAnimation)
+      if (bgmDuckRestoreTimer) window.clearTimeout(bgmDuckRestoreTimer)
+    }
+    bgmDuckAnimation = 0
+    bgmDuckRestoreTimer = 0
+    bgmDuckRestoreAt = 0
+    bgmTargetVolume = 0
+    if (bgmElement) {
+      bgmElement.pause()
+      bgmElement.currentTime = 0
+      bgmElement = null
+    }
+    stopSynthBGM()
+  } catch {
+    // Cleanup should never break gameplay
+  }
+}
+
+const RAID_CUES = {
+  alarm: [420, 230, .3, .07, 'triangle', 'ui'],
+  hydra: [280, 490, .32, .10, 'triangle', 'beam'],
+  beamCharge: [76, 185, .86, .15, 'triangle', 'beam'],
+  thrusterFault: [116, 58, .27, .13, 'triangle', 'impact'],
+  flyby: [640, 185, .14, .07, 'sine', 'impact'],
+  shield: [870, 330, .13, .09, 'sine', 'impact'],
+  heavy: [105, 45, .16, .12, 'triangle', 'impact'],
+  core: [510, 1080, .12, .08, 'triangle', 'impact'],
+  ready: [470, 840, .21, .085, 'sine', 'ui'],
+} as const
+
+export function playRaidCue(kind: keyof typeof RAID_CUES, pan = 0, delay = 0) {
+  try {
+    if (!getGameSoundEnabled()) return
+    const [from, to, duration, volume, wave, bus] = RAID_CUES[kind]
+    const mix = getGameAudioMixSettings()
+    const output = volume * mix.master * mix[bus] * MAX_SFX_OUTPUT
+    if (output <= .0001) return
+    const ctx = getAudioContext()
+    if (!ctx) return
+    const start = ctx.currentTime + delay
+    const oscillator = ctx.createOscillator()
+    trackGameSoundSource(oscillator)
+    const envelope = ctx.createGain()
+    oscillator.type = wave
+    oscillator.frequency.setValueAtTime(from, start)
+    oscillator.frequency.exponentialRampToValueAtTime(to, start + duration)
+    envelope.gain.setValueAtTime(.0001, start)
+    envelope.gain.exponentialRampToValueAtTime(output, start + duration * (kind === 'beamCharge' ? .72 : .24))
+    envelope.gain.exponentialRampToValueAtTime(.0001, start + duration)
+    oscillator.connect(envelope)
+    if (pan && typeof ctx.createStereoPanner === 'function') {
+      const stereo = ctx.createStereoPanner()
+      stereo.pan.value = Math.max(-1, Math.min(1, pan))
+      envelope.connect(stereo)
+      stereo.connect(ctx.destination)
+    } else {
+      envelope.connect(ctx.destination)
+    }
+    oscillator.start(start)
+    oscillator.stop(start + duration)
+  } catch {
+    // Audio must never interrupt the simulation.
+  }
+}
+
+export function playGameSound(
+  kind: GameSoundKind
+) {
+  try {
+    if (!getGameSoundEnabled()) return
+    const eventGain = getSfxEventGain(kind)
+    if (eventGain <= 0) return
+    const kindGain = eventGain * getKindBusGain(kind)
+    if (getGameSoundBgmDuckProfile(kind)) {
+      duckBgmForSound(kind)
+      notifyGameSoundDuckers(kind)
+    }
+
+    if (kind === 'explosion') {
+      playExplosionBoom(false, eventGain)
+      return
+    }
+    if (kind === 'explosion_big') {
+      playExplosionBoom(true, eventGain)
+      return
+    }
+
+    const hasSample = tryPlaySample(kind, eventGain)
+    if (hasSample) return
+
+    if (kind === 'nuke_explosion' || kind === 'destroyed_explosion') {
+      playExplosionBoom(true, eventGain)
+      return
+    }
+
+    if (kind === 'flap') {
+      tone(440, 70, 'triangle', 0.06, 0, kindGain)
+      return
+    }
+    if (kind === 'score') {
+      tone(660, 60, 'sine', 0.06, 0, kindGain)
+      tone(980, 90, 'sine', 0.045, 42, kindGain)
+      return
+    }
+    if (kind === 'hit') {
+      tone(180, 180, 'sawtooth', 0.08, 0, kindGain)
+      return
+    }
+    if (kind === 'select') {
+      tone(520, 55, 'square', 0.04, 0, kindGain)
+      return
+    }
+    if (kind === 'select_tower') {
+      // Distinct tower selection chirp
+      tone(320, 45, 'square', 0.05, 0, kindGain)
+      tone(480, 65, 'square', 0.04, 30, kindGain)
+      return
+    }
+    if (kind === 'swap') {
+      tone(280, 85, 'triangle', 0.055, 0, kindGain)
+      return
+    }
+    if (kind === 'clear') {
+      tone(620, 70, 'triangle', 0.05, 0, kindGain)
+      tone(860, 110, 'triangle', 0.05, 35, kindGain)
+      tone(1120, 130, 'triangle', 0.045, 75, kindGain)
+      return
+    }
+    if (kind === 'shoot') {
+      tone(420, 85, 'square', 0.05, 0, kindGain)
+      return
+    }
+    if (kind === 'laser') {
+      // Sci-fi laser zap - high frequency descending sweep
+      tone(1200, 40, 'sine', 0.07, 0, kindGain)
+      tone(900, 50, 'sine', 0.055, 15, kindGain)
+      tone(600, 35, 'sine', 0.04, 35, kindGain)
+      return
+    }
+    if (kind === 'rocket') {
+      // Deep rocket resonance
+      tone(280, 120, 'sawtooth', 0.08, 0, kindGain)
+      tone(150, 150, 'sine', 0.07, 20, kindGain)
+      return
+    }
+    if (kind === 'artillery') {
+      // Heavy orbital strike - deep bass boom with metallic ring
+      tone(80, 180, 'sine', 0.1, 0, kindGain)
+      tone(320, 90, 'square', 0.065, 40, kindGain)
+      tone(200, 200, 'sine', 0.08, 50, kindGain)
+      return
+    }
+    if (kind === 'pop') {
+      tone(760, 65, 'triangle', 0.05, 0, kindGain)
+      tone(980, 80, 'triangle', 0.04, 20, kindGain)
+      return
+    }
+    if (kind === 'combo') {
+      tone(520, 50, 'sine', 0.05, 0, kindGain)
+      tone(720, 60, 'sine', 0.05, 35, kindGain)
+      tone(960, 70, 'sine', 0.045, 75, kindGain)
+      tone(1200, 100, 'sine', 0.04, 120, kindGain)
+      return
+    }
+    if (kind === 'levelup') {
+      tone(440, 80, 'triangle', 0.06, 0, kindGain)
+      tone(660, 80, 'triangle', 0.055, 70, kindGain)
+      tone(880, 100, 'triangle', 0.05, 150, kindGain)
+      tone(1100, 130, 'sine', 0.045, 240, kindGain)
+      return
+    }
+    if (kind === 'countdown') {
+      tone(660, 100, 'square', 0.035, 0, kindGain)
+      return
+    }
+    if (kind === 'gameover') {
+      tone(240, 130, 'sawtooth', 0.06, 0, kindGain)
+      tone(180, 180, 'sawtooth', 0.055, 95, kindGain)
+    }
+  } catch {
+    // Sound should never break gameplay.
+  }
+}
+

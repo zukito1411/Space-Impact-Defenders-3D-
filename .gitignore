@@ -1,0 +1,52 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+dev-dist
+release/
+godot/
+*.local
+
+# Never commit the private Android production signing key or secret export
+*.jks
+*.keystore
+github-secrets.txt
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# TypeScript / Vite generated artifacts
+*.tsbuildinfo
+vite.config.d.ts
+.vite/
+
+# Test and coverage output
+coverage/
+.nyc_output/
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+.temp/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

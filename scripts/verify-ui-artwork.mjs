@@ -1,0 +1,123 @@
+import { existsSync, statSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
+// Fail production builds before a Netlify deploy or signed Android release
+// if the shared menu artwork was not copied from public/ into dist/.
+const campaignBossAssets = JSON.parse(readFileSync('docs/campaign-boss-art-manifest.json', 'utf8')).assets
+const bankingRegistrations = JSON.parse(readFileSync('src/components/games/raid/bankingAnchors.json', 'utf8'))
+const required = [
+  ...Object.keys(bankingRegistrations).map(key => `assets/ships/banking/${key}-v1.webp`),
+  'assets/raid-fx/planet-weather-atlas-v1.webp',
+  'assets/raid-fx/celestial-detail-atlas-v1.webp',
+  'audio/immersion/manifest.json',
+  ...JSON.parse(readFileSync('public/audio/immersion/manifest.json', 'utf8')).files.map(entry => entry.file),
+  'assets/carrier/dock-clamp-atlas-v2.png',
+  'assets/carrier/deck-cockpit-v1.webp',
+  'assets/carrier/deck-props-v1.webp',
+  'assets/carrier/deck-workers-v1.webp',
+  'assets/carrier/deck-repair-v1.webp',
+  'assets/carrier/deck-crew-motion-v1.webp',
+  'assets/brand/zuki-logo-v1.png',
+  'assets/ships/sideview/god-gundam-launch-v3.webp',
+  'assets/ships/sideview/spiegel-launch-v1.webp',
+  'assets/ships/sideview/god-gundam-burning-flight-v5.webp',
+  'assets/ships/sideview/god-gundam-burning-two-palm-v1.webp',
+  'assets/ships/sideview/god-gundam-two-palm-v1.webp',
+  'assets/ships/sideview/god-gundam-burning-actions-v1.webp',
+  'assets/ships/sideview/spiegel-actions-v1.webp',
+  'assets/ships/sideview/god-gundam-flight-v4.webp',
+  'assets/ships/sideview/god-gundam-burning-flight-v2.webp',
+  'assets/ships/sideview/spiegel-flight-v2.webp',
+  'assets/carrier/carrier-bay-landscape-v1.webp',
+  'assets/carrier/carrier-bay-portrait-v1.webp',
+  ...campaignBossAssets.map((asset) => asset.path.replace(/^public\//, '')),
+  'assets/aliens/fighter-auric-artillery-v1.webp',
+  'assets/aliens/fighter-cinder-interceptor-v1.webp',
+  'assets/aliens/fighter-crimson-ram-v1.webp',
+  'assets/aliens/fighter-jade-sensor-v1.webp',
+  'assets/aliens/fighter-needle-scout-v1.webp',
+  'assets/aliens/fighter-violet-gunship-v1.webp',
+  'assets/ships/black-comet-elite-remaster-v1.webp',
+  'assets/ships/black-comet-remaster-v1.webp',
+  'assets/ships/core-lander-burning-elite.webp',
+  'assets/ships/core-lander-elite.webp',
+  'assets/ships/crimson-saw-elite-remaster-v1.webp',
+  'assets/ships/crimson-saw-remaster-v1.webp',
+  'assets/ships/crosswing-nova-elite-remaster-v1.webp',
+  'assets/ships/crosswing-nova-remaster-v1.webp',
+  'assets/ships/mesiah-black-elite-remaster-v1.webp',
+  'assets/ships/mesiah-black-remaster-v1.webp',
+  'assets/ships/mesiah-white-elite-remaster-v1.webp',
+  'assets/ships/mesiah-white-remaster-v1.webp',
+  'assets/ships/night-lance-elite-remaster-v1.webp',
+  'assets/ships/night-lance-remaster-v1.webp',
+  'assets/ships/obsidian-ark-elite-remaster-v1.webp',
+  'assets/ships/obsidian-ark-remaster-v1.webp',
+  'assets/ships/red-wraith-elite-remaster-v1.webp',
+  'assets/ships/red-wraith-remaster-v1.webp',
+  'assets/ships/space-jet-elite-remaster-v1.webp',
+  'assets/ships/space-jet-remaster-v1.webp',
+  'assets/raid-fx/wreck-ships-v1.webp',
+  'assets/raid-fx/wreck-stations-v1.webp',
+  'assets/raid-fx/terrain-water-v1.webp',
+  'assets/raid-fx/terrain-basalt-v1.webp',
+  'assets/raid-fx/destination-worlds-v1.webp',
+  'assets/raid-fx/cosmos-regions-v1.webp',
+  'assets/raid-fx/cosmos-regions-remaster-v2.webp',
+  'assets/raid-fx/cosmos-landmarks-remaster-v2.webp',
+  'assets/raid-fx/destination-worlds-remaster-v2.webp',
+  'assets/raid-fx/wreck-ships-remaster-v2.webp',
+  'assets/raid-fx/wreck-stations-remaster-v2.webp',
+  'assets/raid-fx/cosmos-landmarks-v1.webp',
+  'audio/cosmos-hull-v1.ogg',
+  'audio/mesiah/amber-ringway.ogg',
+  'audio/mesiah/silent-fleet.ogg',
+  'audio/mesiah/violet-deepfield.ogg',
+  'audio/mesiah/flight-deck.ogg',
+  'audio/mesiah/command-fleet.ogg',
+  'audio/mesiah/industrial-command.ogg',
+  'audio/mesiah/devil-gundam.ogg',
+  'audio/mesiah/hangar-bed.ogg',
+  'audio/mesiah/hangar-ventilation.ogg',
+  'audio/mesiah/transmission-link.ogg',
+  'audio/mesiah/thruster-heat.ogg',
+  'audio/mesiah/thruster-release.ogg',
+  'audio/mesiah/hostile-channel.ogg',
+  'assets/ui/mesiah-hostile-hologram-v1.webp',
+  'assets/ui/mesiah-commander-hologram-v1.webp',
+  'audio/sfx_boss_battle.mp3',
+  'audio/bgm_boss_squid.mp3',
+  'audio/bgm_boss_snake.mp3',
+  'audio/bgm_boss_final.wav',
+  'audio/boss/beam-charge.ogg',
+  'audio/boss/beam-fire.ogg',
+  'audio/boss/cannon.ogg',
+  'audio/boss/creature-strike.ogg',
+  'audio/boss/venom.ogg',
+  'assets/raid-fx/player-missiles-v1.webp',
+  'assets/raid-fx/nuke-missile-v1.webp',
+  'assets/ui/space-door-v1.webp',
+  'assets/ui/orbital-hangar-v1.png',
+  'assets/ui/console-plate-v1.png',
+  'assets/raid-fx/combat-atlas-v2.png',
+  'assets/raid-fx/explosion-atlas-v2.png',
+  'assets/raid-fx/boss-atlas-v1.png',
+  'assets/raid-fx/boss-combat-effects-v1.webp',
+  'assets/raid-fx/boss-plasma-beam-v1.webp',
+]
+
+for (const asset of required) {
+  const source = join('public', asset)
+  const destination = join('dist', asset)
+  if (!existsSync(source) || !existsSync(destination)) {
+    throw new Error(`Missing production asset: ${asset} (source: ${existsSync(source)}, dist: ${existsSync(destination)})`)
+  }
+  const expected = statSync(source).size
+  const actual = statSync(destination).size
+  if (actual !== expected || actual === 0) {
+    throw new Error(`Production asset corrupted: ${asset} (expected ${expected} bytes, found ${actual})`)
+  }
+  console.log(`Verified production art: ${asset} (${actual} bytes)`)
+}
+
+console.log('All shared UI and raid artwork assets are present in dist.')

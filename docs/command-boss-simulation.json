@@ -1,0 +1,288 @@
+{
+  "scenario": "60s fixed-HP scripted encounters at 100%, 55%, 20% HP; no player DPS, browser or GPU. Bot hits are diagnostic, not a human fairness proof.",
+  "phases": [
+    1,
+    0.55,
+    0.2
+  ],
+  "profiles": [
+    {
+      "stage": 1,
+      "legacyVolleys": 16,
+      "newVolleys": [
+        35,
+        68,
+        99
+      ],
+      "peakShots": [
+        10,
+        20,
+        26
+      ],
+      "minimumWarnings": [
+        0.88,
+        0.8137,
+        0.7474
+      ],
+      "hpScaleRank1": 1.08,
+      "hpScaleRank20": 3.091,
+      "stationaryHits": 33,
+      "strafeHits": 14
+    },
+    {
+      "stage": 2,
+      "legacyVolleys": 16,
+      "newVolleys": [
+        35,
+        68,
+        99
+      ],
+      "peakShots": [
+        15,
+        31,
+        41
+      ],
+      "minimumWarnings": [
+        0.9,
+        0.8324,
+        0.7648
+      ],
+      "hpScaleRank1": 1.08,
+      "hpScaleRank20": 3.091,
+      "stationaryHits": 11,
+      "strafeHits": 8
+    },
+    {
+      "stage": 3,
+      "legacyVolleys": 17,
+      "newVolleys": [
+        36,
+        70,
+        102
+      ],
+      "peakShots": [
+        8,
+        15,
+        19
+      ],
+      "minimumWarnings": [
+        0.86,
+        0.795,
+        0.73
+      ],
+      "hpScaleRank1": 1.1,
+      "hpScaleRank20": 3.1482,
+      "stationaryHits": 11,
+      "strafeHits": 12
+    },
+    {
+      "stage": 4,
+      "legacyVolleys": 20,
+      "newVolleys": [
+        37,
+        70,
+        102
+      ],
+      "peakShots": [
+        10,
+        18,
+        23
+      ],
+      "minimumWarnings": [
+        0.86,
+        0.795,
+        0.73
+      ],
+      "hpScaleRank1": 1.1,
+      "hpScaleRank20": 3.1482,
+      "stationaryHits": 34,
+      "strafeHits": 15
+    },
+    {
+      "stage": 6,
+      "legacyVolleys": 21,
+      "newVolleys": [
+        33,
+        55,
+        78
+      ],
+      "peakShots": [
+        12,
+        28,
+        28
+      ],
+      "minimumWarnings": [
+        0.96,
+        0.8885,
+        0.817
+      ],
+      "hpScaleRank1": 1.12,
+      "hpScaleRank20": 3.2054,
+      "stationaryHits": 33,
+      "strafeHits": 15
+    },
+    {
+      "stage": 7,
+      "legacyVolleys": 20,
+      "newVolleys": [
+        39,
+        73,
+        105
+      ],
+      "peakShots": [
+        12,
+        28,
+        31
+      ],
+      "minimumWarnings": [
+        0.84,
+        0.7763,
+        0.7126
+      ],
+      "hpScaleRank1": 1.12,
+      "hpScaleRank20": 3.2054,
+      "stationaryHits": 36,
+      "strafeHits": 25
+    },
+    {
+      "stage": 8,
+      "legacyVolleys": 23,
+      "newVolleys": [
+        64,
+        93,
+        102
+      ],
+      "peakShots": [
+        30,
+        38,
+        45
+      ],
+      "minimumWarnings": [
+        0.88,
+        0.8137,
+        0.7474
+      ],
+      "hpScaleRank1": 1.14,
+      "hpScaleRank20": 3.2627,
+      "stationaryHits": 10,
+      "strafeHits": 16
+    },
+    {
+      "stage": 9,
+      "legacyVolleys": 22,
+      "newVolleys": [
+        66,
+        96,
+        107
+      ],
+      "peakShots": [
+        13,
+        17,
+        19
+      ],
+      "minimumWarnings": [
+        0.84,
+        0.7763,
+        0.7126
+      ],
+      "hpScaleRank1": 1.14,
+      "hpScaleRank20": 3.2627,
+      "stationaryHits": 29,
+      "strafeHits": 13
+    },
+    {
+      "stage": 11,
+      "legacyVolleys": 28,
+      "newVolleys": [
+        75,
+        93,
+        104
+      ],
+      "peakShots": [
+        10,
+        12,
+        14
+      ],
+      "minimumWarnings": [
+        0.88,
+        0.8137,
+        0.7474
+      ],
+      "hpScaleRank1": 1.16,
+      "hpScaleRank20": 3.3199,
+      "stationaryHits": 27,
+      "strafeHits": 9
+    },
+    {
+      "stage": 12,
+      "legacyVolleys": 29,
+      "newVolleys": [
+        47,
+        64,
+        71
+      ],
+      "peakShots": [
+        18,
+        21,
+        28
+      ],
+      "minimumWarnings": [
+        0.98,
+        0.9072,
+        0.8344
+      ],
+      "hpScaleRank1": 1.16,
+      "hpScaleRank20": 3.3199,
+      "stationaryHits": 24,
+      "strafeHits": 16
+    },
+    {
+      "stage": 13,
+      "legacyVolleys": 30,
+      "newVolleys": [
+        64,
+        93,
+        104
+      ],
+      "peakShots": [
+        24,
+        32,
+        34
+      ],
+      "minimumWarnings": [
+        0.88,
+        0.8137,
+        0.7474
+      ],
+      "hpScaleRank1": 1.18,
+      "hpScaleRank20": 3.3772,
+      "stationaryHits": 31,
+      "strafeHits": 21
+    },
+    {
+      "stage": 14,
+      "legacyVolleys": 31,
+      "newVolleys": [
+        62,
+        90,
+        102
+      ],
+      "peakShots": [
+        28,
+        43,
+        45
+      ],
+      "minimumWarnings": [
+        0.9,
+        0.8324,
+        0.7648
+      ],
+      "hpScaleRank1": 1.18,
+      "hpScaleRank20": 3.3772,
+      "stationaryHits": 14,
+      "strafeHits": 19
+    }
+  ],
+  "observedPeakShots": 45,
+  "tenMinutePeak": 44
+}

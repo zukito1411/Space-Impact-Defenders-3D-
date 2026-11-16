@@ -1,0 +1,726 @@
+/* Landscape is a fixed game screen. Only a menu's content may scroll.
+   Load after game-ui.css so its shared controls cannot restore portrait sizing. */
+@media (orientation: landscape) {
+  #root {
+    --compact-top: max(8px, env(safe-area-inset-top, 0px));
+    --compact-right: max(12px, env(safe-area-inset-right, 0px));
+    --compact-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+    --compact-left: max(12px, env(safe-area-inset-left, 0px));
+  }
+
+  /* Home: identity and title on the left, launches on the right, utility rail
+     below both. Reflow the existing controls instead of clipping a tall stack. */
+  #root .start-screen { height: 100dvh; min-height: 0; overflow: hidden; }
+  #root .start-screen__content {
+    display: grid;
+    grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr);
+    grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+    grid-template-areas: 'brand actions' 'title actions' 'pilot actions' 'deck deck' 'footer footer';
+    align-content: stretch;
+    align-items: stretch;
+    justify-content: stretch;
+    width: min(1180px, 100%);
+    height: 100%;
+    min-height: 0;
+    max-height: none;
+    padding: calc(var(--compact-top) + 54px) var(--compact-right) var(--compact-bottom) var(--compact-left);
+    gap: 8px clamp(16px, 4vw, 44px);
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  #root .start-screen__command-panel { display: contents; }
+  #root .start-screen__brand { grid-area: brand; min-width: 0; font-size: .54rem; gap: 7px; letter-spacing: .07em; }
+  #root .start-screen__version { display: none; }
+  #root .start-screen__title-lockup { grid-area: title; min-width: 0; min-height: 0; align-content: center; gap: 7px; }
+  #root .start-screen__eyebrow { font-size: .58rem; letter-spacing: .13em; }
+  #root .start-screen h1 { max-width: 14ch; font-size: clamp(1.5rem, 8dvh, 2.6rem); line-height: .96; }
+  #root .start-screen__title-lockup p { max-width: 38ch; font-size: .68rem; line-height: 1.3; }
+  #root .start-screen__actions { grid-area: actions; display: flex; flex-direction: column; justify-content: center; gap: 8px; min-height: 0; }
+  #root .start-screen__actions .game-menu-action { flex: 1; min-height: 44px; max-height: 88px; padding: 8px 12px; }
+  #root .start-screen .game-menu-action__copy { gap: 3px; }
+  #root .start-screen .game-menu-action__copy strong { font-size: clamp(.9rem, 2.1vw, 1.15rem); }
+  #root .start-screen .game-menu-action__copy small { font-size: .68rem; line-height: 1.25; }
+  #root .start-screen__pilot { grid-area: pilot; width: 100%; min-width: 0; margin: 0; padding-top: 7px; gap: 4px 8px; }
+  #root .start-screen__pilot-identity { gap: 1px; }
+  #root .start-screen__pilot-identity > span { font-size: .5rem; }
+  #root .start-screen__pilot strong { font-size: .78rem; }
+  #root .start-screen__pilot .game-button { min-height: 36px; padding: 6px 10px; font-size: .6rem; }
+  #root .start-screen__sync { font-size: .57rem; line-height: 1.2; }
+  #root .start-screen__command-deck { grid-area: deck; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; width: 100%; max-width: none; margin: 0; }
+  #root .start-screen__command-deck button,
+  #root .start-screen__command-deck button:first-child { grid-column: auto; min-width: 0; min-height: 44px; flex-direction: row; padding: 6px; font-size: .58rem; letter-spacing: 0; overflow-wrap: anywhere; }
+  #root .start-screen__footer { grid-area: footer; max-width: none; margin: 0; gap: 4px 12px; font-size: .48rem; line-height: 1.2; }
+  #root .language-picker { top: var(--compact-top); right: var(--compact-right); left: auto; gap: 8px; }
+  #root .language-picker select { min-height: 34px; max-width: none; font-size: .65rem; }
+  #root .start-screen .game-menu-hints { display: none; }
+  /* The disabled Raid launch already reports the same loading percentage. */
+  #root .start-screen__asset-loading { display: none; }
+
+  /* All navigation shells fit the display; long records/lists scroll inside. */
+  #root :is(.mode-screen, .progress-screen, .leaderboards-screen, .raid-hangar) {
+    height: 100dvh;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+    padding: var(--compact-top) var(--compact-right) var(--compact-bottom) var(--compact-left);
+  }
+  #root .mode-screen { grid-template-rows: minmax(0, 1fr); }
+  #root .mode-screen__panel {
+    width: min(960px, 100%);
+    min-height: 0;
+    max-height: 100%;
+    margin: auto;
+    padding: 52px 16px 12px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scroll-padding-block: 12px;
+    scrollbar-width: thin;
+  }
+  #root .mode-screen__topbar { top: 8px; left: 12px; right: 12px; gap: 8px; }
+  #root .mode-screen__topbar-group { gap: 6px; }
+  #root :is(.mode-screen__back, .mode-screen__utility) { top: 8px; right: 12px; min-height: 40px; padding: 7px 10px; font-size: .63rem; letter-spacing: .03em; }
+  #root .mode-screen__topbar :is(.mode-screen__back, .mode-screen__utility) { position: static; }
+  #root .mode-screen__eyebrow { font-size: .56rem; }
+  #root .mode-screen__panel h1 { margin: 4px 0 6px; font-size: clamp(1.35rem, 5.7dvh, 2rem); }
+  #root .mode-screen__panel > p { max-width: 90ch; font-size: .72rem; line-height: 1.3; }
+  #root .mode-screen__actions:is(.mode-screen__actions--raid, .mode-screen__actions--coop) { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-top: 10px; }
+  #root .mode-screen__actions.mode-screen__actions--coop { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #root .mode-screen__actions .game-menu-action { min-height: 58px; padding: 9px 12px; }
+  #root .mode-screen .game-menu-action__copy { gap: 3px; }
+  #root .mode-screen .game-menu-action__copy strong { font-size: 1rem; }
+  #root .mode-screen .game-menu-action__copy small { font-size: .68rem; line-height: 1.25; }
+  #root .mode-screen__panel > .game-menu-hints { margin-top: 10px; gap: 12px; font-size: .56rem; }
+  #root .mode-screen .game-menu-hints kbd { min-width: 20px; height: 20px; font-size: .56rem; }
+
+  /* Co-op setup retains every ship and connection control in a shorter menu. */
+  #root .same-screen-briefing { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-top: 10px; }
+  #root .same-screen-briefing__card { padding: 8px 10px; gap: 3px; }
+  #root .same-screen-briefing__card :is(span, strong) { font-size: .68rem; }
+  #root .same-screen-briefing__card strong { margin-top: 3px; }
+  #root .same-screen-ships { margin-top: 10px; gap: 6px; }
+  #root .same-screen-ships > span { font-size: .65rem; }
+  #root .same-screen-ships__grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
+  #root :is(.same-screen-ships__button, .raid-lobby__ship) { min-height: 64px; padding: 5px; gap: 3px; }
+  #root .same-screen-ships__button { flex-direction: column; justify-content: center; min-width: 0; }
+  #root :is(.same-screen-ships__button, .raid-lobby__ship-art) img { width: 34px !important; height: 30px !important; object-fit: contain; }
+  #root .same-screen-ships__button strong { font-size: .62rem; line-height: 1.15; }
+  #root .mode-screen__actions--briefing { margin-top: 10px; gap: 7px; }
+  #root .mode-screen__actions--briefing button { min-height: 44px; padding: 8px 12px; }
+  #root .mode-screen__actions--briefing strong { margin-top: 0; font-size: .85rem; }
+  #root .raid-lobby__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 10px; gap: 8px; }
+  #root .raid-lobby__field--readonly { padding: 8px 10px; }
+  #root .raid-lobby__ships { grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 5px; margin-top: 10px; }
+  #root .raid-lobby__ship-art { min-height: 30px; }
+  #root .raid-lobby__ship-name { font-size: .58rem; line-height: 1.2; overflow-wrap: anywhere; }
+  #root .raid-lobby__actions { grid-template-columns: minmax(100px, .55fr) minmax(0, 1.45fr); margin-top: 10px; gap: 8px; }
+  #root .raid-lobby__actions--join-only { grid-template-columns: minmax(0, 1fr); }
+  #root .raid-lobby__join { grid-template-columns: minmax(0, 1fr) auto; }
+  #root .raid-lobby__join--local { grid-template-columns: minmax(0, 1fr) minmax(0, .8fr) auto; }
+  #root .raid-lobby__join .game-button { min-width: 60px; padding-inline: 10px !important; }
+  #root .raid-lobby__actions .game-button { min-height: 44px; padding: 8px; font-size: .68rem; }
+  #root .raid-lobby__lan-card { margin-top: 8px; padding: 8px 10px; }
+  #root :is(.raid-lobby__status, .raid-lobby__error, .raid-lobby__ready) { margin-top: 8px; font-size: .72rem; }
+  #root .raid-lobby__room { margin-top: 10px; padding: 10px; gap: 8px; }
+  #root .raid-lobby__room-code strong { font-size: 1.4rem; }
+  #root .raid-lobby__players { gap: 6px; }
+  #root .raid-lobby__player { padding: 8px; gap: 4px; }
+
+  /* Hangar keeps the model and roster visible; only specifications scroll. */
+  #root .raid-hangar__panel { display: grid; width: 100%; height: 100%; min-height: 0; padding: 50px 12px 10px; gap: 7px; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
+  #root .raid-hangar__intro > span { font-size: .55rem; }
+  #root .raid-hangar__intro h1 { margin-top: 3px; font-size: 1.4rem; }
+  #root .raid-hangar__intro p { max-width: 90ch; margin-top: 4px; font-size: .68rem; line-height: 1.25; }
+  #root .raid-hangar__layout { grid-template-columns: minmax(130px, .65fr) minmax(0, 1.35fr); gap: 8px; min-height: 0; margin-top: 0; }
+  #root .raid-hangar__preview { min-height: 0; }
+  #root .raid-hangar__display { width: min(150px, 30dvh); max-width: 90%; max-height: 100%; }
+  #root .raid-hangar__display img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  #root .raid-hangar__details { min-height: 0; margin-top: 0; padding: 8px 10px; gap: 6px; overflow-y: auto; overscroll-behavior: contain; }
+  #root .raid-hangar__details h2 { font-size: 1.3rem; }
+  #root .raid-hangar__details > p { font-size: .7rem; line-height: 1.3; }
+  #root .raid-hangar__status { padding: 4px 7px; font-size: .55rem; }
+  #root .raid-hangar__roster { grid-template-columns: repeat(9, minmax(0, 1fr)); max-height: none; margin-top: 0; padding: 5px; gap: 5px; overflow: visible; }
+  #root .raid-hangar__ship-button { min-height: 60px; padding: 4px 2px; gap: 3px; }
+  #root .raid-hangar__ship-thumb { width: 30px; }
+  #root .raid-hangar__ship-thumb img { width: 30px !important; height: 28px !important; object-fit: contain; }
+  #root .raid-hangar__ship-button b { font-size: .56rem; line-height: 1.15; overflow-wrap: anywhere; }
+
+  /* Long archive/profile menus stay inside their frame. */
+  #root .progress-panel { width: min(1120px, 100%); max-height: 100%; min-height: 0; padding: 12px 16px; overflow: auto; overscroll-behavior: contain; }
+  #root .progress-panel__back { position: sticky; top: 0; z-index: 4; min-height: 40px; padding: 7px 12px; font-size: .65rem; }
+  #root .progress-panel__header { margin: 8px 0 12px; padding-bottom: 10px; }
+  #root .progress-panel__header > span { font-size: .56rem; }
+  #root .progress-panel__header h1 { margin: 5px 0; font-size: 1.65rem; }
+  #root .progress-panel__header p { font-size: .72rem; line-height: 1.3; }
+  #root :is(.progress-grid, .unlock-grid) { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  #root :is(.progress-card, .unlock-card, .mission-card) { padding: 10px; }
+  #root .leaderboards-screen__shell { height: 100%; max-height: 100%; min-height: 0; padding: 12px; gap: 8px; grid-template-rows: auto auto minmax(0, 1fr); overflow: hidden; }
+  #root .leaderboards-screen__header { grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; padding-bottom: 7px; }
+  #root .leaderboards-screen__header h1 { margin-top: 3px; font-size: 1.4rem; }
+  #root .leaderboards-screen__header p { font-size: .65rem; }
+  #root :is(.leaderboards-screen__back, .leaderboards-screen__refresh) { min-height: 40px; padding: 7px 10px; font-size: .63rem; }
+  #root .leaderboards-screen__modes { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 5px; padding: 0; overflow: visible; }
+  #root .leaderboards-screen__mode { min-width: 0; min-height: 44px; padding: 6px; gap: 2px; }
+  #root .leaderboards-screen__mode span { font-size: .55rem; }
+  #root .leaderboards-screen__mode strong { font-size: .62rem; white-space: normal; overflow-wrap: anywhere; }
+  #root .leaderboards-screen__board { min-height: 0; padding: 10px; gap: 8px; align-content: start; overflow: auto; overscroll-behavior: contain; }
+  #root .leaderboards-screen__board-header { flex-direction: row; align-items: end; gap: 10px; }
+  #root .leaderboards-screen__board-header h2 { font-size: 1rem; }
+  #root .leaderboards-screen__board-header p { font-size: .65rem; }
+  #root .leaderboards-screen__row { grid-template-columns: 32px minmax(0, 1fr) 60px 80px; grid-template-areas: 'rank pilot stage score'; align-items: center; min-height: 44px; padding: 7px 10px; gap: 8px; }
+  #root .leaderboards-screen__pilot strong { font-size: .76rem; }
+  #root .leaderboards-screen__score { font-size: .83rem; }
+  #root .leaderboards-screen__empty { min-height: 72px; font-size: .75rem; }
+
+  /* Registration, settings and debrief are bounded dialogs, with no page scroll. */
+  #root :is(.player-name-modal, .result-overlay, .defense-dialog, .raid__overlay, .raid__settings-overlay, .raid__stage-modal) { padding: var(--compact-top) var(--compact-right) var(--compact-bottom) var(--compact-left); overflow: hidden; }
+  #root :is(.player-name-modal__panel, .result-overlay__panel, .defense-dialog__panel, .raid__panel, .raid__stage-modal-panel) { min-height: 0; max-height: calc(100dvh - var(--compact-top) - var(--compact-bottom)); padding: 12px 16px; overflow-y: auto; overscroll-behavior: contain; }
+  #root .player-name-modal__panel { gap: 9px; }
+  #root .player-name-modal h2 { font-size: 1.3rem; }
+  #root .player-name-modal p { font-size: .72rem; line-height: 1.3; }
+  #root .player-name-modal input { margin-top: 0; }
+  #root .result-overlay__panel { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 10px; }
+  #root .result-overlay__hero { grid-row: span 2; align-content: center; gap: 5px; padding: 0 12px 0 0; border-bottom: 0; border-right: 1px solid var(--ui-line); }
+  #root .result-overlay__hero h2 { font-size: 1.4rem; }
+  #root .result-overlay__ship { width: 48px; height: 48px; margin: 0; }
+  #root .result-overlay__score { margin-top: 4px; }
+  #root .result-overlay__score strong { font-size: 1.8rem; }
+  #root .result-overlay__stats { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 0; }
+  #root .result-overlay__stats > div { padding: 8px; }
+  #root .result-overlay__stats strong { font-size: .85rem; }
+  #root :is(.result-overlay__pilots, .result-overlay__unlocks) { grid-column: 2; margin-top: 0; padding: 8px; gap: 6px; }
+  #root .result-overlay__panel > .game-button { grid-column: 1 / -1; min-height: 44px; margin-top: 0; }
+
+  /* Respect the Raid layout's compact sizes after the shared material rules. */
+  #root .raid--landscape .raid__hud:not(.raid__hud--same-screen) { grid-template-columns: minmax(42px, 1fr) 48px minmax(65px, 1.2fr) minmax(42px, 1fr) minmax(56px, 1fr) 60px; padding-right: 44px; gap: 4px; }
+  #root .raid--landscape .raid__stat span { font-size: 8px; }
+  #root .raid--landscape .raid__pause { width: 44px; height: 44px; min-width: 44px; min-height: 44px; top: -3px; right: -3px; }
+  #root .raid--landscape .raid__pause--center { position: relative; right: auto; }
+  #root .raid--landscape .raid__panel h2 { font-size: 24px; }
+  #root .raid--landscape .raid__ship-card { min-height: 80px; }
+}
+
+/* Larger landscape displays retain comfortable type and controls while using
+   the same fixed home composition. */
+@media (orientation: landscape) and (min-height: 601px) {
+  #root .start-screen__content { padding-top: calc(var(--compact-top) + 54px); padding-bottom: max(20px, env(safe-area-inset-bottom, 0px)); row-gap: 18px; }
+  #root .start-screen__brand { font-size: .65rem; }
+  #root .start-screen__title-lockup { gap: 12px; }
+  #root .start-screen__eyebrow { font-size: .7rem; }
+  #root .start-screen h1 { font-size: clamp(2.6rem, 8dvh, 4.8rem); }
+  #root .start-screen__title-lockup p { font-size: .84rem; line-height: 1.5; }
+  #root .start-screen__actions { gap: 12px; }
+  #root .start-screen__actions .game-menu-action { min-height: 72px; max-height: 112px; padding: 14px 20px; }
+  #root .start-screen .game-menu-action__copy strong { font-size: clamp(1.1rem, 2.1vw, 1.5rem); }
+  #root .start-screen .game-menu-action__copy small { font-size: .82rem; }
+  #root .start-screen__pilot { padding-top: 12px; gap: 7px 12px; }
+  #root .start-screen__pilot-identity > span { font-size: .6rem; }
+  #root .start-screen__pilot strong { font-size: .95rem; }
+  #root .start-screen__pilot .game-button { min-height: 44px; font-size: .7rem; }
+  #root .start-screen__sync { font-size: .7rem; }
+  #root .start-screen__command-deck button { min-height: 48px; font-size: .72rem; }
+  #root .start-screen__footer { font-size: .6rem; }
+  #root .mode-screen__panel { padding: 60px 24px 20px; }
+  #root .mode-screen__panel h1 { font-size: 2.1rem; }
+  #root .mode-screen__panel > p { font-size: .84rem; }
+  #root .mode-screen__actions .game-menu-action { min-height: 76px; padding: 12px 16px; }
+  #root .mode-screen .game-menu-action__copy strong { font-size: 1.2rem; }
+  #root .mode-screen .game-menu-action__copy small { font-size: .8rem; }
+}
+
+@media (orientation: landscape) and (max-height: 360px) {
+  #root .start-screen__title-lockup p { display: none; }
+  #root .start-screen__content { row-gap: 6px; }
+  #root .start-screen__actions { gap: 6px; }
+  #root .start-screen__pilot { padding-top: 5px; }
+  #root .start-screen__footer { font-size: .44rem; }
+  #root .mode-screen__panel > .game-menu-hints { display: none; }
+}
+
+@media (orientation: landscape) and (max-height: 600px) and (pointer: coarse) {
+  #root .mode-screen__panel > .game-menu-hints { display: none; }
+}
+
+
+/* Keep the portrait home menu within the display, including on short phones. */
+@media (orientation: portrait) {
+  #root .start-screen { height: 100dvh; min-height: 0; overflow: hidden; }
+  #root .start-screen__content {
+    width: min(540px, 100%);
+    height: 100%;
+    min-height: 0;
+    max-height: none;
+    margin: 0 auto;
+    padding: max(60px, calc(env(safe-area-inset-top, 0px) + 48px))
+      max(14px, env(safe-area-inset-right, 0px))
+      max(8px, env(safe-area-inset-bottom, 0px))
+      max(14px, env(safe-area-inset-left, 0px));
+    justify-content: space-evenly;
+    gap: clamp(4px, 1dvh, 10px);
+    overflow: hidden;
+  }
+  #root .start-screen__command-panel {
+    width: 100%;
+    margin: 0;
+    gap: clamp(5px, 1.2dvh, 12px);
+  }
+  #root .start-screen__brand { font-size: .52rem; }
+  #root .start-screen__version { display: none; }
+  #root .start-screen__title-lockup { gap: 4px; }
+  #root .start-screen__eyebrow { font-size: .58rem; }
+  #root .start-screen h1 {
+    max-width: none;
+    font-size: clamp(1.5rem, min(7vw, 4.2dvh), 2.7rem);
+    line-height: .98;
+  }
+  #root .start-screen__title-lockup p { font-size: .68rem; line-height: 1.25; }
+  #root .start-screen__actions { gap: 5px; }
+  #root .start-screen__actions .game-menu-action { min-height: 48px; padding: 6px 10px; }
+  #root .start-screen .game-menu-action__copy { gap: 2px; }
+  #root .start-screen .game-menu-action__copy strong { font-size: .83rem; line-height: 1.1; }
+  #root .start-screen .game-menu-action__copy small { font-size: .64rem; line-height: 1.15; }
+  #root .start-screen__pilot { padding-top: 5px; gap: 2px 8px; }
+  #root .start-screen__pilot-identity { gap: 0; }
+  #root .start-screen__pilot-identity > span { font-size: .5rem; }
+  #root .start-screen__pilot strong { font-size: .76rem; }
+  #root .start-screen__pilot .game-button { min-height: 44px; padding: 5px 10px; }
+  #root .start-screen__sync { font-size: .57rem; line-height: 1.15; }
+  #root .start-screen__command-deck { width: 100%; max-width: none; margin: 0; gap: 4px; }
+  #root .start-screen__command-deck button { min-height: 44px; padding: 5px; font-size: .56rem; }
+  #root .start-screen__footer { max-width: none; margin: 0; gap: 2px 8px; font-size: .48rem; line-height: 1.15; }
+  #root .start-screen .game-menu-hints,
+  #root .start-screen__asset-loading { display: none; }
+}
+@media (orientation: portrait) and (max-height: 650px) {
+  #root .start-screen__brand,
+  #root .start-screen__title-lockup p { display: none; }
+  #root .start-screen__content { gap: 3px; }
+  #root .start-screen__command-panel { gap: 4px; }
+}
+
+
+/* Portrait flight deck: the backdrop fills the screen; controls respect cutouts. */
+@media (orientation: portrait) {
+  #root .start-screen::after {
+    background: linear-gradient(180deg, #02091355 0%, #020b18a8 35%, #020812d9 100%);
+  }
+  #root .start-screen .start-screen__topbar {
+    top: max(10px, env(safe-area-inset-top, 0px));
+    left: max(16px, env(safe-area-inset-left, 0px));
+    right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  #root .start-screen__content {
+    display: grid;
+    grid-template-areas: 'brand' 'title' 'actions' 'pilot' 'deck' 'footer';
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr) auto auto auto;
+    align-content: stretch;
+    justify-content: stretch;
+    align-items: center;
+    gap: clamp(5px, 1dvh, 10px);
+    padding-top: max(66px, calc(env(safe-area-inset-top, 0px) + 54px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-bottom: max(10px, env(safe-area-inset-bottom, 0px));
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+  }
+  #root .start-screen__command-panel { display: contents; }
+  #root .start-screen__brand {
+    grid-area: brand;
+    justify-content: center;
+    grid-template-columns: auto auto;
+    color: #95b8c9;
+    font-size: .5rem;
+    letter-spacing: .15em;
+  }
+  #root .start-screen__title-lockup {
+    grid-area: title;
+    justify-items: center;
+    text-align: center;
+    gap: 5px;
+  }
+  #root .start-screen__eyebrow { font-size: .58rem; letter-spacing: .18em; }
+  #root .start-screen h1 {
+    max-width: 13ch;
+    font-size: clamp(1.8rem, min(9vw, 5.1dvh), 3rem);
+    line-height: .94;
+    letter-spacing: -.035em;
+    text-wrap: balance;
+    text-shadow: 0 3px 0 #1e4054, 0 0 26px #62d9ee45, 0 8px 20px #000;
+  }
+  #root .start-screen__title-lockup p { max-width: 36ch; font-size: .68rem; line-height: 1.25; color: #b5cad8; }
+  #root .start-screen__actions {
+    grid-area: actions;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: clamp(6px, 1dvh, 10px);
+    min-height: 0;
+  }
+  #root .start-screen .game-menu-action {
+    flex: 1 1 0;
+    max-height: 76px;
+    min-height: 48px;
+    padding: 8px 16px 8px 19px;
+    border: 1px solid #4e8caa;
+    border-left: 3px solid #6be6f3;
+    border-radius: 5px;
+    border-image: none;
+    background: linear-gradient(105deg, #15364ae8, #071522ed 72%);
+    box-shadow: inset 0 1px #c9f7ff22, 0 5px 15px #0007;
+  }
+  #root .start-screen .game-menu-action--primary {
+    border-color: #e9b862;
+    border-left-color: #ffcb70;
+    background: linear-gradient(105deg, #67421be8, #15212aea 75%);
+    box-shadow: inset 0 1px #fff0c13b, 0 0 18px #e5a74c2b, 0 5px 15px #0007;
+  }
+  #root .start-screen .game-menu-action__copy strong { font-size: clamp(.85rem, 2dvh, 1.05rem); letter-spacing: .07em; }
+  #root .start-screen .game-menu-action__copy small { font-size: .64rem; color: #b7cbd7; }
+  #root .start-screen__pilot {
+    grid-area: pilot;
+    align-items: center;
+    padding: 6px 10px;
+    border: 1px solid #47718b80;
+    border-radius: 4px;
+    background: #061321b8;
+  }
+  #root .start-screen__pilot .game-button { min-height: 44px; }
+  #root .start-screen__command-deck {
+    grid-area: deck;
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 5px;
+  }
+  #root .start-screen__command-deck button,
+  #root .start-screen__command-deck button:first-child {
+    grid-column: span 2;
+    min-width: 0;
+    min-height: 44px;
+    padding: 5px 3px;
+    border-image: none;
+    border: 1px solid #45677c;
+    border-radius: 4px;
+    background: #0b1d2be8;
+    color: #d6eaf3;
+    font-size: .55rem;
+    line-height: 1.15;
+    letter-spacing: .01em;
+    overflow-wrap: anywhere;
+  }
+  #root .start-screen__command-deck button:first-child,
+  #root .start-screen__command-deck button:nth-child(2) { grid-column: span 3; }
+  #root .start-screen__footer {
+    grid-area: footer;
+    justify-content: center;
+    text-align: center;
+    color: #91aabb;
+    font-size: .48rem;
+  }
+}
+@media (orientation: portrait) and (max-height: 650px) {
+  #root .start-screen__content { gap: 4px; }
+  #root .start-screen h1 { font-size: clamp(1.5rem, 4.2dvh, 2rem); }
+  #root .start-screen__actions { gap: 4px; }
+}
+
+
+/* The ready special stays within thumb reach while the other finger steers. */
+@media (orientation: landscape) {
+  #root .raid--landscape .raid__nuke-quick {
+    position: absolute;
+    z-index: 24;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    left: auto;
+    right: max(12px, env(safe-area-inset-right, 0px));
+    bottom: max(12px, env(safe-area-inset-bottom, 0px));
+    width: 60px;
+    height: 60px;
+    min-width: 60px;
+    min-height: 60px;
+    padding: 8px;
+    border: 1px solid #ffd98c;
+    border-image: none;
+    border-radius: 50%;
+    background: radial-gradient(circle at 38% 28%, #71501be8, #211509f2 74%);
+    color: #fff2c5;
+    font-size: .7rem;
+    letter-spacing: .06em;
+    opacity: .55;
+    transform: none;
+    pointer-events: auto;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #root .raid--landscape .raid__nuke-quick-icon {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    pointer-events: none;
+    user-select: none;
+    filter: drop-shadow(0 0 4px #ffc65c);
+  }
+  #root .raid--landscape .raid__nuke-quick:active {
+    opacity: .9;
+    transform: scale(.97);
+    translate: 0 1px;
+  }
+  #root .raid--landscape .raid__connection {
+    bottom: calc(max(12px, env(safe-area-inset-bottom, 0px)) + 70px);
+  }
+}
+
+
+@media (orientation: landscape) {
+  #root .raid-hangar__attack { left: 88%; top: 50%; transform: translate(-50%, -50%) rotate(90deg); }
+}
+
+/* Flight-deck menu styling: readable touch targets over the hangar artwork. */
+#root .start-screen::after {
+  background: linear-gradient(90deg, #020811d9, #03101aa8 52%, #02071199),
+    linear-gradient(0deg, #020711e8, transparent 38%);
+}
+#root .start-screen__title-lockup h1 {
+  color: #f1faff;
+  text-shadow: 0 2px #183e52, 0 0 28px #58d9ef50, 0 6px 18px #000d;
+}
+#root .start-screen__eyebrow { color: #82eff7; text-shadow: 0 0 12px #60d9ef88; }
+#root :is(.start-screen__actions, .mode-screen__actions) .game-menu-action {
+  --mission-accent: #65dfe9;
+  position: relative;
+  isolation: isolate;
+  padding-left: 50px;
+  padding-right: 32px;
+  border: 1px solid #467d92;
+  border-left: 3px solid var(--mission-accent);
+  border-image: none;
+  border-radius: 5px;
+  background: linear-gradient(110deg, #1b4554ed 0%, #0a1b2bec 48%, #07121eee 100%);
+  box-shadow: inset 0 1px #c9faff2b, inset 0 -1px #0009, 0 4px 15px #0008;
+}
+#root :is(.start-screen__actions, .mode-screen__actions) .game-menu-action--primary {
+  --mission-accent: #ffc66a;
+  border-color: #bb9257;
+  border-left-color: var(--mission-accent);
+  background: linear-gradient(110deg, #62451fec 0%, #182934f2 51%, #0b1824f2 100%);
+  box-shadow: inset 0 1px #ffedc03d, 0 0 20px #eab2591e, 0 4px 15px #0009;
+}
+#root :is(.start-screen__actions, .mode-screen__actions) .game-menu-action::before {
+  content: '';
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  width: 20px;
+  height: 20px;
+  transform: translateY(-50%) rotate(45deg);
+  border: 1px solid var(--mission-accent);
+  border-radius: 3px;
+  background: linear-gradient(135deg, #ffffff29 0 15%, transparent 15% 42%, #ffffff30 42% 48%, transparent 48%);
+  box-shadow: inset 0 0 8px #7ee9f52b, 0 0 10px #68dce527;
+  pointer-events: none;
+}
+#root :is(.start-screen__actions, .mode-screen__actions) .game-menu-action::after {
+  content: '';
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border-top: 1.5px solid var(--mission-accent);
+  border-right: 1.5px solid var(--mission-accent);
+  transform: translateY(-50%) rotate(45deg);
+  pointer-events: none;
+}
+#root :is(.start-screen__actions, .mode-screen__actions) .game-menu-action:enabled:hover {
+  border-color: var(--mission-accent);
+  box-shadow: inset 0 1px #fff4, 0 0 18px #7de7f636, 0 5px 18px #000a;
+}
+#root :is(.start-screen__actions, .mode-screen__actions) .game-menu-action:enabled:active {
+  box-shadow: inset 0 2px 8px #0009, 0 0 10px #7de7f62a;
+}
+#root :is(.start-screen__actions, .mode-screen__actions) .game-menu-action__copy strong {
+  color: #f0faff;
+  letter-spacing: .07em;
+}
+#root :is(.start-screen__actions, .mode-screen__actions) .game-menu-action--primary .game-menu-action__copy strong { color: #ffdc9a; }
+#root :is(.start-screen__actions, .mode-screen__actions) .game-menu-action__copy small { color: #bcd2dc; opacity: .86; }
+#root .start-screen__pilot {
+  padding: 6px 10px;
+  border: 1px solid #3b718488;
+  border-left: 2px solid #68dce5;
+  border-radius: 4px;
+  background: linear-gradient(100deg, #112e3cdc, #081724dc);
+  box-shadow: inset 0 1px #c8f6ff15, 0 4px 12px #0006;
+}
+#root .start-screen__pilot-identity > span { color: #8ec9d6; }
+#root .start-screen__pilot strong { color: #f2fbff; }
+#root .start-screen__command-deck button,
+#root .start-screen__topbar .start-screen__settings {
+  border: 1px solid #426b7b;
+  border-image: none;
+  border-radius: 4px;
+  background: linear-gradient(155deg, #163446ee, #091721f2);
+  color: #d7edf4;
+  box-shadow: inset 0 1px #c3f4ff20, 0 3px 9px #0008;
+}
+#root .start-screen__command-deck button:enabled:hover,
+#root .start-screen__topbar .start-screen__settings:enabled:hover { border-color: #85eaf1; color: #fff; }
+#root .start-screen__topbar .language-picker select {
+  min-height: 40px;
+  border: 1px solid #426b7b;
+  border-radius: 4px;
+  background-color: #0a1a27ed;
+  color: #e2f5fa;
+}
+#root :is(.mode-screen__panel, .progress-panel, .raid-hangar__panel, .leaderboards-screen__shell) {
+  border-top-color: #73e5eeb3;
+  box-shadow: inset 0 1px #c5f8ff26, 0 18px 55px #000a;
+}
+@media (orientation: portrait) {
+  #root .start-screen::after { background: linear-gradient(180deg, #020b16a8, #03101bbd 42%, #020811e8); }
+  #root .start-screen__actions .game-menu-action { padding-left: 50px; padding-right: 32px; }
+}
+@media (orientation: landscape) and (max-height: 360px) {
+  #root .start-screen__pilot { padding: 4px 8px; }
+}
+@media (max-width: 340px) {
+  #root :is(.start-screen__actions, .mode-screen__actions) .game-menu-action { padding-left: 42px; padding-right: 22px; }
+  #root :is(.start-screen__actions, .mode-screen__actions) .game-menu-action::before { left: 13px; width: 16px; height: 16px; }
+  #root :is(.start-screen__actions, .mode-screen__actions) .game-menu-action::after { right: 10px; }
+}
+
+/* Let the hangar art breathe and give the game title the visual lead. */
+#root .start-screen::after {
+  background: linear-gradient(90deg, #02081199, #03101a66 52%, #02071155),
+    linear-gradient(0deg, #020711bb, transparent 40%);
+}
+#root .start-screen__title-lockup h1 {
+  animation: flightDeckTitleGlow 5s ease-in-out infinite;
+  text-shadow: 0 2px #183e52, 0 0 22px #58d9ef66, 0 5px 15px #000;
+}
+#root .start-screen__title-lockup::after {
+  content: '';
+  display: block;
+  width: min(112px, 28%);
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #8af4ff, #60dceb99, transparent);
+  box-shadow: 0 0 10px #7deeff8a;
+  transform-origin: left center;
+  animation: flightDeckSignal 5s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes flightDeckTitleGlow {
+  0%, 100% { text-shadow: 0 2px #183e52, 0 0 18px #58d9ef55, 0 5px 15px #000; }
+  50% { text-shadow: 0 2px #24536b, 0 0 30px #80efffa6, 0 5px 15px #000; }
+}
+@keyframes flightDeckSignal {
+  0%, 100% { opacity: .55; transform: scaleX(.72); }
+  50% { opacity: 1; transform: scaleX(1); }
+}
+#root .start-screen__actions .game-menu-action {
+  background: linear-gradient(110deg, #173d4ce3, #0a1b2be8 52%, #07121ee8);
+}
+#root .start-screen__actions .game-menu-action--primary {
+  background: linear-gradient(110deg, #62451fdf, #182934e8 54%, #0b1824ed);
+}
+@media (orientation: landscape) {
+  #root .start-screen h1 {
+    max-width: 14ch;
+    font-size: clamp(1.65rem, min(5.1vw, 10dvh), 4rem);
+    line-height: .95;
+  }
+  #root .start-screen__actions .game-menu-action {
+    flex: 0 1 68px;
+    min-height: 44px;
+    max-height: 68px;
+  }
+}
+@media (orientation: landscape) and (min-height: 601px) {
+  #root .start-screen__actions .game-menu-action { flex-basis: 88px; max-height: 88px; }
+}
+@media (orientation: portrait) {
+  #root .start-screen::after { background: linear-gradient(180deg, #020b1685, #03101a78 42%, #020811b5); }
+  #root .start-screen h1 {
+    max-width: 13ch;
+    font-size: clamp(1.65rem, min(10.5vw, 5.6dvh), 3.55rem);
+    line-height: .94;
+  }
+  #root .start-screen__title-lockup::after {
+    transform-origin: center;
+    background: linear-gradient(90deg, transparent, #8af4ff, transparent);
+  }
+  #root .start-screen__actions .game-menu-action {
+    flex: 0 1 64px;
+    min-height: 48px;
+    max-height: 64px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #root .start-screen__title-lockup h1,
+  #root .start-screen__title-lockup::after { animation: none; }
+}
+
+
+/* Keep the special icon proportional in either orientation. */
+#root .raid .raid__nuke-quick-icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+  filter: drop-shadow(0 0 4px #ffc65c);
+}
+@media (orientation: portrait) {
+  #root .raid:not(.raid--landscape) .raid__nuke-quick {
+    width: 54px;
+    height: 54px;
+    min-width: 54px;
+    min-height: 54px;
+    padding: 7px;
+    border-image: none;
+    border-radius: 50%;
+    touch-action: none;
+  }
+}
+
+
+/* Short responsive menu and rank cues; never interfere with input or layout. */
+@media (prefers-reduced-motion: no-preference) {
+  #root :is(.start-screen__actions, .mode-screen__actions) .game-menu-action {
+    animation: flight-deck-action-enter .3s ease-out both;
+  }
+  #root .raid__stat--level b { animation: raid-rank-signal .75s ease-out; }
+}
+@keyframes flight-deck-action-enter {
+  from { opacity: .55; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes raid-rank-signal {
+  0% { color: #fff6c9; text-shadow: 0 0 14px #ffc76b; }
+  100% { text-shadow: none; }
+}
+
+
+/* The hangar is behind the actual gameplay ship, in the same flight space. */
+#root .raid-hangar__launch { width: 100%; min-height: 44px; }
+#root .raid__launch-sequence {
+  position: absolute; inset: 0; z-index: 3; pointer-events: none; overflow: hidden;
+  opacity: var(--raid-launch-opacity, 0);
+}
+#root .raid__launch-sequence > .raid__carrier-camera {
+  position: absolute; inset: 0; background-position: center; background-size: cover;
+}
+#root .raid--landscape .raid__launch-sequence > .raid__carrier-camera {
+  inset: auto; left: 50%; top: 50%; width: var(--raid-field-height); height: var(--raid-field-width);
+  transform: translate(-50%, -50%) rotate(-90deg);
+}
+#root .raid__carrier-plate {
+  position: absolute; inset: 0; background-color: #07151f; background-size: cover; background-position: center;
+  mask-size: cover; mask-position: center; mask-repeat: no-repeat;
+  transform: translate3d(var(--carrier-shift-x, 0px), var(--carrier-shift-y, 0px), 0);
+  will-change: transform;
+}

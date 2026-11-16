@@ -1,0 +1,111 @@
+Audio assets bundled in this folder were downloaded from OpenGameArt.
+
+1) Theremin Laser SFX by Zane Little Music
+Source page: https://opengameart.org/content/theremin-laser-sfx
+Downloaded file: https://opengameart.org/sites/default/files/theremin_lasers.zip
+Used for: sfx_laser.wav, sfx_shoot.wav, sfx_hit.wav, sfx_combo.wav, sfx_levelup.wav,
+          sfx_ui_select.wav, sfx_ui_tower_select.wav, sfx_ui_swap.wav,
+          sfx_ui_clear.wav, sfx_countdown.wav, sfx_score.wav, sfx_cannon.wav
+Credit note from source page: "Copyright/Attribution Notice: by Zane Little"
+
+2) Vintage SciFi SFX Vol 1 by Zander Noriega
+Source page: https://opengameart.org/content/vintage-scifi-sfx-vol-1
+Downloaded file: https://opengameart.org/sites/default/files/zander-noriega-scifi-vol-1.tar.gz
+Used for: sfx_gameover.wav, sfx_damage.wav
+
+3) 40 Sci Fi NES Sound Effects by LazyNerdComp
+Source page: https://opengameart.org/content/40-sci-fi-nes-sound-effects
+Downloaded file: https://opengameart.org/sites/default/files/nes-sci-fi-fx-wav-ftm.zip
+Used for: sfx_explosion_small.wav, sfx_explosion_big.wav
+
+4) Theremin Laser SFX by Zane Little Music (additional clip use)
+Source page: https://opengameart.org/content/theremin-laser-sfx
+Downloaded file: https://opengameart.org/sites/default/files/theremin_lasers.zip
+Used for: sfx_rocket.wav
+
+5) Sunless by Centurion_of_war
+Source page: https://opengameart.org/content/sunless
+Downloaded file: https://opengameart.org/sites/default/files/sunless_0.ogg
+Used for: bgm_scifi_loop.ogg
+
+6) Space Boss Battle Theme ("Orbital Colossus") by Matthew Pablo (CC-BY 3.0)
+Source page: https://opengameart.org/content/space-boss-battle-theme
+Used for: bgm_boss_squid.mp3
+Required credit: "Music by Matthew Pablo / www.matthewpablo.com"
+
+7) Colossal Boss Battle Theme ("Blackmoor Colossus") by Matthew Pablo (CC-BY 3.0)
+Source page: https://opengameart.org/content/colossal-boss-battle-theme
+Used for: bgm_boss_snake.mp3
+Required credit: "Music by Matthew Pablo / www.matthewpablo.com"
+
+8) Boss Battle #2 [Symphonic Metal] by nene (CC0)
+Source page: https://opengameart.org/content/boss-battle-2-symphonic-metal
+Used for: bgm_boss_final.wav
+
+Mesiah and regional score (all edits are game trims, level adjustments and Ogg encodes)
+
+- Beyond cosmos by Centurion_of_war (CC0), amber-ringway.ogg
+  https://opengameart.org/content/beyond-cosmos
+- Space Echo by Centurion_of_war (CC0), silent-fleet.ogg
+  https://opengameart.org/content/space-echo
+- ZenoStar by Centurion_of_war (CC0), violet-deepfield.ogg
+  https://opengameart.org/content/zenostar
+- Dark Horse by Centurion_of_war (CC0), flight-deck.ogg
+  https://opengameart.org/content/dark-horse
+- Space Fighter Loop by Kevin MacLeod (incompetech.com), command-fleet.ogg
+  https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100672
+- The Complex by Kevin MacLeod (incompetech.com), industrial-command.ogg
+  https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1300025
+- Corruption by Kevin MacLeod (incompetech.com), devil-gundam.ogg
+  https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1600004
+  The three Kevin MacLeod tracks are licensed under CC BY 4.0:
+  https://creativecommons.org/licenses/by/4.0/
+
+Mesiah deck and radio effects (trimmed, filtered and encoded for the scene)
+
+- underwater or space engine rumble by gmason (CC0), hangar-bed.ogg
+  https://opengameart.org/content/underwater-or-space-engine-rumble
+- Sci-fi Engine Startup by JapanYoshiTheGamer (CC0), thruster-heat.ogg
+  https://freesound.org/people/JapanYoshiTheGamer/sounds/361250/
+- Rocket Engine by theMinesAreShakin (CC0), thruster-release.ogg
+  https://opengameart.org/content/rocket-engine
+- Shortwave radio static & beeps by nakkivene66 (CC0), hostile-channel.ogg
+  https://freesound.org/people/nakkivene66/sounds/583363/
+
+CC0 dedication: https://creativecommons.org/publicdomain/zero/1.0/
+
+Publisher note:
+- Verify each asset's exact license text on its OpenGameArt page before final release.
+- If attribution is required, include credits in-game and/or in your game credits page.
+
+Boss attack sounds (game edits, level adjustments, and Ogg encodes)
+
+- laser-charge.wav by StavSounds (CC0), beam-charge.ogg
+  https://freesound.org/people/StavSounds/sounds/701702/
+- Doomsday Laser Cannon Sound Effect by TAD (CC0), beam-fire.ogg and cannon.ogg
+  https://opengameart.org/content/doomsday-laser-cannon-sound-effect
+- Big scary troll sounds by Darsycho (CC0), creature-strike.ogg
+  https://opengameart.org/content/big-scary-troll-sounds
+- Pressure Hiss by unfa (CC0), venom.ogg
+  https://freesound.org/people/unfa/sounds/211096/
+- Radio Sign Off / Squelch by JovianSounds (CC0), transmission-link.ogg (shortened and filtered)
+  https://freesound.org/people/JovianSounds/sounds/524205/
+- Old Air Conditioner Loop by loganzsound (CC0), hangar-ventilation.ogg (filtered and encoded)
+  https://freesound.org/people/loganzsound/sounds/873136/
+
+Immersion presentation pack (audio/immersion/, November 2026)
+
+- Protection, destruction, engine, environment, deployment and carrier foley:
+  layered, filtered, time-edited derivatives of the CC0 Mesiah deck/radio and
+  boss recordings credited above. No additional downloaded recordings.
+- score-cruise, score-amber, score-silent, score-violet, score-command,
+  score-squid, score-snake and score-final: percussive stems separated from
+  the respective bundled scores. All original music attribution and license
+  obligations listed above continue to apply, including Kevin MacLeod's
+  Space Fighter Loop (CC BY 4.0) for score-command.
+- pa-clear-lane and pa-maintenance: original flight-deck dialogue, synthesized
+  locally with Windows Microsoft Zira Desktop, then filtered and reverberated.
+  Dialogue: "Flight deck. Keep the launch lane clear."
+  "Maintenance team. Report to the aft service deck."
+- manifest.json records each derived file's source recordings, duration,
+  channel count, sample rate, byte length and SHA-256 digest.
