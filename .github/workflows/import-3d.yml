@@ -1,0 +1,38 @@
+name: Import preserved Space Impact Defenders 3D
+on:
+  push:
+    paths:
+      - .github/workflows/import-3d.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import-3d:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Copy preserved 3D history, code and assets
+        env:
+          DEST_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --branch Space-Impact-Defenders-3D --single-branch \
+            https://github.com/zukito1411/space-defenders-impact.git original-3d
+          cd original-3d
+          expected=0bae34ef0f786458b01731789be4ea50a34e3c52
+          actual="$(git rev-parse HEAD)"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "::error::Original 3D branch changed unexpectedly; refusing to import."
+            exit 1
+          fi
+          git remote add new-repo "https://x-access-token:${DEST_TOKEN}@github.com/zukito1411/Space-Impact-Defenders-3D-.git"
+          git push --force new-repo HEAD:refs/heads/main
+          imported="$(git ls-remote new-repo refs/heads/main | cut -f1)"
+          if [[ "$imported" != "$expected" ]]; then
+            echo "::error::Destination main does not match original 3D commit."
+            exit 1
+          fi
+          echo "Verified full 3D branch history and files at commit $expected"
