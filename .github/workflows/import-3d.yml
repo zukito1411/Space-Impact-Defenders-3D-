@@ -39,6 +39,10 @@ jobs:
           test -f package.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Retain all tracked source files, including generated files that
+          # happen to match .gitignore in a freshly initialized repository.
+          git -C "$source_dir" ls-files -z | grep -zv '^\\.github/workflows/' | \
+            git add -f --pathspec-from-file=- --pathspec-file-nul
           git add -A
           if git diff --cached --name-only | grep -q '^.github/workflows/'; then
             echo "::error::Cannot modify workflow files using this token."
