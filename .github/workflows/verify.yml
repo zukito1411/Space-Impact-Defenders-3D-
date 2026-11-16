@@ -1,0 +1,171 @@
+name: Verify web build
+
+on:
+  pull_request:
+  push:
+    branches: [main, perf-offline-first-20261108]
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Test Air Raid frame recovery
+        run: node --experimental-strip-types scripts/test-raid-frame-loop.mjs
+      - name: Test Air Raid collision broad phase
+        run: node scripts/test-raid-spatial-hash.mjs
+      - name: Test account progression and cosmetic preferences
+        run: node scripts/test-account-progression.mjs
+      - name: Test Air Raid muzzle and actor sizes
+        run: node scripts/test-raid-muzzles.mjs
+      - name: Test Devil Gundam landscape rendering
+        run: node scripts/test-devil-landscape.mjs
+      - name: Test multitouch quick special
+        run: node scripts/test-raid-touch-special.mjs
+      - name: Test player size and thruster alignment
+        run: |
+          node scripts/test-raid-ship-size.mjs
+          node scripts/test-engine-presentation.mjs
+          node scripts/test-space-jet-force-field.mjs
+          node scripts/test-immersion-presentation.mjs
+          node scripts/test-audio-lifecycle.mjs
+          node scripts/test-planet-atmosphere.mjs
+          node scripts/test-celestial-animation.mjs
+          node scripts/test-ultra-scenery.mjs
+          node scripts/test-raid-travel.mjs
+      - name: Test flight presentation and boss feedback
+        run: |
+          node scripts/test-combat-feel.mjs
+          node scripts/test-raid-flight-effects.mjs
+          node scripts/test-raid-stage-profiles.mjs
+          node scripts/test-raid-launch.mjs
+          node scripts/test-carrier-launch.mjs
+          node scripts/test-dock-clamps.mjs
+          node scripts/test-carrier-deck.mjs
+          node scripts/test-boarding-actions.mjs
+          node scripts/test-crew-and-mech-dock.mjs
+          node scripts/test-mech-flight.mjs
+          node scripts/test-weapon-presentation.mjs
+          node scripts/test-command-bosses.mjs
+      - name: Typecheck and build
+        run: npm run build
+      - name: Verify Android media packaging with production assets
+        run: python3 scripts/test-android-asset-packaging.py --built-assets
+
+  android-release-smoke:
+    # Compile a real release variant with an ephemeral CI-only key.
+    # This APK is never uploaded to Releases or distributed to users.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Use Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          # The action's default "tools" package is obsolete and fails SDK setup.
+          packages: 'platform-tools'
+          log-accepted-android-sdk-licenses: 'false'
+      - name: Install Android platform 36
+        run: sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
+      - name: Build and sync web app
+        run: |
+          npm ci
+          npm run build
+          python3 scripts/test-android-asset-packaging.py
+          python3 scripts/package-android-assets.py
+          npx cap sync android
+      - name: Generate temporary CI-only signing key
+        shell: bash
+        run: |
+          set -euo pipefail
+          KEY="$RUNNER_TEMP/ci-only-release.jks"
+          PASSWORD="$(openssl rand -hex 20)"
+          echo "::add-mask::$PASSWORD"
+          keytool -genkeypair -noprompt -storetype PKCS12 \
+            -keystore "$KEY" -alias "ci-only" -keyalg RSA -keysize 2048 \
+            -validity 7 -dname "CN=CI Verification Only" \
+            -storepass "$PASSWORD" -keypass "$PASSWORD"
+          echo "ANDROID_KEYSTORE_PATH=$KEY" >> "$GITHUB_ENV"
+          echo "ANDROID_KEYSTORE_PASSWORD=$PASSWORD" >> "$GITHUB_ENV"
+          echo "ANDROID_KEY_ALIAS=ci-only" >> "$GITHUB_ENV"
+          echo "ANDROID_KEY_PASSWORD=$PASSWORD" >> "$GITHUB_ENV"
+      - name: Restore cached Gradle 8.14.3 toolchain
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/space-impact-gradle/8.14.3
+          key: gradle-8.14.3-jdk21-${{ runner.os }}-v1
+
+      - name: Prepare compatible pinned Gradle
+        run: bash scripts/setup-pinned-gradle.sh
+
+      - name: Compile release APK
+        working-directory: android
+        run: "$SPACE_IMPACT_GRADLE --no-daemon assembleRelease"
+      - name: Verify release APK has valid signature
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/release/SpaceImpactDefender-release.apk"
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
+
+      - name: Verify APK media separation
+        run: |
+          python3 - <<'PY'
+          import json
+          from zipfile import ZipFile
+
+          with ZipFile("android/app/build/outputs/apk/release/SpaceImpactDefender-release.apk") as apk:
+              files = set(apk.namelist())
+              manifest = json.loads(apk.read("assets/public/native-assets.json"))
+              assert "assets/public/assets/brand/zuki-logo-v1.png" in files
+              assert "assets/public/index.html" in files
+              assert manifest["files"] and manifest["packs"]
+              assert all("assets/public/" + path not in files for path in manifest["files"])
+          PY
+
+
+  presentation-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save --package-lock=false playwright@1.56.1
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/test-presentation-browser.mjs
+      - run: node scripts/test-startup-browser.mjs
+      - run: npm run build
+      - run: node scripts/test-pwa-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: presentation-review
+          path: presentation-review/
