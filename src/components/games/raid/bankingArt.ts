@@ -7,6 +7,12 @@ import anchors from './bankingAnchors.json'
 export const BANKING_COLUMNS = 7
 export const BANKING_ROWS = 2
 export const BANKING_CELL = 224
+// The source atlas is oriented nose-up for both flight-camera modes. UI previews
+// must apply the flight camera's quarter turn when shown on a landscape screen.
+export function raidBankingPreviewAngle(landscape: boolean) { return landscape ? 90 : 0 }
+export function raidBankingPreviewNozzle(x: number, y: number, landscape: boolean) {
+  return landscape ? { x: -y, y: x } : { x, y }
+}
 const LEVEL_FRAME = 3
 const BANKING_CACHE_LIMIT = 6
 const atlases = new Map<string, CanvasSpriteEntry>()
@@ -62,9 +68,28 @@ export function getRaidBankingAtlas(shipKey: string) {
     const context = canvas.getContext('2d')
     if (!context) return null
     context.imageSmoothingEnabled = true
-    context.filter = 'brightness(0.86) contrast(0.97) saturate(0.84)'
+    context.imageSmoothingQuality = 'high'
+    // Source ships are lit like isolated display models. Bake an understated
+    // deep-space finish once, retaining metal detail and the engine emissives.
+    context.filter = 'brightness(0.81) contrast(1.03) saturate(0.82)'
     context.drawImage(image, 0, 0)
     context.filter = 'none'
+    context.save()
+    context.globalCompositeOperation = 'source-atop'
+    // The same top-to-tail light balance in every atlas pose prevents visible
+    // hue jumps while banking, unlike a single gradient across the whole sheet.
+    for (let row = 0; row < BANKING_ROWS; row++) {
+      for (let col = 0; col < BANKING_COLUMNS; col++) {
+        const x = col * BANKING_CELL, y = row * BANKING_CELL
+        const lighting = context.createLinearGradient(x, y, x, y + BANKING_CELL)
+        lighting.addColorStop(0, 'rgba(48, 85, 120, 0.14)')
+        lighting.addColorStop(0.46, 'rgba(19, 42, 70, 0.09)')
+        lighting.addColorStop(1, 'rgba(3, 11, 27, 0.18)')
+        context.fillStyle = lighting
+        context.fillRect(x, y, BANKING_CELL, BANKING_CELL)
+      }
+    }
+    context.restore()
     return canvas
   })
   atlases.set(url, sprite)
@@ -92,7 +117,13 @@ export function getBankingProtectionHull(sprite: CanvasSpriteEntry, landscape: b
 
 export function drawRaidBankingCell(ctx: CanvasRenderingContext2D, sprite: CanvasSpriteEntry, frame: number,
   x: number, y: number, size: number) {
+  // Preserve subpixel surface detail while shrinking baked 3D art to the
+  // moving player's hull. Restore the caller's Canvas settings afterwards.
+  ctx.save()
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
   ctx.drawImage(getCanvasSpriteSource(sprite),
     frame % BANKING_COLUMNS * BANKING_CELL, Math.floor(frame / BANKING_COLUMNS) * BANKING_CELL,
     BANKING_CELL, BANKING_CELL, x - size / 2, y - size / 2, size, size)
+  ctx.restore()
 }
