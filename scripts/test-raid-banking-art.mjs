@@ -19,7 +19,7 @@ const art = await compile(`
   const anchors = ${JSON.stringify(registrations)}
   const getPublicAssetUrl = path => '/base/' + path
   const releaseCanvasSprite = () => {}
-  const makeImageCanvasSprite = (cacheKey, url) => ({ cacheKey, url, loaded: !cacheKey.includes('rocket-v2') })
+  const makeImageCanvasSprite = (cacheKey, url) => ({ cacheKey, url, loaded: !cacheKey.includes('rocket-v3') })
 ` + source.replace(/^import .*\n/gm, ''))
 // Preserve textured ship paint and reflections; a one-time tint is cheaper
 // than filters on every animated frame and should not wash out the hull.
@@ -54,13 +54,25 @@ for (const landscape of [false, true]) {
 const preview = readFileSync('src/components/games/RaidShipSprite.tsx', 'utf8')
 assert.match(preview, /drawRaidBankingCell\(ctx, sprite, raidBankingFrameIndex\(0, viewLandscape, false\)/)
 assert.match(preview, /raidBankingPreviewAngle\(viewLandscape\)/)
+// Gundam/Spiegel use the original 2D artwork for landscape play and all selection views.
+for (const key of ['godGundam', 'godGundamBurning', 'spiegel', 'coreLander',
+                   'coreLanderBurning', 'coreLanderElite', 'coreLanderBurningElite']) {
+  assert.equal(art.isRaidGundamArt(key), true, key)
+  assert.equal(art.shouldUseRaidBankingArt(key, true), false, key)
+  assert.equal(art.getRaidBankingFrame(key, .12, true, false), null, key)
+  assert.equal(art.shouldUseRaidBankingArt(key, false), true, key)
+}
+assert.equal(art.isRaidGundamArt('rocket'), false)
+assert.equal(art.shouldUseRaidBankingArt('rocket', true), true)
+assert.match(preview, /isRaidGundamArt\(shipKey\) \? null : getRaidBankingAtlasUrl\(shipKey\)/)
+
 assert.equal(art.getRaidBankingAtlasUrl('mesiah'), art.getRaidBankingAtlasUrl('mesiahBlack'))
 assert.equal(art.getRaidBankingFrame('toString', 0, false, false), null)
 assert.equal(art.getRaidBankingFrame('rocket', 0, false, false), null, 'keep the original sprite until the atlas loads')
 assert.equal(art.getBankingProtectionHull(art.getRaidBankingAtlas('laser'), true).frame, 10)
 for (const [key, entry] of Object.entries(registrations)) {
   const sourceImage = readFileSync('public/assets/ships/banking/' + key + '-v1.webp')
-  const image = readFileSync('public/assets/ships/banking/' + key + '-v2.webp')
+  const image = readFileSync('public/assets/ships/banking/' + key + '-v3.webp')
   assert.equal(image.toString('ascii', 0, 4), 'RIFF', key)
   assert.equal(image.toString('ascii', 8, 16), 'WEBPVP8X', key)
   assert.equal(sourceImage.readUIntLE(24, 3) + 1, 224 * art.BANKING_COLUMNS, key)
