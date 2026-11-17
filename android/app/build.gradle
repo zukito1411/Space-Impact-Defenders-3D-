@@ -6,10 +6,11 @@ apply plugin: 'com.android.application'
 def androidReleaseNumber = (System.getenv('ANDROID_VERSION_CODE') ?: '1').toInteger()
 
 android {
+    // Retain the Java source namespace; the unique applicationId separates the installed 3D app.
     namespace = "com.zukito.spaceimpactdefender"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.zukito.spaceimpactdefender"
+        applicationId "com.zukito.spaceimpactdefender3d"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode (10000 + androidReleaseNumber)
@@ -43,7 +44,7 @@ android {
     }
     applicationVariants.configureEach { variant ->
         variant.outputs.configureEach {
-            outputFileName = "SpaceImpactDefender-${variant.name}.apk"
+            outputFileName = "SpaceImpactDefenders3D-${variant.name}.apk"
         }
     }
 }
