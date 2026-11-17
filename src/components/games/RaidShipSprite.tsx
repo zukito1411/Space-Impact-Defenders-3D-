@@ -1,6 +1,6 @@
-import { useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { RAID_ELITE_FRAME_PATHS } from './raid/shipArtwork'
-import { getRaidBankingAtlasUrl } from './raid/bankingArt'
+import { drawRaidBankingCell, getRaidBankingAtlas, getRaidBankingAtlasUrl, raidBankingFrameIndex, raidBankingPreviewAngle } from './raid/bankingArt'
 import { getRaidSideShipSpriteUrl } from './raid/sideArtwork'
 import { getPublicAssetUrl } from './sound'
 import { LEGACY_FIGHTER_COUNT, RAID_FIGHTER_ASSETS } from './raid/stageEncounters'
@@ -71,38 +71,66 @@ export function getRaidEliteSpriteUrl(variant: number) {
   return getPublicAssetUrl(RAID_ELITE_ASSET_PATHS[index])
 }
 
+// Preview the exact same lit 3D atlas used in flight. A DPR-aware Canvas is
+// sharper than a scaled CSS background and avoids decoding a duplicate atlas.
 export function RaidShipSprite({ shipKey, size, className = 'raid__ship-sprite', sideView }: { shipKey: string; size: number; className?: string; sideView?: boolean }) {
   const landscape = useLandscapeScreen()
   const viewLandscape = sideView ?? landscape
   const atlasUrl = getRaidBankingAtlasUrl(shipKey)
-  const [readyAtlasUrl, setReadyAtlasUrl] = useState<string | null>(null)
-  const ready = Boolean(atlasUrl && readyAtlasUrl === atlasUrl)
-  const fallback = (
-    <img
-      src={getRaidMenuShipSpriteUrl(shipKey, viewLandscape)}
-      alt=""
-      draggable={false}
-      style={{ width: size, height: size, objectFit: 'contain', display: ready ? 'none' : 'block' }}
-    />
-  )
-  if (!atlasUrl) return (
-    <span className={className} aria-hidden="true" style={{ display: 'inline-block', width: size, height: size, flexShrink: 0 }}>
-      {fallback}
-    </span>
-  )
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [loadedAtlas, setLoadedAtlas] = useState<string | null>(null)
+  const [failedAtlas, setFailedAtlas] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!atlasUrl) return
+    let active = true
+    const sprite = getRaidBankingAtlas(shipKey)
+    const paint = () => {
+      if (!active) return
+      const canvas = canvasRef.current
+      if (!sprite?.loaded || !canvas) {
+        setFailedAtlas(atlasUrl)
+        return
+      }
+      const ratio = Math.min(3, Math.max(1, window.devicePixelRatio || 1))
+      canvas.width = Math.max(1, Math.ceil(size * ratio))
+      canvas.height = Math.max(1, Math.ceil(size * ratio))
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        setFailedAtlas(atlasUrl)
+        return
+      }
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0)
+      ctx.clearRect(0, 0, size, size)
+      drawRaidBankingCell(ctx, sprite, raidBankingFrameIndex(0, viewLandscape, false), size / 2, size / 2, size)
+      setFailedAtlas(null)
+      setLoadedAtlas(atlasUrl)
+    }
+    if (sprite?.loaded) paint()
+    else if (sprite) void sprite.ready.then(paint)
+    else setFailedAtlas(atlasUrl)
+    return () => { active = false }
+  }, [atlasUrl, shipKey, size, viewLandscape])
+
+  const ready = atlasUrl !== null && loadedAtlas === atlasUrl && failedAtlas !== atlasUrl
+  const legacyFallback = !atlasUrl || failedAtlas === atlasUrl
   return (
-    <span className={className} aria-hidden="true" style={{ position: 'relative', display: 'inline-block', width: size, height: size, flexShrink: 0 }}>
-      {fallback}
-      <img src={atlasUrl} alt="" aria-hidden="true" onLoad={() => setReadyAtlasUrl(atlasUrl)}
-        onError={() => setReadyAtlasUrl(null)} style={{ display: 'none' }} />
-      {ready && <span aria-hidden="true" style={{
-        position: 'absolute', inset: 0, display: 'block',
-        backgroundImage: `url("${atlasUrl}")`, backgroundRepeat: 'no-repeat',
-        backgroundSize: '700% 200%', backgroundPosition: viewLandscape ? '50% 100%' : '50% 0%',
-        filter: 'brightness(0.86) contrast(0.97) saturate(0.84)',
-      }} />}
+    <span className={className} aria-hidden="true" style={{
+      position: 'relative', display: 'inline-flex', alignItems: 'center',
+      justifyContent: 'center', width: size, height: size, flexShrink: 0,
+    }}>
+      {legacyFallback && <img
+        src={getRaidMenuShipSpriteUrl(shipKey, viewLandscape)}
+        alt="" draggable={false}
+        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+      />}
+      {atlasUrl && <canvas ref={canvasRef} aria-hidden="true" style={{
+        position: 'absolute', left: 0, top: 0, width: '100%', height: '100%',
+        transform: `rotate(${raidBankingPreviewAngle(viewLandscape)}deg)`,
+        opacity: ready ? 1 : 0,
+        transition: 'opacity 140ms ease-out',
+        pointerEvents: 'none',
+      }}/>}
     </span>
   )
 }
-
-

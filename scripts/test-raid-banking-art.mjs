@@ -27,6 +27,27 @@ for (const [landscape, offset] of [[false, 0], [true, 7]]) {
     [0, 0, 3, 6, 6].map(i => i + offset))
   assert.equal(art.raidBankingFrameIndex(.14, landscape, true), 3 + offset)
 }
+// Flight atlases are always nose-up before the game's rotating landscape
+// camera. Preview cards must apply that same quarter-turn to the hull and
+// nozzle roots, without changing the portrait view.
+assert.equal(art.raidBankingPreviewAngle(false), 0)
+assert.equal(art.raidBankingPreviewAngle(true), 90)
+assert.deepEqual(art.raidBankingPreviewNozzle(.09, .42, false), {x:.09, y:.42})
+assert.deepEqual(art.raidBankingPreviewNozzle(.09, .42, true), {x:-.42, y:.09})
+for (const landscape of [false, true]) {
+  for (const bank of [-.14, -.08, -.035, 0, .028, .08, .14]) {
+    const index = art.raidBankingFrameIndex(bank, landscape, false) % art.BANKING_COLUMNS
+    const bakedAngle = (index - 3) * (.14 / 3)
+    const remainingAngle = art.raidBankingResidualAngle(bank, landscape, false)
+    assert.ok(Math.abs(bakedAngle + remainingAngle - bank) < 1e-9,
+      'subframe roll should complete—not double—the selected baked bank')
+    assert.ok(Math.abs(remainingAngle) <= .14/6 + 1e-12)
+  }
+  assert.equal(art.raidBankingResidualAngle(.12, landscape, true), 0)
+}
+const preview = readFileSync('src/components/games/RaidShipSprite.tsx', 'utf8')
+assert.match(preview, /drawRaidBankingCell\(ctx, sprite, raidBankingFrameIndex\(0, viewLandscape, false\)/)
+assert.match(preview, /raidBankingPreviewAngle\(viewLandscape\)/)
 assert.equal(art.getRaidBankingAtlasUrl('mesiah'), art.getRaidBankingAtlasUrl('mesiahBlack'))
 assert.equal(art.getRaidBankingFrame('toString', 0, false, false), null)
 assert.equal(art.getRaidBankingFrame('rocket', 0, false, false), null, 'keep the original sprite until the atlas loads')

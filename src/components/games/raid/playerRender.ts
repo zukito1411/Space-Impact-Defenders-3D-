@@ -1,5 +1,5 @@
 import { getRaidPlayerHullSize } from './playerMuzzle'
-import { drawRaidBankingCell, getBankingProtectionHull, getRaidBankingAtlas, getRaidBankingFrame } from './bankingArt'
+import { drawRaidBankingCell, getBankingProtectionHull, getRaidBankingAtlas, getRaidBankingFrame, raidBankingResidualAngle } from './bankingArt'
 import type { RaidBankingFrame } from './bankingArt'
 import { drawShipProtection, warmShipProtection } from './shipProtection'
 import { drawPlayerCondition } from './playerCondition'
@@ -936,9 +936,16 @@ export function drawRaidPlayer(
     flightPoses.set(color, pose)
   }
   const bank = updateFlightPose(pose, time, player.x)
+  // The atlas already contains the physical 3D roll. Only turn the small
+  // difference between the real bank and the nearest baked pose; rotating the
+  // full angle on top of the atlas caused an exaggerated, jittery double roll.
+  const bankedHullReady = player.ship.key !== 'coreLander' && player.hp > 0 &&
+    (Boolean(presentation) || phase === 'playing' || phase === 'paused') &&
+    Boolean(getRaidBankingAtlas(visualShipKey)?.loaded)
+  const hullRoll = bankedHullReady ? raidBankingResidualAngle(bank, landscape, reducedMotion) : bank
   ctx.save()
   ctx.translate(x, y)
-  ctx.rotate(!presentation && phase === 'playing' && player.hp > 0 && player.ship.key !== 'coreLander' ? bank : 0)
+  ctx.rotate(!presentation && phase === 'playing' && player.hp > 0 && player.ship.key !== 'coreLander' ? hullRoll : 0)
   ctx.translate(-x, -y)
   try {
   const size = getRaidPlayerHullSize(player.ship.key, viewportWidth, landscape, player.sizeScale) * (presentation?.scale ?? 1)
@@ -1110,7 +1117,7 @@ export function drawRaidPlayer(
       'rgba(255,226,178,.27)', .62 * Math.abs(sunlight) * (1 - eclipse))
   }
   if (spriteGlow) drawSpriteGlow(ctx, x, y, renderSize, spriteGlow, 0.68)
-  else if (!isDown && (!landscape || banking) && player.forceField <= 0 && player.shield <= 0) drawSpriteGlow(ctx, x, y, renderSize, environmentRim ?? hexToRgba(color, 0.09), 0.55)
+  else if (!isDown && (!landscape || banking) && player.forceField <= 0 && player.shield <= 0) drawSpriteGlow(ctx, x, y, renderSize, environmentRim ?? hexToRgba(color, 0.09), banking ? 0.20 : 0.55)
   if(dockReady&&dockPose&&coreLanderCombatModel){
     if((presentation?.engine??0)>0){
       const nozzle=getMechDockNozzles(coreLanderCombatModel,dockPose.frame),wake=renderSize*.55
@@ -1221,7 +1228,7 @@ export function drawRaidPlayer(
     )
   }
   if (sunSide && nozzles && player.ship.key !== 'coreLander' && !isDown && eclipse < .86) {
-    drawSolarHullRim(ctx, banking?.sprite ?? (sideSprite?.loaded ? sideSprite : sprite), x, y, renderSize, sunSide, .56 * Math.abs(sunlight) * (1 - eclipse), Boolean(sideSprite?.loaded), banking?.frame)
+    drawSolarHullRim(ctx, banking?.sprite ?? (sideSprite?.loaded ? sideSprite : sprite), x, y, renderSize, sunSide, (banking ? .38 : .56) * Math.abs(sunlight) * (1 - eclipse), Boolean(sideSprite?.loaded), banking?.frame)
   }
   if (coreLanderCombatModel && !dockReady && !isDown && (presentation?.engine ?? 1) > 0) {
     ctx.save()

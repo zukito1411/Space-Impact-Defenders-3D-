@@ -4371,11 +4371,21 @@
   gap: 4px;
   align-content: start;
 }
+/* Wide-screen ships need a real square view of the 3D hull, not the
+   37px-tall strip which crushed the portrait-oriented atlas artwork. */
 .raid--landscape .raid__ship-card .raid__ship-sprite {
-  width: 100% !important;
-  height: 37px !important;
+  width: min(78px, 10dvh) !important;
+  height: min(78px, 10dvh) !important;
+  justify-self: center;
   object-fit: contain;
-  margin: 0;
+  margin: 0 auto;
+}
+.raid--landscape .raid__ship-card .raid__ship-sprite canvas {
+  display: block;
+  image-rendering: auto;
+}
+.raid__ship-card--locked .raid__ship-sprite canvas {
+  filter: grayscale(1) brightness(0.34);
 }
 .raid--landscape .raid__ship-card span {
   font-size: 11px;
