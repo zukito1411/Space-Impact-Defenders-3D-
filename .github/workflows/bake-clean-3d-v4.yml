@@ -1,0 +1,57 @@
+name: Bake clean original-derived 3D banking art v4
+on:
+  push:
+    branches:
+      - fix/3d-clean-2d-fidelity
+    paths:
+      - .github/workflows/bake-clean-3d-v4.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  bake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout clean visual branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/3d-clean-2d-fidelity
+          persist-credentials: true
+
+      - name: Install image processing dependencies
+        run: python3 -m pip install --disable-pip-version-check "Pillow==11.3.0" "numpy==2.2.6"
+
+      - name: Rebuild 27 pose atlases from ORIGINAL v1 and 2D painted references
+        run: |
+          python3 scripts/match-3d-to-2d-palette.py
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+          from statistics import median
+          folder=Path("public/assets/ships/banking")
+          sources=sorted(folder.glob("*-v1.webp"))
+          assert len(sources)==27, f"expected 27 original atlases, got {len(sources)}"
+          for src in sources:
+              dest=src.with_name(src.name.replace("-v1.webp","-v4.webp"))
+              assert dest.is_file() and dest.stat().st_size>src.stat().st_size, dest
+              with Image.open(src) as original, Image.open(dest) as enhanced:
+                  assert original.size==(1568,448),src
+                  assert enhanced.size==(3136,896) and enhanced.mode=="RGBA",dest
+                  assert enhanced.getchannel("A").getextrema()[1]>0,dest
+          print("Verified 27 clean, high-DPI v4 atlases from untouched v1 source.")
+          PY
+
+      - name: Commit enhanced art to 3D branch only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f public/assets/ships/banking/*-v4.webp
+          if ! git diff --cached --quiet; then
+            git commit -m "art(3d): add 27 clean original-derived banking atlases"
+            git push origin HEAD:fix/3d-clean-2d-fidelity
+          fi
