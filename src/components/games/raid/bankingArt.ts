@@ -6,7 +6,8 @@ import anchors from './bankingAnchors.json'
 
 export const BANKING_COLUMNS = 7
 export const BANKING_ROWS = 2
-export const BANKING_CELL = 224
+export const BANKING_CELL = 448
+// Original v1 art is 224 px per pose; v2 bakes higher-quality 2x poses.
 // The source atlas is oriented nose-up for both flight-camera modes. UI previews
 // must apply the flight camera's quarter turn when shown on a landscape screen.
 export function raidBankingPreviewAngle(landscape: boolean) { return landscape ? 90 : 0 }
@@ -15,7 +16,7 @@ export function raidBankingPreviewNozzle(x: number, y: number, landscape: boolea
 }
 const LEVEL_FRAME = 3
 // Preserve the metal's original paint instead of flattening it to dim gray.
-export const RAID_BANKING_HULL_FILTER = 'brightness(0.97) contrast(1.16) saturate(1.23)'
+export const RAID_BANKING_HULL_FILTER = 'none'
 const BANKING_CACHE_LIMIT = 6
 const atlases = new Map<string, CanvasSpriteEntry>()
 
@@ -38,7 +39,7 @@ function bankingKey(shipKey: string) {
 
 export function getRaidBankingAtlasUrl(shipKey: string) {
   const key = bankingKey(shipKey)
-  return Object.prototype.hasOwnProperty.call(registrations, key) ? getPublicAssetUrl(`assets/ships/banking/${key}-v1.webp`) : null
+  return Object.prototype.hasOwnProperty.call(registrations, key) ? getPublicAssetUrl(`assets/ships/banking/${key}-v2.webp`) : null
 }
 
 // Hangar UI uses the same registered exhaust roots as the flight atlas.
@@ -59,51 +60,10 @@ export function getRaidBankingAtlas(shipKey: string) {
     atlases.delete(oldUrl)
     releaseCanvasSprite(oldAtlas)
   }
-  // Grade the atlas once rather than running a costly Canvas filter every frame.
-  // Keep engine emissives and sculpted panel detail while matching the darker
-  // cobalt/steel lighting of the playfield and the carrier hangar.
-  const sprite = makeImageCanvasSprite(`ship-banking:${url}`, url, (image) => {
-    if (typeof document === 'undefined') return null
-    const canvas = document.createElement('canvas')
-    canvas.width = image.naturalWidth
-    canvas.height = image.naturalHeight
-    const context = canvas.getContext('2d')
-    if (!context) return null
-    context.imageSmoothingEnabled = true
-    context.imageSmoothingQuality = 'high'
-    // The former 0.81 brightness / 0.82 saturation grade erased the
-    // paint and made metallic faces look gray in the hangar. Recover natural
-    // midtone color while preserving highlights; grade only once at decode.
-    context.filter = RAID_BANKING_HULL_FILTER
-    context.drawImage(image, 0, 0)
-    context.filter = 'none'
-    context.save()
-    context.globalCompositeOperation = 'source-atop'
-    // The same top-to-tail light balance in every atlas pose prevents visible
-    // hue jumps while banking, unlike a single gradient across the whole sheet.
-    for (let row = 0; row < BANKING_ROWS; row++) {
-      for (let col = 0; col < BANKING_COLUMNS; col++) {
-        const x = col * BANKING_CELL, y = row * BANKING_CELL
-        const lighting = context.createLinearGradient(x, y, x, y + BANKING_CELL)
-        lighting.addColorStop(0, 'rgba(55, 116, 165, 0.055)')
-        lighting.addColorStop(0.46, 'rgba(19, 51, 77, 0.02)')
-        lighting.addColorStop(1, 'rgba(3, 12, 27, 0.105)')
-        context.fillStyle = lighting
-        context.fillRect(x, y, BANKING_CELL, BANKING_CELL)
-        // A faint warm hangar/star reflection restores material depth rather
-        // than painting the whole ship the same cobalt-gray color. The glow
-        // is clipped to the original alpha and baked into each atlas frame.
-        const reflection = context.createLinearGradient(x, y, x + BANKING_CELL, y + BANKING_CELL * 0.18)
-        reflection.addColorStop(0, 'rgba(250, 185, 106, 0)')
-        reflection.addColorStop(0.68, 'rgba(250, 185, 106, 0.045)')
-        reflection.addColorStop(1, 'rgba(250, 185, 106, 0.01)')
-        context.fillStyle = reflection
-        context.fillRect(x, y, BANKING_CELL, BANKING_CELL)
-      }
-    }
-    context.restore()
-    return canvas
-  })
+  // Each frame is a 448 px, color-graded high-detail WebP baked offline.
+  // Draw its exact colors directly: a second color filter softens panel edges,
+  // desaturates metallic trim and doubles memory via a processed canvas copy.
+  const sprite = makeImageCanvasSprite(`ship-banking:${url}`, url)
   atlases.set(url, sprite)
   return sprite
 }
