@@ -1,5 +1,5 @@
 import { getRaidSideShipNozzles, getRaidSideShipSpriteUrl } from './components/games/raid/sideArtwork'
-import { getRaidBankingNozzles } from './components/games/raid/bankingArt'
+import { getRaidBankingNozzles, raidBankingPreviewNozzle } from './components/games/raid/bankingArt'
 import { getRaidExhaustScale, getRaidShipNozzles } from './components/games/raid/shipArtwork'
 import { getDefaultPlayerVisualShipKey, getRaidGundamName } from './components/games/raid/state'
 import { useDoorState } from './components/ui/SpaceDoor'
@@ -1402,9 +1402,9 @@ function App() {
                       className={`${trailClass} raid-hangar__trail--nozzle`}
                       key={`${x}:${y}`}
                       style={{
-                        left: `calc(50% + ${(bankedPreviewNozzles ? x : previewSide ? -y : x) * previewSize}px)`,
-                        top: `calc(50% + ${(bankedPreviewNozzles ? y : previewSide ? x : y) * previewSize}px)`,
-                        ...(previewSide && !bankedPreviewNozzles ? { transform: 'translateX(-50%) rotate(90deg)', transformOrigin: 'top center' } : {}),
+                        left: `calc(50% + ${(bankedPreviewNozzles ? raidBankingPreviewNozzle(x, y, landscapeScreen).x : previewSide ? -y : x) * previewSize}px)`,
+                        top: `calc(50% + ${(bankedPreviewNozzles ? raidBankingPreviewNozzle(x, y, landscapeScreen).y : previewSide ? x : y) * previewSize}px)`,
+                        ...((previewSide || (landscapeScreen && bankedPreviewNozzles)) ? { transform: 'translateX(-50%) rotate(90deg)', transformOrigin: 'top center' } : {}),
                         width: width * previewSize,
                         height: previewSize * getRaidExhaustScale(selectedSpriteKey, previewNozzles.length) * (selectedCosmetics.trail ? .57 : .42),
                       }}
