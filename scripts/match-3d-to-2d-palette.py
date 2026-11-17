@@ -114,10 +114,10 @@ def calibrate(key, image):
     return source_levels,target_levels,gain,target_hues
 
 def grade(tile, settings):
-    """Deepen shadows and painted highlights while matching each 2D ship.
+    """Maximum vivid paint and strong 2D-matched contrast on clean 3D poses.
 
-    Do not add sharpening or alter geometry/alpha; v1 source is denoised before
-    resizing, while this stage adjusts only the hue, saturation and value.
+    Saturate the existing painted metal and cockpits without introducing
+    sharpened halos, changing geometry, or tinting naturally neutral armor.
     """
     low, high, gain, target_hues = settings
     im = tile.convert("RGBA")
@@ -125,48 +125,54 @@ def grade(tile, settings):
     alpha = im.getchannel("A")
 
     hue = hsv[..., 0].astype(np.float32) / 255.0
-    saturation = hsv[..., 1].astype(np.float32) / 255.0
+    original_saturation = hsv[..., 1].astype(np.float32) / 255.0
     value = hsv[..., 2].astype(np.float32) / 255.0
 
-    # Stronger tonal separation than v5, but keep native bright specular
-    # accents and avoid crushing the source model's darkest panel features.
+    # Punchier separation of dark panels, colorful hull paint and bright
+    # specular highlights, driven by the corresponding original 2D artwork.
     matched = np.interp(value, low, high)
-    contrast_value = np.clip((matched - 0.5) * 1.20 + 0.5, 0.0, 1.0)
-    intensity = np.maximum(value * 0.72,
-                           value * 0.18 + contrast_value * 0.82)
-    intensity = np.clip(intensity, 0.0, 0.995)
+    contrast_value = np.clip((matched - 0.5) * 1.32 + 0.5, 0.0, 1.0)
+    intensity = np.maximum(value * 0.68,
+                           value * 0.12 + contrast_value * 0.88)
+    intensity = np.clip(intensity, 0.0, 0.998)
 
-    # Match saturation per ship to its own hand-painted side and portrait art.
-    # Reserve the larger chroma recovery for colored paint, rather than making
-    # neutral armor panels and reflected white highlights artificially colored.
-    sat_weight = np.clip((saturation - 0.05) / 0.28, 0.0, 1.0)
-    saturation = saturation * (1.14 + (gain - 1.0) * sat_weight * 1.18)
-    chroma_boost = np.clip((saturation - 0.12) / 0.38, 0.0, 1.0)
-    saturation = np.clip(saturation * (1.0 + chroma_boost * 0.22),
-                         0.0, 0.985)
+    # Very strong chroma only where paint already has hue. Do not create
+    # false colors in near-white, near-black or neutral metallic materials.
+    sat_weight = np.clip((original_saturation - 0.03) / 0.24, 0.0, 1.0)
+    saturation = original_saturation * (
+        1.22 + (gain - 1.0) * sat_weight * 1.35
+    )
+    chroma_boost = np.clip((saturation - 0.10) / 0.34, 0.0, 1.0)
+    saturation *= 1.0 + chroma_boost * 0.32
+    # Protect neutral areas based on the *original* source saturation,
+    # not the already-boosted saturation which would shift greys toward tint.
+    neutral_mask = np.clip((0.16 - original_saturation) / 0.16, 0.0, 1.0)
+    saturation *= 1.0 - neutral_mask * 0.18
+    saturation = np.clip(saturation, 0.0, 0.998)
 
-    # Pull saturated accent paint toward the matching 2D hue families while
-    # preserving lighting differences between physical banking poses.
+    # Steer saturated accents toward their matching ship's authentic
+    # hand-painted 2D hue families, while preserving banking illumination.
     if len(target_hues):
         distances = (hue[..., None] - target_hues + 0.5) % 1.0 - 0.5
         nearest = np.take_along_axis(
             distances, np.argmin(np.abs(distances), axis=-1)[..., None], -1
         )[..., 0]
-        weight = np.clip((0.18 - np.abs(nearest)) / 0.12, 0.0, 1.0) * np.clip(
-            (saturation - 0.10) / 0.45, 0.0, 0.45
+        weight = np.clip((0.20 - np.abs(nearest)) / 0.13, 0.0, 1.0) * np.clip(
+            (saturation - 0.08) / 0.42, 0.0, 0.55
         )
         hue = (hue - nearest * weight) % 1.0
 
-    hsv[..., 0] = np.clip(hue * 255, 0, 255).astype(np.uint8)
-    hsv[..., 1] = np.clip(saturation * 255, 0, 255).astype(np.uint8)
-    hsv[..., 2] = np.clip(intensity * 255, 0, 255).astype(np.uint8)
+    hsv[..., 0] = np.clip(hue * 255.0, 0, 255).astype(np.uint8)
+    hsv[..., 1] = np.clip(saturation * 255.0, 0, 255).astype(np.uint8)
+    hsv[..., 2] = np.clip(intensity * 255.0, 0, 255).astype(np.uint8)
+
     out = Image.fromarray(hsv, "HSV").convert("RGB")
     out.putalpha(alpha)
     return out
 
 def build(key, directory):
     source=directory/(key+"-v1.webp")
-    dest=directory/(key+"-v6.webp")
+    dest=directory/(key+"-v7.webp")
     with Image.open(source) as atlas:
         if atlas.size!=(COLS*SOURCE_CELL,ROWS*SOURCE_CELL):
             raise ValueError(f"{source}: invalid banking frame dimensions")
