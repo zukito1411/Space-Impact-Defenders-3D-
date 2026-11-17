@@ -850,6 +850,7 @@ export class PixiRaidBackground {
   private app: Application | null = null
   private spaceWorld3D: SpaceWorld3D | null = null
   private space3DVisible = false
+  private previousSkyVisible = true
   private readonly space3DHidden = new Map<{ visible: boolean }, boolean>()
   private destroyed = false
   private renderErrorReported = false
@@ -948,6 +949,8 @@ export class PixiRaidBackground {
     this.space3DVisible = active
     if (this.app?.canvas) (this.app.canvas as HTMLCanvasElement).dataset.space3d = active ? 'active' : 'legacy'
     if (active) {
+      this.previousSkyVisible = this.skyScene.visible
+      this.skyScene.visible = true
       for (const layer of [...this.skyScene.children, ...this.scene.children]) {
         if (layer === this.skyScene || layer === this.baseGraphics || layer === world.view) continue
         this.space3DHidden.set(layer, layer.visible)
@@ -956,6 +959,7 @@ export class PixiRaidBackground {
       world.view.visible = true
       this.baseGraphics.visible = true
     } else {
+      this.skyScene.visible = this.previousSkyVisible
       for (const [layer, visible] of this.space3DHidden) layer.visible = visible
       this.space3DHidden.clear()
       world.view.visible = false
