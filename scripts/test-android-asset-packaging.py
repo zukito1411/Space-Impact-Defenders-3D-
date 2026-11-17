@@ -21,6 +21,7 @@ def pack(public, directory):
     assert (dist / "audio/ATTRIBUTION.txt").read_bytes() == b"source credits"
     assert (dist / "assets/catalog.json").read_bytes() == b'{"assets":[]}'
     manifest = json.loads((dist / "native-assets.json").read_text())
+    assert manifest["baseUrl"] == "https://github.com/zukito1411/Space-Impact-Defenders-3D-/releases/download/android-3d-assets-v1/"
     media_by_hash = {}
     for name, asset in manifest["files"].items():
         assert not (dist / name).exists()
