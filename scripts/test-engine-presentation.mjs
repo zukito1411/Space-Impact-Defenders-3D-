@@ -15,6 +15,8 @@ const getCoreLanderFireInterval=()=>.5,sampleMechAttack=()=>({frame:3,stage:'idl
 const getShipCanvasSprite=()=>({});
 // Exercise the existing sprite/exhaust fallback; banking atlases are tested separately.
 const getRaidBankingFrame=()=>globalThis.testBankingEnabled?{sprite:{loaded:true,cacheKey:'banking-test'},frame:3,nozzles:[[0,.22,.05]]}:null;
+const getRaidBankingAtlas=()=>globalThis.testBankingEnabled?{loaded:true}:null;
+const raidBankingResidualAngle=()=>0;
 const drawRaidBankingCell=(ctx)=>{ctx.bankedCells=(ctx.bankedCells??0)+1;};
 const warmSpaceJetForceField=()=>{};
 const getRaidSideShipCanvasSprite=()=>({loaded:true}),getRaidSideShipNozzles=()=>[[.10,.22,.05]],drawCanvasSpriteContain=(ctx,sprite,x,y,size)=>ctx.hulls.push(size);
