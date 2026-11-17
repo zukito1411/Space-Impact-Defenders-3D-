@@ -69,7 +69,7 @@ assert.match(baker, /"-v7.webp"/)
 const preview = readFileSync('src/components/games/RaidShipSprite.tsx', 'utf8')
 assert.match(preview, /drawRaidBankingCell\(ctx, sprite, raidBankingFrameIndex\(0, viewLandscape, false\)/)
 assert.match(preview, /raidBankingPreviewAngle\(viewLandscape\)/)
-// Gundam/Spiegel use the original 2D artwork for landscape play and all selection views.
+// Gundam/Spiegel stay 2D in landscape gameplay; selector previews are 3D.
 for (const key of ['godGundam', 'godGundamBurning', 'spiegel', 'coreLander',
                    'coreLanderBurning', 'coreLanderElite', 'coreLanderBurningElite']) {
   assert.equal(art.isRaidGundamArt(key), true, key)
@@ -86,10 +86,10 @@ assert.ok(picker.includes('<RaidShipPickerPreview shipKey={shipSpriteKey} landsc
 assert.ok(!picker.includes('<small>{locked ? lockedCopy : shipCopy.role}</small>'), 'ship cards show names only')
 assert.ok(source.includes('${key}-v8.webp'), 'clean Mesiah textures must be addressed by renderer')
 for (const key of ['mesiah', 'mesiahBlack', 'mesiahWhite']) {
-  assert.match(art.getRaidBankingAtlasUrl(key), /-v8\\.webp$/, key)
+  assert.ok(art.getRaidBankingAtlasUrl(key)?.endsWith('-v8.webp'), key)
 }
 for (const key of ['rocket', 'xwing', 'spaceEt', 'godGundam']) {
-  assert.match(art.getRaidBankingAtlasUrl(key), /-v7\\.webp$/, key)
+  assert.ok(art.getRaidBankingAtlasUrl(key)?.endsWith('-v7.webp'), key)
 }
 for (const key of ['mesiahBlack', 'mesiahWhite']) {
   const image = readFileSync(bankingDir + key + '-v8.webp')
