@@ -133,7 +133,7 @@ jobs:
           APK="android/app/build/outputs/apk/release/SpaceImpactDefenders3D-release.apk"
           test -s "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
-          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -F "package: name=\u0027com.zukito.spaceimpactdefender3d\u0027"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.zukito.spaceimpactdefender3d'"
 
       - name: Verify APK media separation
         run: |
