@@ -21,8 +21,14 @@ jobs:
         with:
           ref: fix/3d-fidelity-dpr-and-texture-detail
           persist-credentials: true
+      - name: Use prebuilt Python 3.11 image processing wheels
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: scripts/match-3d-to-2d-palette.py
       - name: Install pixel processing dependencies
-        run: python3 -m pip install 'Pillow==11.3.0' 'numpy==2.2.6'
+        run: python3 -m pip install --only-binary=:all: 'Pillow==11.3.0' 'numpy==2.2.6'
       - name: Regenerate all detail-preserving 3D atlases from original source
         run: |
           python3 scripts/match-3d-to-2d-palette.py
