@@ -990,6 +990,16 @@ export class PixiRaidBackground {
       }
     }
     if (this.destroyed) return false
+    // Import the 3D extension BEFORE Pixi creates the renderer so its
+    // render-pipe plugins register with this exact GPU device.
+    let create3DWorld: (() => SpaceWorld3D) | null = null
+    try {
+      const extension = await import('./spaceWorld3D')
+      create3DWorld = () => new extension.SpaceWorld3D()
+    } catch (error) {
+      console.warn('Optional 3D extension unavailable; continuing with 2D scenery:', error)
+    }
+    if (this.destroyed) return false
     // Reuse the existing Pixi scene, texture pooling and render loop. There is
     // only one GPU canvas/context: never layer Three.js over the 2D effects.
     // Pixi auto-detects backends; retry WebGL with a fresh Application if an
@@ -1107,17 +1117,17 @@ export class PixiRaidBackground {
       await this.loadAssets()
       if (this.app !== app) return false
 
-      // Experimental 3D space is isolated and optional. A missing extension
-      // or unsupported WebGPU feature cannot block the existing 2D renderer.
-      try {
-        const { SpaceWorld3D } = await import('./spaceWorld3D')
-        if (this.destroyed || this.app !== app) return false
-        const cosmos = new SpaceWorld3D()
-        cosmos.view.visible = false
-        this.spaceWorld3D = cosmos
-        this.skyScene.addChildAt(cosmos.view, 1)
-      } catch (error) {
-        console.warn('3D space world unavailable; retaining established scenery:', error)
+      // Construct the optional scene after textures decode but before flight.
+      // Missing extension/driver support never interrupts gameplay.
+      if (create3DWorld) {
+        try {
+          const cosmos = create3DWorld()
+          cosmos.view.visible = false
+          this.spaceWorld3D = cosmos
+          this.skyScene.addChildAt(cosmos.view, 1)
+        } catch (error) {
+          console.warn('3D space world unavailable; retaining established scenery:', error)
+        }
       }
       this.landscapeAtmosphere.warm()
       const cancelled = new Promise<boolean>((resolve) => {
@@ -1135,6 +1145,20 @@ export class PixiRaidBackground {
       if (this.app !== app) return false
       this.foregroundPrepared = prepared
       if (!prepared) this.gpuForeground.root.visible = false
+      // Compile the 3D mesh pipelines while the launch briefing is active,
+      // not on the first live combat frame where shader compilation stutters.
+      if (this.spaceWorld3D) {
+        const cosmos = this.spaceWorld3D
+        try {
+          cosmos.view.visible = true
+          app.render()
+          cosmos.view.visible = false
+        } catch (error) {
+          console.warn('3D scene warmup failed; retaining original scenery:', error)
+          try { cosmos.destroy() } catch { /* context may already be lost */ }
+          this.spaceWorld3D = null
+        }
+      }
       return true
     } catch (error) {
       if (!this.destroyed) console.warn('Raid GPU renderer initialization failed; using Canvas fallback:', error)
