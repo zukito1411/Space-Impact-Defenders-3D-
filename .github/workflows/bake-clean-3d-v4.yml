@@ -5,6 +5,7 @@ on:
       - fix/3d-clean-2d-fidelity
     paths:
       - .github/workflows/bake-clean-3d-v4.yml
+      - scripts/match-3d-to-2d-palette.py
   workflow_dispatch:
 
 permissions:
