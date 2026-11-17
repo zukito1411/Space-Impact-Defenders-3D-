@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - scripts/match-3d-to-2d-palette.py
+      - .github/workflows/bake-vivid-3d-palette.yml
   workflow_dispatch:
 
 permissions:
@@ -58,7 +59,12 @@ jobs:
               p=Path(name)
               data=p.read_text()
               assert '-v5.webp' in data, f'{name}: expected old atlas reference not found'
-              p.write_text(data.replace('-v5.webp','-v6.webp'))
+              data=data.replace('-v5.webp','-v6.webp')
+              if name.endswith('test-raid-banking-art.mjs'):
+                  # The isolated renderer mock contains rocket-v5 without
+                  # the .webp extension and must follow the new atlas version.
+                  data=data.replace('rocket-v5','rocket-v6')
+              p.write_text(data)
           PY
 
       - name: Verify 3D ship rendering logic and compile production game
