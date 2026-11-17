@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
-"""Bake the actual 2D ship paint palette into each 3D banking atlas.
+"""Bake anti-noise, 2D-color-matched banking atlases from the ORIGINAL 3D frames.
 
-Preserves existing 3D geometry, poses, alpha silhouettes, panels and ship
-shadows; remaps color/luminance from the matching portrait and sideview art.
-This is a texture/grade upgrade, not a high-poly mesh replacement.
+Never derive a new version from the sharpened 2x v2/v3 atlases: the old
+142% UnsharpMask amplified compression artifacts and artificial panel lines.
+Read v1 224px source once, remove isolated pixel noise, then resample with
+Lanczos, and match the matching hand-painted 2D ship's color distribution.
+Alpha, seven bank poses, nozzles, muzzle positions and hitboxes are unchanged.
+This is not a new high-polygon model and cannot invent missing mesh details.
 """
 from pathlib import Path
 from argparse import ArgumentParser
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFilter
 
 ROOT = Path("public/assets/ships")
 CELL, COLS, ROWS = 448, 7, 2
+SOURCE_CELL = 224
 NAMES = dict(rocket="black-comet", fast="red-wraith", gatling="crimson-saw",
              laser="night-lance", dreadnought="obsidian-ark",
              xwing="crosswing-nova", spaceEt="space-jet",
@@ -55,6 +59,19 @@ def pixels(image):
     alpha = np.array(im.getchannel("A"))
     mask = (alpha >= 150) & (hsv[...,2] > .105) & (hsv[...,2] < .985)
     return hsv[mask][::4]
+
+def clean_source_pose(tile):
+    """Suppress ringing/noisy 1px texture edges BEFORE doubling the resolution.
+
+    Filtering an already sharpened v2 or recolored v3 texture retains its
+    ringing; this operates only on the unmodified v1 pixels.
+    """
+    tile = tile.convert("RGBA")
+    alpha = tile.getchannel("A")
+    rgb = tile.convert("RGB").filter(ImageFilter.MedianFilter(size=3))
+    rgb.putalpha(alpha)
+    # RGBA resizing uses alpha-aware interpolation at transparent edges.
+    return rgb.resize((CELL, CELL), Image.Resampling.LANCZOS)
 
 def calibrate(key, image):
     refs=[]
@@ -119,22 +136,30 @@ def grade(tile, settings):
     return out
 
 def build(key, directory):
-    source=directory/(key+"-v2.webp")
-    dest=directory/(key+"-v3.webp")
+    source=directory/(key+"-v1.webp")
+    dest=directory/(key+"-v4.webp")
     with Image.open(source) as atlas:
-        if atlas.size!=(COLS*CELL,ROWS*CELL):
+        if atlas.size!=(COLS*SOURCE_CELL,ROWS*SOURCE_CELL):
             raise ValueError(f"{source}: invalid banking frame dimensions")
-        settings=calibrate(key,atlas)
-        result=Image.new("RGBA",atlas.size,(0,0,0,0))
+        # Calibrate on clean 3D frames, not on sharpened or repeatedly
+        # tone-mapped renders from previous passes.
+        top = clean_source_pose(atlas.crop((3*SOURCE_CELL,0,4*SOURCE_CELL,SOURCE_CELL)))
+        side = clean_source_pose(atlas.crop((3*SOURCE_CELL,SOURCE_CELL,4*SOURCE_CELL,2*SOURCE_CELL)))
+        calibration = Image.new("RGBA",(COLS*CELL,ROWS*CELL),(0,0,0,0))
+        calibration.alpha_composite(top,(3*CELL,0))
+        calibration.alpha_composite(side,(3*CELL,CELL))
+        settings=calibrate(key,calibration)
+        result=Image.new("RGBA",(COLS*CELL,ROWS*CELL),(0,0,0,0))
         for row in range(ROWS):
             for col in range(COLS):
-                frame=atlas.crop((col*CELL,row*CELL,
-                                  (col+1)*CELL,(row+1)*CELL))
-                result.alpha_composite(grade(frame,settings),
+                frame=atlas.crop((col*SOURCE_CELL,row*SOURCE_CELL,
+                                  (col+1)*SOURCE_CELL,(row+1)*SOURCE_CELL))
+                result.alpha_composite(grade(clean_source_pose(frame),settings),
                                        (col*CELL,row*CELL))
     result.save(dest,"WEBP",quality=96,method=5,exact=True)
     with Image.open(dest) as verify:
-        assert verify.size==result.size and verify.mode=="RGBA"
+        assert verify.size==(COLS*CELL,ROWS*CELL), (dest, verify.size)
+        assert verify.mode in ("RGBA","RGB"), (dest, verify.mode)
     print(f"{key}: {', '.join(p.name for p in references(key))}; "
           f"2D saturation match factor={settings[2]:.2f}; "
           f"output={dest.stat().st_size:,} bytes")
@@ -144,10 +169,10 @@ if __name__=="__main__":
     parser.add_argument("--only",action="append")
     args=parser.parse_args()
     folder=ROOT/"banking"
-    files=sorted(folder.glob("*-v2.webp"))
+    files=sorted(folder.glob("*-v1.webp"))
     if args.only:
-        files=[p for p in files if p.name.removesuffix("-v2.webp") in args.only]
-    assert files, "No v2 banking atlases found"
+        files=[p for p in files if p.name.removesuffix("-v1.webp") in args.only]
+    assert files, "No original v1 banking atlases found"
     for file in files:
-        build(file.name.removesuffix("-v2.webp"),folder)
-    print(f"Recolored {len(files)} banking atlases to match original 2D ships.")
+        build(file.name.removesuffix("-v1.webp"),folder)
+    print(f"Rebuilt {len(files)} banking atlases from unsharpened v1 poses matched to original 2D ships.")

@@ -8363,7 +8363,7 @@ export function GradiusRaid({
                         if (!locked) chooseShip(ship)
                       }}
                     >
-                      <RaidShipSprite shipKey={shipSpriteKey} size={getShipSpriteSize(ship.key, 'picker')} sideView={landscape} />
+                      <RaidShipSprite shipKey={shipSpriteKey} size={getShipSpriteSize(ship.key, 'picker')} sideView={landscape} preferOriginalArt />
                       <span>{ship.key === 'coreLander' ? getRaidGundamName(shipSpriteKey) : shipCopy.name}</span>
                       <small>{locked ? lockedCopy : shipCopy.role}</small>
                     </button>

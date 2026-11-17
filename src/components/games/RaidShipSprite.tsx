@@ -71,14 +71,15 @@ export function getRaidEliteSpriteUrl(variant: number) {
   return getPublicAssetUrl(RAID_ELITE_ASSET_PATHS[index])
 }
 
-// Preview the exact same lit 3D atlas used in flight. A DPR-aware Canvas is
-// sharper than a scaled CSS background and avoids decoding a duplicate atlas.
-export function RaidShipSprite({ shipKey, size, className = 'raid__ship-sprite', sideView }: { shipKey: string; size: number; className?: string; sideView?: boolean }) {
+// Hangar and other 3D previews use a DPR-aware Canvas backed by the
+// palette-matched atlas. The ship-selection cards opt into the original 2D art.
+export function RaidShipSprite({ shipKey, size, className = 'raid__ship-sprite', sideView, preferOriginalArt = false }: { shipKey: string; size: number; className?: string; sideView?: boolean; preferOriginalArt?: boolean }) {
   const landscape = useLandscapeScreen()
   const viewLandscape = sideView ?? landscape
-  // Hand-painted Gundam and Spiegel selection sprites must remain 2D in both
-  // orientations. The landscape variants are already drawn facing right.
-  const atlasUrl = isRaidGundamArt(shipKey) ? null : getRaidBankingAtlasUrl(shipKey)
+  // Keep the original 2D art in the ship picker: the small card should show
+  // faithfully painted details rather than a magnified, baked banking frame.
+  // In-flight, the hangar and support ships still use the corrected 3D atlas.
+  const atlasUrl = (preferOriginalArt || isRaidGundamArt(shipKey)) ? null : getRaidBankingAtlasUrl(shipKey)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [loadedAtlas, setLoadedAtlas] = useState<string | null>(null)
   const [failedAtlas, setFailedAtlas] = useState<string | null>(null)
