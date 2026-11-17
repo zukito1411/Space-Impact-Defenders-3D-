@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { getRaidText, type LanguageCode } from '../i18n'
 import { getGameAudioMixSettings, getGraphicsQuality, setGameAudioMixSettings, setGraphicsQuality, type AudioMixSettings, type GraphicsQuality } from './games/sound'
 import { useRaidFlightView } from './games/raid/flightView'
+import { getRaidRendererPreference, getWebGpuCapability, setRaidRendererPreference, type RaidRendererPreference } from './games/raid/renderBackend'
 import { GameDialog } from './ui/GameDialog'
 import { GameButton } from './ui/GameButton'
 import { FlightViewControls } from './ui/FlightViewControls'
@@ -12,6 +13,7 @@ export function HomeSettingsDialog({ language, onClose }: { language: LanguageCo
   const text = getRaidText(language).menu
   const [landscape, setLandscape] = useRaidFlightView()
   const [quality, setQuality] = useState(getGraphicsQuality)
+  const [renderer, setRenderer] = useState(getRaidRendererPreference)
   const [mix, setMix] = useState(getGameAudioMixSettings)
   const controls: { key: keyof AudioMixSettings; label: string }[] = [
     { key: 'master', label: text.masterVolume }, { key: 'bgm', label: text.bgmVolume },
@@ -36,6 +38,24 @@ export function HomeSettingsDialog({ language, onClose }: { language: LanguageCo
                 <button key={value} type="button" className={`raid__gfx-btn${quality === value ? ' raid__gfx-btn--active' : ''}`} aria-pressed={quality === value} onClick={() => { setGraphicsQuality(value); setQuality(value) }}>{text[value]}</button>
               ))}
             </div>
+          </div>
+          <div className="raid__settings-section">
+            <span className="raid__settings-heading">3D rendering backend</span>
+            <div className="raid__gfx-row raid__gfx-row--settings" role="group" aria-label="3D rendering backend">
+              {(['auto', 'webgpu', 'webgl'] as RaidRendererPreference[]).map(value => (
+                <button key={value} type="button" className={`raid__gfx-btn${renderer === value ? ' raid__gfx-btn--active' : ''}`}
+                  aria-pressed={renderer === value}
+                  onClick={() => { setRaidRendererPreference(value); setRenderer(value) }}>
+                  {value === 'auto' ? 'Auto' : value === 'webgpu' ? 'WebGPU' : 'WebGL'}
+                </button>
+              ))}
+            </div>
+            <p className="home-settings__renderer-hint">
+              {getWebGpuCapability()
+                ? 'Auto prefers WebGPU with a WebGL fallback. Choose WebGL if your device runs smoother with it.'
+                : 'WebGPU is unavailable in this browser. The game uses WebGL where supported.'}
+              {' '}Changes take effect when the next raid opens.
+            </p>
           </div>
           <div className="raid__settings-section home-settings__audio">
             <span className="raid__settings-heading">{text.audioSettings}</span>
