@@ -23,6 +23,8 @@ jobs:
         run: npm ci
       - name: Verify standalone 3D Android identity
         run: python3 scripts/test-3d-android-identity.py
+      - name: Verify authored Blender ship renderer and original 2D references
+        run: python3 scripts/test-source-model-pipeline.py
       - name: Test Air Raid frame recovery
         run: node --experimental-strip-types scripts/test-raid-frame-loop.mjs
       - name: Test Air Raid collision broad phase
