@@ -19,13 +19,14 @@ const art = await compile(`
   const anchors = ${JSON.stringify(registrations)}
   const getPublicAssetUrl = path => '/base/' + path
   const releaseCanvasSprite = () => {}
-  const makeImageCanvasSprite = (cacheKey, url) => ({ cacheKey, url, loaded: !cacheKey.includes('rocket-v1') })
+  const makeImageCanvasSprite = (cacheKey, url) => ({ cacheKey, url, loaded: !cacheKey.includes('rocket-v2') })
 ` + source.replace(/^import .*\n/gm, ''))
 // Preserve textured ship paint and reflections; a one-time tint is cheaper
 // than filters on every animated frame and should not wash out the hull.
-assert.equal(art.RAID_BANKING_HULL_FILTER, 'brightness(0.97) contrast(1.16) saturate(1.23)')
-assert.match(source, /globalCompositeOperation = 'source-atop'/)
-assert.match(source, /context\.imageSmoothingQuality = 'high'/)
+assert.equal(art.RAID_BANKING_HULL_FILTER, 'none')
+assert.equal(art.BANKING_CELL, 448, 'banking poses must be high-DPI source resolution')
+assert.match(source, /makeImageCanvasSprite\(`ship-banking:/)
+assert.doesNotMatch(source, /globalCompositeOperation = 'source-atop'/)
 // Use the in-game indexing logic to exercise extremes, the portrait/landscape split and reduced motion.
 for (const [landscape, offset] of [[false, 0], [true, 7]]) {
   assert.deepEqual([-.3, -.14, 0, .14, .3].map(bank => art.raidBankingFrameIndex(bank, landscape, false)),
@@ -58,11 +59,15 @@ assert.equal(art.getRaidBankingFrame('toString', 0, false, false), null)
 assert.equal(art.getRaidBankingFrame('rocket', 0, false, false), null, 'keep the original sprite until the atlas loads')
 assert.equal(art.getBankingProtectionHull(art.getRaidBankingAtlas('laser'), true).frame, 10)
 for (const [key, entry] of Object.entries(registrations)) {
-  const image = readFileSync('public/assets/ships/banking/' + key + '-v1.webp')
+  const sourceImage = readFileSync('public/assets/ships/banking/' + key + '-v1.webp')
+  const image = readFileSync('public/assets/ships/banking/' + key + '-v2.webp')
   assert.equal(image.toString('ascii', 0, 4), 'RIFF', key)
   assert.equal(image.toString('ascii', 8, 16), 'WEBPVP8X', key)
+  assert.equal(sourceImage.readUIntLE(24, 3) + 1, 224 * art.BANKING_COLUMNS, key)
+  assert.equal(sourceImage.readUIntLE(27, 3) + 1, 224 * art.BANKING_ROWS, key)
   assert.equal(image.readUIntLE(24, 3) + 1, art.BANKING_CELL * art.BANKING_COLUMNS, key)
   assert.equal(image.readUIntLE(27, 3) + 1, art.BANKING_CELL * art.BANKING_ROWS, key)
+  assert.ok(image.byteLength > sourceImage.byteLength, key + ': enhanced atlas should contain more encoded detail')
   assert.equal(entry.nozzles.length, 14, key)
   for (const outlets of entry.nozzles) {
     assert.ok(outlets.length > 0, key)
