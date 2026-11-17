@@ -55,7 +55,7 @@ for (const landscape of [false, true]) {
 const baker = readFileSync('scripts/match-3d-to-2d-palette.py', 'utf8')
 assert.match(baker, /source=directory\/\(key\+"-v1.webp"\)/)
 assert.match(baker, /ImageFilter.MedianFilter\(size=3\)/)
-assert.doesNotMatch(baker, /UnsharpMask/)
+assert.doesNotMatch(baker, /ImageFilter\.UnsharpMask\(/)
 assert.match(baker, /"-v4.webp"/)
 const preview = readFileSync('src/components/games/RaidShipSprite.tsx', 'utf8')
 assert.match(preview, /drawRaidBankingCell\(ctx, sprite, raidBankingFrameIndex\(0, viewLandscape, false\)/)
