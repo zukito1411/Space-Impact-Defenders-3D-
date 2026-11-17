@@ -52,7 +52,7 @@ function bankingKey(shipKey: string) {
 
 export function getRaidBankingAtlasUrl(shipKey: string) {
   const key = bankingKey(shipKey)
-  return Object.prototype.hasOwnProperty.call(registrations, key) ? getPublicAssetUrl(`assets/ships/banking/${key}-v6.webp`) : null
+  return Object.prototype.hasOwnProperty.call(registrations, key) ? getPublicAssetUrl(`assets/ships/banking/${key}-v7.webp`) : null
 }
 
 // Hangar UI uses the same registered exhaust roots as the flight atlas.
