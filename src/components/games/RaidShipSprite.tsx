@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { RAID_ELITE_FRAME_PATHS } from './raid/shipArtwork'
-import { drawRaidBankingCell, getRaidBankingAtlas, getRaidBankingAtlasUrl, raidBankingFrameIndex, raidBankingPreviewAngle } from './raid/bankingArt'
+import { drawRaidBankingCell, getRaidBankingAtlas, getRaidBankingAtlasUrl, isRaidGundamArt, raidBankingFrameIndex, raidBankingPreviewAngle } from './raid/bankingArt'
 import { getRaidSideShipSpriteUrl } from './raid/sideArtwork'
 import { getPublicAssetUrl } from './sound'
 import { LEGACY_FIGHTER_COUNT, RAID_FIGHTER_ASSETS } from './raid/stageEncounters'
@@ -76,7 +76,9 @@ export function getRaidEliteSpriteUrl(variant: number) {
 export function RaidShipSprite({ shipKey, size, className = 'raid__ship-sprite', sideView }: { shipKey: string; size: number; className?: string; sideView?: boolean }) {
   const landscape = useLandscapeScreen()
   const viewLandscape = sideView ?? landscape
-  const atlasUrl = getRaidBankingAtlasUrl(shipKey)
+  // Hand-painted Gundam and Spiegel selection sprites must remain 2D in both
+  // orientations. The landscape variants are already drawn facing right.
+  const atlasUrl = isRaidGundamArt(shipKey) ? null : getRaidBankingAtlasUrl(shipKey)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [loadedAtlas, setLoadedAtlas] = useState<string | null>(null)
   const [failedAtlas, setFailedAtlas] = useState<string | null>(null)
