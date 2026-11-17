@@ -60,6 +60,19 @@ jobs:
       - name: Copy web assets and sync Capacitor plugins
         run: npx cap sync android
 
+      - name: Build game-branded 3D Android launcher icons
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Use an isolated wheel target; works on runners with externally
+          # managed system Python without changing the Android toolchain.
+          python3 -m pip install --disable-pip-version-check --quiet \
+            --target "$RUNNER_TEMP/icon-pillow" "Pillow>=10,<13"
+          PYTHONPATH="$RUNNER_TEMP/icon-pillow" python3 scripts/build-3d-android-launcher-icons.py
+          test -s android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+          test -s android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png
+          test -s android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png
+
       - name: Restore persistent Android signing identity
         env:
           GH_TOKEN: ${{ github.token }}
