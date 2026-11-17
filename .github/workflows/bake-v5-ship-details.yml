@@ -1,0 +1,54 @@
+name: Bake high-fidelity 3D ship texture v5 (one time)
+on:
+  push:
+    branches:
+      - fix/3d-fidelity-dpr-and-texture-detail
+    paths:
+      - .github/workflows/bake-v5-ship-details.yml
+      - scripts/match-3d-to-2d-palette.py
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  bake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Check out dedicated 3D visual branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/3d-fidelity-dpr-and-texture-detail
+          persist-credentials: true
+      - name: Install pixel processing dependencies
+        run: python3 -m pip install 'Pillow==11.3.0' 'numpy==2.2.6'
+      - name: Regenerate all detail-preserving 3D atlases from original source
+        run: |
+          python3 scripts/match-3d-to-2d-palette.py
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+          bank = Path("public/assets/ships/banking")
+          originals = sorted(bank.glob("*-v1.webp"))
+          assert len(originals) == 27, f"Expected 27 3D ships; got {len(originals)}"
+          for src in originals:
+              dest = src.with_name(src.name.replace("-v1.webp", "-v5.webp"))
+              assert dest.is_file(), dest
+              with Image.open(src) as original, Image.open(dest) as baked:
+                  assert original.size == (1568, 448), (src, original.size)
+                  assert baked.size == (3136, 896), (dest, baked.size)
+                  assert baked.getchannel("A").getextrema()[1] == 255, dest
+          print("27 detail-preserving v5 3D banking atlases verified")
+          PY
+      - name: Commit exactly the new 3D ship assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f public/assets/ships/banking/*-v5.webp
+          if ! git diff --cached --quiet; then
+            git commit -m 'art(3d): bake 27 native-detail v5 ship banking atlases'
+            git push origin HEAD:fix/3d-fidelity-dpr-and-texture-detail
+          fi
