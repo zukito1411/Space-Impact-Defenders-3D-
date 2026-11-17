@@ -71,6 +71,36 @@ export function getRaidEliteSpriteUrl(variant: number) {
   return getPublicAssetUrl(RAID_ELITE_ASSET_PATHS[index])
 }
 
+// Ship-picker previews are pre-cropped directly from each ship's actual 3D
+// banking atlas (both camera orientations). They are lighter and much clearer
+// than loading all 27 full multi-pose textures onto the selection screen.
+export function getRaidPicker3DPreviewUrl(shipKey: string, landscape: boolean) {
+  if (!getRaidBankingAtlasUrl(shipKey)) return null
+  const key = shipKey === 'mesiah' ? 'mesiahBlack' : shipKey
+  return getPublicAssetUrl(`assets/ships/previews/${key}-${landscape ? 'landscape' : 'portrait'}-v1.webp`)
+}
+
+export function RaidShipPickerPreview({ shipKey, landscape }: { shipKey: string; landscape: boolean }) {
+  const previewUrl = getRaidPicker3DPreviewUrl(shipKey, landscape)
+  const [failedUrl, setFailedUrl] = useState<string | null>(null)
+  const source = previewUrl && failedUrl !== previewUrl
+    ? previewUrl
+    : getRaidMenuShipSpriteUrl(shipKey, landscape)
+
+  return (
+    <span className="raid__ship-preview" aria-hidden="true">
+      <img
+        key={source}
+        src={source}
+        alt=""
+        draggable={false}
+        decoding="async"
+        onError={() => { if (previewUrl && failedUrl !== previewUrl) setFailedUrl(previewUrl) }}
+      />
+    </span>
+  )
+}
+
 // Hangar and other 3D previews use a DPR-aware Canvas backed by the
 // palette-matched atlas. The ship-selection cards opt into the original 2D art.
 export function RaidShipSprite({ shipKey, size, className = 'raid__ship-sprite', sideView, preferOriginalArt = false }: { shipKey: string; size: number; className?: string; sideView?: boolean; preferOriginalArt?: boolean }) {
