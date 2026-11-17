@@ -158,7 +158,8 @@ def build(key, directory):
                                        (col*CELL,row*CELL))
     result.save(dest,"WEBP",quality=96,method=5,exact=True)
     with Image.open(dest) as verify:
-        assert verify.size==(COLS*CELL,ROWS*CELL), (dest, verify.size)\n        assert verify.mode in ("RGBA","RGB"), (dest, verify.mode)
+        assert verify.size==(COLS*CELL,ROWS*CELL), (dest, verify.size)
+        assert verify.mode in ("RGBA","RGB"), (dest, verify.mode)
     print(f"{key}: {', '.join(p.name for p in references(key))}; "
           f"2D saturation match factor={settings[2]:.2f}; "
           f"output={dest.stat().st_size:,} bytes")
