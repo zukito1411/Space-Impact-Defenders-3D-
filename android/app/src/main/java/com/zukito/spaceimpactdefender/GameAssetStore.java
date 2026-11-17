@@ -34,7 +34,7 @@ import java.util.zip.ZipInputStream;
 
 final class GameAssetStore {
     private static final String BASE_URL =
-        "https://github.com/zukito1411/space-defenders-impact/releases/download/android-assets-v1/";
+        "https://github.com/zukito1411/Space-Impact-Defenders-3D-/releases/download/android-3d-assets-v1/";
     private static final int BUFFER_SIZE = 65536;
     private static final Object INSTALL_LOCK = new Object();
 
