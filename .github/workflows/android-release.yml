@@ -233,17 +233,66 @@ jobs:
           set -euo pipefail
           TAG="android-3d-v${GITHUB_RUN_NUMBER}"
           APK="release-output/SpaceImpactDefenders3D-v${GITHUB_RUN_NUMBER}-release.apk"
+          ASSET="$(basename "$APK")"
+          test -s "$APK"
           RELEASE_NOTES="Standalone Space Impact Defenders 3D APK from commit ${GITHUB_SHA}. Package com.zukito.spaceimpactdefender3d installs alongside the original 2D app. Game media downloads from this 3D repository only. Signed with the 3D repository permanent certificate."
-          if gh release view "$TAG" > /dev/null 2>&1; then
-            gh release upload "$TAG" "$APK" --clobber
-            gh release edit "$TAG" --latest
-          else
-            gh release create "$TAG" "$APK" \
+
+          # Creating a release and uploading the APK in one gh command can fail
+          # with an uploads.github.com 404 before the new release propagates.
+          # Create the metadata first; never remove a release on upload failure.
+          if ! gh release view "$TAG" > /dev/null 2>&1; then
+            gh release create "$TAG" \
               --target "$GITHUB_SHA" \
               --title "Space Impact Defenders 3D Android 1.0.${GITHUB_RUN_NUMBER}" \
               --notes "$RELEASE_NOTES" \
               --latest
           fi
+
+          RELEASE_ID=""
+          for attempt in {1..12}; do
+            RELEASE_ID="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq '.id' 2>/dev/null || true)"
+            if [[ "$RELEASE_ID" =~ ^[0-9]+$ ]] && \
+               [[ "$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" --jq '.tag_name' 2>/dev/null || true)" == "$TAG" ]]; then
+              break
+            fi
+            echo "Release $TAG not yet readable (attempt $attempt/12); retrying."
+            sleep 5
+          done
+          if [[ ! "$RELEASE_ID" =~ ^[0-9]+$ ]] || \
+             [[ "$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" --jq '.tag_name' 2>/dev/null || true)" != "$TAG" ]]; then
+            echo "::error::GitHub did not return an accessible release for $TAG."
+            exit 1
+          fi
+
+          # Verify the uploaded asset through the REST API, not merely the CLI
+          # exit code. Retrying a rerun must not re-upload an existing good APK.
+          apk_uploaded() {
+            gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?per_page=100" \
+              --jq ".[] | select(.name == \"$ASSET\" and .state == \"uploaded\" and .size > 0) | .id" \
+              | grep -Eq '^[0-9]+$'
+          }
+          if ! apk_uploaded; then
+            for attempt in {1..10}; do
+              echo "Uploading signed APK to $TAG (attempt $attempt/10)."
+              if gh release upload "$TAG" "$APK" --clobber && apk_uploaded; then
+                break
+              fi
+              # A successful upload may have an unconfirmed response; check
+              # before retrying rather than clobbering a completed upload.
+              if apk_uploaded; then
+                break
+              fi
+              if (( attempt < 10 )); then
+                sleep 8
+              fi
+            done
+          fi
+          if ! apk_uploaded; then
+            echo "::error::Signed APK is still missing from $TAG after retries; the workflow artifact remains available."
+            exit 1
+          fi
+          gh release edit "$TAG" --latest
+          echo "Published and verified $ASSET in release $TAG (id $RELEASE_ID)."
 
       - name: Remove inherited 2D APK releases from this 3D repository
         env:
