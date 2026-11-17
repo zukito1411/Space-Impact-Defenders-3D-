@@ -1,4 +1,4 @@
-name: Signed Android APK Release
+name: Signed Space Impact Defenders 3D APK Release
 
 on:
   push:
@@ -12,7 +12,7 @@ permissions:
 
 # Never race two pushes while initializing the permanent signing key.
 concurrency:
-  group: space-impact-android-signed-main
+  group: space-impact-defenders-3d-android-signed-main
   cancel-in-progress: false
 
 jobs:
@@ -73,11 +73,11 @@ jobs:
           umask 077
           # Draft GitHub releases are visible only to collaborators with
           # write access. NEVER publish this release or its signing key.
-          VAULT_TAG="space-impact-private-signing-vault-v1"
-          VAULT_ASSET="SpaceImpactDefender-private-signing-vault-v1.tar.gz"
-          VAULT_DIR="$RUNNER_TEMP/space-impact-signing-vault"
+          VAULT_TAG="space-impact-3d-private-signing-vault-v1"
+          VAULT_ASSET="SpaceImpactDefenders3D-private-signing-vault-v1.tar.gz"
+          VAULT_DIR="$RUNNER_TEMP/space-impact-3d-signing-vault"
           VAULT_ARCHIVE="$RUNNER_TEMP/$VAULT_ASSET"
-          KEYSTORE_PATH="$VAULT_DIR/SpaceImpactDefender-release.jks"
+          KEYSTORE_PATH="$VAULT_DIR/SpaceImpactDefenders3D-release.jks"
           mkdir -p "$VAULT_DIR"
           if gh release view "$VAULT_TAG" --json isDraft --jq '.isDraft' > "$RUNNER_TEMP/vault-is-draft" 2>/dev/null; then
             if [[ "$(cat "$RUNNER_TEMP/vault-is-draft")" != "true" ]]; then
@@ -103,13 +103,13 @@ jobs:
               # Ignore ANDROID_DEBUG_KEYSTORE_BASE64, which previously held
               # a fingerprint and cannot sign or update an Android APK.
               STORE_PASSWORD="$(openssl rand -hex 32)"
-              KEY_ALIAS="spaceimpactdefender"
+              KEY_ALIAS="spaceimpactdefenders3d"
               KEY_PASSWORD="$STORE_PASSWORD"
               echo "::add-mask::$STORE_PASSWORD"
               keytool -genkeypair -noprompt -storetype PKCS12 \
                 -keystore "$KEYSTORE_PATH" -alias "$KEY_ALIAS" \
                 -keyalg RSA -keysize 3072 -validity 10000 \
-                -dname "CN=Space Impact Defender, O=Space Impact Defenders" \
+                -dname "CN=Space Impact Defenders 3D, O=Space Impact Defenders" \
                 -storepass "$STORE_PASSWORD" -keypass "$KEY_PASSWORD"
             fi
             echo "::add-mask::$STORE_PASSWORD"
@@ -119,7 +119,7 @@ jobs:
             printf '%s' "$KEY_PASSWORD" > "$VAULT_DIR/key-password"
             chmod 600 "$KEYSTORE_PATH"
             tar -czf "$VAULT_ARCHIVE" -C "$VAULT_DIR" \
-              SpaceImpactDefender-release.jks store-password key-alias key-password
+              SpaceImpactDefenders3D-release.jks store-password key-alias key-password
             gh release create "$VAULT_TAG" "$VAULT_ARCHIVE" \
               --target "$GITHUB_SHA" --draft \
               --title "PRIVATE ANDROID SIGNING VAULT - DO NOT PUBLISH" \
@@ -130,7 +130,7 @@ jobs:
             fi
             echo "Permanent certificate saved for all subsequent builds."
           fi
-          for item in SpaceImpactDefender-release.jks store-password key-alias key-password; do
+          for item in SpaceImpactDefenders3D-release.jks store-password key-alias key-password; do
             test -s "$VAULT_DIR/$item" || { echo "::error::Corrupt signing vault: missing $item"; exit 1; }
           done
           STORE_PASSWORD="$(cat "$VAULT_DIR/store-password")"
@@ -171,9 +171,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          APK="android/app/build/outputs/apk/release/SpaceImpactDefender-release.apk"
+          APK="android/app/build/outputs/apk/release/SpaceImpactDefenders3D-release.apk"
           test -s "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK"
+          # Reject a build that would overwrite the separately installed 2D game.
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.zukito.spaceimpactdefender3d'"
 
           # Verify the APK uses the exact selected certificate, whether the
           # temporary development fallback or the permanent production key.
@@ -192,7 +194,15 @@ jobs:
           fi
 
           mkdir -p release-output
-          cp "$APK" "release-output/SpaceImpactDefender-v${GITHUB_RUN_NUMBER}-release.apk"
+          cp "$APK" "release-output/SpaceImpactDefenders3D-v${GITHUB_RUN_NUMBER}-release.apk"
+
+      - name: Upload independent 3D APK as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SpaceImpactDefenders3D-APK-${{ github.run_number }}
+          path: release-output/SpaceImpactDefenders3D-v${{ github.run_number }}-release.apk
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Publish missing media packs
         env:
@@ -200,10 +210,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TAG=android-assets-v1
+          TAG=android-3d-assets-v1
           if ! gh release view "$TAG" >/dev/null 2>&1; then
-            gh release create "$TAG" --target "$GITHUB_SHA" --title 'Android game assets' \
-              --notes 'Immutable media packs used by Space Impact Defender Android APKs.' --prerelease --latest=false
+            gh release create "$TAG" --target "$GITHUB_SHA" --title 'Space Impact Defenders 3D Android media' \
+              --notes 'Immutable 3D game media packs for this repository only.' --prerelease --latest=false
           fi
           RELEASE_ID="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq '.id')"
           gh api --paginate "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?per_page=100" \
@@ -221,16 +231,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TAG="android-v${GITHUB_RUN_NUMBER}"
-          APK="release-output/SpaceImpactDefender-v${GITHUB_RUN_NUMBER}-release.apk"
-          RELEASE_NOTES="Android APK from commit ${GITHUB_SHA}. The first launch with split assets downloads the game media. Later updates reuse verified local files and fetch missing packs only. Signed with the permanent Android certificate. v19 and earlier had per-build keys and require one last reinstall."
+          TAG="android-3d-v${GITHUB_RUN_NUMBER}"
+          APK="release-output/SpaceImpactDefenders3D-v${GITHUB_RUN_NUMBER}-release.apk"
+          RELEASE_NOTES="Standalone Space Impact Defenders 3D APK from commit ${GITHUB_SHA}. Package com.zukito.spaceimpactdefender3d installs alongside the original 2D app. Game media downloads from this 3D repository only. Signed with the 3D repository permanent certificate."
           if gh release view "$TAG" > /dev/null 2>&1; then
             gh release upload "$TAG" "$APK" --clobber
             gh release edit "$TAG" --latest
           else
             gh release create "$TAG" "$APK" \
               --target "$GITHUB_SHA" \
-              --title "Space Impact Defenders Android 1.0.${GITHUB_RUN_NUMBER}" \
+              --title "Space Impact Defenders 3D Android 1.0.${GITHUB_RUN_NUMBER}" \
               --notes "$RELEASE_NOTES" \
               --latest
           fi
@@ -245,72 +255,9 @@ jobs:
           # Other project releases (e.g. desktop) are intentionally untouched.
           mapfile -t old_tags < <(
             gh release list --limit 1000 --json tagName,isDraft,publishedAt |
-            jq -r '[.[] | select(.isDraft == false and (.tagName | test("^android-v[0-9]+$")))] | sort_by(.publishedAt) | reverse | .[3:] | .[].tagName'
+            jq -r '[.[] | select(.isDraft == false and (.tagName | test("^android-3d-v[0-9]+$")))] | sort_by(.publishedAt) | reverse | .[3:] | .[].tagName'
           )
           for tag in "${old_tags[@]}"; do
             echo "Removing old APK release and tag: $tag"
             gh release delete "$tag" --yes --cleanup-tag
           done
-
-  publish-itch-android:
-    name: Publish signed APK to itch.io
-    needs: signed-android-release
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    permissions:
-      contents: read
-    env:
-      ITCH_ANDROID_CHANNEL: ${{ vars.ITCH_ANDROID_CHANNEL || 'android' }}
-    steps:
-      - name: Download the verified APK from this run
-        id: apk
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          # A manually rerun older workflow must not replace a newer Android release.
-          newest="$(gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName,isDraft \
-            --jq '[.[] | select(.isDraft == false) | .tagName | select(test("^android-v[0-9]+$")) | ltrimstr("android-v") | tonumber] | max // 0')"
-          if (( newest > GITHUB_RUN_NUMBER )); then
-            echo "Android v${newest} is already available. Skipping older itch.io upload."
-            exit 0
-          fi
-          apk="SpaceImpactDefender-v${GITHUB_RUN_NUMBER}-release.apk"
-          download_dir="$RUNNER_TEMP/itch-download"
-          upload_dir="$RUNNER_TEMP/itch-android"
-          mkdir -p "$download_dir" "$upload_dir"
-          gh release download "android-v${GITHUB_RUN_NUMBER}" --repo "$GITHUB_REPOSITORY" --pattern "$apk" --dir "$download_dir"
-          test -s "$download_dir/$apk"
-          mv "$download_dir/$apk" "$upload_dir/SpaceImpactDefender-release.apk"
-          echo "upload_dir=$upload_dir" >> "$GITHUB_OUTPUT"
-
-      - name: Install itch.io Butler
-        if: steps.apk.outputs.upload_dir != ''
-        shell: bash
-        run: |
-          set -euo pipefail
-          archive="$RUNNER_TEMP/butler.zip"
-          install_dir="$RUNNER_TEMP/itch-butler"
-          curl --fail --show-error --silent --location --retry 3 \
-            https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default -o "$archive"
-          unzip -q "$archive" -d "$install_dir"
-          chmod +x "$install_dir/butler"
-          "$install_dir/butler" -V
-          echo "$install_dir" >> "$GITHUB_PATH"
-
-      - name: Push APK to the Android channel
-        if: steps.apk.outputs.upload_dir != ''
-        env:
-          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
-          APK_DIRECTORY: ${{ steps.apk.outputs.upload_dir }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ -z "$BUTLER_API_KEY" ]]; then
-            echo "::error::The repository Actions secret BUTLER_API_KEY is required to publish to itch.io."
-            exit 1
-          fi
-          target="zukiaoki/spaceimpactdefender:$ITCH_ANDROID_CHANNEL"
-          butler push "$APK_DIRECTORY" "$target" --userversion "1.0.${GITHUB_RUN_NUMBER}"
-          echo "Pushed Android 1.0.${GITHUB_RUN_NUMBER} to $target." >> "$GITHUB_STEP_SUMMARY"

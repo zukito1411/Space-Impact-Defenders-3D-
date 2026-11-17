@@ -21,6 +21,8 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci
+      - name: Verify standalone 3D Android identity
+        run: python3 scripts/test-3d-android-identity.py
       - name: Test Air Raid frame recovery
         run: node --experimental-strip-types scripts/test-raid-frame-loop.mjs
       - name: Test Air Raid collision broad phase
@@ -128,9 +130,10 @@ jobs:
       - name: Verify release APK has valid signature
         run: |
           set -euo pipefail
-          APK="android/app/build/outputs/apk/release/SpaceImpactDefender-release.apk"
+          APK="android/app/build/outputs/apk/release/SpaceImpactDefenders3D-release.apk"
           test -s "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -F "package: name=\u0027com.zukito.spaceimpactdefender3d\u0027"
 
       - name: Verify APK media separation
         run: |
@@ -138,7 +141,7 @@ jobs:
           import json
           from zipfile import ZipFile
 
-          with ZipFile("android/app/build/outputs/apk/release/SpaceImpactDefender-release.apk") as apk:
+          with ZipFile("android/app/build/outputs/apk/release/SpaceImpactDefenders3D-release.apk") as apk:
               files = set(apk.namelist())
               manifest = json.loads(apk.read("assets/public/native-assets.json"))
               assert "assets/public/assets/brand/zuki-logo-v1.png" in files
