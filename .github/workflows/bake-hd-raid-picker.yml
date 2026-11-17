@@ -1,0 +1,80 @@
+name: Bake HD 3D ship selector and clean Mesiah (one-time)
+on:
+  push:
+    branches:
+      - feat/hd-ship-selection-clean-mesiah
+    paths:
+      - scripts/build-hd-raid-ship-previews.py
+      - .github/workflows/bake-hd-raid-picker.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out dedicated 3D enhancement branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/hd-ship-selection-clean-mesiah
+          persist-credentials: true
+
+      - name: Install deterministic alpha-safe asset processor
+        run: python3 -m pip install --disable-pip-version-check "Pillow==11.3.0" "numpy==2.2.6"
+
+      - name: Generate polished Mesiah flight textures and 54 HD picker views
+        run: |
+          python3 -m py_compile scripts/build-hd-raid-ship-previews.py
+          python3 scripts/build-hd-raid-ship-previews.py
+          python3 - <<'PY'
+          from pathlib import Path
+          import numpy as np
+          from PIL import Image
+          banking=Path("public/assets/ships/banking")
+          previews=Path("public/assets/ships/previews")
+          ships=sorted(p.stem.removesuffix("-v7") for p in banking.glob("*-v7.webp"))
+          assert len(ships)==27, len(ships)
+          outputs=sorted(previews.glob("*-v1.webp"))
+          assert len(outputs)==54, len(outputs)
+          for key in ships:
+              for orientation in ("portrait", "landscape"):
+                  p=previews / f"{key}-{orientation}-v1.webp"
+                  assert p.is_file(), p
+                  with Image.open(p) as img:
+                      assert img.size==(640,640), (p,img.size)
+                      rgba=img.convert("RGBA")
+                      assert rgba.getchannel("A").getextrema()[1]>0, p
+          for key in ("mesiahBlack", "mesiahWhite"):
+              old=banking / f"{key}-v7.webp"
+              new=banking / f"{key}-v8.webp"
+              with Image.open(old) as a, Image.open(new) as b:
+                  assert a.size==b.size==(3136,896), key
+                  assert np.array_equal(np.array(a.convert("RGBA").getchannel("A")),
+                                        np.array(b.convert("RGBA").getchannel("A"))), key
+                  assert not np.array_equal(np.array(a.convert("RGB")),
+                                            np.array(b.convert("RGB"))), key
+          print("All 54 trimmed 3D previews and both alpha-preserved Mesiah v8 atlases verified.")
+          PY
+
+      - name: Verify banking and selection logic and production web build
+        run: |
+          npm ci
+          node scripts/test-raid-banking-art.mjs
+          python3 scripts/test-3d-android-identity.py
+          npm run build
+
+      - name: Commit generated HD art to the 3D feature branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f public/assets/ships/previews/*-v1.webp
+          git add -f public/assets/ships/banking/mesiahBlack-v8.webp public/assets/ships/banking/mesiahWhite-v8.webp
+          if ! git diff --cached --quiet; then
+            git commit -m "art(3d): add 54 sharp ship-picker previews and polished Mesiah hulls"
+            git push origin HEAD:feat/hd-ship-selection-clean-mesiah
+          fi
