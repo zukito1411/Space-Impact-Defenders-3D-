@@ -245,6 +245,23 @@ jobs:
               --latest
           fi
 
+      - name: Remove inherited 2D APK releases from this 3D repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The 3D repo originally inherited an android-v* release from 2D.
+          # Delete it HERE only; never touch releases in the original repository.
+          mapfile -t inherited_2d_tags < <(
+            gh release list --limit 1000 --json tagName,isDraft |
+            jq -r '.[] | select(.isDraft == false and (.tagName | test("^android-v[0-9]+$"))) | .tagName'
+          )
+          for tag in "${inherited_2d_tags[@]}"; do
+            echo "Removing copied 2D APK release from 3D repository: $tag"
+            gh release delete "$tag" --yes --cleanup-tag
+          done
+
       - name: Retain only the latest three APK releases
         env:
           GH_TOKEN: ${{ github.token }}

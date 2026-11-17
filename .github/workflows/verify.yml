@@ -48,6 +48,7 @@ jobs:
           node scripts/test-raid-travel.mjs
       - name: Test flight presentation and boss feedback
         run: |
+          node scripts/test-raid-banking-art.mjs
           node scripts/test-combat-feel.mjs
           node scripts/test-raid-flight-effects.mjs
           node scripts/test-raid-stage-profiles.mjs
