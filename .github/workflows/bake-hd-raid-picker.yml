@@ -77,6 +77,9 @@ jobs:
           git add -f public/assets/ships/banking/mesiahBlack-v8.webp public/assets/ships/banking/mesiahWhite-v8.webp
           if ! git diff --cached --quiet; then
             git commit -m "art(3d): add 54 sharp ship-picker previews and polished Mesiah hulls"
+            # The Vite production build can modify tracked generated metadata;
+            # clear unstaged build output while preserving the committed art.
+            git reset --hard HEAD
             git fetch origin feat/hd-ship-selection-clean-mesiah
             git rebase origin/feat/hd-ship-selection-clean-mesiah
             git push origin HEAD:feat/hd-ship-selection-clean-mesiah
