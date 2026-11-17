@@ -238,13 +238,14 @@ export class SpaceWorld3D {
       const z = -62 - index * 34
       const x = (index % 2 ? -1 : 1) * (10 + index * 18)
       mesh.position.set(x, index === 0 ? 13 : -9 + index * 6, z)
-      mesh.scale.set(index === 0 ? 10 : index === 1 ? 4.8 : 2.9)
+      const diameter = index === 0 ? 10 : index === 1 ? 4.8 : 2.9
+      mesh.scale.set(diameter, diameter, diameter)
     })
     this.rings.forEach((ring, index) => {
       ring.material.baseColor = theme.ring
       ring.position.set(this.planets[0].position.x, this.planets[0].position.y,
         this.planets[0].position.z)
-      ring.scale.set(10)
+      ring.scale.set(10, 10, 10)
       ring.rotation.set(.4, .4 + index * .05, .16)
       ring.visible = region % 2 === 0
     })
@@ -295,16 +296,14 @@ export class SpaceWorld3D {
       // Use perspective world coordinates proportional to the original depth;
       // receding stars remain anchored across camera movement, not attached
       // to the 2D player or dragged by steering.
-      const factor = (-depth) / (-star.z)
-      this.starfield.writePacked(i, star.x * factor, star.y * factor,
-        depth, star.size, 0, star.tint)
+      this.starfield.writePacked(i, star.x, star.y, depth, star.size, 0, star.tint)
     }
     this.starfield.upload()
 
     this.rocks.forEach(({ node, x, y, depth, speed, seed }) => {
       const range = 80
       const z = -18 - (((-depth - 18) - t * (1.1 * rush * speed)) % range + range) % range
-      node.position.set(x * (-z / -depth), y * (-z / -depth), z)
+      node.position.set(x, y, z)
       node.rotation.x = t * (.018 + seed * .001)
       node.rotation.y = t * (.03 + seed * .0009)
     })
