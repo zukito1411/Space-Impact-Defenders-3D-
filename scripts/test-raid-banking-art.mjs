@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import ts from 'typescript'
 
 const path = 'src/components/games/raid/'
@@ -8,6 +8,15 @@ const assets = readFileSync('src/components/games/RaidShipSprite.tsx', 'utf8') +
   readFileSync(path + 'shipArtwork.ts', 'utf8')
 const expectedKeys = [...assets.matchAll(/^  (\w+): 'assets\/ships\//gm)].map(match => match[1]).filter(key => key !== 'mesiah')
 assert.deepEqual(Object.keys(registrations).sort(), [...new Set(expectedKeys)].sort())
+
+// Generated textures must be committed together with any renderer version bump.
+// Otherwise CI fails late with ENOENT and the APK can contain missing ships.
+const bankingDir = 'public/assets/ships/banking/'
+const expectedV4Files = Object.keys(registrations).map(key => key + '-v4.webp').sort()
+const committedV4Files = readdirSync(bankingDir).filter(name => name.endsWith('-v4.webp')).sort()
+assert.deepEqual(committedV4Files, expectedV4Files,
+  'Every registered 3D banking ship needs its committed -v4.webp atlas before verification and release')
+
 
 function compile(source) {
   const { outputText } = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } })
