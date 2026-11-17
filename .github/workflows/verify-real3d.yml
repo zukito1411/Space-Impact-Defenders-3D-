@@ -1,0 +1,31 @@
+name: Verify real 3D space renderer
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-3d-gpu-scene:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save --package-lock=false playwright@1.56.1
+      - run: npx playwright install --with-deps chromium
+      - name: Validate lit meshes, perspective camera, planets, stars and 3D scene draw
+        run: node scripts/test-space3d-renderer.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: actual-3d-cosmos-preview
+          path: space-3d-world-smoke.png
+          if-no-files-found: ignore
