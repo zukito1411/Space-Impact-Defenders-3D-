@@ -1,0 +1,83 @@
+name: Bake vivid 3D ship colors from original 2D palette
+on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/match-3d-to-2d-palette.py
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: vivid-3d-palette-main
+  cancel-in-progress: false
+
+jobs:
+  bake-and-commit:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out current 3D main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+
+      - name: Check palette script syntax
+        run: python3 -m py_compile scripts/match-3d-to-2d-palette.py
+
+      - name: Install deterministic image processor
+        run: python3 -m pip install --disable-pip-version-check "Pillow==11.3.0" "numpy==2.2.6"
+
+      - name: Rebuild vivid banked ship poses from unsharpened originals
+        run: |
+          python3 scripts/match-3d-to-2d-palette.py
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+          folder=Path('public/assets/ships/banking')
+          sources=sorted(folder.glob('*-v1.webp'))
+          assert len(sources)==27, f'Expected 27 3D source atlases, found {len(sources)}'
+          for source in sources:
+              target=source.with_name(source.name.replace('-v1.webp','-v6.webp'))
+              assert target.is_file() and target.stat().st_size>10000, target
+              with Image.open(target) as art:
+                  assert art.size==(3136,896), (target,art.size)
+                  assert art.convert('RGBA').getchannel('A').getextrema()[1]>0, target
+          print('All 27 stronger-color, 448-pixel-pose atlases verified.')
+          PY
+
+      - name: Switch renderer and regression checks to the newly baked atlases
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in ('src/components/games/raid/bankingArt.ts',
+                       'scripts/test-raid-banking-art.mjs'):
+              p=Path(name)
+              data=p.read_text()
+              assert '-v5.webp' in data, f'{name}: expected old atlas reference not found'
+              p.write_text(data.replace('-v5.webp','-v6.webp'))
+          PY
+
+      - name: Verify 3D ship rendering logic and compile production game
+        run: |
+          npm ci
+          node scripts/test-raid-banking-art.mjs
+          python3 scripts/test-3d-android-identity.py
+          npm run build
+
+      - name: Commit all assets and matching source changes to 3D main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f public/assets/ships/banking/*-v6.webp
+          git add src/components/games/raid/bankingArt.ts scripts/test-raid-banking-art.mjs
+          test "$(git diff --cached --name-only | grep -c -- '-v6.webp$')" -eq 27
+          if ! git diff --cached --quiet; then
+            git commit -m "art(3d): ship-specific stronger 2D-matched contrast and color (27 atlases)"
+            git push origin HEAD:main
+          fi
