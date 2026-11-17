@@ -1117,7 +1117,7 @@ export function drawRaidPlayer(
       'rgba(255,226,178,.27)', .62 * Math.abs(sunlight) * (1 - eclipse))
   }
   if (spriteGlow) drawSpriteGlow(ctx, x, y, renderSize, spriteGlow, 0.68)
-  else if (!isDown && (!landscape || banking) && player.forceField <= 0 && player.shield <= 0) drawSpriteGlow(ctx, x, y, renderSize, environmentRim ?? hexToRgba(color, 0.09), 0.55)
+  else if (!isDown && (!landscape || banking) && player.forceField <= 0 && player.shield <= 0) drawSpriteGlow(ctx, x, y, renderSize, environmentRim ?? hexToRgba(color, 0.09), banking ? 0.20 : 0.55)
   if(dockReady&&dockPose&&coreLanderCombatModel){
     if((presentation?.engine??0)>0){
       const nozzle=getMechDockNozzles(coreLanderCombatModel,dockPose.frame),wake=renderSize*.55
