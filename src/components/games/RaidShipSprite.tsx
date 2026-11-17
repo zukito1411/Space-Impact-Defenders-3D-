@@ -122,10 +122,10 @@ export function RaidShipSprite({ shipKey, size, className = 'raid__ship-sprite',
       {legacyFallback && <img
         src={getRaidMenuShipSpriteUrl(shipKey, viewLandscape)}
         alt="" draggable={false}
-        style={{ width: size, height: size, objectFit: 'contain' }}
+        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
       />}
       {atlasUrl && <canvas ref={canvasRef} aria-hidden="true" style={{
-        position: 'absolute', left: 0, top: 0, width: size, height: size,
+        position: 'absolute', left: 0, top: 0, width: '100%', height: '100%',
         transform: `rotate(${raidBankingPreviewAngle(viewLandscape)}deg)`,
         opacity: ready ? 1 : 0,
         transition: 'opacity 140ms ease-out',
