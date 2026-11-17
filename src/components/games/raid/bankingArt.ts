@@ -14,6 +14,8 @@ export function raidBankingPreviewNozzle(x: number, y: number, landscape: boolea
   return landscape ? { x: -y, y: x } : { x, y }
 }
 const LEVEL_FRAME = 3
+// Preserve the metal's original paint instead of flattening it to dim gray.
+export const RAID_BANKING_HULL_FILTER = 'brightness(0.97) contrast(1.16) saturate(1.23)'
 const BANKING_CACHE_LIMIT = 6
 const atlases = new Map<string, CanvasSpriteEntry>()
 
@@ -69,9 +71,10 @@ export function getRaidBankingAtlas(shipKey: string) {
     if (!context) return null
     context.imageSmoothingEnabled = true
     context.imageSmoothingQuality = 'high'
-    // Source ships are lit like isolated display models. Bake an understated
-    // deep-space finish once, retaining metal detail and the engine emissives.
-    context.filter = 'brightness(0.81) contrast(1.03) saturate(0.82)'
+    // The former 0.81 brightness / 0.82 saturation grade erased the
+    // paint and made metallic faces look gray in the hangar. Recover natural
+    // midtone color while preserving highlights; grade only once at decode.
+    context.filter = RAID_BANKING_HULL_FILTER
     context.drawImage(image, 0, 0)
     context.filter = 'none'
     context.save()
@@ -82,10 +85,19 @@ export function getRaidBankingAtlas(shipKey: string) {
       for (let col = 0; col < BANKING_COLUMNS; col++) {
         const x = col * BANKING_CELL, y = row * BANKING_CELL
         const lighting = context.createLinearGradient(x, y, x, y + BANKING_CELL)
-        lighting.addColorStop(0, 'rgba(48, 85, 120, 0.14)')
-        lighting.addColorStop(0.46, 'rgba(19, 42, 70, 0.09)')
-        lighting.addColorStop(1, 'rgba(3, 11, 27, 0.18)')
+        lighting.addColorStop(0, 'rgba(55, 116, 165, 0.055)')
+        lighting.addColorStop(0.46, 'rgba(19, 51, 77, 0.02)')
+        lighting.addColorStop(1, 'rgba(3, 12, 27, 0.105)')
         context.fillStyle = lighting
+        context.fillRect(x, y, BANKING_CELL, BANKING_CELL)
+        // A faint warm hangar/star reflection restores material depth rather
+        // than painting the whole ship the same cobalt-gray color. The glow
+        // is clipped to the original alpha and baked into each atlas frame.
+        const reflection = context.createLinearGradient(x, y, x + BANKING_CELL, y + BANKING_CELL * 0.18)
+        reflection.addColorStop(0, 'rgba(250, 185, 106, 0)')
+        reflection.addColorStop(0.68, 'rgba(250, 185, 106, 0.045)')
+        reflection.addColorStop(1, 'rgba(250, 185, 106, 0.01)')
+        context.fillStyle = reflection
         context.fillRect(x, y, BANKING_CELL, BANKING_CELL)
       }
     }
