@@ -946,6 +946,7 @@ export class PixiRaidBackground {
     if (!world) return
     if (active === this.space3DVisible) return
     this.space3DVisible = active
+    if (this.app?.canvas) (this.app.canvas as HTMLCanvasElement).dataset.space3d = active ? 'active' : 'legacy'
     if (active) {
       for (const layer of [...this.skyScene.children, ...this.scene.children]) {
         if (layer === this.skyScene || layer === this.baseGraphics || layer === world.view) continue
