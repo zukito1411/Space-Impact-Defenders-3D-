@@ -34,7 +34,7 @@ export type RaidBankingFrame = {
 }
 
 // Gundam models retain their detailed hand-painted 2D combat poses in
-// landscape. This includes their hangar/selector portraits (see RaidShipSprite).
+// landscape. In gameplay these remain 2D; the selector now has 3D preview-only art.
 export function isRaidGundamArt(shipKey: string) {
   return shipKey === 'godGundam' || shipKey === 'godGundamBurning' ||
     shipKey === 'spiegel' || shipKey === 'coreLander' ||
@@ -52,7 +52,13 @@ function bankingKey(shipKey: string) {
 
 export function getRaidBankingAtlasUrl(shipKey: string) {
   const key = bankingKey(shipKey)
-  return Object.prototype.hasOwnProperty.call(registrations, key) ? getPublicAssetUrl(`assets/ships/banking/${key}-v7.webp`) : null
+  if (!Object.prototype.hasOwnProperty.call(registrations, key)) return null
+  // Only the two Mesiah frames get a new, cleaner steel/material treatment.
+  // Other vivid v7 ships stay byte-for-byte unchanged.
+  if (key === 'mesiahBlack' || key === 'mesiahWhite') {
+    return getPublicAssetUrl(`assets/ships/banking/${key}-v8.webp`)
+  }
+  return getPublicAssetUrl(`assets/ships/banking/${key}-v7.webp`)
 }
 
 // Hangar UI uses the same registered exhaust roots as the flight atlas.

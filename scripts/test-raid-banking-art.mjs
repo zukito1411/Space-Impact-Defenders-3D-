@@ -69,7 +69,7 @@ assert.match(baker, /"-v7.webp"/)
 const preview = readFileSync('src/components/games/RaidShipSprite.tsx', 'utf8')
 assert.match(preview, /drawRaidBankingCell\(ctx, sprite, raidBankingFrameIndex\(0, viewLandscape, false\)/)
 assert.match(preview, /raidBankingPreviewAngle\(viewLandscape\)/)
-// Gundam/Spiegel use the original 2D artwork for landscape play and all selection views.
+// Gundam/Spiegel stay 2D in landscape gameplay; selector previews are 3D.
 for (const key of ['godGundam', 'godGundamBurning', 'spiegel', 'coreLander',
                    'coreLanderBurning', 'coreLanderElite', 'coreLanderBurningElite']) {
   assert.equal(art.isRaidGundamArt(key), true, key)
@@ -79,9 +79,34 @@ for (const key of ['godGundam', 'godGundamBurning', 'spiegel', 'coreLander',
 }
 assert.equal(art.isRaidGundamArt('rocket'), false)
 assert.equal(art.shouldUseRaidBankingArt('rocket', true), true)
-assert.match(preview, /preferOriginalArt \|\| isRaidGundamArt\(shipKey\)/)
+assert.ok(preview.includes('getRaidPicker3DPreviewUrl'), 'ship-picker must use HD 3D previews')
+assert.ok(preview.includes('RaidShipPickerPreview'), '3D selection component must exist')
 const picker = readFileSync('src/components/games/raid/GradiusRaidRuntime.tsx', 'utf8')
-assert.match(picker, /shipKey=\{shipSpriteKey\} size=\{getShipSpriteSize\(ship.key, 'picker'\)\} sideView=\{landscape\} preferOriginalArt/)
+assert.ok(picker.includes('<RaidShipPickerPreview shipKey={shipSpriteKey} landscape={landscape} />'))
+assert.ok(!picker.includes('<small>{locked ? lockedCopy : shipCopy.role}</small>'), 'ship cards show names only')
+assert.ok(source.includes('${key}-v8.webp'), 'clean Mesiah textures must be addressed by renderer')
+for (const key of ['mesiah', 'mesiahBlack', 'mesiahWhite']) {
+  assert.ok(art.getRaidBankingAtlasUrl(key)?.endsWith('-v8.webp'), key)
+}
+for (const key of ['rocket', 'xwing', 'spaceEt', 'godGundam']) {
+  assert.ok(art.getRaidBankingAtlasUrl(key)?.endsWith('-v7.webp'), key)
+}
+for (const key of ['mesiahBlack', 'mesiahWhite']) {
+  const image = readFileSync(bankingDir + key + '-v8.webp')
+  assert.equal(image.toString('ascii', 0, 4), 'RIFF', key)
+  assert.equal(image.toString('ascii', 8, 12), 'WEBP', key)
+}
+const previews = readdirSync('public/assets/ships/previews').filter(name => name.endsWith('-v1.webp'))
+const expectedPreviews = Object.keys(registrations).flatMap(key => [
+  key + '-portrait-v1.webp', key + '-landscape-v1.webp'
+]).sort()
+assert.deepEqual(previews.sort(), expectedPreviews, 'Every 3D ship requires both HD selector views')
+for (const name of previews) {
+  const image = readFileSync('public/assets/ships/previews/' + name)
+  assert.equal(image.toString('ascii', 0, 4), 'RIFF', name)
+  assert.equal(image.toString('ascii', 8, 12), 'WEBP', name)
+  assert.ok(image.byteLength > 2048, name)
+}
 assert.match(source, /assets\/ships\/banking\/\$\{key\}-v7.webp/)
 
 assert.equal(art.getRaidBankingAtlasUrl('mesiah'), art.getRaidBankingAtlasUrl('mesiahBlack'))

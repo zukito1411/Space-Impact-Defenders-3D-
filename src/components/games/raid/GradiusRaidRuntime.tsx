@@ -39,7 +39,7 @@ import type { LanguageCode } from '../../../i18n'
 import { isCreatorPlayerName, submitLeaderboardScore } from '../../../leaderboards'
 import { getEquippedShipCosmetics, hasProgressionUnlockOverride, isCoreLanderUnlocked, loadProgress } from '../../../progression'
 import type { RunResult, RunStatus, ShipCosmeticEquipState } from '../../../progression'
-import { RAID_ELITE_SPRITE_COUNT, getRaidAlienSpriteUrl, getRaidEliteSpriteUrl, RaidShipSprite } from '../RaidShipSprite'
+import { RAID_ELITE_SPRITE_COUNT, getRaidAlienSpriteUrl, getRaidEliteSpriteUrl, RaidShipPickerPreview, RaidShipSprite } from '../RaidShipSprite'
 import { getGameAudioMixSettings, getGameSoundBgmDuckProfile, getGameSoundEnabled, getGraphicsQuality, getPublicAssetUrl, playGameSound, playRaidCue, registerGameSoundDucker, setGameAudioMixSettings, setGraphicsQuality, stopBGM, stopGameSounds } from '../sound'
 import type { AudioMixSettings, GraphicsQuality } from '../sound'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -8359,13 +8359,14 @@ export function GradiusRaid({
                       ].filter(Boolean).join(' ')}
                       disabled={locked}
                       aria-pressed={selectedShipKey === ship.key}
+                      aria-label={locked ? `${shipCopy.name}: ${lockedCopy}` : shipCopy.name}
+                      title={locked ? lockedCopy : shipCopy.name}
                       onClick={() => {
                         if (!locked) chooseShip(ship)
                       }}
                     >
-                      <RaidShipSprite shipKey={shipSpriteKey} size={getShipSpriteSize(ship.key, 'picker')} sideView={landscape} preferOriginalArt />
-                      <span>{ship.key === 'coreLander' ? getRaidGundamName(shipSpriteKey) : shipCopy.name}</span>
-                      <small>{locked ? lockedCopy : shipCopy.role}</small>
+                      <RaidShipPickerPreview shipKey={shipSpriteKey} landscape={landscape} />
+                      <span className="raid__ship-name">{ship.key === 'coreLander' ? getRaidGundamName(shipSpriteKey) : shipCopy.name}</span>
                     </button>
                   )
                 })()
