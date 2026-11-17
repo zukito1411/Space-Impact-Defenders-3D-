@@ -101,6 +101,16 @@ export function raidBankingFrameIndex(bank: number, landscape: boolean, reducedM
   return (landscape ? BANKING_COLUMNS : 0) + Math.round(LEVEL_FRAME + amount * LEVEL_FRAME)
 }
 
+// Each atlas has seven baked physical roll poses. The tiny leftover angle
+// between poses is applied as a subframe correction rather than rotating the
+// whole baked roll a second time (which made turns look exaggerated/jumpy).
+export function raidBankingResidualAngle(bank: number, landscape: boolean, reducedMotion: boolean) {
+  if (reducedMotion) return 0
+  const selectedPose = raidBankingFrameIndex(bank, landscape, false) % BANKING_COLUMNS
+  const bakedAngle = (selectedPose - LEVEL_FRAME) * (0.14 / LEVEL_FRAME)
+  return Math.max(-0.14 / 6, Math.min(0.14 / 6, bank - bakedAngle))
+}
+
 export function getRaidBankingFrame(shipKey: string, bank: number, landscape: boolean, reducedMotion: boolean): RaidBankingFrame | null {
   const sprite = getRaidBankingAtlas(shipKey)
   if (!sprite?.loaded) return null
