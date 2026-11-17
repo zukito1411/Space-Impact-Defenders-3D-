@@ -28,7 +28,8 @@ jobs:
           cache: pip
           cache-dependency-path: scripts/match-3d-to-2d-palette.py
       - name: Install pixel processing dependencies
-        run: python3 -m pip install --only-binary=:all: 'Pillow==11.3.0' 'numpy==2.2.6'
+        run: |
+          python3 -m pip install --only-binary=:all: 'Pillow==11.3.0' 'numpy==2.2.6'
       - name: Regenerate all detail-preserving 3D atlases from original source
         run: |
           python3 scripts/match-3d-to-2d-palette.py
