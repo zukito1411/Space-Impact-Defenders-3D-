@@ -26,6 +26,7 @@ import type { CameraShakeState } from './types'
 import { clamp, seededNoise } from './utils'
 import { RaidGpuForeground } from './gpuForeground'
 import type { RaidGpuForegroundFrame } from './gpuForeground'
+import { getPreferredRaidRenderBackend, rememberWebGpuFailure } from './renderBackend'
 
 export type RaidPalette = {
   baseTop: string
@@ -940,9 +941,14 @@ export class PixiRaidBackground {
   }
 
   async init(host: HTMLDivElement) {
+    const preferred = getPreferredRaidRenderBackend()
+    // Reuse the existing Pixi scene, texture pooling and render loop. There is
+    // only one GPU canvas/context: never layer Three.js over the 2D effects.
+    // Pixi auto-detects backends; retry WebGL with a fresh Application if an
+    // Android/WebView WebGPU adapter fails during initialization.
+    let app = new Application()
     try {
-      const app = new Application()
-      await app.init({
+      const options = {
         width: 1,
         height: 1,
         resolution: 1,
@@ -950,9 +956,19 @@ export class PixiRaidBackground {
         autoDensity: true,
         autoStart: false,
         antialias: false,
-        preference: 'webgl',
-        powerPreference: 'high-performance',
-      })
+        powerPreference: 'high-performance' as const,
+      }
+      try {
+        await app.init({ ...options, preference: preferred })
+      } catch (error) {
+        if (preferred !== 'webgpu' || this.destroyed) throw error
+        rememberWebGpuFailure()
+        console.warn('3D WebGPU initialization failed; retrying with WebGL:', error)
+        try { app.destroy({ removeView: true }, { children: true }) }
+        catch { /* A partially initialized renderer might not be disposable. */ }
+        app = new Application()
+        await app.init({ ...options, preference: 'webgl' })
+      }
       // React can unmount this instance while WebGL initialization is pending.
       // Never let an obsolete instance replace the current instance's canvas.
       if (this.destroyed) {
@@ -1059,7 +1075,9 @@ export class PixiRaidBackground {
       if (!prepared) this.gpuForeground.root.visible = false
       return true
     } catch (error) {
-      if (!this.destroyed) console.warn('Raid WebGL renderer initialization failed:', error)
+      if (!this.destroyed) console.warn('Raid GPU renderer initialization failed; using Canvas fallback:', error)
+      try { app.destroy({ removeView: true }, { children: true }) }
+      catch { /* A failed backend may not have finished initialization. */ }
       this.destroy()
       return false
     }
