@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - scripts/match-3d-to-2d-palette.py
+      - .github/workflows/bake-vivid-3d-palette.yml
   workflow_dispatch:
 
 permissions:
@@ -81,13 +82,8 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -f public/assets/ships/banking/*-v7.webp
           git add src/components/games/raid/bankingArt.ts scripts/test-raid-banking-art.mjs
-          test "$(git diff --cached --name-only | grep -c -- '-v7.webp)" -eq 27
+          test "$(git diff --cached --name-only | grep -c -- '-v7.webp$')" -eq 27
           if ! git diff --cached --quiet; then
-            git commit -m "art(3d): ship-specific maximum vibrancy with 2D hue matching (27 atlases)"
-            git push origin HEAD:main
-          fi
-)" -eq 27
-          if ! git diff --cached --quiet; then
-            git commit -m "art(3d): ship-specific maximum vibrancy with 2D hue matching (27 atlases)"
+            git commit -m "art(3d): maximize 2D-matched ship colors (27 v7 atlases)"
             git push origin HEAD:main
           fi
