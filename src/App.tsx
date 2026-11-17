@@ -1005,7 +1005,7 @@ function App() {
             </div>
             <div className="start-screen__title-lockup">
               <div className="start-screen__eyebrow">{text.title.eyebrow}</div>
-              <h1>{text.title.name}</h1>
+              <h1 className="start-screen__game-logo">{text.title.name}<span className="start-screen__game-logo-3d" aria-label="3D edition">3D</span></h1>
               <p>{text.title.subtitle}</p>
             </div>
 
