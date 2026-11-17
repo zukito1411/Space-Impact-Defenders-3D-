@@ -4529,3 +4529,84 @@
     margin-top: 7px;
   }
 }
+
+/* 3D ship picker: dedicated cropped HD frames instead of tiny 2D strips.
+   CSS downscales a 640px source; the gameplay atlases are not loaded here. */
+.raid__ship-card {
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-content: center;
+  gap: 5px;
+  min-height: 202px;
+  padding-block: 10px 12px;
+}
+.raid__ship-card .raid__ship-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(100%, 154px);
+  height: 152px;
+  margin: 0 auto;
+  pointer-events: none;
+  user-select: none;
+}
+.raid__ship-card .raid__ship-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  object-fit: contain;
+  image-rendering: auto;
+  filter: drop-shadow(0 7px 8px rgba(2, 9, 24, .48));
+}
+.raid__ship-card .raid__ship-name {
+  display: block;
+  align-self: end;
+  max-width: 100%;
+  font-size: clamp(.78rem, 1.1vw, 1rem);
+  font-weight: 900;
+  text-align: center;
+  line-height: 1.18;
+}
+.raid__ship-card--locked .raid__ship-preview img {
+  filter: grayscale(1) brightness(.36);
+  opacity: .86;
+}
+@media (orientation: portrait) and (max-width: 740px) {
+  .raid__ship-card {
+    min-height: 180px;
+    padding: 9px 7px 12px;
+  }
+  .raid__ship-card .raid__ship-preview {
+    width: min(100%, 145px);
+    height: 136px;
+  }
+  .raid__ship-card .raid__ship-name {
+    font-size: clamp(.76rem, 3.3vw, .95rem);
+  }
+}
+.raid--landscape .raid__ship-card {
+  min-height: 173px;
+  padding: 8px 5px 10px;
+  gap: 5px;
+  align-content: center;
+}
+.raid--landscape .raid__ship-card .raid__ship-preview {
+  width: min(100%, 156px, 17dvh);
+  height: min(156px, 17dvh);
+}
+.raid--landscape .raid__ship-card .raid__ship-name {
+  font-size: clamp(10px, 1.2vw, 16px);
+}
+@media (orientation: landscape) and (max-height: 440px) {
+  .raid--landscape .raid__ship-card {
+    min-height: 114px;
+    padding: 5px 4px 7px;
+  }
+  .raid--landscape .raid__ship-card .raid__ship-preview {
+    width: min(100%, 86px, 20dvh);
+    height: min(86px, 20dvh);
+  }
+  .raid--landscape .raid__ship-card .raid__ship-name {
+    font-size: 10px;
+  }
+}
