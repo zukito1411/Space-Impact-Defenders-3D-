@@ -41,12 +41,12 @@ jobs:
           sources=sorted(folder.glob('*-v1.webp'))
           assert len(sources)==27, f'Expected 27 3D source atlases, found {len(sources)}'
           for source in sources:
-              target=source.with_name(source.name.replace('-v1.webp','-v6.webp'))
+              target=source.with_name(source.name.replace('-v1.webp','-v7.webp'))
               assert target.is_file() and target.stat().st_size>10000, target
               with Image.open(target) as art:
                   assert art.size==(3136,896), (target,art.size)
                   assert art.convert('RGBA').getchannel('A').getextrema()[1]>0, target
-          print('All 27 stronger-color, 448-pixel-pose atlases verified.')
+          print('All 27 maximum-vibrancy, 448-pixel-pose atlases verified.')
           PY
 
       - name: Switch renderer and regression checks to the newly baked atlases
@@ -57,12 +57,12 @@ jobs:
                        'scripts/test-raid-banking-art.mjs'):
               p=Path(name)
               data=p.read_text()
-              assert '-v5.webp' in data, f'{name}: expected old atlas reference not found'
-              data=data.replace('-v5.webp','-v6.webp')
+              assert '-v6.webp' in data, f'{name}: expected old atlas reference not found'
+              data=data.replace('-v6.webp','-v7.webp')
               if name.endswith('test-raid-banking-art.mjs'):
-                  # The isolated renderer mock contains rocket-v5 without
+                  # The isolated renderer mock contains rocket-v6 without
                   # the .webp extension and must follow the new atlas version.
-                  data=data.replace('rocket-v5','rocket-v6')
+                  data=data.replace('rocket-v6','rocket-v7')
               p.write_text(data)
           PY
 
@@ -79,10 +79,15 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f public/assets/ships/banking/*-v6.webp
+          git add -f public/assets/ships/banking/*-v7.webp
           git add src/components/games/raid/bankingArt.ts scripts/test-raid-banking-art.mjs
-          test "$(git diff --cached --name-only | grep -c -- '-v6.webp$')" -eq 27
+          test "$(git diff --cached --name-only | grep -c -- '-v7.webp)" -eq 27
           if ! git diff --cached --quiet; then
-            git commit -m "art(3d): ship-specific stronger 2D-matched contrast and color (27 atlases)"
+            git commit -m "art(3d): ship-specific maximum vibrancy with 2D hue matching (27 atlases)"
+            git push origin HEAD:main
+          fi
+)" -eq 27
+          if ! git diff --cached --quiet; then
+            git commit -m "art(3d): ship-specific maximum vibrancy with 2D hue matching (27 atlases)"
             git push origin HEAD:main
           fi
