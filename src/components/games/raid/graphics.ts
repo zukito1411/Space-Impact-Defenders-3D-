@@ -77,7 +77,9 @@ export function getRaidGraphicsProfile(quality: GraphicsQuality, isSmallViewport
     }
   } else {
     profile = {
-      dprCap: 2,
+      // Allow high-density devices to draw detailed ships at their native
+      // pixel density in Max graphics mode, subject to the canvas pixel budget.
+      dprCap: 3,
       maxSparks: MAX_SPARKS,
       sparkScale: 1,
       maxRipples: isMultiplayer ? 4 : MAX_RIPPLES,
@@ -116,7 +118,13 @@ export function makeRaidViewportMetrics(root: HTMLElement, quality: GraphicsQual
   const cssHeight = landscape ? rootWidth : rootHeight
   const isSmallViewport = cssWidth <= 860 || cssHeight <= 560
   const profile = getRaidGraphicsProfile(quality, isSmallViewport, multiplayer)
-  const dpr = Math.max(0.7, Math.min(profile.dprCap, typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1))
+  // The previous 2x cap visibly blurred 3D ship detail on modern 3x-DPR
+  // displays. Protect GPU fill rate and memory on huge screens with a
+  // predictable pixel budget instead of flattening every Max device to 2x.
+  const displayDpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
+  const maxCanvasPixels = quality === 'max' ? 9_000_000 : Number.POSITIVE_INFINITY
+  const resolutionBudgetDpr = Math.sqrt(maxCanvasPixels / Math.max(1, cssWidth * cssHeight))
+  const dpr = Math.max(0.7, Math.min(profile.dprCap, displayDpr, resolutionBudgetDpr))
   const isDesktopViewport = cssWidth > 1100 && cssHeight > 700
   const visualScale = clamp(Math.min(cssWidth, cssHeight) / (isDesktopViewport ? 760 : 560), 0.72, isDesktopViewport ? 1.08 : 1.28)
   return {

@@ -12,10 +12,10 @@ assert.deepEqual(Object.keys(registrations).sort(), [...new Set(expectedKeys)].s
 // Generated textures must be committed together with any renderer version bump.
 // Otherwise CI fails late with ENOENT and the APK can contain missing ships.
 const bankingDir = 'public/assets/ships/banking/'
-const expectedV4Files = Object.keys(registrations).map(key => key + '-v4.webp').sort()
-const committedV4Files = readdirSync(bankingDir).filter(name => name.endsWith('-v4.webp')).sort()
+const expectedV4Files = Object.keys(registrations).map(key => key + '-v5.webp').sort()
+const committedV4Files = readdirSync(bankingDir).filter(name => name.endsWith('-v5.webp')).sort()
 assert.deepEqual(committedV4Files, expectedV4Files,
-  'Every registered 3D banking ship needs its committed -v4.webp atlas before verification and release')
+  'Every registered 3D banking ship needs its committed -v5.webp atlas before verification and release')
 
 
 function compile(source) {
@@ -28,7 +28,7 @@ const art = await compile(`
   const anchors = ${JSON.stringify(registrations)}
   const getPublicAssetUrl = path => '/base/' + path
   const releaseCanvasSprite = () => {}
-  const makeImageCanvasSprite = (cacheKey, url) => ({ cacheKey, url, loaded: !cacheKey.includes('rocket-v4') })
+  const makeImageCanvasSprite = (cacheKey, url) => ({ cacheKey, url, loaded: !cacheKey.includes('rocket-v5') })
 ` + source.replace(/^import .*\n/gm, ''))
 // Preserve textured ship paint and reflections; a one-time tint is cheaper
 // than filters on every animated frame and should not wash out the hull.
@@ -65,7 +65,7 @@ const baker = readFileSync('scripts/match-3d-to-2d-palette.py', 'utf8')
 assert.match(baker, /source=directory\/\(key\+"-v1.webp"\)/)
 assert.match(baker, /ImageFilter.MedianFilter\(size=3\)/)
 assert.doesNotMatch(baker, /ImageFilter\.UnsharpMask\(/)
-assert.match(baker, /"-v4.webp"/)
+assert.match(baker, /"-v5.webp"/)
 const preview = readFileSync('src/components/games/RaidShipSprite.tsx', 'utf8')
 assert.match(preview, /drawRaidBankingCell\(ctx, sprite, raidBankingFrameIndex\(0, viewLandscape, false\)/)
 assert.match(preview, /raidBankingPreviewAngle\(viewLandscape\)/)
@@ -82,7 +82,7 @@ assert.equal(art.shouldUseRaidBankingArt('rocket', true), true)
 assert.match(preview, /preferOriginalArt \|\| isRaidGundamArt\(shipKey\)/)
 const picker = readFileSync('src/components/games/raid/GradiusRaidRuntime.tsx', 'utf8')
 assert.match(picker, /shipKey=\{shipSpriteKey\} size=\{getShipSpriteSize\(ship.key, 'picker'\)\} sideView=\{landscape\} preferOriginalArt/)
-assert.match(source, /assets\/ships\/banking\/\$\{key\}-v4.webp/)
+assert.match(source, /assets\/ships\/banking\/\$\{key\}-v5.webp/)
 
 assert.equal(art.getRaidBankingAtlasUrl('mesiah'), art.getRaidBankingAtlasUrl('mesiahBlack'))
 assert.equal(art.getRaidBankingFrame('toString', 0, false, false), null)
@@ -90,7 +90,7 @@ assert.equal(art.getRaidBankingFrame('rocket', 0, false, false), null, 'keep the
 assert.equal(art.getBankingProtectionHull(art.getRaidBankingAtlas('laser'), true).frame, 10)
 for (const [key, entry] of Object.entries(registrations)) {
   const sourceImage = readFileSync('public/assets/ships/banking/' + key + '-v1.webp')
-  const image = readFileSync('public/assets/ships/banking/' + key + '-v4.webp')
+  const image = readFileSync('public/assets/ships/banking/' + key + '-v5.webp')
   assert.equal(image.toString('ascii', 0, 4), 'RIFF', key)
   assert.equal(image.toString('ascii', 8, 16), 'WEBPVP8X', key)
   assert.equal(sourceImage.readUIntLE(24, 3) + 1, 224 * art.BANKING_COLUMNS, key)
