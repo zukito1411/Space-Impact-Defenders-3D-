@@ -1,0 +1,67 @@
+name: Calibrate 3D ship paint from original 2D sprites
+on:
+  push:
+    branches:
+      - fix/3d-match-2d-palette-gundam-2d
+    paths:
+      - scripts/match-3d-to-2d-palette.py
+      - .github/workflows/bake-2d-palette-3d.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  bake-ship-paint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/3d-match-2d-palette-gundam-2d
+          persist-credentials: true
+      - name: Install offline image color-analysis dependencies
+        run: python3 -m pip install "Pillow==11.3.0" "numpy>=2.3,<3"
+      - name: Inspect actual hangar and galaxy artwork
+        run: |
+          python3 - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+          for path in [Path("public/assets/ui/orbital-hangar-v1.png"),
+                       Path("public/assets/others/galaxy_2.webp")]:
+              with Image.open(path) as im:
+                  im.thumbnail((512, 512))
+                  palette = im.convert("RGB").quantize(colors=8, method=Image.Quantize.MEDIANCUT)
+                  counts = palette.getcolors() or []
+                  colors = [(*palette.getpalette()[index*3:index*3+3], count)
+                            for count,index in sorted(counts, reverse=True)[:6]]
+                  print(f"{path} environment color samples (RGB, frequency): {colors}")
+          PY
+      - name: Grade and validate 27 3D atlases using real 2D source sprites
+        run: |
+          python3 scripts/match-3d-to-2d-palette.py
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+          p=Path("public/assets/ships/banking")
+          source=sorted(p.glob("*-v2.webp"))
+          assert len(source)==27, f"Missing source atlases: {len(source)}"
+          for file in source:
+              generated=file.with_name(file.name.replace("-v2.webp","-v3.webp"))
+              with Image.open(file) as original, Image.open(generated) as new:
+                  assert new.size==original.size==(3136,896)
+                  assert new.mode=="RGBA"
+                  assert new.getchannel("A").getextrema()[1]>0
+          print("All 27 ship materials matched to their original 2D art.")
+          PY
+      - name: Commit versioned palette-matched 3D artwork
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f public/assets/ships/banking/*-v3.webp
+          if ! git diff --cached --quiet; then
+            git commit -m "art(3d): preserve 3D geometry with ship-specific 2D paint colors"
+            git push origin HEAD:fix/3d-match-2d-palette-gundam-2d
+          fi
