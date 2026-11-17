@@ -49,3 +49,11 @@
 }
 
 #root .raid__ship-size-warning { margin: 8px 0 0; color: #f7c978; font-size: .72rem; line-height: 1.4; }
+
+#root .home-settings__renderer-hint {
+  margin: 9px 0 0;
+  max-width: 55ch;
+  color: var(--ui-muted);
+  font-size: .7rem;
+  line-height: 1.4;
+}
