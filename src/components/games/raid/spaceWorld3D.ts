@@ -232,7 +232,7 @@ export class SpaceWorld3D {
     const theme = SPACE_THEMES[region]
     this.planets.forEach((mesh, index) => {
       const material = mesh.material as Material3D
-      material.baseColorTexture = this.ownedTextures[(region + index) % this.ownedTextures.length]
+      material.textures.baseColor = this.ownedTextures[(region + index) % this.ownedTextures.length]
       material.baseColor = 0xffffff
       const z = -62 - index * 34
       const x = (index % 2 ? -1 : 1) * (10 + index * 18)
