@@ -7,7 +7,7 @@ import anchors from './bankingAnchors.json'
 export const BANKING_COLUMNS = 7
 export const BANKING_ROWS = 2
 export const BANKING_CELL = 448
-// Original v1 art is 224 px per pose; v2 bakes higher-quality 2x poses.
+// Unsharpened v1 originals are gently denoised and 2D-palette matched offline into v4.
 // The source atlas is oriented nose-up for both flight-camera modes. UI previews
 // must apply the flight camera's quarter turn when shown on a landscape screen.
 export function raidBankingPreviewAngle(landscape: boolean) { return landscape ? 90 : 0 }
@@ -52,7 +52,7 @@ function bankingKey(shipKey: string) {
 
 export function getRaidBankingAtlasUrl(shipKey: string) {
   const key = bankingKey(shipKey)
-  return Object.prototype.hasOwnProperty.call(registrations, key) ? getPublicAssetUrl(`assets/ships/banking/${key}-v3.webp`) : null
+  return Object.prototype.hasOwnProperty.call(registrations, key) ? getPublicAssetUrl(`assets/ships/banking/${key}-v4.webp`) : null
 }
 
 // Hangar UI uses the same registered exhaust roots as the flight atlas.
@@ -73,7 +73,7 @@ export function getRaidBankingAtlas(shipKey: string) {
     atlases.delete(oldUrl)
     releaseCanvasSprite(oldAtlas)
   }
-  // Each frame is a 448 px, color-graded high-detail WebP baked offline.
+  // Each frame is a 448 px, clean 2D-palette-matched WebP baked offline.
   // Draw its exact colors directly: a second color filter softens panel edges,
   // desaturates metallic trim and doubles memory via a processed canvas copy.
   const sprite = makeImageCanvasSprite(`ship-banking:${url}`, url)
