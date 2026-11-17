@@ -1133,14 +1133,20 @@
 }
 
 .raid__player svg,
-.raid__player img,
-.raid__ship-card svg,
-.raid__ship-card img {
+.raid__player img {
   filter:
     brightness(1.08)
     contrast(1.12)
     saturate(1.16)
     drop-shadow(0 0 12px rgba(148, 163, 184, 0.26));
+}
+
+/* Original 2D selection paintings are already color-corrected. Applying a
+   second 1.12 contrast + 1.16 saturation filter exaggerates noisy outlines
+   and destroys their original palette; retain only a grounded soft shadow. */
+.raid__ship-card svg,
+.raid__ship-card img {
+  filter: drop-shadow(0 3px 7px rgba(0, 6, 16, 0.42));
 }
 
 .raid__player svg,
