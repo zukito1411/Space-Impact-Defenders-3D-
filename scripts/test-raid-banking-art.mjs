@@ -21,6 +21,11 @@ const art = await compile(`
   const releaseCanvasSprite = () => {}
   const makeImageCanvasSprite = (cacheKey, url) => ({ cacheKey, url, loaded: !cacheKey.includes('rocket-v1') })
 ` + source.replace(/^import .*\n/gm, ''))
+// Preserve textured ship paint and reflections; a one-time tint is cheaper
+// than filters on every animated frame and should not wash out the hull.
+assert.equal(art.RAID_BANKING_HULL_FILTER, 'brightness(0.97) contrast(1.16) saturate(1.23)')
+assert.match(source, /globalCompositeOperation = 'source-atop'/)
+assert.match(source, /context\.imageSmoothingQuality = 'high'/)
 // Use the in-game indexing logic to exercise extremes, the portrait/landscape split and reduced motion.
 for (const [landscape, offset] of [[false, 0], [true, 7]]) {
   assert.deepEqual([-.3, -.14, 0, .14, .3].map(bank => art.raidBankingFrameIndex(bank, landscape, false)),
