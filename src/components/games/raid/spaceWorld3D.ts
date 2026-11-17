@@ -30,7 +30,6 @@ export type SpaceWorld3DFrame = {
 
 type StarPosition = { x: number; y: number; z: number; size: number; tint: number; speed: number }
 type FlyingBody = { node: Mesh3D; x: number; y: number; depth: number; speed: number; seed: number }
-const TAU = Math.PI * 2
 const STAR_COUNT = 420
 const ROCK_COUNT = 26
 const WORLD_DEPTH = 240
@@ -232,7 +231,7 @@ export class SpaceWorld3D {
     const region = (Math.max(1, stageTheme) - 1) % SPACE_THEMES.length
     const theme = SPACE_THEMES[region]
     this.planets.forEach((mesh, index) => {
-      const material = mesh.material
+      const material = mesh.material as Material3D
       material.baseColorTexture = this.ownedTextures[(region + index) % this.ownedTextures.length]
       material.baseColor = 0xffffff
       const z = -62 - index * 34
@@ -242,7 +241,7 @@ export class SpaceWorld3D {
       mesh.scale.set(diameter, diameter, diameter)
     })
     this.rings.forEach((ring, index) => {
-      ring.material.baseColor = theme.ring
+      ;(ring.material as Material3D).baseColor = theme.ring
       ring.position.set(this.planets[0].position.x, this.planets[0].position.y,
         this.planets[0].position.z)
       ring.scale.set(10, 10, 10)
