@@ -3,8 +3,9 @@
 
 Never derive a new version from the sharpened 2x v2/v3 atlases: the old
 142% UnsharpMask amplified compression artifacts and artificial panel lines.
-Read v1 224px source once, remove isolated pixel noise, then resample with
-Lanczos, and match the matching hand-painted 2D ship's color distribution.
+Read v1 224px source once, suppress isolated noise only lightly without
+smearing cockpit and wing-edge linework, then resample with Lanczos and
+match the hand-painted 2D ship's color distribution.
 Alpha, seven bank poses, nozzles, muzzle positions and hitboxes are unchanged.
 This is not a new high-polygon model and cannot invent missing mesh details.
 """
@@ -68,7 +69,12 @@ def clean_source_pose(tile):
     """
     tile = tile.convert("RGBA")
     alpha = tile.getchannel("A")
-    rgb = tile.convert("RGB").filter(ImageFilter.MedianFilter(size=3))
+    original = tile.convert("RGB")
+    # A full median pass destroys the 1px cockpit and panel features that
+    # make the original 2D artwork look crisp. Blend in only a small amount
+    # of its outlier suppression and preserve the original painted structure.
+    denoised = original.filter(ImageFilter.MedianFilter(size=3))
+    rgb = Image.blend(original, denoised, 0.18)
     rgb.putalpha(alpha)
     # RGBA resizing uses alpha-aware interpolation at transparent edges.
     return rgb.resize((CELL, CELL), Image.Resampling.LANCZOS)
@@ -137,7 +143,7 @@ def grade(tile, settings):
 
 def build(key, directory):
     source=directory/(key+"-v1.webp")
-    dest=directory/(key+"-v4.webp")
+    dest=directory/(key+"-v5.webp")
     with Image.open(source) as atlas:
         if atlas.size!=(COLS*SOURCE_CELL,ROWS*SOURCE_CELL):
             raise ValueError(f"{source}: invalid banking frame dimensions")
