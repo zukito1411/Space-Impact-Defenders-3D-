@@ -33,6 +33,19 @@ export type RaidBankingFrame = {
   wing?: readonly BankingPoint[]
 }
 
+// Gundam models retain their detailed hand-painted 2D combat poses in
+// landscape. This includes their hangar/selector portraits (see RaidShipSprite).
+export function isRaidGundamArt(shipKey: string) {
+  return shipKey === 'godGundam' || shipKey === 'godGundamBurning' ||
+    shipKey === 'spiegel' || shipKey === 'coreLander' ||
+    shipKey === 'coreLanderBurning' || shipKey === 'coreLanderElite' ||
+    shipKey === 'coreLanderBurningElite'
+}
+
+export function shouldUseRaidBankingArt(shipKey: string, landscape: boolean) {
+  return !(landscape && isRaidGundamArt(shipKey))
+}
+
 function bankingKey(shipKey: string) {
   return shipKey === 'mesiah' ? 'mesiahBlack' : shipKey
 }
@@ -84,6 +97,7 @@ export function raidBankingResidualAngle(bank: number, landscape: boolean, reduc
 }
 
 export function getRaidBankingFrame(shipKey: string, bank: number, landscape: boolean, reducedMotion: boolean): RaidBankingFrame | null {
+  if (!shouldUseRaidBankingArt(shipKey, landscape)) return null
   const sprite = getRaidBankingAtlas(shipKey)
   if (!sprite?.loaded) return null
   const frame = raidBankingFrameIndex(bank, landscape, reducedMotion)
