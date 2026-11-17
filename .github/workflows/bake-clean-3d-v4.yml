@@ -11,6 +11,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: bake-clean-3d-v4
+  cancel-in-progress: true
+
 jobs:
   bake:
     runs-on: ubuntu-latest
@@ -21,6 +25,9 @@ jobs:
         with:
           ref: fix/3d-clean-2d-fidelity
           persist-credentials: true
+
+      - name: Check Python builder syntax before dependency installation
+        run: python3 -m py_compile scripts/match-3d-to-2d-palette.py
 
       - name: Install image processing dependencies
         run: python3 -m pip install --disable-pip-version-check "Pillow==11.3.0" "numpy==2.2.6"
