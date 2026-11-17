@@ -969,7 +969,26 @@ export class PixiRaidBackground {
   }
 
   async init(host: HTMLDivElement) {
-    const preferred = getPreferredRaidRenderBackend()
+    let preferred = getPreferredRaidRenderBackend()
+    // PixiJS 3D's WebGPU mesh pipeline requires indirect-first-instance.
+    // Probing this ONCE before allocating the graphics context prevents a
+    // partially initialized backend from stalling or blacking out Android.
+    if (preferred === 'webgpu') {
+      try {
+        const gpu = (navigator as Navigator & { gpu?: {
+          requestAdapter: () => Promise<{ features: { has: (feature: string) => boolean } } | null>
+        } }).gpu
+        const adapter = await gpu?.requestAdapter()
+        if (!adapter?.features.has('indirect-first-instance')) {
+          rememberWebGpuFailure()
+          preferred = 'webgl'
+        }
+      } catch {
+        rememberWebGpuFailure()
+        preferred = 'webgl'
+      }
+    }
+    if (this.destroyed) return false
     // Reuse the existing Pixi scene, texture pooling and render loop. There is
     // only one GPU canvas/context: never layer Three.js over the 2D effects.
     // Pixi auto-detects backends; retry WebGL with a fresh Application if an
@@ -1415,6 +1434,16 @@ export class PixiRaidBackground {
         console.warn('Raid GPU rendering failed; preserving Canvas fallback:', error)
       }
       if (app.renderer instanceof WebGPURenderer) rememberWebGpuFailure()
+      // Rendering a 3D scene may fail even after WebGPU adapter validation.
+      // Tear it down once and restore the proven 2D scene on the SAME app,
+      // then let Canvas handle the affected foreground frame.
+      if (this.spaceWorld3D) {
+        this.setSpace3DVisible(false)
+        try { this.spaceWorld3D.destroy() } catch { /* GPU may be lost */ }
+        this.spaceWorld3D = null
+        this.geometryCacheKey = ''
+        try { app.render() } catch { /* Canvas fallback remains available */ }
+      }
       this.gpuForeground.root.visible = false
       return false
     }
