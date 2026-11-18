@@ -91,6 +91,23 @@ function makePlanetMap(disk: Texture | undefined, terrain: Texture | undefined,
   const dctx = diskCanvas.getContext('2d')!
   const artReady = paintFrame(dctx, disk, 0, 0, SIZE, SIZE)
   const sdata = sctx.getImageData(0, 0, w, h)
+  // Full-equirect UVs must wrap at u=0/1. The old 2D landscape art has
+  // independent left/right borders; blend them into a single continuous
+  // meridian before putting the texture on a rotating sphere.
+  const seam = Math.floor(w * .16)
+  for (let y = 0; y < h; y++) {
+    for (let offset = 0; offset < seam; offset++) {
+      const left = (y * w + offset) * 4
+      const right = (y * w + (w - 1 - offset)) * 4
+      const t = offset / Math.max(1, seam - 1)
+      const a = t * t * (3 - 2 * t)
+      for (let c = 0; c < 3; c++) {
+        const midpoint = (sdata.data[left + c] + sdata.data[right + c]) * .5
+        sdata.data[left + c] = mix(midpoint, sdata.data[left + c], a)
+        sdata.data[right + c] = mix(midpoint, sdata.data[right + c], a)
+      }
+    }
+  }
   const ddata = dctx.getImageData(0, 0, SIZE, SIZE)
   const out = sctx.createImageData(w, h)
   const sinus = new Float32Array(w)
@@ -122,7 +139,7 @@ function makePlanetMap(disk: Texture | undefined, terrain: Texture | undefined,
       const smoothFront = frontFade * frontFade * (3 - 2 * frontFade)
       const rim = clamp((Math.hypot(longitudeX, sinLat) - .58) / .40, 0, 1)
       const smoothRim = rim * rim * (3 - 2 * rim)
-      const strength = good ? .52 * smoothFront * (1 - .55 * smoothRim) : 0
+      const strength = good ? .72 * smoothFront * (1 - .65 * smoothRim) : 0
       for (let c = 0; c < 3; c++)
         out.data[di + c] = mix(sdata.data[di + c], ddata.data[si + c], strength)
       const [r, g, b] = vividPixel(out.data[di], out.data[di + 1], out.data[di + 2], 1.20)
