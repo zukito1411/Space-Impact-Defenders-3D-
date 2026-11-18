@@ -130,11 +130,9 @@ function makePlanetMap(disk: Texture | undefined, terrain: Texture | undefined,
   const ddata = dctx.getImageData(0, 0, SIZE, SIZE)
   const out = sctx.createImageData(w, h)
   const sinus = new Float32Array(w)
-  const cosinus = new Float32Array(w)
   for (let x = 0; x < w; x++) {
     const longitude = (x / (w - 1) - .5) * Math.PI * 2
     sinus[x] = Math.sin(longitude)
-    cosinus[x] = Math.cos(longitude)
   }
   for (let y = 0; y < h; y++) {
     const latitude = (y / (h - 1) - .5) * Math.PI
@@ -143,7 +141,6 @@ function makePlanetMap(disk: Texture | undefined, terrain: Texture | undefined,
     for (let x = 0; x < w; x++) {
       const di = (y * w + x) * 4
       const longitudeX = sinus[x] * cosLat
-      const forward = cosinus[x] * cosLat
       // The original implementation jumped from a 79% front projection
       // to a 30% mirrored rear projection at longitude=+/-90deg, creating
       // a glaring hard vertical rectangle on the sphere. Reproject the
