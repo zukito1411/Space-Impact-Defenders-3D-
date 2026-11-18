@@ -25,6 +25,10 @@ try {
   assert.equal(status.frameCount, 5)
   assert.ok(status.art?.sourceAtlases >= 8,
     'Original high-resolution 2D art must reach the 3D material pipeline: ' + JSON.stringify(status.art))
+  assert.equal(status.art.actual2DAsteroidTexturing, true,
+    '3D asteroid surfaces must come from the actual 2D asteroid sprite, not the gas-cloud atlas')
+  assert.ok(status.art.planetUvTextureWidth >= 1024,
+    '3D planet material must preserve HD 2D planet illustration detail')
   assert.equal(status.art.texturedPlanets, 3)
   assert.equal(status.art.texturedRocks, 26)
   assert.ok(status.art.stationParts >= 10)
