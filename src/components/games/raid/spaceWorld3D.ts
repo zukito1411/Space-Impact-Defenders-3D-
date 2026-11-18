@@ -120,6 +120,7 @@ export class SpaceWorld3D {
     createAnnulus(1.82, 1.98),
     new CylinderGeometry({ radiusTop: .25, radiusBottom: .25, height: 1.8, radialSegments: 12 }),
     new CubeGeometry({ width: 1, height: 1, depth: 1 }),
+    new TorusGeometry({ radius: 1.24, tube: .085, radialSegments: 12, tubularSegments: 64 }),
   ]
   private readonly starTexture = createStarTexture()
   private readonly planets = Array.from({ length: 3 }, (_, index) =>
@@ -257,8 +258,8 @@ export class SpaceWorld3D {
       [4,2,0,0,1.4,.83,.83,1.1],
       [4,3,-1.6,0,1.0,.48,.48,.86],
       [4,3,1.6,0,1.0,.48,.48,.86],
-      [2,3,0,0,-.42,1.6,1.6,1.6],
-      [3,2,0,0,.3,1.20,1.20,1.20],
+      [6,3,0,0,-.42,1.6,1.6,1.6],
+      [6,2,0,0,.3,1.20,1.20,1.20],
       [0,2,0,0,1.85,.38,.38,.38],
     ] as const
     const stationMats = [hull, plates, engines, gold]
