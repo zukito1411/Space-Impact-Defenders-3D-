@@ -108,17 +108,21 @@ function makePlanetMap(disk: Texture | undefined, terrain: Texture | undefined,
       const di = (y * w + x) * 4
       const longitudeX = sinus[x] * cosLat
       const forward = cosinus[x] * cosLat
-      const longitudeFront = forward >= 0
-      // Original 2D globe pixels are projected onto the front hemisphere,
-      // with only faint mirrored coverage around the far side.
-      const u = clamp((.5 + longitudeX * (longitudeFront ? .41 : -.33)) * (SIZE - 1), 0, SIZE - 1) | 0
-      const v = clamp((.5 - sinLat * .41) * (SIZE - 1), 0, SIZE - 1) | 0
+      // The original implementation jumped from a 79% front projection
+      // to a 30% mirrored rear projection at longitude=+/-90deg, creating
+      // a glaring hard vertical rectangle on the sphere. Reproject the
+      // original illustration continuously, fade towards the silhouette,
+      // and let the HD terrain art supply the back hemisphere seamlessly.
+      const u = clamp((.5 + longitudeX * .36) * (SIZE - 1), 0, SIZE - 1) | 0
+      const v = clamp((.5 - sinLat * .36) * (SIZE - 1), 0, SIZE - 1) | 0
       const si = (v * SIZE + u) * 4
       const texBrightness = Math.max(ddata.data[si], ddata.data[si + 1], ddata.data[si + 2])
       const good = artReady && ddata.data[si + 3] > 90 && texBrightness > 28
-      // Keep the illustrated continents while fully textured terrain wraps
-      // around both sides of the actual 3D sphere.
-      const strength = good ? (longitudeFront ? .79 : .30) * (.68 + .32 * Math.max(0, forward)) : 0
+      const frontFade = clamp((forward + .35) / 1.18, 0, 1)
+      const smoothFront = frontFade * frontFade * (3 - 2 * frontFade)
+      const rim = clamp((Math.hypot(longitudeX, sinLat) - .58) / .40, 0, 1)
+      const smoothRim = rim * rim * (3 - 2 * rim)
+      const strength = good ? .52 * smoothFront * (1 - .55 * smoothRim) : 0
       for (let c = 0; c < 3; c++)
         out.data[di + c] = mix(sdata.data[di + c], ddata.data[si + c], strength)
       const [r, g, b] = vividPixel(out.data[di], out.data[di + 1], out.data[di + 2], 1.20)
@@ -144,6 +148,38 @@ function makeSceneryMap(source: Texture | undefined, color: number) {
     }
   }
   // Retain a legible metal/rock silhouette under directional PBR lighting.
+  return { texture: upload(canvas), usedArt }
+}
+/** 
+ * Existing amber/cyan dust artwork becomes an annular band with tapered,
+ * semi-transparent rings. A real radial 3D mesh maps this material across
+ * its width; never use a featureless thick tube painted solid beige.
+ */
+function makeRingBand(source: Texture | undefined, color: number) {
+  const w = 512, h = 128, canvas = newCanvas(w, h)
+  const ctx = canvas.getContext('2d')!
+  const [r,g,b] = channels(color)
+  ctx.fillStyle = 'rgba(' + r + ',' + g + ',' + b + ',1)'
+  ctx.fillRect(0,0,w,h)
+  const usedArt = paintFrame(ctx, source, 0, 0, w, h)
+  for (let stripe = 0; stripe < 28; stripe++) {
+    const y = Math.round(stripe * h / 28)
+    const flare = .17 + .28 * (.5 + Math.sin(stripe * 2.3) * .5)
+    ctx.fillStyle = 'rgba(' + r + ',' + g + ',' + b + ',' + flare + ')'
+    ctx.fillRect(0, y, w, stripe % 6 === 0 ? 3 : 1)
+  }
+  ctx.globalCompositeOperation = 'destination-in'
+  const fade = ctx.createLinearGradient(0,0,0,h)
+  fade.addColorStop(0,'rgba(255,255,255,0)')
+  fade.addColorStop(.09,'rgba(255,255,255,.34)')
+  fade.addColorStop(.22,'rgba(255,255,255,.78)')
+  fade.addColorStop(.40,'rgba(255,255,255,.94)')
+  fade.addColorStop(.57,'rgba(255,255,255,.70)')
+  fade.addColorStop(.76,'rgba(255,255,255,.95)')
+  fade.addColorStop(.89,'rgba(255,255,255,.25)')
+  fade.addColorStop(1,'rgba(255,255,255,0)')
+  ctx.fillStyle = fade;ctx.fillRect(0,0,w,h)
+  ctx.globalCompositeOperation = 'source-over'
   return { texture: upload(canvas), usedArt }
 }
 function makeHaloMap(hex: number) {
@@ -199,7 +235,7 @@ export function createSpaceArtPack(): SpaceArtPack {
   const asteroidMaps = Array.from({length:3}, (_,i) =>
     add(makeSceneryMap(getCelestialArt((i+1) % 4) ?? getWreckTexture(i), themed[i])))
   const ringMaps = Array.from({length:3}, (_,i) =>
-    add(makeSceneryMap(getCelestialArt((i+2) % 4) ?? getCosmosBackdrop(i), themed[(i+1)%5])))
+    add(makeRingBand(getCelestialArt((i+2) % 4) ?? getCosmosBackdrop(i), themed[(i+1)%5])))
   const haloMaps = themed.map(color => {
     const tex = makeHaloMap(color); owned.push(tex); return tex
   })
