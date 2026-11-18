@@ -149,20 +149,20 @@ function makePlanetMap(disk: Texture | undefined, terrain: Texture | undefined,
       // a glaring hard vertical rectangle on the sphere. Reproject the
       // original illustration continuously, fade towards the silhouette,
       // and let the HD terrain art supply the back hemisphere seamlessly.
-      // True orthographic disk-to-sphere reprojection. The earlier .36
-      // shrank the visible 2D disk to only 72% of its source diameter,
-      // losing the sharpest illustration detail before the GPU saw it.
-      const u = clamp((.5 + longitudeX * .485) * (SIZE - 1), 0, SIZE - 1) | 0
-      const v = clamp((.5 - sinLat * .485) * (SIZE - 1), 0, SIZE - 1) | 0
+      // Wrap the SAME illustrated planet across all 360 degrees.
+      // Previously the near hemisphere used a purple globe and the far
+      // half used an unrelated blue landscape. As the sphere rotated,
+      // that mismatch produced the hard vertical color seam visible in
+      // the Stage 1 PNG. Reflect the source illustration smoothly on the
+      // rear hemisphere; sine has identical samples at u=0 and u=1.
+      const u = clamp((.5 + longitudeX * .425) * (SIZE - 1), 0, SIZE - 1) | 0
+      const v = clamp((.5 - sinLat * .425) * (SIZE - 1), 0, SIZE - 1) | 0
       const si = (v * SIZE + u) * 4
-      const texBrightness = Math.max(ddata.data[si], ddata.data[si + 1], ddata.data[si + 2])
-      const good = artReady && ddata.data[si + 3] > 90 && texBrightness > 28
-      // Display the original 2D globe almost unaltered on the camera-facing
-      // hemisphere. Fade only near the limb / reverse meridian, so the
-      // texture still wraps without a hard edge as the 3D sphere rotates.
-      const frontFade = clamp((forward + .10) / .65, 0, 1)
-      const smoothFront = frontFade * frontFade * (3 - 2 * frontFade)
-      const strength = good ? .96 * smoothFront : 0
+      const sourceAlpha = artReady ? ddata.data[si + 3] / 255 : 0
+      // A gentle alpha transition is only needed for the very edge of
+      // the circular artwork. The detailed 2D planet itself remains
+      // fully opaque instead of being washed out with 30-70% terrain.
+      const strength = sourceAlpha * sourceAlpha * (3 - 2 * sourceAlpha)
       for (let c = 0; c < 3; c++)
         out.data[di + c] = mix(sdata.data[di + c], ddata.data[si + c], strength)
       const [r, g, b] = vividPixel(out.data[di], out.data[di + 1], out.data[di + 2], 1.20)
