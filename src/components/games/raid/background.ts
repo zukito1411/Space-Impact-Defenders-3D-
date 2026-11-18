@@ -18,7 +18,7 @@ import { RaidTravelMotion } from './travelMotion'
 import { getPublicAssetUrl } from '../sound'
 import type { GraphicsQuality } from '../sound'
 import { getRaidAlienSpriteUrl, getRaidEliteSpriteUrl, getRaidShipSpriteUrl } from '../RaidShipSprite'
-import { Application, Assets, Container, FillGradient, Graphics, Sprite, Texture, TilingSprite, WebGLRenderer, WebGPURenderer } from 'pixi.js'
+import { Application, Assets, Container, FillGradient, Graphics, Sprite, Texture, TilingSprite, WebGLRenderer } from 'pixi.js'
 import { RAID_OTHER_ASSET_PATHS, drawCanvasImageContain, getRaidOtherCanvasSprite, getRaidSideShipCanvasSprite } from './assets'
 import type { RaidOtherAssetKey } from './assets'
 import { COMET_ASSET_HEAD_ANGLE, DEG } from './constants'
@@ -26,7 +26,6 @@ import type { CameraShakeState } from './types'
 import { clamp, seededNoise } from './utils'
 import { RaidGpuForeground } from './gpuForeground'
 import type { RaidGpuForegroundFrame } from './gpuForeground'
-import { getPreferredRaidRenderBackend, rememberWebGpuFailure } from './renderBackend'
 
 export type RaidPalette = {
   baseTop: string
@@ -941,14 +940,9 @@ export class PixiRaidBackground {
   }
 
   async init(host: HTMLDivElement) {
-    const preferred = getPreferredRaidRenderBackend()
-    // Reuse the existing Pixi scene, texture pooling and render loop. There is
-    // only one GPU canvas/context: never layer Three.js over the 2D effects.
-    // Pixi auto-detects backends; retry WebGL with a fresh Application if an
-    // Android/WebView WebGPU adapter fails during initialization.
-    let app = new Application()
     try {
-      const options = {
+      const app = new Application()
+      await app.init({
         width: 1,
         height: 1,
         resolution: 1,
@@ -956,19 +950,9 @@ export class PixiRaidBackground {
         autoDensity: true,
         autoStart: false,
         antialias: false,
-        powerPreference: 'high-performance' as const,
-      }
-      try {
-        await app.init({ ...options, preference: preferred })
-      } catch (error) {
-        if (preferred !== 'webgpu' || this.destroyed) throw error
-        rememberWebGpuFailure()
-        console.warn('3D WebGPU initialization failed; retrying with WebGL:', error)
-        try { app.destroy({ removeView: true }, { children: true }) }
-        catch { /* A partially initialized renderer might not be disposable. */ }
-        app = new Application()
-        await app.init({ ...options, preference: 'webgl' })
-      }
+        preference: 'webgl',
+        powerPreference: 'high-performance',
+      })
       // React can unmount this instance while WebGL initialization is pending.
       // Never let an obsolete instance replace the current instance's canvas.
       if (this.destroyed) {
@@ -1064,7 +1048,6 @@ export class PixiRaidBackground {
       })
       const prepared = await Promise.race([
         this.gpuForeground.prepare(app.renderer).then(() => true).catch((error: unknown) => {
-          if (app.renderer instanceof WebGPURenderer) rememberWebGpuFailure()
           if (!this.destroyed) console.warn('Raid GPU foreground preparation failed; using Canvas combat rendering:', error)
           return false
         }),
@@ -1076,10 +1059,7 @@ export class PixiRaidBackground {
       if (!prepared) this.gpuForeground.root.visible = false
       return true
     } catch (error) {
-      if (!this.destroyed) console.warn('Raid GPU renderer initialization failed; using Canvas fallback:', error)
-      if (this.app === app) this.app = null
-      try { app.destroy({ removeView: true }, { children: true }) }
-      catch { /* A failed backend may not have finished initialization. */ }
+      if (!this.destroyed) console.warn('Raid WebGL renderer initialization failed:', error)
       this.destroy()
       return false
     }
@@ -1272,10 +1252,7 @@ export class PixiRaidBackground {
 
   isBossGpuRendered(id: number) { return this.gpuForeground.isBossGpuRendered(id) }
 
-  getRaidGpuStats() {
-    const backend = !this.app ? 'Canvas' : this.app.renderer instanceof WebGPURenderer ? 'WebGPU' : 'WebGL'
-    return { ...this.gpuForeground.getStats(), backend, gpuFrameMs: this.lastGpuElapsedMs }
-  }
+  getRaidGpuStats() { return { ...this.gpuForeground.getStats(), gpuFrameMs: this.lastGpuElapsedMs } }
 
   private renderWithGpuTimer(app: Application, measure: boolean, time: number) {
     if (!measure || this.gpuTimerDisabled) { app.render(); return }
@@ -1341,9 +1318,8 @@ export class PixiRaidBackground {
     } catch (error) {
       if (!this.renderErrorReported) {
         this.renderErrorReported = true
-        console.warn('Raid GPU rendering failed; preserving Canvas fallback:', error)
+        console.warn('Raid WebGL rendering failed:', error)
       }
-      if (app.renderer instanceof WebGPURenderer) rememberWebGpuFailure()
       this.gpuForeground.root.visible = false
       return false
     }

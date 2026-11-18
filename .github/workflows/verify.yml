@@ -27,8 +27,6 @@ jobs:
         run: python3 scripts/test-source-model-pipeline.py
       - name: Test Air Raid frame recovery
         run: node --experimental-strip-types scripts/test-raid-frame-loop.mjs
-      - name: Test WebGPU rendering policy and WebGL fallback
-        run: node --experimental-strip-types scripts/test-3d-render-backend.mjs
       - name: Test Air Raid collision broad phase
         run: node scripts/test-raid-spatial-hash.mjs
       - name: Test account progression and cosmetic preferences
