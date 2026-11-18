@@ -18,6 +18,7 @@ try {
   }
   assert.equal(ready, true, 'Vite playfield fixture must start')
   browser = await chromium.launch({
+    channel: process.env.GITHUB_ACTIONS ? 'chrome' : undefined,
     args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader'],
   })
   const page = await browser.newPage({ viewport: { width: 480, height: 720 } })
