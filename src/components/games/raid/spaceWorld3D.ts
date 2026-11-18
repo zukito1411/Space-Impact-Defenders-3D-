@@ -249,12 +249,12 @@ export class SpaceWorld3D {
     this.materials.push(hull, plates, engines, gold)
     const stationParts = [
       // [geometry index, material index, position XYZ, scale XYZ]
-      [5,0,0,0,0,3.9,.70,1.2],
-      [5,1,0,.15,-.5,1.8,.85,1.7],
-      [5,1,-2.7,0,0,1.6,.24,2.5],
-      [5,1,2.7,0,0,1.6,.24,2.5],
-      [5,0,-3.7,.11,0,.23,2.0,.40],
-      [5,0,3.7,.11,0,.23,2.0,.40],
+      [5,0,0,0,0,4.5,.56,1.1],
+      [5,1,0,.21,-.6,2.2,.88,1.4],
+      [5,1,-2.6,-.24,-.48,2.15,.22,2.05],
+      [5,1,2.35,.04,-.32,1.82,.24,1.80],
+      [5,0,-3.7,.11,0,.24,1.20,.40],
+      [5,0,3.45,.11,0,.24,1.38,.40],
       [4,2,0,0,1.4,.83,.83,1.1],
       [4,3,-1.6,0,1.0,.48,.48,.86],
       [4,3,1.6,0,1.0,.48,.48,.86],
@@ -272,7 +272,7 @@ export class SpaceWorld3D {
       this.station.addChild(mesh)
     }
     this.station.position.set(-20, -8, -57)
-    this.station.rotation.set(.47, -.28, .08)
+    this.station.rotation.set(.37, -.62, .26)
     this.view.root.addChild(this.station)
 
     this.changeStage(1)
@@ -362,8 +362,8 @@ export class SpaceWorld3D {
       planet.rotation.z = .11 * Math.sin(t * .025 + index)
     })
     this.rings.forEach((ring) => { ring.rotation.z = .16 + .018 * Math.sin(t * .11) })
-    this.station.rotation.y = -.28 + t * .016
-    this.station.rotation.z = .08 + .10 * Math.sin(t * .025)
+    this.station.rotation.y = -.62 + t * .012
+    this.station.rotation.z = .26 + .08 * Math.sin(t * .025)
     this.nebula.forEach((cloud, index) => {
       cloud.rotation.z = .025 * Math.sin(t * .13 + index)
     })
