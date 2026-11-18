@@ -239,82 +239,65 @@ export class SpaceWorld3D {
       stageRush: 0, paused: false, reducedMotion: false, runToken: 0 })
   }
 
-  /** 
-   * Artwork frames were cut from a large 2x2 space atlas. A raw Sprite3D
-   * turns those rectangular tiles into hard-edged floating billboards.
-   * Feather a small, reusable copy ONCE per art frame at scene preparation;
-   * retain its original vivid nebula colours without per-frame filters or
-   * expensive blur passes on low-end Android GPUs.
-   */
-  private softNebulaTexture(original: Texture): Texture {
-    const existing = this.softNebulaTextures.get(original)
-    if (existing) return existing
-    const source = (original.source as unknown as { resource?: CanvasImageSource }).resource
-    if (!source || typeof document === 'undefined') return original
-    const size = 384
-    const canvas = document.createElement('canvas')
-    canvas.width = size
-    canvas.height = size
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return original
-    const frame = original.frame
-    try {
-      ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height, 0, 0, size, size)
-      ctx.globalCompositeOperation = 'destination-in'
-      const mask = ctx.createRadialGradient(size / 2, size / 2, size * .06,
-        size / 2, size / 2, size * .51)
-      mask.addColorStop(0, 'rgba(255,255,255,1)')
-      mask.addColorStop(.46, 'rgba(255,255,255,1)')
-      mask.addColorStop(.70, 'rgba(255,255,255,.55)')
-      mask.addColorStop(1, 'rgba(255,255,255,0)')
-      ctx.fillStyle = mask
-      ctx.fillRect(0, 0, size, size)
-      ctx.globalCompositeOperation = 'source-over'
-      const softened = Texture.from(canvas)
-      softened.source.scaleMode = 'linear'
-      this.softNebulaTextures.set(original, softened)
-      this.ownedTextures.push(softened)
-      return softened
-    } catch {
-      // If a driver only exposes GPU-backed art, use the original material.
-      // This MUST NOT stop the 3D scene or remove the illustrated sky.
-      return original
-    }
-  }
-
   private changeStage(stageTheme: number) {
     this.stageKey = stageTheme
     const region = (Math.max(1, stageTheme) - 1) % SPACE_THEMES.length
     const theme = SPACE_THEMES[region]
+    // Distinct near/mid/far positions mean three real rotating spheres, not
+    // flat circular sprites following the user's steering.
+    const arrangement = [
+      { x: 18, y: 18, z: -60, radius: 13.8 },
+      { x: -28, y: -11, z: -96, radius: 6.3 },
+      { x: 28, y: -19, z: -128, radius: 3.9 },
+    ]
     this.planets.forEach((mesh, index) => {
       const material = mesh.material as Material3D
-      material.textures.baseColor = this.ownedTextures[(region + index) % this.ownedTextures.length]
+      material.textures.baseColor = this.art.planetMaps[(region + index) % this.art.planetMaps.length]
       material.baseColor = 0xffffff
-      const z = -62 - index * 34
-      const x = (index % 2 ? -1 : 1) * (10 + index * 18)
-      mesh.position.set(x, index === 0 ? 13 : -9 + index * 6, z)
-      const diameter = index === 0 ? 10 : index === 1 ? 4.8 : 2.9
-      mesh.scale.set(diameter, diameter, diameter)
+      if (material.emissive) material.emissive.color = SPACE_THEMES[(region + index) % SPACE_THEMES.length].ice
+      const { x, y, z, radius } = arrangement[index]
+      mesh.position.set(x, y, z)
+      mesh.scale.set(radius, radius, radius)
+      const halo = this.planetHalos[index]
+      halo.texture = this.art.haloMaps[(region + index) % this.art.haloMaps.length]
+      halo.position.set(x, y, z - .9)
+      halo.width = radius * 2.74
+      halo.height = radius * 2.74
+      halo.alpha = index === 0 ? .98 : .76
     })
     this.rings.forEach((ring, index) => {
-      ;(ring.material as Material3D).baseColor = theme.ring
+      const mat = ring.material as Material3D
+      mat.textures.baseColor = this.art.ringMaps[(region + index) % this.art.ringMaps.length]
+      if (mat.emissive) mat.emissive.color = theme.ring
       ring.position.set(this.planets[0].position.x, this.planets[0].position.y,
         this.planets[0].position.z)
-      ring.scale.set(10, 10, 10)
-      ring.rotation.set(.4, .4 + index * .05, .16)
-      ring.visible = region % 2 === 0
+      ring.scale.set(14.65, 14.65, 14.65)
+      ring.rotation.set(.76, .24 + index * .12, .12)
+      ring.visible = region % 2 === 0 || index === 0
     })
     this.nebula.forEach((cloud, index) => {
-      const image = getCosmosBackdrop((region + index) % 4)
-        ?? getCosmosLandmark((region + index) % 4)
-      cloud.visible = Boolean(image)
-      if (image) cloud.texture = this.softNebulaTexture(image)
-      cloud.position.set((index % 2 ? -1 : 1) * (18 + 17 * index),
-        index % 2 ? -20 : 19, -100 - index * 33)
-      cloud.width = 55 + index * 16
-      cloud.height = 58 + index * 14
-      cloud.alpha = .18 + (index % 3) * .055
+      cloud.texture = this.art.nebulaMaps[(index + region * 2) % this.art.nebulaMaps.length]
+      const z = -78 - (index % 5) * 33 - Math.floor(index / 5) * 18
+      cloud.position.set((index % 2 ? -1 : 1) * (13 + index * 12),
+        index % 3 === 0 ? 28 : index % 3 === 1 ? -22 : 2, z)
+      cloud.width = 64 + (index % 4) * 25
+      cloud.height = 62 + (index % 3) * 30
+      cloud.alpha = index % 3 === 0 ? .47 : index % 3 === 1 ? .38 : .32
+      cloud.rotation.set((index % 2 ? 1 : -1) * .10, .14 * Math.sin(index * 2.4), index * .18)
     })
+    this.station.position.set(region % 2 ? -18 : -20, -8, -57)
+  }
+
+  /** Allows CI to prove original artwork reaches genuine 3D geometry. */
+  getArtworkDiagnostics() {
+    return {
+      sourceAtlases: this.art.artSources,
+      texturedPlanets: this.planets.filter(m => Boolean((m.material as Material3D).textures.baseColor)).length,
+      texturedRocks: this.rocks.filter(m => Boolean((m.node.material as Material3D).textures.baseColor)).length,
+      stationParts: this.station.children.length,
+      volumetricClouds: this.nebula.length,
+      atmosphericHalos: this.planetHalos.length,
+    }
   }
 
   update(frame: SpaceWorld3DFrame) {
@@ -338,10 +321,8 @@ export class SpaceWorld3D {
       planet.rotation.z = .11 * Math.sin(t * .025 + index)
     })
     this.rings.forEach((ring) => { ring.rotation.z = .16 + .018 * Math.sin(t * .11) })
-    this.station.forEach((mesh, index) => {
-      mesh.rotation.y = .16 + t * .009
-      mesh.rotation.z = t * .012 + index * .1
-    })
+    this.station.rotation.y = -.28 + t * .016
+    this.station.rotation.z = .08 + .10 * Math.sin(t * .025)
     this.nebula.forEach((cloud, index) => {
       cloud.rotation.z = .025 * Math.sin(t * .13 + index)
     })
@@ -370,12 +351,11 @@ export class SpaceWorld3D {
     if (this.disposed) return
     this.disposed = true
     this.view.destroy({ children: true })
-    this.geometries.forEach((geometry) => geometry.destroy())
-    this.materials.forEach((material) => material.destroy())
-    this.planets.forEach((planet) => planet.material.destroy())
-    this.rings.forEach((ring) => ring.material.destroy())
-    for (const texture of this.ownedTextures) texture.destroy(true)
-    this.softNebulaTextures.clear()
+    this.geometries.forEach(geometry => geometry.destroy())
+    this.materials.forEach(material => material.destroy())
+    this.planets.forEach(planet => planet.material.destroy())
+    this.rings.forEach(ring => ring.material.destroy())
+    this.art.dispose()
     this.starTexture.destroy(true)
   }
 }
