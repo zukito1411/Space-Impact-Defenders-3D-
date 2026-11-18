@@ -28,7 +28,6 @@ export type SpaceArtPack = {
 const DETAIL = getGraphicsQuality()
 // Do not shrink the original ~928px remastered planet tiles before
 // projecting them onto spherical UVs: v40 downsampled those tiles to 768.
-const SIZE = DETAIL === 'max' ? 1024 : DETAIL === 'high' ? 896 : DETAIL === 'medium' ? 640 : 512
 const PLANET_WIDTH = DETAIL === 'max' ? 1280 : DETAIL === 'high' ? 1024 : DETAIL === 'medium' ? 768 : 512
 const SCENERY_SIZE = DETAIL === 'max' ? 768 : DETAIL === 'high' ? 640 : DETAIL === 'medium' ? 512 : 384
 const CLOUD_SIZE = DETAIL === 'max' ? 896 : DETAIL === 'high' ? 768 : DETAIL === 'medium' ? 640 : 512
