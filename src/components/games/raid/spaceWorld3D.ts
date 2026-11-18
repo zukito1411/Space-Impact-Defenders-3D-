@@ -33,6 +33,8 @@ type FlyingBody = { node: Mesh3D; x: number; y: number; depth: number; speed: nu
 const STAR_COUNT = 420
 const ROCK_COUNT = 26
 const WORLD_DEPTH = 240
+const TAN_HALF_FOV = Math.tan(61 * Math.PI / 360)
+const constrain = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
 
 const seeded = (seed: number, salt: number) => {
   let n = Math.imul(seed + 0x6d2b79f5, 1664525) ^ Math.imul(salt + 1, 1013904223)
@@ -168,6 +170,7 @@ export class SpaceWorld3D {
   }))
   private readonly station = new Container3D()
   private readonly materials: Material3D[] = []
+  private lastViewAspect = -1
   private lastTime = 0
   private clock = 0
   private stageKey = -1
@@ -282,6 +285,7 @@ export class SpaceWorld3D {
 
   private changeStage(stageTheme: number) {
     this.stageKey = stageTheme
+    this.lastViewAspect = -1
     const region = (Math.max(1, stageTheme) - 1) % SPACE_THEMES.length
     const theme = SPACE_THEMES[region]
     // Distinct near/mid/far positions mean three real rotating spheres, not
@@ -329,6 +333,70 @@ export class SpaceWorld3D {
     this.station.position.set(region % 2 ? -18 : -20, -8, -57)
   }
 
+  /**
+   * Place the scenery INSIDE the actual 3D camera frustum, not at hardcoded
+   * desktop-world coordinates. On an Android 9:20 phone, the horizontal 3D
+   * frustum is ~30% narrower than the old 480x720 test viewport. In v38,
+   * the station, most stars, and two planets were simply outside the screen.
+   *
+   * Layout happens only when stage or aspect ratio changes. There is no
+   * per-frame geometry/texture allocation, camera panning tied to the ship,
+   * or additional GPU draw context.
+   */
+  private layoutForView(width: number, height: number) {
+    const aspect = constrain(width / Math.max(1, height), .33, 2.5)
+    if (Math.abs(aspect - this.lastViewAspect) < .015) return
+    this.lastViewAspect = aspect
+    const halfHeightAt = (z: number) => Math.max(1, 12 - z) * TAN_HALF_FOV
+    const halfWidthAt = (z: number) => halfHeightAt(z) * aspect
+
+    const planetPositions = [
+      { z: -60, x: .36, y: .31, scale: .51, min: 10, max: 20 },
+      { z: -95, x: -.55, y: -.19, scale: .27, min: 5, max: 13 },
+      { z: -137, x: .48, y: -.49, scale: .19, min: 3.2, max: 8.8 },
+    ]
+    for (let i = 0; i < this.planets.length; i++) {
+      const p = planetPositions[i]
+      const halfWidth = halfWidthAt(p.z)
+      const radius = constrain(halfWidth * p.scale, p.min, p.max)
+      const x = p.x * halfWidth
+      const y = p.y * halfHeightAt(p.z)
+      const mesh = this.planets[i]
+      mesh.position.set(x, y, p.z)
+      mesh.scale.set(radius, radius, radius)
+      const halo = this.planetHalos[i]
+      halo.position.set(x, y, p.z - .8)
+      halo.width = radius * 2.6
+      halo.height = radius * 2.6
+    }
+    this.rings.forEach((ring) => {
+      const planet = this.planets[0]
+      ring.position.set(planet.position.x, planet.position.y, planet.position.z)
+      const radius = planet.scale.x * 1.03
+      ring.scale.set(radius, radius, radius)
+    })
+    // Keep the original atlas-textured station visibly in the midground.
+    const stationZ = -47
+    this.station.position.set(-halfWidthAt(stationZ) * .40,
+      -halfHeightAt(stationZ) * .26, stationZ)
+    this.nebula.forEach((cloud, i) => {
+      const z = cloud.position.z
+      cloud.position.set(
+        halfWidthAt(z) * (i % 2 ? -.48 : .46),
+        halfHeightAt(z) * (i % 3 === 0 ? .37 : i % 3 === 1 ? -.35 : .04), z)
+      cloud.width = halfWidthAt(z) * (i % 2 ? 1.40 : 1.52)
+      cloud.height = halfHeightAt(z) * (i % 3 === 0 ? 1.05 : .90)
+    })
+    this.starPositions.forEach((star, i) => {
+      star.x = between(i, 21, -.89, .89) * halfWidthAt(star.z)
+      star.y = between(i, 22, -.91, .91) * halfHeightAt(star.z)
+    })
+    this.rocks.forEach((rock, i) => {
+      rock.x = between(i, 8, -.91, .91) * halfWidthAt(rock.depth)
+      rock.y = between(i, 9, -.82, .82) * halfHeightAt(rock.depth)
+    })
+  }
+
   /** Allows CI to prove original artwork reaches genuine 3D geometry. */
   getArtworkDiagnostics() {
     return {
@@ -338,6 +406,9 @@ export class SpaceWorld3D {
       stationParts: this.station.children.length,
       volumetricClouds: this.nebula.length,
       atmosphericHalos: this.planetHalos.length,
+      viewportAspect: this.lastViewAspect,
+      visibleMainPlanetX: this.planets[0].position.x,
+      visibleStationX: this.station.position.x,
     }
   }
 
@@ -351,6 +422,7 @@ export class SpaceWorld3D {
     this.lastTime = frame.time
     if (!frame.paused && !frame.reducedMotion) this.clock += dt
     const t = this.clock
+    this.layoutForView(frame.width, frame.height)
     const rush = 1 + Math.max(0, Math.min(1, frame.stageRush)) * 2.6
 
     // 3D camera perspective: fly forward through the star volume while distant
