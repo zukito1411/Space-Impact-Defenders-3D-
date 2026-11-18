@@ -110,7 +110,7 @@ function createAnnulus(inner: number, outer: number) {
 export class SpaceWorld3D {
   readonly view = new View3D({
     autoResize: true,
-    environment: { skyColor: 0x9cd1ff, groundColor: 0x47316d, intensity: 1.02 },
+    environment: { skyColor: 0x92bdff, groundColor: 0x40285d, intensity: .72 },
   })
   private readonly art = createSpaceArtPack()
   private readonly geometries = [
@@ -129,7 +129,7 @@ export class SpaceWorld3D {
       material: new Material3D({
         baseColor: 0xffffff, baseColorTexture: this.art.planetMaps[index],
         roughness: .78, metallic: .035,
-        emissive: { color: SPACE_THEMES[index].ice, strength: .33 },
+        emissive: { color: SPACE_THEMES[index].ice, strength: .19 },
       }),
       castShadow: false, receiveShadow: false,
     }))
@@ -182,16 +182,16 @@ export class SpaceWorld3D {
     this.view.camera.position.set(0, 0, 12)
     this.view.camera.lookAt({ x: 0, y: 0, z: -50 })
 
-    const key = new DirectionalLight({ color: 0xf5faff, intensity: 3.5 })
+    const key = new DirectionalLight({ color: 0xf5faff, intensity: 2.25 })
     key.position.set(-11, 15, 28)
     key.lookAt({ x: 0, y: 0, z: -40 })
-    const rim = new DirectionalLight({ color: 0x68d9ff, intensity: 2.15 })
+    const rim = new DirectionalLight({ color: 0x68d9ff, intensity: 1.32 })
     rim.position.set(17, -5, -12)
     rim.lookAt({ x: 0, y: 0, z: -58 })
-    const magenta = new DirectionalLight({ color: 0xf37dff, intensity: 1.5 })
+    const magenta = new DirectionalLight({ color: 0xf37dff, intensity: 1.03 })
     magenta.position.set(-18, -12, 16)
     magenta.lookAt({ x: 0, y: 0, z: -58 })
-    this.view.root.addChild(new AmbientLight({ color: 0xb1bdff, intensity: .72 }), key, rim, magenta)
+    this.view.root.addChild(new AmbientLight({ color: 0xb1bdff, intensity: .48 }), key, rim, magenta)
     this.nebula.forEach(cloud => this.view.root.addChild(cloud))
     this.view.root.addChild(this.starfield)
     this.planetHalos.forEach(halo => this.view.root.addChild(halo))
