@@ -3,6 +3,7 @@ import { SpaceWorld3D } from '../src/components/games/raid/spaceWorld3D'
 import { preloadCosmosArt } from '../src/components/games/raid/cosmosArt'
 import { preloadWreckArt } from '../src/components/games/raid/wreckArt'
 import { preloadCelestialArt } from '../src/components/games/raid/celestialArt'
+import { getRaidOtherCanvasSprite } from '../src/components/games/raid/assets'
 
 // Small fast renderer integration fixture: detects real mesh/render-pipeline
 // failures without waiting through the game's lengthy campaign briefing.
@@ -21,7 +22,10 @@ async function main() {
       antialias: false, autoStart: false, preserveDrawingBuffer: true,
     })
     document.body.appendChild(app.canvas)
-    await Promise.all([preloadCosmosArt(), preloadWreckArt(), preloadCelestialArt()])
+    await Promise.all([
+      preloadCosmosArt(), preloadWreckArt(), preloadCelestialArt(),
+      getRaidOtherCanvasSprite('asteroid').ready,
+    ])
     world = new SpaceWorld3D()
     app.stage.addChild(world.view)
     for (let i = 1; i <= 5; i++) {

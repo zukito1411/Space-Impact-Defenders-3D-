@@ -117,7 +117,10 @@ export class SpaceWorld3D {
   private readonly art = createSpaceArtPack()
   private readonly geometries = [
     new SphereGeometry({ radius: 1, widthSegments: 64, heightSegments: 40 }),
-    new IcosahedronGeometry({ radius: 1, detail: 2 }),
+    // Rocky silhouettes should not resemble a handful of flat triangles
+    // at the 3x DPR used in mobile Max mode. Detail 3 shares one geometry
+    // between all rocks and does not add per-frame CPU work.
+    new IcosahedronGeometry({ radius: 1, detail: 3 }),
     createAnnulus(1.08, 1.78),
     createAnnulus(1.82, 1.98),
     new CylinderGeometry({ radiusTop: .25, radiusBottom: .25, height: 1.8, radialSegments: 12 }),
@@ -327,7 +330,10 @@ export class SpaceWorld3D {
         index % 3 === 0 ? 28 : index % 3 === 1 ? -22 : 2, z)
       cloud.width = 64 + (index % 4) * 25
       cloud.height = 62 + (index % 3) * 30
-      cloud.alpha = index % 3 === 0 ? .47 : index % 3 === 1 ? .38 : .32
+      // Eight overlapping, soft-edged gas cards at ~40% opacity veil the
+      // already-sharp remastered 2D galaxy atlas. Keep real 3D depth and
+      // motion but let the original high-detail sky show through clearly.
+      cloud.alpha = index % 3 === 0 ? .23 : index % 3 === 1 ? .19 : .16
       cloud.rotation.set((index % 2 ? 1 : -1) * .10, .14 * Math.sin(index * 2.4), index * .18)
     })
     this.station.position.set(region % 2 ? -18 : -20, -8, -57)
@@ -401,6 +407,9 @@ export class SpaceWorld3D {
   getArtworkDiagnostics() {
     return {
       sourceAtlases: this.art.artSources,
+      actual2DAsteroidTexturing: this.art.realAsteroidSource,
+      planetUvTextureWidth: this.art.planetMaps[0]?.width ?? 0,
+      asteroidUvTextureWidth: this.art.asteroidMaps[0]?.width ?? 0,
       texturedPlanets: this.planets.filter(m => Boolean((m.material as Material3D).textures.baseColor)).length,
       texturedRocks: this.rocks.filter(m => Boolean((m.node.material as Material3D).textures.baseColor)).length,
       stationParts: this.station.children.length,
