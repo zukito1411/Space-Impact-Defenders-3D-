@@ -141,26 +141,36 @@ export class SpaceWorld3D {
     this.view.camera.position.set(0, 0, 12)
     this.view.camera.lookAt({ x: 0, y: 0, z: -50 })
 
-    const sun = new DirectionalLight({ color: 0xd8edff, intensity: 2.6 })
-    sun.position.set(-9, 8, 14)
-    sun.lookAt({ x: 0, y: 0, z: -40 })
-    this.view.root.addChild(new AmbientLight({ color: 0x819fc1, intensity: .36 }), sun)
+    const key = new DirectionalLight({ color: 0xf5faff, intensity: 3.5 })
+    key.position.set(-11, 15, 28)
+    key.lookAt({ x: 0, y: 0, z: -40 })
+    const rim = new DirectionalLight({ color: 0x68d9ff, intensity: 2.15 })
+    rim.position.set(17, -5, -12)
+    rim.lookAt({ x: 0, y: 0, z: -58 })
+    const magenta = new DirectionalLight({ color: 0xf37dff, intensity: 1.5 })
+    magenta.position.set(-18, -12, 16)
+    magenta.lookAt({ x: 0, y: 0, z: -58 })
+    this.view.root.addChild(new AmbientLight({ color: 0xb1bdff, intensity: .72 }), key, rim, magenta)
+    this.nebula.forEach(cloud => this.view.root.addChild(cloud))
     this.view.root.addChild(this.starfield)
-    this.planets.forEach((planet) => this.view.root.addChild(planet))
-    this.rings.forEach((ring) => this.view.root.addChild(ring))
-    this.nebula.forEach((cloud) => this.view.root.addChild(cloud))
+    this.planetHalos.forEach(halo => this.view.root.addChild(halo))
+    this.planets.forEach(planet => this.view.root.addChild(planet))
+    this.rings.forEach(ring => this.view.root.addChild(ring))
 
     // A real 3D deep-space landmark and separate tumbling asteroid field.
     // Reuse geometry/materials so each field batches instead of rebuilding
     // meshes, and keep these as scenic objects only (no collision changes).
-    const rocky = new Material3D({ baseColor: 0x607995, roughness: .94 })
-    const slate = new Material3D({ baseColor: 0x384967, roughness: .91 })
-    const bright = new Material3D({ baseColor: 0x9a8195, roughness: .83 })
-    this.materials.push(rocky, slate, bright)
+    const rockMaterials = Array.from({ length: 3 }, (_, i) =>
+      new Material3D({
+        baseColorTexture: this.art.asteroidMaps[i], baseColor: 0xffffff,
+        roughness: .82, metallic: .10,
+        emissive: { color: [0x2fa9d8, 0xf47a42, 0x9f6ff0][i], strength: .19 },
+      }))
+    this.materials.push(...rockMaterials)
     for (let i = 0; i < ROCK_COUNT; i++) {
       const rock = new Mesh3D({
         geometry: this.geometries[1],
-        material: this.materials[i % this.materials.length],
+        material: rockMaterials[i % rockMaterials.length],
         castShadow: false, receiveShadow: false,
       })
       const scale = between(i, 4, .12, .68)
@@ -173,28 +183,57 @@ export class SpaceWorld3D {
       this.view.root.addChild(rock)
     }
 
-    const hull = new Material3D({ baseColor: 0x7b9bc2, roughness: .57, metallic: .62 })
-    const glow = new Material3D({ baseColor: 0x63cbef, roughness: .39, metallic: .35 })
-    this.materials.push(hull, glow)
-    for (let i = 0; i < 3; i++) {
-      const mesh = new Mesh3D({
-        geometry: i === 0 ? this.geometries[4] : this.geometries[i + 1],
-        material: i === 2 ? glow : hull,
-        castShadow: false, receiveShadow: false,
-      })
-      if (i === 1) mesh.scale.set(2.1, 2.1, .32)
-      if (i === 2) mesh.scale.set(1.45, 1.45, .28)
-      mesh.position.set(-19, -10, -56)
-      mesh.rotation.x = .85
-      this.station.push(mesh)
-      this.view.root.addChild(mesh)
-    }
-
-    // Each surface material gets its texture exactly once, never per frame.
-    SPACE_THEMES.forEach((theme, index) => {
-      const texture = createPlanetTexture(index + 1, theme)
-      this.ownedTextures.push(texture)
+    // Real multi-part 3D wreck/station. Four existing 2D wreck atlas
+    // illustrations now supply metallic panel, armor, engine and trim maps.
+    const hull = new Material3D({
+      baseColorTexture: this.art.armorMaps[0], baseColor: 0xffffff,
+      roughness: .42, metallic: .68,
+      emissive: { color: 0x387fd3, strength: .32 },
     })
+    const plates = new Material3D({
+      baseColorTexture: this.art.armorMaps[1], baseColor: 0xffffff,
+      roughness: .52, metallic: .57,
+      emissive: { color: 0x8d67ea, strength: .28 },
+    })
+    const engines = new Material3D({
+      baseColorTexture: this.art.armorMaps[2], baseColor: 0xc5f9ff,
+      roughness: .27, metallic: .41,
+      emissive: { color: 0x18d9ff, strength: 2.25 },
+    })
+    const gold = new Material3D({
+      baseColorTexture: this.art.armorMaps[3], baseColor: 0xffdda8,
+      roughness: .39, metallic: .59,
+      emissive: { color: 0xffac43, strength: .55 },
+    })
+    this.materials.push(hull, plates, engines, gold)
+    const stationParts = [
+      // [geometry index, material index, position XYZ, scale XYZ]
+      [5,0,0,0,0,3.9,.70,1.2],
+      [5,1,0,.15,-.5,1.8,.85,1.7],
+      [5,1,-2.7,0,0,1.6,.24,2.5],
+      [5,1,2.7,0,0,1.6,.24,2.5],
+      [5,0,-3.7,.11,0,.23,2.0,.40],
+      [5,0,3.7,.11,0,.23,2.0,.40],
+      [4,2,0,0,1.4,.83,.83,1.1],
+      [4,3,-1.6,0,1.0,.48,.48,.86],
+      [4,3,1.6,0,1.0,.48,.48,.86],
+      [2,3,0,0,-.42,1.6,1.6,1.6],
+      [3,2,0,0,.3,1.20,1.20,1.20],
+      [0,2,0,0,1.85,.38,.38,.38],
+    ] as const
+    const stationMats = [hull, plates, engines, gold]
+    for (const [g, m, x, y, z, sx, sy, sz] of stationParts) {
+      const mesh = new Mesh3D({ geometry: this.geometries[g],
+        material: stationMats[m], castShadow: false, receiveShadow: false })
+      mesh.position.set(x, y, z)
+      mesh.scale.set(sx, sy, sz)
+      if (g === 4) mesh.rotation.x = Math.PI / 2
+      this.station.addChild(mesh)
+    }
+    this.station.position.set(-20, -8, -57)
+    this.station.rotation.set(.47, -.28, .08)
+    this.view.root.addChild(this.station)
+
     this.changeStage(1)
     this.update({ time: 0, stageTheme: 1, width: 720, height: 1280,
       stageRush: 0, paused: false, reducedMotion: false, runToken: 0 })
