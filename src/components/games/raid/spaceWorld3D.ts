@@ -152,6 +152,7 @@ export class SpaceWorld3D {
   }))
   private readonly station: Mesh3D[] = []
   private readonly ownedTextures: Texture[] = []
+  private readonly softNebulaTextures = new Map<Texture, Texture>()
   private readonly materials: Material3D[] = []
   private lastTime = 0
   private clock = 0
@@ -226,6 +227,49 @@ export class SpaceWorld3D {
       stageRush: 0, paused: false, reducedMotion: false, runToken: 0 })
   }
 
+  /** 
+   * Artwork frames were cut from a large 2x2 space atlas. A raw Sprite3D
+   * turns those rectangular tiles into hard-edged floating billboards.
+   * Feather a small, reusable copy ONCE per art frame at scene preparation;
+   * retain its original vivid nebula colours without per-frame filters or
+   * expensive blur passes on low-end Android GPUs.
+   */
+  private softNebulaTexture(original: Texture): Texture {
+    const existing = this.softNebulaTextures.get(original)
+    if (existing) return existing
+    const source = (original.source as unknown as { resource?: CanvasImageSource }).resource
+    if (!source || typeof document === 'undefined') return original
+    const size = 384
+    const canvas = document.createElement('canvas')
+    canvas.width = size
+    canvas.height = size
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return original
+    const frame = original.frame
+    try {
+      ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height, 0, 0, size, size)
+      ctx.globalCompositeOperation = 'destination-in'
+      const mask = ctx.createRadialGradient(size / 2, size / 2, size * .06,
+        size / 2, size / 2, size * .51)
+      mask.addColorStop(0, 'rgba(255,255,255,1)')
+      mask.addColorStop(.46, 'rgba(255,255,255,1)')
+      mask.addColorStop(.70, 'rgba(255,255,255,.55)')
+      mask.addColorStop(1, 'rgba(255,255,255,0)')
+      ctx.fillStyle = mask
+      ctx.fillRect(0, 0, size, size)
+      ctx.globalCompositeOperation = 'source-over'
+      const softened = Texture.from(canvas)
+      softened.source.scaleMode = 'linear'
+      this.softNebulaTextures.set(original, softened)
+      this.ownedTextures.push(softened)
+      return softened
+    } catch {
+      // If a driver only exposes GPU-backed art, use the original material.
+      // This MUST NOT stop the 3D scene or remove the illustrated sky.
+      return original
+    }
+  }
+
   private changeStage(stageTheme: number) {
     this.stageKey = stageTheme
     const region = (Math.max(1, stageTheme) - 1) % SPACE_THEMES.length
@@ -249,8 +293,10 @@ export class SpaceWorld3D {
       ring.visible = region % 2 === 0
     })
     this.nebula.forEach((cloud, index) => {
-      cloud.texture = getCosmosBackdrop((region + index) % 4)
-        ?? getCosmosLandmark((region + index) % 4) ?? Texture.WHITE
+      const image = getCosmosBackdrop((region + index) % 4)
+        ?? getCosmosLandmark((region + index) % 4)
+      cloud.visible = Boolean(image)
+      if (image) cloud.texture = this.softNebulaTexture(image)
       cloud.position.set((index % 2 ? -1 : 1) * (18 + 17 * index),
         index % 2 ? -20 : 19, -100 - index * 33)
       cloud.width = 55 + index * 16
@@ -317,6 +363,7 @@ export class SpaceWorld3D {
     this.planets.forEach((planet) => planet.material.destroy())
     this.rings.forEach((ring) => ring.material.destroy())
     for (const texture of this.ownedTextures) texture.destroy(true)
+    this.softNebulaTextures.clear()
     this.starTexture.destroy(true)
   }
 }
