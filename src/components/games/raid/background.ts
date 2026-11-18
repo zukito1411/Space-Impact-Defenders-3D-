@@ -15,7 +15,7 @@ import { cosmicRegionIndex, COSMIC_REGIONS, edgeFlyby } from './cosmos'
 import { getCosmosBackdrop, getCosmosLandmark, getCosmosBloom, getJourneyPlanet, getJourneySurface, getJourneyBloom, preloadCosmosArt } from './cosmosArt'
 import { projectDepthStar, type DepthStar } from './depthProjection'
 import { RaidTravelMotion } from './travelMotion'
-import { getGraphicsQuality, getPublicAssetUrl } from '../sound'
+import { getPublicAssetUrl } from '../sound'
 import type { GraphicsQuality } from '../sound'
 import { getRaidAlienSpriteUrl, getRaidEliteSpriteUrl, getRaidShipSpriteUrl } from '../RaidShipSprite'
 import { Application, Assets, Container, FillGradient, Graphics, Sprite, Texture, TilingSprite, WebGLRenderer, WebGPURenderer } from 'pixi.js'
@@ -26,8 +26,7 @@ import type { CameraShakeState } from './types'
 import { clamp, seededNoise } from './utils'
 import { RaidGpuForeground } from './gpuForeground'
 import type { RaidGpuForegroundFrame } from './gpuForeground'
-import { getPreferredRaidRenderBackend, getRaidRendererPreference, rememberWebGpuFailure } from './renderBackend'
-import type { SpaceWorld3D } from './spaceWorld3D'
+import { getPreferredRaidRenderBackend, rememberWebGpuFailure } from './renderBackend'
 
 export type RaidPalette = {
   baseTop: string
@@ -848,9 +847,6 @@ export function getRaidCameraShakeOffset(shake: CameraShakeState, time: number, 
 
 export class PixiRaidBackground {
   private app: Application | null = null
-  private spaceWorld3D: SpaceWorld3D | null = null
-  private space3DVisible = false
-  private space3DError: string | null = null
   private destroyed = false
   private renderErrorReported = false
   private foregroundPrepared = false
@@ -940,66 +936,12 @@ export class PixiRaidBackground {
   private gpuTimerDisabled = false
   private lastGpuElapsedMs: number | null = null
 
-  /**
-   * Keep the original illustrated stars, galaxies, planets and debris visible
-   * behind the 3D world. The first 3D release hid every 2D scenic layer before
-   * validating that the 3D meshes actually appeared on Android. That caused
-   * an almost entirely black stage despite successful canvas submissions.
-   *
-   * 3D is a transparent overlay in the SAME Pixi pass, not a replacement for
-   * essential scene layers. Planetary-surface transitions still hide this view.
-   */
-  private setSpace3DVisible(active: boolean) {
-    const world = this.spaceWorld3D
-    if (!world) return
-    if (active === this.space3DVisible) return
-    this.space3DVisible = active
-    world.view.visible = active
-    if (this.app?.canvas) (this.app.canvas as HTMLCanvasElement).dataset.space3d = active ? 'active' : 'legacy'
-  }
-
   private hasLostContext(app: Application) {
     return app.renderer instanceof WebGLRenderer && app.renderer.context.isLost
   }
 
   async init(host: HTMLDivElement) {
-    let preferred = getPreferredRaidRenderBackend()
-    // The @pixi/3d WebGPU backend can initialize yet fail to draw in some
-    // Android System WebViews. Prefer the tested WebGL 3D mesh pipe in Auto
-    // on Android; the user's explicit WebGPU setting still takes priority.
-    if (getRaidRendererPreference() === 'auto' &&
-        typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent))
-      preferred = 'webgl'
-    // PixiJS 3D's WebGPU mesh pipeline requires indirect-first-instance.
-    // Probing this ONCE before allocating the graphics context prevents a
-    // partially initialized backend from stalling or blacking out Android.
-    if (preferred === 'webgpu') {
-      try {
-        const gpu = (navigator as Navigator & { gpu?: {
-          requestAdapter: () => Promise<{ features: { has: (feature: string) => boolean } } | null>
-        } }).gpu
-        const adapter = await gpu?.requestAdapter()
-        if (!adapter?.features.has('indirect-first-instance')) {
-          rememberWebGpuFailure()
-          preferred = 'webgl'
-        }
-      } catch {
-        rememberWebGpuFailure()
-        preferred = 'webgl'
-      }
-    }
-    if (this.destroyed) return false
-    // Import the 3D extension BEFORE Pixi creates the renderer so its
-    // render-pipe plugins register with this exact GPU device.
-    let create3DWorld: (() => SpaceWorld3D) | null = null
-    try {
-      const extension = await import('./spaceWorld3D')
-      create3DWorld = () => new extension.SpaceWorld3D()
-    } catch (error) {
-      this.space3DError = '3D plugin unavailable'
-      console.warn('Optional 3D extension unavailable; continuing with 2D scenery:', error)
-    }
-    if (this.destroyed) return false
+    const preferred = getPreferredRaidRenderBackend()
     // Reuse the existing Pixi scene, texture pooling and render loop. There is
     // only one GPU canvas/context: never layer Three.js over the 2D effects.
     // Pixi auto-detects backends; retry WebGL with a fresh Application if an
@@ -1013,9 +955,7 @@ export class PixiRaidBackground {
         backgroundAlpha: 0,
         autoDensity: true,
         autoStart: false,
-        // MSAA smooths geometric silhouettes on the shared WebGL/WebGPU
-        // canvas. Respect explicit Low/Medium GPU budgets on older devices.
-        antialias: getGraphicsQuality() === 'high' || getGraphicsQuality() === 'max',
+        antialias: false,
         powerPreference: 'high-performance' as const,
       }
       try {
@@ -1118,25 +1058,6 @@ export class PixiRaidBackground {
       host.appendChild(canvas)
       await this.loadAssets()
       if (this.app !== app) return false
-
-      // Construct the optional scene after textures decode but before flight.
-      // Missing extension/driver support never interrupts gameplay.
-      if (create3DWorld) {
-        try {
-          const cosmos = create3DWorld()
-          cosmos.view.visible = false
-          this.spaceWorld3D = cosmos
-          // Place all 3D meshes AFTER all legacy scenic layers (including
-          // full-screen world/backdrop graphics) but BEFORE explosions.
-          // index=1 was under several mobile fullscreen layers, so the
-          // actual APK could show no 3D despite the isolated test passing.
-          this.scene.addChildAt(cosmos.view, this.scene.getChildIndex(this.explosionGraphics))
-          this.space3DError = null
-        } catch (error) {
-          this.space3DError = '3D mesh construction failed'
-          console.warn('3D space world unavailable; retaining established scenery:', error)
-        }
-      }
       this.landscapeAtmosphere.warm()
       const cancelled = new Promise<boolean>((resolve) => {
         this.cancelForegroundPreparation = () => resolve(false)
@@ -1153,33 +1074,6 @@ export class PixiRaidBackground {
       if (this.app !== app) return false
       this.foregroundPrepared = prepared
       if (!prepared) this.gpuForeground.root.visible = false
-      // Compile 3D shaders while the briefing is visible, at a REAL portrait
-      // or landscape viewport. The old Android path warmed View3D on a 1x1
-      // Pixi surface; a few drivers failed that invalid projection and the
-      // catch silently disabled 3D for the whole raid. Use a bounded
-      // resolution to avoid huge first-frame GPU allocations.
-      if (this.spaceWorld3D) {
-        const cosmos = this.spaceWorld3D
-        try {
-          const bounds = host.getBoundingClientRect()
-          const sourceWidth = bounds.width > 64 ? bounds.width : window.innerWidth || 432
-          const sourceHeight = bounds.height > 64 ? bounds.height : window.innerHeight || 960
-          const warmWidth = Math.round(Math.min(960, Math.max(256, sourceWidth)))
-          const warmHeight = Math.round(Math.min(1280, Math.max(256, sourceHeight)))
-          app.renderer.resize(warmWidth, warmHeight, 1)
-          cosmos.update({ width: warmWidth, height: warmHeight, time: 16.667,
-            stageTheme: 1, stageRush: 0, runToken: 0,
-            paused: true, reducedMotion: true })
-          cosmos.view.visible = true
-          app.render()
-          cosmos.view.visible = false
-        } catch (error) {
-          this.space3DError = '3D GPU warmup failed'
-          console.warn('3D scene warmup failed; retaining original scenery:', error)
-          try { cosmos.destroy() } catch { /* context may already be lost */ }
-          this.spaceWorld3D = null
-        }
-      }
       return true
     } catch (error) {
       if (!this.destroyed) console.warn('Raid GPU renderer initialization failed; using Canvas fallback:', error)
@@ -1201,9 +1095,6 @@ export class PixiRaidBackground {
       try { this.gpuTimerGl.deleteQuery(this.gpuTimerQuery) } catch { /* context lost */ }
       this.gpuTimerQuery = null
     }
-    this.setSpace3DVisible(false)
-    try { this.spaceWorld3D?.destroy() } catch { /* Keep teardown safe during GPU loss. */ }
-    this.spaceWorld3D = null
     this.gradientCache.forEach((gradient) => gradient.destroy())
     this.gradientCache.clear()
     this.gpuForeground.destroy()
@@ -1283,33 +1174,6 @@ export class PixiRaidBackground {
         this.starfieldKey = ''
         this.geometryCacheKey = ''
       }
-
-      // Update the real 3D space meshes each visual frame, but NEVER skip the
-      // established 2D background's texture/position updates. Keeping the
-      // illustrated deep-space layer behind the 3D meshes gives both visual
-      // depth and a guaranteed readable cosmos on devices where the new
-      // mesh renderer produces transparent or incomplete frames.
-      const realCosmos = Boolean(this.spaceWorld3D) &&
-        !isWateryWorldTheme(groundTheme) &&
-        !isVolcanicWorldTheme(groundTheme) &&
-        this.journey.worldAlpha < .01
-      if (realCosmos && this.spaceWorld3D) {
-        try {
-          this.setSpace3DVisible(true)
-          this.spaceWorld3D.update({
-            width, height, time, stageTheme, stageRush,
-            paused: Boolean(frame.paused), reducedMotion: this.reducedMotion,
-            runToken: frame.runToken ?? 0,
-          })
-        } catch (error) {
-          this.space3DError = '3D frame update failed'
-          console.warn('3D space frame failed; keeping illustrated cosmos active:', error)
-          this.setSpace3DVisible(false)
-          try { this.spaceWorld3D.destroy() } catch { /* context may be lost */ }
-          this.spaceWorld3D = null
-          this.geometryCacheKey = ''
-        }
-      } else this.setSpace3DVisible(false)
 
       this.updateBaseGraphics(palette, width, height, quality, dpr)
       // The dark sky stays opaque beneath the translucent nebula layer.
@@ -1410,12 +1274,7 @@ export class PixiRaidBackground {
 
   getRaidGpuStats() {
     const backend = !this.app ? 'Canvas' : this.app.renderer instanceof WebGPURenderer ? 'WebGPU' : 'WebGL'
-    return {
-      ...this.gpuForeground.getStats(), backend,
-      space3D: this.space3DVisible,
-      space3DStatus: this.space3DVisible ? 'ACTIVE' : this.space3DError ?? (this.spaceWorld3D ? 'STANDBY' : 'UNAVAILABLE'),
-      gpuFrameMs: this.lastGpuElapsedMs,
-    }
+    return { ...this.gpuForeground.getStats(), backend, gpuFrameMs: this.lastGpuElapsedMs }
   }
 
   private renderWithGpuTimer(app: Application, measure: boolean, time: number) {
@@ -1485,16 +1344,6 @@ export class PixiRaidBackground {
         console.warn('Raid GPU rendering failed; preserving Canvas fallback:', error)
       }
       if (app.renderer instanceof WebGPURenderer) rememberWebGpuFailure()
-      // Rendering a 3D scene may fail even after WebGPU adapter validation.
-      // Tear it down once and restore the proven 2D scene on the SAME app,
-      // then let Canvas handle the affected foreground frame.
-      if (this.spaceWorld3D) {
-        this.setSpace3DVisible(false)
-        try { this.spaceWorld3D.destroy() } catch { /* GPU may be lost */ }
-        this.spaceWorld3D = null
-        this.geometryCacheKey = ''
-        try { app.render() } catch { /* Canvas fallback remains available */ }
-      }
       this.gpuForeground.root.visible = false
       return false
     }

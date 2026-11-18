@@ -242,13 +242,6 @@ try {
       })
     }
     await page.waitForTimeout(1000)
-    if (name === 'portrait' || name === 'landscape') {
-      await page.waitForFunction(
-        () => document.querySelector('.raid__pixi-background-canvas')?.dataset.space3d === 'active',
-        {}, { timeout: 20000 },
-      )
-      console.log(name, '3D perspective scene active in shared GPU renderer')
-    }
     await page.screenshot({path:`presentation-review/${name}-flight.png`})
     if(item.model&&landscape){
       for(const stage of ['windup','charge','release','recover']){
