@@ -23,6 +23,13 @@ try {
   const status = await page.evaluate(() => window.space3dSmoke)
   assert.equal(status.success, true, '3D rendering test must succeed: ' + JSON.stringify(status))
   assert.equal(status.frameCount, 5)
+  assert.ok(status.art?.sourceAtlases >= 8,
+    'Original high-resolution 2D art must reach the 3D material pipeline: ' + JSON.stringify(status.art))
+  assert.equal(status.art.texturedPlanets, 3)
+  assert.equal(status.art.texturedRocks, 26)
+  assert.ok(status.art.stationParts >= 10)
+  assert.ok(status.art.volumetricClouds >= 8)
+  assert.equal(status.art.atmosphericHalos, 3)
   assert.deepEqual(errors, [], '3D renderer must not emit uncaught exceptions')
   await page.screenshot({ path: 'space-3d-world-smoke.png' })
   console.log('Actual perspective 3D world rendered five frames through shared Pixi WebGL renderer')

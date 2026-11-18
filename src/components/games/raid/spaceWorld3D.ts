@@ -10,12 +10,12 @@
  * the game's established atmosphere and saturated colour scheme.
  */
 import {
-  AmbientLight, CylinderGeometry, DirectionalLight, IcosahedronGeometry,
-  Material3D, Mesh3D, ParticleContainer3D, SphereGeometry, Sprite3D,
-  TorusGeometry, View3D, packParticleColor,
+  AmbientLight, CubeGeometry, Container3D, CylinderGeometry, DirectionalLight,
+  Geometry3D, IcosahedronGeometry, Material3D, Mesh3D, ParticleContainer3D,
+  SphereGeometry, Sprite3D, TorusGeometry, View3D, packParticleColor,
 } from '@pixi/3d'
 import { Texture } from 'pixi.js'
-import { getCosmosBackdrop, getCosmosLandmark } from './cosmosArt'
+import { createSpaceArtPack } from './spaceArtMaterials3D'
 
 export type SpaceWorld3DFrame = {
   time: number
@@ -52,47 +52,6 @@ const SPACE_THEMES = [
   { ice: 0xffdc7c, mid: 0xc2834b, dark: 0x64414e, ring: 0xfce4b4 },
 ] as const
 
-function colourHex(hex: number) {
-  return [(hex >> 16) & 255, (hex >> 8) & 255, hex & 255] as const
-}
-
-/** A reusable equirectangular cloud-band/terrain texture: generated ONCE. */
-function createPlanetTexture(seed: number, palette: (typeof SPACE_THEMES)[number]) {
-  const canvas = document.createElement('canvas')
-  canvas.width = 512
-  canvas.height = 256
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return Texture.WHITE
-  const image = ctx.createImageData(canvas.width, canvas.height)
-  const bright = colourHex(palette.ice)
-  const middle = colourHex(palette.mid)
-  const deep = colourHex(palette.dark)
-  for (let y = 0; y < canvas.height; y++) {
-    const latitude = y / canvas.height
-    const bands = Math.sin(latitude * 72 + seed * 2.1)
-      + 0.55 * Math.sin(latitude * 155 + seed * 0.67)
-    for (let x = 0; x < canvas.width; x++) {
-      const u = x / canvas.width
-      const turbulence = Math.sin(u * 37 + latitude * 31 + 5 * Math.sin(u * 17 + latitude * 22))
-        * .36 + Math.sin(u * 94 - latitude * 68) * .15
-      const jet = bands * .24 + turbulence + .22 * Math.sin(latitude * 21 + u * 13)
-      const crest = Math.max(0, Math.min(1, jet * .84 + .42))
-      const mixed = crest > .58 ? bright : crest > .26 ? middle : deep
-      const glow = .66 + .34 * Math.max(0, Math.min(1, latitude * 2.3))
-      const bandShade = .75 + crest * .34
-      const offset = (y * canvas.width + x) * 4
-      image.data[offset] = Math.min(255, mixed[0] * glow * bandShade)
-      image.data[offset + 1] = Math.min(255, mixed[1] * glow * bandShade)
-      image.data[offset + 2] = Math.min(255, mixed[2] * glow * bandShade)
-      image.data[offset + 3] = 255
-    }
-  }
-  ctx.putImageData(image, 0, 0)
-  const texture = Texture.from(canvas)
-  texture.source.scaleMode = 'linear'
-  return texture
-}
-
 function createStarTexture() {
   const canvas = document.createElement('canvas')
   canvas.width = canvas.height = 64
@@ -108,27 +67,84 @@ function createStarTexture() {
   return Texture.from(canvas)
 }
 
+/** 
+ * A true GPU annulus instead of a thick TorusGeometry tube. This planar
+ * radial mesh produces realistic Saturn-style rings with rings woven out
+ * of the already-loaded colorful dust atlas (alpha-tapered at both edges).
+ * 80 segments = 162 verts, no CPU remeshing or per-frame allocations.
+ */
+function createAnnulus(inner: number, outer: number) {
+  const segments = 80
+  const positions = new Float32Array((segments + 1) * 2 * 3)
+  const normals = new Float32Array((segments + 1) * 2 * 3)
+  const uvs = new Float32Array((segments + 1) * 2 * 2)
+  const indices = new Uint16Array(segments * 6)
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments
+    const angle = t * Math.PI * 2
+    const c = Math.cos(angle), sn = Math.sin(angle)
+    for (let j = 0; j < 2; j++) {
+      const radius = j === 0 ? inner : outer
+      const p = (i * 2 + j) * 3
+      positions[p] = c * radius
+      positions[p + 1] = 0
+      positions[p + 2] = sn * radius
+      normals[p + 1] = 1
+      const uv = (i * 2 + j) * 2
+      uvs[uv] = t
+      uvs[uv + 1] = j
+    }
+    if (i < segments) {
+      const a = i * 2, ix = i * 6
+      indices[ix] = a
+      indices[ix + 1] = a + 2
+      indices[ix + 2] = a + 1
+      indices[ix + 3] = a + 1
+      indices[ix + 4] = a + 2
+      indices[ix + 5] = a + 3
+    }
+  }
+  return new Geometry3D({ positions, normals, uvs, indices })
+}
+
 export class SpaceWorld3D {
   readonly view = new View3D({
     autoResize: true,
-    environment: { skyColor: 0x7297bd, groundColor: 0x131c35, intensity: .55 },
+    environment: { skyColor: 0x92bdff, groundColor: 0x40285d, intensity: .72 },
   })
+  private readonly art = createSpaceArtPack()
   private readonly geometries = [
-    new SphereGeometry({ radius: 1, widthSegments: 48, heightSegments: 32 }),
-    new IcosahedronGeometry({ radius: 1, detail: 1 }),
-    new TorusGeometry({ radius: 1.22, tube: .04, radialSegments: 8, tubularSegments: 72 }),
-    new TorusGeometry({ radius: 1.48, tube: .035, radialSegments: 8, tubularSegments: 72 }),
+    new SphereGeometry({ radius: 1, widthSegments: 64, heightSegments: 40 }),
+    new IcosahedronGeometry({ radius: 1, detail: 2 }),
+    createAnnulus(1.08, 1.78),
+    createAnnulus(1.82, 1.98),
     new CylinderGeometry({ radiusTop: .25, radiusBottom: .25, height: 1.8, radialSegments: 12 }),
+    new CubeGeometry({ width: 1, height: 1, depth: 1 }),
+    new TorusGeometry({ radius: 1.24, tube: .085, radialSegments: 12, tubularSegments: 64 }),
   ]
   private readonly starTexture = createStarTexture()
-  private readonly planets = Array.from({ length: 3 }, () =>
-    new Mesh3D({ geometry: this.geometries[0],
-      material: new Material3D({ baseColor: 0xffffff, roughness: .84, metallic: .02 }),
-      castShadow: false, receiveShadow: false }))
+  private readonly planets = Array.from({ length: 3 }, (_, index) =>
+    new Mesh3D({
+      geometry: this.geometries[0],
+      material: new Material3D({
+        baseColor: 0xffffff, baseColorTexture: this.art.planetMaps[index],
+        roughness: .78, metallic: .035,
+        emissive: { color: SPACE_THEMES[index].ice, strength: .19 },
+      }),
+      castShadow: false, receiveShadow: false,
+    }))
+  private readonly planetHalos = Array.from({ length: 3 }, (_, i) =>
+    new Sprite3D({ texture: this.art.haloMaps[i], width: 28, height: 28, alpha: .92 }))
   private readonly rings = Array.from({ length: 2 }, (_, i) =>
-    new Mesh3D({ geometry: this.geometries[2 + i],
-      material: new Material3D({ baseColor: SPACE_THEMES[0].ring, roughness: .78, metallic: .12 }),
-      castShadow: false, receiveShadow: false }))
+    new Mesh3D({
+      geometry: this.geometries[i + 2],
+      material: new Material3D({
+        baseColor: 0xffffff, baseColorTexture: this.art.ringMaps[i],
+        alphaMode: 'blend', alpha: .94, roughness: .81, metallic: .08,
+        emissive: { color: 0xc7dcff, strength: .30 },
+      }),
+      castShadow: false, receiveShadow: false,
+    }))
   private readonly starfield = new ParticleContainer3D({
     texture: this.starTexture, capacity: STAR_COUNT, blendMode: 'add',
   })
@@ -147,12 +163,10 @@ export class SpaceWorld3D {
     }
   })
   private readonly rocks: FlyingBody[] = []
-  private readonly nebula = Array.from({ length: 5 }, () => new Sprite3D({
-    texture: Texture.WHITE, width: 42, height: 42, alpha: .28,
+  private readonly nebula = Array.from({ length: 8 }, () => new Sprite3D({
+    texture: Texture.WHITE, width: 44, height: 44, alpha: .36,
   }))
-  private readonly station: Mesh3D[] = []
-  private readonly ownedTextures: Texture[] = []
-  private readonly softNebulaTextures = new Map<Texture, Texture>()
+  private readonly station = new Container3D()
   private readonly materials: Material3D[] = []
   private lastTime = 0
   private clock = 0
@@ -168,26 +182,36 @@ export class SpaceWorld3D {
     this.view.camera.position.set(0, 0, 12)
     this.view.camera.lookAt({ x: 0, y: 0, z: -50 })
 
-    const sun = new DirectionalLight({ color: 0xd8edff, intensity: 2.6 })
-    sun.position.set(-9, 8, 14)
-    sun.lookAt({ x: 0, y: 0, z: -40 })
-    this.view.root.addChild(new AmbientLight({ color: 0x819fc1, intensity: .36 }), sun)
+    const key = new DirectionalLight({ color: 0xf5faff, intensity: 2.25 })
+    key.position.set(-11, 15, 28)
+    key.lookAt({ x: 0, y: 0, z: -40 })
+    const rim = new DirectionalLight({ color: 0x68d9ff, intensity: 1.32 })
+    rim.position.set(17, -5, -12)
+    rim.lookAt({ x: 0, y: 0, z: -58 })
+    const magenta = new DirectionalLight({ color: 0xf37dff, intensity: 1.03 })
+    magenta.position.set(-18, -12, 16)
+    magenta.lookAt({ x: 0, y: 0, z: -58 })
+    this.view.root.addChild(new AmbientLight({ color: 0xb1bdff, intensity: .48 }), key, rim, magenta)
+    this.nebula.forEach(cloud => this.view.root.addChild(cloud))
     this.view.root.addChild(this.starfield)
-    this.planets.forEach((planet) => this.view.root.addChild(planet))
-    this.rings.forEach((ring) => this.view.root.addChild(ring))
-    this.nebula.forEach((cloud) => this.view.root.addChild(cloud))
+    this.planetHalos.forEach(halo => this.view.root.addChild(halo))
+    this.planets.forEach(planet => this.view.root.addChild(planet))
+    this.rings.forEach(ring => this.view.root.addChild(ring))
 
     // A real 3D deep-space landmark and separate tumbling asteroid field.
     // Reuse geometry/materials so each field batches instead of rebuilding
     // meshes, and keep these as scenic objects only (no collision changes).
-    const rocky = new Material3D({ baseColor: 0x607995, roughness: .94 })
-    const slate = new Material3D({ baseColor: 0x384967, roughness: .91 })
-    const bright = new Material3D({ baseColor: 0x9a8195, roughness: .83 })
-    this.materials.push(rocky, slate, bright)
+    const rockMaterials = Array.from({ length: 3 }, (_, i) =>
+      new Material3D({
+        baseColorTexture: this.art.asteroidMaps[i], baseColor: 0xffffff,
+        roughness: .82, metallic: .10,
+        emissive: { color: [0x2fa9d8, 0xf47a42, 0x9f6ff0][i], strength: .19 },
+      }))
+    this.materials.push(...rockMaterials)
     for (let i = 0; i < ROCK_COUNT; i++) {
       const rock = new Mesh3D({
         geometry: this.geometries[1],
-        material: this.materials[i % this.materials.length],
+        material: rockMaterials[i % rockMaterials.length],
         castShadow: false, receiveShadow: false,
       })
       const scale = between(i, 4, .12, .68)
@@ -200,109 +224,121 @@ export class SpaceWorld3D {
       this.view.root.addChild(rock)
     }
 
-    const hull = new Material3D({ baseColor: 0x7b9bc2, roughness: .57, metallic: .62 })
-    const glow = new Material3D({ baseColor: 0x63cbef, roughness: .39, metallic: .35 })
-    this.materials.push(hull, glow)
-    for (let i = 0; i < 3; i++) {
-      const mesh = new Mesh3D({
-        geometry: i === 0 ? this.geometries[4] : this.geometries[i + 1],
-        material: i === 2 ? glow : hull,
-        castShadow: false, receiveShadow: false,
-      })
-      if (i === 1) mesh.scale.set(2.1, 2.1, .32)
-      if (i === 2) mesh.scale.set(1.45, 1.45, .28)
-      mesh.position.set(-19, -10, -56)
-      mesh.rotation.x = .85
-      this.station.push(mesh)
-      this.view.root.addChild(mesh)
-    }
-
-    // Each surface material gets its texture exactly once, never per frame.
-    SPACE_THEMES.forEach((theme, index) => {
-      const texture = createPlanetTexture(index + 1, theme)
-      this.ownedTextures.push(texture)
+    // Real multi-part 3D wreck/station. Four existing 2D wreck atlas
+    // illustrations now supply metallic panel, armor, engine and trim maps.
+    const hull = new Material3D({
+      baseColorTexture: this.art.armorMaps[0], baseColor: 0xffffff,
+      roughness: .42, metallic: .68,
+      emissive: { color: 0x387fd3, strength: .32 },
     })
+    const plates = new Material3D({
+      baseColorTexture: this.art.armorMaps[1], baseColor: 0xffffff,
+      roughness: .52, metallic: .57,
+      emissive: { color: 0x8d67ea, strength: .28 },
+    })
+    const engines = new Material3D({
+      baseColorTexture: this.art.armorMaps[2], baseColor: 0xc5f9ff,
+      roughness: .27, metallic: .41,
+      emissive: { color: 0x18d9ff, strength: 2.25 },
+    })
+    const gold = new Material3D({
+      baseColorTexture: this.art.armorMaps[3], baseColor: 0xffdda8,
+      roughness: .39, metallic: .59,
+      emissive: { color: 0xffac43, strength: .55 },
+    })
+    this.materials.push(hull, plates, engines, gold)
+    const stationParts = [
+      // [geometry index, material index, position XYZ, scale XYZ]
+      [5,0,0,0,0,4.5,.56,1.1],
+      [5,1,0,.21,-.6,2.2,.88,1.4],
+      [5,1,-2.6,-.24,-.48,2.15,.22,2.05],
+      [5,1,2.35,.04,-.32,1.82,.24,1.80],
+      [5,0,-3.7,.11,0,.24,1.20,.40],
+      [5,0,3.45,.11,0,.24,1.38,.40],
+      [4,2,0,0,1.4,.83,.83,1.1],
+      [4,3,-1.6,0,1.0,.48,.48,.86],
+      [4,3,1.6,0,1.0,.48,.48,.86],
+      [6,3,0,0,-.42,1.6,1.6,1.6],
+      [6,2,0,0,.3,1.20,1.20,1.20],
+      [0,2,0,0,1.85,.38,.38,.38],
+    ] as const
+    const stationMats = [hull, plates, engines, gold]
+    for (const [g, m, x, y, z, sx, sy, sz] of stationParts) {
+      const mesh = new Mesh3D({ geometry: this.geometries[g],
+        material: stationMats[m], castShadow: false, receiveShadow: false })
+      mesh.position.set(x, y, z)
+      mesh.scale.set(sx, sy, sz)
+      if (g === 4) mesh.rotation.x = Math.PI / 2
+      this.station.addChild(mesh)
+    }
+    this.station.position.set(-20, -8, -57)
+    this.station.rotation.set(.37, -.62, .26)
+    this.view.root.addChild(this.station)
+
     this.changeStage(1)
     this.update({ time: 0, stageTheme: 1, width: 720, height: 1280,
       stageRush: 0, paused: false, reducedMotion: false, runToken: 0 })
-  }
-
-  /** 
-   * Artwork frames were cut from a large 2x2 space atlas. A raw Sprite3D
-   * turns those rectangular tiles into hard-edged floating billboards.
-   * Feather a small, reusable copy ONCE per art frame at scene preparation;
-   * retain its original vivid nebula colours without per-frame filters or
-   * expensive blur passes on low-end Android GPUs.
-   */
-  private softNebulaTexture(original: Texture): Texture {
-    const existing = this.softNebulaTextures.get(original)
-    if (existing) return existing
-    const source = (original.source as unknown as { resource?: CanvasImageSource }).resource
-    if (!source || typeof document === 'undefined') return original
-    const size = 384
-    const canvas = document.createElement('canvas')
-    canvas.width = size
-    canvas.height = size
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return original
-    const frame = original.frame
-    try {
-      ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height, 0, 0, size, size)
-      ctx.globalCompositeOperation = 'destination-in'
-      const mask = ctx.createRadialGradient(size / 2, size / 2, size * .06,
-        size / 2, size / 2, size * .51)
-      mask.addColorStop(0, 'rgba(255,255,255,1)')
-      mask.addColorStop(.46, 'rgba(255,255,255,1)')
-      mask.addColorStop(.70, 'rgba(255,255,255,.55)')
-      mask.addColorStop(1, 'rgba(255,255,255,0)')
-      ctx.fillStyle = mask
-      ctx.fillRect(0, 0, size, size)
-      ctx.globalCompositeOperation = 'source-over'
-      const softened = Texture.from(canvas)
-      softened.source.scaleMode = 'linear'
-      this.softNebulaTextures.set(original, softened)
-      this.ownedTextures.push(softened)
-      return softened
-    } catch {
-      // If a driver only exposes GPU-backed art, use the original material.
-      // This MUST NOT stop the 3D scene or remove the illustrated sky.
-      return original
-    }
   }
 
   private changeStage(stageTheme: number) {
     this.stageKey = stageTheme
     const region = (Math.max(1, stageTheme) - 1) % SPACE_THEMES.length
     const theme = SPACE_THEMES[region]
+    // Distinct near/mid/far positions mean three real rotating spheres, not
+    // flat circular sprites following the user's steering.
+    const arrangement = [
+      { x: 18, y: 18, z: -60, radius: 13.8 },
+      { x: -28, y: -11, z: -96, radius: 6.3 },
+      { x: 28, y: -19, z: -128, radius: 3.9 },
+    ]
     this.planets.forEach((mesh, index) => {
       const material = mesh.material as Material3D
-      material.textures.baseColor = this.ownedTextures[(region + index) % this.ownedTextures.length]
+      material.textures.baseColor = this.art.planetMaps[(region + index) % this.art.planetMaps.length]
       material.baseColor = 0xffffff
-      const z = -62 - index * 34
-      const x = (index % 2 ? -1 : 1) * (10 + index * 18)
-      mesh.position.set(x, index === 0 ? 13 : -9 + index * 6, z)
-      const diameter = index === 0 ? 10 : index === 1 ? 4.8 : 2.9
-      mesh.scale.set(diameter, diameter, diameter)
+      if (material.emissive) material.emissive.color = SPACE_THEMES[(region + index) % SPACE_THEMES.length].ice
+      const { x, y, z, radius } = arrangement[index]
+      mesh.position.set(x, y, z)
+      mesh.scale.set(radius, radius, radius)
+      const halo = this.planetHalos[index]
+      halo.texture = this.art.haloMaps[(region + index) % this.art.haloMaps.length]
+      halo.position.set(x, y, z - .9)
+      halo.width = radius * 2.74
+      halo.height = radius * 2.74
+      halo.alpha = index === 0 ? .98 : .76
     })
     this.rings.forEach((ring, index) => {
-      ;(ring.material as Material3D).baseColor = theme.ring
+      const mat = ring.material as Material3D
+      mat.textures.baseColor = this.art.ringMaps[(region + index) % this.art.ringMaps.length]
+      if (mat.emissive) mat.emissive.color = theme.ring
       ring.position.set(this.planets[0].position.x, this.planets[0].position.y,
         this.planets[0].position.z)
-      ring.scale.set(10, 10, 10)
-      ring.rotation.set(.4, .4 + index * .05, .16)
-      ring.visible = region % 2 === 0
+      ring.scale.set(14.65, 14.65, 14.65)
+      ring.rotation.set(.53, .24 + index * .05, .14)
+      ring.visible = region % 2 === 0 || index === 0
     })
     this.nebula.forEach((cloud, index) => {
-      const image = getCosmosBackdrop((region + index) % 4)
-        ?? getCosmosLandmark((region + index) % 4)
-      cloud.visible = Boolean(image)
-      if (image) cloud.texture = this.softNebulaTexture(image)
-      cloud.position.set((index % 2 ? -1 : 1) * (18 + 17 * index),
-        index % 2 ? -20 : 19, -100 - index * 33)
-      cloud.width = 55 + index * 16
-      cloud.height = 58 + index * 14
-      cloud.alpha = .18 + (index % 3) * .055
+      cloud.texture = this.art.nebulaMaps[(index + region * 2) % this.art.nebulaMaps.length]
+      const z = -78 - (index % 5) * 33 - Math.floor(index / 5) * 18
+      cloud.position.set((index % 2 ? -1 : 1) * (13 + index * 12),
+        index % 3 === 0 ? 28 : index % 3 === 1 ? -22 : 2, z)
+      cloud.width = 64 + (index % 4) * 25
+      cloud.height = 62 + (index % 3) * 30
+      cloud.alpha = index % 3 === 0 ? .47 : index % 3 === 1 ? .38 : .32
+      cloud.rotation.set((index % 2 ? 1 : -1) * .10, .14 * Math.sin(index * 2.4), index * .18)
     })
+    this.station.position.set(region % 2 ? -18 : -20, -8, -57)
+  }
+
+  /** Allows CI to prove original artwork reaches genuine 3D geometry. */
+  getArtworkDiagnostics() {
+    return {
+      sourceAtlases: this.art.artSources,
+      texturedPlanets: this.planets.filter(m => Boolean((m.material as Material3D).textures.baseColor)).length,
+      texturedRocks: this.rocks.filter(m => Boolean((m.node.material as Material3D).textures.baseColor)).length,
+      stationParts: this.station.children.length,
+      volumetricClouds: this.nebula.length,
+      atmosphericHalos: this.planetHalos.length,
+    }
   }
 
   update(frame: SpaceWorld3DFrame) {
@@ -326,10 +362,8 @@ export class SpaceWorld3D {
       planet.rotation.z = .11 * Math.sin(t * .025 + index)
     })
     this.rings.forEach((ring) => { ring.rotation.z = .16 + .018 * Math.sin(t * .11) })
-    this.station.forEach((mesh, index) => {
-      mesh.rotation.y = .16 + t * .009
-      mesh.rotation.z = t * .012 + index * .1
-    })
+    this.station.rotation.y = -.62 + t * .012
+    this.station.rotation.z = .26 + .08 * Math.sin(t * .025)
     this.nebula.forEach((cloud, index) => {
       cloud.rotation.z = .025 * Math.sin(t * .13 + index)
     })
@@ -358,12 +392,11 @@ export class SpaceWorld3D {
     if (this.disposed) return
     this.disposed = true
     this.view.destroy({ children: true })
-    this.geometries.forEach((geometry) => geometry.destroy())
-    this.materials.forEach((material) => material.destroy())
-    this.planets.forEach((planet) => planet.material.destroy())
-    this.rings.forEach((ring) => ring.material.destroy())
-    for (const texture of this.ownedTextures) texture.destroy(true)
-    this.softNebulaTextures.clear()
+    this.geometries.forEach(geometry => geometry.destroy())
+    this.materials.forEach(material => material.destroy())
+    this.planets.forEach(planet => planet.material.destroy())
+    this.rings.forEach(ring => ring.material.destroy())
+    this.art.dispose()
     this.starTexture.destroy(true)
   }
 }

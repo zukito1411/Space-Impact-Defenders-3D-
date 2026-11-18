@@ -1,11 +1,13 @@
 import { Application } from 'pixi.js'
 import { SpaceWorld3D } from '../src/components/games/raid/spaceWorld3D'
 import { preloadCosmosArt } from '../src/components/games/raid/cosmosArt'
+import { preloadWreckArt } from '../src/components/games/raid/wreckArt'
+import { preloadCelestialArt } from '../src/components/games/raid/celestialArt'
 
 // Small fast renderer integration fixture: detects real mesh/render-pipeline
 // failures without waiting through the game's lengthy campaign briefing.
 const win = window as Window & {
-  space3dSmoke?: { success: boolean; backend: string; frameCount: number; message?: string }
+  space3dSmoke?: { success: boolean; backend: string; frameCount: number; art?: ReturnType<SpaceWorld3D['getArtworkDiagnostics']>; message?: string }
 }
 async function main() {
   let app: Application | undefined
@@ -19,7 +21,7 @@ async function main() {
       antialias: false, autoStart: false, preserveDrawingBuffer: true,
     })
     document.body.appendChild(app.canvas)
-    await preloadCosmosArt()
+    await Promise.all([preloadCosmosArt(), preloadWreckArt(), preloadCelestialArt()])
     world = new SpaceWorld3D()
     app.stage.addChild(world.view)
     for (let i = 1; i <= 5; i++) {
@@ -32,7 +34,8 @@ async function main() {
     }
     const canvas = app.canvas
     if (canvas.width < 100 || canvas.height < 100) throw Error('3D canvas dimensions invalid')
-    win.space3dSmoke = { success: true, backend: 'webgl', frameCount: 5 }
+    const art = world.getArtworkDiagnostics()
+    win.space3dSmoke = { success: true, backend: 'webgl', frameCount: 5, art }
   } catch (error) {
     win.space3dSmoke = { success: false, backend: 'webgl', frameCount: 0, message: String(error) }
     console.error('3D scene smoke test failed:', error)
