@@ -77,6 +77,17 @@ function makePlanetMap(disk: Texture | undefined, terrain: Texture | undefined,
   sctx.fillStyle = 'rgb(' + rgb.map(c => clamp(c * .56)).join(',') + ')'
   sctx.fillRect(0, 0, w, h)
   const sourceReady = paintFrame(sctx, terrain, 0, 0, w, h)
+  // Sample the original 2D cosmos nebula painting as a fine illuminated
+  // cloud/weather layer over the original terrain map. It adds real surface
+  // detail on the sphere instead of a flat uniform cyan procedural globe.
+  const cloudArt = getCosmosBackdrop(seed % 4)
+  if (cloudArt) {
+    sctx.save()
+    sctx.globalAlpha = .29
+    sctx.globalCompositeOperation = 'screen'
+    paintFrame(sctx, cloudArt, 0, 0, w, h)
+    sctx.restore()
+  }
   if (!sourceReady) {
     // Only used if the optional high-resolution atlas was not decoded.
     for (let stripe = 0; stripe < 32; stripe++) {
