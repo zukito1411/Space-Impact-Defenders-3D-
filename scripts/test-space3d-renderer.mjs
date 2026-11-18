@@ -13,7 +13,8 @@ try {
     } catch {}
     await new Promise(resolve => setTimeout(resolve, 250))
   }
-  browser = await chromium.launch({ args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader'] })
+  browser = await chromium.launch({ channel: process.env.GITHUB_ACTIONS ? 'chrome' : undefined,
+    args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader'] })
   const page = await browser.newPage({ viewport: { width: 480, height: 640 } })
   const errors = []
   page.on('pageerror', error => errors.push(error.message))

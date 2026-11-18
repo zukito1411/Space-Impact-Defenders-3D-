@@ -850,8 +850,6 @@ export class PixiRaidBackground {
   private app: Application | null = null
   private spaceWorld3D: SpaceWorld3D | null = null
   private space3DVisible = false
-  private previousSkyVisible = true
-  private readonly space3DHidden = new Map<{ visible: boolean }, boolean>()
   private destroyed = false
   private renderErrorReported = false
   private foregroundPrepared = false
@@ -941,32 +939,22 @@ export class PixiRaidBackground {
   private gpuTimerDisabled = false
   private lastGpuElapsedMs: number | null = null
 
-  /** Swap 2D scenic layers for the real 3D camera, using ONE Pixi renderer. */
+  /**
+   * Keep the original illustrated stars, galaxies, planets and debris visible
+   * behind the 3D world. The first 3D release hid every 2D scenic layer before
+   * validating that the 3D meshes actually appeared on Android. That caused
+   * an almost entirely black stage despite successful canvas submissions.
+   *
+   * 3D is a transparent overlay in the SAME Pixi pass, not a replacement for
+   * essential scene layers. Planetary-surface transitions still hide this view.
+   */
   private setSpace3DVisible(active: boolean) {
     const world = this.spaceWorld3D
     if (!world) return
     if (active === this.space3DVisible) return
     this.space3DVisible = active
+    world.view.visible = active
     if (this.app?.canvas) (this.app.canvas as HTMLCanvasElement).dataset.space3d = active ? 'active' : 'legacy'
-    if (active) {
-      this.previousSkyVisible = this.skyScene.visible
-      this.skyScene.visible = true
-      for (const layer of [...this.skyScene.children, ...this.scene.children]) {
-        if (layer === this.skyScene || layer === this.baseGraphics || layer === world.view) continue
-        this.space3DHidden.set(layer, layer.visible)
-        layer.visible = false
-      }
-      world.view.visible = true
-      this.baseGraphics.visible = true
-    } else {
-      this.skyScene.visible = this.previousSkyVisible
-      for (const [layer, visible] of this.space3DHidden) layer.visible = visible
-      this.space3DHidden.clear()
-      world.view.visible = false
-      this.geometryCacheKey = ''
-      this.baseKey = ''
-      this.starfieldKey = ''
-    }
   }
 
   private hasLostContext(app: Application) {
@@ -1128,7 +1116,10 @@ export class PixiRaidBackground {
           const cosmos = create3DWorld()
           cosmos.view.visible = false
           this.spaceWorld3D = cosmos
-          this.skyScene.addChildAt(cosmos.view, 1)
+          // Put the transparent 3D scene AFTER illustrated sky artwork but
+          // BEFORE battle actors. Previously it sat underneath large sky
+          // sprites and was frequently invisible in the real game.
+          this.scene.addChildAt(cosmos.view, 1)
         } catch (error) {
           console.warn('3D space world unavailable; retaining established scenery:', error)
         }
@@ -1187,7 +1178,6 @@ export class PixiRaidBackground {
     this.setSpace3DVisible(false)
     try { this.spaceWorld3D?.destroy() } catch { /* Keep teardown safe during GPU loss. */ }
     this.spaceWorld3D = null
-    this.space3DHidden.clear()
     this.gradientCache.forEach((gradient) => gradient.destroy())
     this.gradientCache.clear()
     this.gpuForeground.destroy()
@@ -1268,9 +1258,11 @@ export class PixiRaidBackground {
         this.geometryCacheKey = ''
       }
 
-      // A real perspective 3D world replaces the old flat cosmos only during
-      // space travel. Water/volcano surfaces and approach cinematics keep
-      // their proven 2D renderer, with seamless state restoration.
+      // Update the real 3D space meshes each visual frame, but NEVER skip the
+      // established 2D background's texture/position updates. Keeping the
+      // illustrated deep-space layer behind the 3D meshes gives both visual
+      // depth and a guaranteed readable cosmos on devices where the new
+      // mesh renderer produces transparent or incomplete frames.
       const realCosmos = Boolean(this.spaceWorld3D) &&
         !isWateryWorldTheme(groundTheme) &&
         !isVolcanicWorldTheme(groundTheme) &&
@@ -1278,15 +1270,13 @@ export class PixiRaidBackground {
       if (realCosmos && this.spaceWorld3D) {
         try {
           this.setSpace3DVisible(true)
-          this.updateBaseGraphics(palette, width, height, quality, dpr)
           this.spaceWorld3D.update({
             width, height, time, stageTheme, stageRush,
             paused: Boolean(frame.paused), reducedMotion: this.reducedMotion,
             runToken: frame.runToken ?? 0,
           })
-          return true
         } catch (error) {
-          console.warn('3D space frame failed; switching back to 2D scenery:', error)
+          console.warn('3D space frame failed; keeping illustrated cosmos active:', error)
           this.setSpace3DVisible(false)
           try { this.spaceWorld3D.destroy() } catch { /* context may be lost */ }
           this.spaceWorld3D = null
