@@ -141,3 +141,31 @@ export function makeRaidViewportMetrics(root: HTMLElement, quality: GraphicsQual
     multiplayer,
   }
 }
+
+/**
+ * The illustrated cosmos and real 3D camera use a dedicated GPU canvas.
+ * Preserve HD scenery independently of the gameplay Canvas2D DPR budget:
+ * increasing combat-canvas resolution would add CPU drawImage work and
+ * projectile overhead, which does not help sharpen the scenery.
+ *
+ * Match the actual device density without inventing super-resolution on
+ * 1x desktop browsers. Bound the total GPU pixel count (rather than FPS)
+ * so 9:20 devices don't allocate an unbounded multisampled backbuffer.
+ */
+export function getRaidBackgroundDpr(
+  cssWidth: number,
+  cssHeight: number,
+  combatDpr: number,
+  quality: GraphicsQuality,
+  deviceDpr: number,
+): number {
+  const cap = quality === 'low' ? 1.25 : quality === 'medium' ? 1.75 : quality === 'high' ? 2.25 : 3
+  const pixelBudget = quality === 'low' ? 2_300_000
+    : quality === 'medium' ? 3_800_000
+    : quality === 'high' ? 5_500_000 : 9_000_000
+  const pixelLimited = Math.sqrt(pixelBudget / Math.max(1, cssWidth * cssHeight))
+  const wanted = Math.min(cap, Math.max(1, deviceDpr), pixelLimited)
+  // Do not silently drop the existing working resolution on unusual
+  // displays. Canvas combat remains at its original setting.
+  return Math.max(combatDpr, Math.round(wanted * 100) / 100)
+}

@@ -7,6 +7,7 @@
  * original surface/nebula artwork, and keep saturation close to the 2D game.
  */
 import { Texture } from 'pixi.js'
+import { getGraphicsQuality } from '../sound'
 import { getJourneyPlanet, getJourneySurface, getCosmosBackdrop, getCosmosLandmark } from './cosmosArt'
 import { getWreckTexture } from './wreckArt'
 import { getCelestialArt } from './celestialArt'
@@ -21,7 +22,12 @@ export type SpaceArtPack = {
   artSources: number
   dispose: () => void
 }
-const SIZE = 384
+// Atlas resolution is selected ONCE per loading session and never changes mid-frame.
+const DETAIL = getGraphicsQuality()
+const SIZE = DETAIL === 'max' ? 768 : DETAIL === 'high' ? 640 : DETAIL === 'medium' ? 512 : 384
+const PLANET_WIDTH = DETAIL === 'max' ? 1024 : DETAIL === 'high' ? 768 : DETAIL === 'medium' ? 640 : 512
+const SCENERY_SIZE = DETAIL === 'max' ? 768 : DETAIL === 'high' ? 640 : DETAIL === 'medium' ? 512 : 384
+const CLOUD_SIZE = DETAIL === 'max' ? 896 : DETAIL === 'high' ? 768 : DETAIL === 'medium' ? 640 : 512
 const clamp = (v: number, lo = 0, hi = 255) => Math.max(lo, Math.min(hi, v))
 const channels = (c: number) => [(c >> 16) & 255, (c >> 8) & 255, c & 255] as const
 
@@ -38,6 +44,8 @@ function paintFrame(ctx: CanvasRenderingContext2D, source: Texture | undefined,
   if (!raw || source.frame.width < 2 || source.frame.height < 2) return false
   try {
     ctx.save()
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = 'high'
     if (vivid) ctx.filter = 'saturate(1.5) contrast(1.16) brightness(1.10)'
     ctx.drawImage(raw, source.frame.x, source.frame.y, source.frame.width, source.frame.height, x, y, w, h)
     ctx.restore()
@@ -50,7 +58,10 @@ function paintFrame(ctx: CanvasRenderingContext2D, source: Texture | undefined,
 function upload(canvas: HTMLCanvasElement): Texture {
   const texture = Texture.from(canvas)
   texture.source.scaleMode = 'linear'
-  texture.source.autoGenerateMipmaps = false
+  // Static planet/asteroid/nebula surfaces benefit from correct texture LOD
+  // when rotating in perspective. Generate mips once on upload, not per frame.
+  texture.source.autoGenerateMipmaps = true
+  texture.source.style.maxAnisotropy = 4
   return texture
 }
 function vividPixel(r: number, g: number, b: number, boost = 1.2): [number, number, number] {
@@ -71,7 +82,7 @@ function mix(a: number, b: number, t: number) { return a * (1 - t) + b * t }
  */
 function makePlanetMap(disk: Texture | undefined, terrain: Texture | undefined,
                        color: number, seed: number) {
-  const w = 512, h = 256
+  const w = PLANET_WIDTH, h = PLANET_WIDTH / 2
   const surface = newCanvas(w, h), sctx = surface.getContext('2d')!
   const rgb = channels(color)
   sctx.fillStyle = 'rgb(' + rgb.map(c => clamp(c * .56)).join(',') + ')'
@@ -162,7 +173,7 @@ function makePlanetMap(disk: Texture | undefined, terrain: Texture | undefined,
   return { texture: upload(surface), usedArt: sourceReady || artReady }
 }
 function makeSceneryMap(source: Texture | undefined, color: number) {
-  const size = 384
+  const size = SCENERY_SIZE
   const canvas = newCanvas(size, size), ctx = canvas.getContext('2d')!
   const rgb = channels(color)
   ctx.fillStyle = 'rgb(' + rgb.map(c => clamp(c * .4)).join(',') + ')'
@@ -223,7 +234,7 @@ function makeHaloMap(hex: number) {
   return upload(canvas)
 }
 function makeSoftCloud(source: Texture | undefined, color: number) {
-  const size = 512, canvas = newCanvas(size, size), ctx = canvas.getContext('2d')!
+  const size = CLOUD_SIZE, canvas = newCanvas(size, size), ctx = canvas.getContext('2d')!
   const ready = paintFrame(ctx, source, 0, 0, size, size)
   if (!ready) {
     const [r,g,b] = channels(color)

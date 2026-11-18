@@ -15,7 +15,7 @@ import { cosmicRegionIndex, COSMIC_REGIONS, edgeFlyby } from './cosmos'
 import { getCosmosBackdrop, getCosmosLandmark, getCosmosBloom, getJourneyPlanet, getJourneySurface, getJourneyBloom, preloadCosmosArt } from './cosmosArt'
 import { projectDepthStar, type DepthStar } from './depthProjection'
 import { RaidTravelMotion } from './travelMotion'
-import { getPublicAssetUrl } from '../sound'
+import { getGraphicsQuality, getPublicAssetUrl } from '../sound'
 import type { GraphicsQuality } from '../sound'
 import { getRaidAlienSpriteUrl, getRaidEliteSpriteUrl, getRaidShipSpriteUrl } from '../RaidShipSprite'
 import { Application, Assets, Container, FillGradient, Graphics, Sprite, Texture, TilingSprite, WebGLRenderer, WebGPURenderer } from 'pixi.js'
@@ -1013,7 +1013,9 @@ export class PixiRaidBackground {
         backgroundAlpha: 0,
         autoDensity: true,
         autoStart: false,
-        antialias: false,
+        // MSAA smooths geometric silhouettes on the shared WebGL/WebGPU
+        // canvas. Respect explicit Low/Medium GPU budgets on older devices.
+        antialias: getGraphicsQuality() === 'high' || getGraphicsQuality() === 'max',
         powerPreference: 'high-performance' as const,
       }
       try {

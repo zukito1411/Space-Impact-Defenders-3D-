@@ -62,10 +62,10 @@ try {
   // Test the old fixture AND the real mobile aspect of the screenshot.
   // The earlier 480x720 test did not catch narrow portrait 3D frustum loss.
   const variants = [
-    { width: 432, height: 960, name: 'portrait-phone' },
-    { width: 960, height: 432, name: 'landscape-phone' },
+    { width: 432, height: 960, name: 'portrait-phone', deviceDpr: 2.5 },
+    { width: 960, height: 432, name: 'landscape-phone', deviceDpr: 1 },
   ]
-  for (const { width, height, name } of variants) {
+  for (const { width, height, name, deviceDpr } of variants) {
     const page = await browser.newPage({
       viewport: { width, height },
       deviceScaleFactor: 1,
@@ -73,11 +73,17 @@ try {
     })
     const uncaught = []
     page.on('pageerror', error => uncaught.push(error.message))
-    await page.goto(origin + '?width=' + width + '&height=' + height)
+    await page.goto(origin + '?width=' + width + '&height=' + height + '&deviceDpr=' + deviceDpr)
     await page.waitForFunction(() => Boolean(window.space3dPlayfieldSmoke),
       null, { timeout: 90000 })
     const status = await page.evaluate(() => window.space3dPlayfieldSmoke)
     assert.equal(status.success, true, 'Actual raid background must activate real 3D: ' + JSON.stringify({ name, status }))
+    assert.ok(status.backingWidth >= Math.floor(width * status.pixelDpr) - 1,
+      name + ' HD canvas backing must match effective device DPR: ' + JSON.stringify(status))
+    assert.ok(status.backingHeight >= Math.floor(height * status.pixelDpr) - 1,
+      name + ' HD canvas height must match effective device DPR: ' + JSON.stringify(status))
+    if (deviceDpr > 1)
+      assert.ok(status.pixelDpr >= 2, 'High-quality portrait GPU scenery must render at >=2x device density')
     assert.deepEqual(uncaught, [], 'No uncaught errors in ' + name)
 
     const canvas = page.locator('#raid-background-host')

@@ -1,5 +1,6 @@
 import { PixiRaidBackground, DEFAULT_RAID_PALETTE } from '../src/components/games/raid/background'
 import { createRaidVisibilityBounds } from '../src/components/games/raid/visibility'
+import { getRaidBackgroundDpr } from '../src/components/games/raid/graphics'
 
 /**
  * Exercise the real Stage 1 PixiRaidBackground composition, not only an
@@ -14,6 +15,9 @@ type SmokeResult = {
   skyVisible: boolean
   illustratedLayers: number
   backend: string
+  pixelDpr: number
+  backingWidth: number
+  backingHeight: number
   message?: string
 }
 const win = window as Window & {
@@ -24,6 +28,8 @@ const host = document.getElementById('raid-background-host') as HTMLDivElement
 const params = new URLSearchParams(window.location.search)
 const width = Math.max(320, Math.min(1120, Number(params.get('width')) || 480))
 const height = Math.max(320, Math.min(1120, Number(params.get('height')) || 720))
+const simulatedDeviceDpr = Number(params.get('deviceDpr')) || window.devicePixelRatio || 1
+const pixelDpr = getRaidBackgroundDpr(width, height, 1, 'high', simulatedDeviceDpr)
 host.style.width = `${width}px`
 host.style.height = `${height}px`
 host.style.position = 'relative'
@@ -31,12 +37,13 @@ async function main() {
   let background: PixiRaidBackground | null = null
   try {
     window.localStorage.setItem('space-impact-3d-renderer-v1', 'webgl')
+    window.localStorage.setItem('raidGraphicsQuality', 'high')
     background = new PixiRaidBackground()
     const initialized = await background.init(host)
     if (!initialized) throw Error('Actual 3D raid background initialization failed')
     const bounds = createRaidVisibilityBounds(width, height, 100, 100)
     const foreground = {
-      width, height, dpr: 1, visualScale: 1, time: 1000, bounds,
+      width, height, dpr: pixelDpr, visualScale: 1, time: 1000, bounds,
       guestView: false, measureGpu: false,
       drawAdvancedShotFx: true, drawRipples: true,
       maxSparks: 96, maxRipples: 8,
@@ -47,7 +54,7 @@ async function main() {
     for (let frame = 0; frame < 5; frame++) {
       const time = 1000 + frame * 16.67
       renderSucceeded = background.render({
-        width, height, dpr: 1, quality: 'high', time,
+        width, height, dpr: pixelDpr, quality: 'high', time,
         stageTheme: 1, stageNumber: 1, stageAge: 12,
         raidMode: 'campaign', entryRemaining: 0, clearRemaining: 0,
         palette: DEFAULT_RAID_PALETTE, stageRush: .35, bossIntensity: 0,
@@ -65,7 +72,8 @@ async function main() {
       layer => layer.visible && layer !== (background as unknown as { spaceWorld3D?: { view?: unknown } }).spaceWorld3D?.view,
     ).length
     const skyVisible = bg.skyScene.visible
-    const sceneActive = stats.space3D && host.querySelector('canvas')?.dataset.space3d === 'active'
+    const canvas = host.querySelector('canvas')
+    const sceneActive = stats.space3D && canvas?.dataset.space3d === 'active'
     const world = (background as unknown as { spaceWorld3D?: { view?: { visible: boolean } } }).spaceWorld3D
     win.disable3DForPixelComparison = () => {
       if (!world?.view || !background) return false
@@ -76,13 +84,15 @@ async function main() {
     win.space3dPlayfieldSmoke = {
       success: Boolean(initialized && renderSucceeded && sceneActive && skyVisible && illustratedLayers >= 4),
       initialized, renderSucceeded, sceneActive, skyVisible, illustratedLayers, backend: stats.backend,
+      pixelDpr, backingWidth: canvas?.width ?? 0, backingHeight: canvas?.height ?? 0,
     }
   } catch (error) {
     console.error('Actual raid playfield rendering failure:', error)
     win.space3dPlayfieldSmoke = {
       success: false, initialized: Boolean(background),
       renderSucceeded: false, sceneActive: false, skyVisible: false,
-      illustratedLayers: 0, backend: 'unknown', message: String(error),
+      illustratedLayers: 0, backend: 'unknown', pixelDpr, backingWidth: 0,
+      backingHeight: 0, message: String(error),
     }
   }
   // Preserve canvas for screenshot capture; the browser owns teardown.
