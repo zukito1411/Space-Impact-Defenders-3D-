@@ -11,6 +11,7 @@ import { getGraphicsQuality } from '../sound'
 import { getJourneyPlanet, getJourneySurface, getCosmosBackdrop, getCosmosLandmark } from './cosmosArt'
 import { getWreckTexture } from './wreckArt'
 import { getCelestialArt } from './celestialArt'
+import { getRaidOtherCanvasSprite } from './assets'
 
 export type SpaceArtPack = {
   planetMaps: Texture[]
@@ -20,12 +21,15 @@ export type SpaceArtPack = {
   haloMaps: Texture[]
   nebulaMaps: Texture[]
   artSources: number
+  realAsteroidSource: boolean
   dispose: () => void
 }
 // Atlas resolution is selected ONCE per loading session and never changes mid-frame.
 const DETAIL = getGraphicsQuality()
-const SIZE = DETAIL === 'max' ? 768 : DETAIL === 'high' ? 640 : DETAIL === 'medium' ? 512 : 384
-const PLANET_WIDTH = DETAIL === 'max' ? 1024 : DETAIL === 'high' ? 768 : DETAIL === 'medium' ? 640 : 512
+// Do not shrink the original ~928px remastered planet tiles before
+// projecting them onto spherical UVs: v40 downsampled those tiles to 768.
+const SIZE = DETAIL === 'max' ? 1024 : DETAIL === 'high' ? 896 : DETAIL === 'medium' ? 640 : 512
+const PLANET_WIDTH = DETAIL === 'max' ? 1280 : DETAIL === 'high' ? 1024 : DETAIL === 'medium' ? 768 : 512
 const SCENERY_SIZE = DETAIL === 'max' ? 768 : DETAIL === 'high' ? 640 : DETAIL === 'medium' ? 512 : 384
 const CLOUD_SIZE = DETAIL === 'max' ? 896 : DETAIL === 'high' ? 768 : DETAIL === 'medium' ? 640 : 512
 const clamp = (v: number, lo = 0, hi = 255) => Math.max(lo, Math.min(hi, v))
@@ -88,17 +92,10 @@ function makePlanetMap(disk: Texture | undefined, terrain: Texture | undefined,
   sctx.fillStyle = 'rgb(' + rgb.map(c => clamp(c * .56)).join(',') + ')'
   sctx.fillRect(0, 0, w, h)
   const sourceReady = paintFrame(sctx, terrain, 0, 0, w, h)
-  // Sample the original 2D cosmos nebula painting as a fine illuminated
-  // cloud/weather layer over the original terrain map. It adds real surface
-  // detail on the sphere instead of a flat uniform cyan procedural globe.
-  const cloudArt = getCosmosBackdrop(seed % 4)
-  if (cloudArt) {
-    sctx.save()
-    sctx.globalAlpha = .29
-    sctx.globalCompositeOperation = 'screen'
-    paintFrame(sctx, cloudArt, 0, 0, w, h)
-    sctx.restore()
-  }
+  // The remastered planet disk already contains its original clouds,
+  // contrast, and color. v38-v40 SCREEN-blended an unrelated nebula over
+  // every pixel before wrapping, which made the whole globe look foggy.
+  // Preserve the original source without a second painted veil.
   if (!sourceReady) {
     // Only used if the optional high-resolution atlas was not decoded.
     for (let stripe = 0; stripe < 32; stripe++) {
@@ -152,16 +149,20 @@ function makePlanetMap(disk: Texture | undefined, terrain: Texture | undefined,
       // a glaring hard vertical rectangle on the sphere. Reproject the
       // original illustration continuously, fade towards the silhouette,
       // and let the HD terrain art supply the back hemisphere seamlessly.
-      const u = clamp((.5 + longitudeX * .36) * (SIZE - 1), 0, SIZE - 1) | 0
-      const v = clamp((.5 - sinLat * .36) * (SIZE - 1), 0, SIZE - 1) | 0
+      // True orthographic disk-to-sphere reprojection. The earlier .36
+      // shrank the visible 2D disk to only 72% of its source diameter,
+      // losing the sharpest illustration detail before the GPU saw it.
+      const u = clamp((.5 + longitudeX * .485) * (SIZE - 1), 0, SIZE - 1) | 0
+      const v = clamp((.5 - sinLat * .485) * (SIZE - 1), 0, SIZE - 1) | 0
       const si = (v * SIZE + u) * 4
       const texBrightness = Math.max(ddata.data[si], ddata.data[si + 1], ddata.data[si + 2])
       const good = artReady && ddata.data[si + 3] > 90 && texBrightness > 28
-      const frontFade = clamp((forward + .35) / 1.18, 0, 1)
+      // Display the original 2D globe almost unaltered on the camera-facing
+      // hemisphere. Fade only near the limb / reverse meridian, so the
+      // texture still wraps without a hard edge as the 3D sphere rotates.
+      const frontFade = clamp((forward + .10) / .65, 0, 1)
       const smoothFront = frontFade * frontFade * (3 - 2 * frontFade)
-      const rim = clamp((Math.hypot(longitudeX, sinLat) - .58) / .40, 0, 1)
-      const smoothRim = rim * rim * (3 - 2 * rim)
-      const strength = good ? .72 * smoothFront * (1 - .65 * smoothRim) : 0
+      const strength = good ? .96 * smoothFront : 0
       for (let c = 0; c < 3; c++)
         out.data[di + c] = mix(sdata.data[di + c], ddata.data[si + c], strength)
       const [r, g, b] = vividPixel(out.data[di], out.data[di + 1], out.data[di + 2], 1.20)
@@ -172,6 +173,81 @@ function makePlanetMap(disk: Texture | undefined, terrain: Texture | undefined,
   sctx.putImageData(out, 0, 0)
   return { texture: upload(surface), usedArt: sourceReady || artReady }
 }
+/**
+ * Real asteroids must NOT be textured using celestial GAS imagery.
+ * Extract the detailed central rock surface from the actual asteroid art
+ * used in the 2D game, then make a seam-matched UV texture that can rotate
+ * around the 3D icosahedron. All extraction happens once, at load time.
+ */
+function makeAsteroidMap(source: Texture | undefined, detail: Texture | undefined,
+                         color: number, variant: number) {
+  const size = SCENERY_SIZE
+  const canvas = newCanvas(size, size)
+  const ctx = canvas.getContext('2d')!
+  const rgb = channels(color)
+  ctx.fillStyle = 'rgb(' + rgb.map(c => Math.round(c * .38)).join(',') + ')'
+  ctx.fillRect(0, 0, size, size)
+  let usedArt = false
+  const resource = (source?.source as { resource?: CanvasImageSource } | undefined)?.resource
+  const frame = source?.frame
+  if (resource && frame && frame.width > 0 && frame.height > 0) {
+    try {
+      ctx.save()
+      ctx.imageSmoothingEnabled = true
+      ctx.imageSmoothingQuality = 'high'
+      ctx.filter = 'saturate(1.22) contrast(1.21) brightness(1.04)'
+      // Crop into the asteroid's detailed rocky body rather than stretching
+      // its black/transparent rectangular margins around the whole sphere.
+      const cropX = frame.x + frame.width * .20
+      const cropY = frame.y + frame.height * .20
+      const cropW = frame.width * .60
+      const cropH = frame.height * .60
+      ctx.translate(size * .5, size * .5)
+      ctx.rotate(variant * Math.PI * .29)
+      ctx.drawImage(resource, cropX, cropY, cropW, cropH,
+        -size * .68, -size * .68, size * 1.36, size * 1.36)
+      ctx.restore()
+      usedArt = true
+    } catch {
+      ctx.restore()
+    }
+  }
+  if (!usedArt) usedArt = paintFrame(ctx, detail, 0, 0, size, size)
+  // A subtle second patch offsets the texture details between asteroid
+  // variants; unlike a translucent gas veil, it never hides the original
+  // rock's craters and sharp material contrast.
+  if (usedArt && resource && frame && variant !== 0) {
+    ctx.save()
+    ctx.globalAlpha = .22
+    ctx.globalCompositeOperation = 'overlay'
+    ctx.drawImage(resource, frame.x + frame.width * .27,
+      frame.y + frame.height * .27,
+      frame.width * .43, frame.height * .43,
+      size * .30, size * .27, size * .48, size * .44)
+    ctx.restore()
+  }
+  // Seam-match left and right edges. A rotating rock has no billboard edge.
+  const data = ctx.getImageData(0, 0, size, size)
+  const seam = Math.floor(size * .09)
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < seam; x++) {
+      const left = (y * size + x) * 4
+      const right = (y * size + (size - 1 - x)) * 4
+      const t = x / Math.max(1, seam - 1)
+      const smooth = t * t * (3 - 2 * t)
+      for (let c = 0; c < 3; c++) {
+        const avg = (data.data[left + c] + data.data[right + c]) * .5
+        data.data[left + c] = mix(avg, data.data[left + c], smooth)
+        data.data[right + c] = mix(avg, data.data[right + c], smooth)
+      }
+      data.data[left + 3] = 255
+      data.data[right + 3] = 255
+    }
+  }
+  ctx.putImageData(data, 0, 0)
+  return { texture: upload(canvas), usedArt }
+}
+
 function makeSceneryMap(source: Texture | undefined, color: number) {
   const size = SCENERY_SIZE
   const canvas = newCanvas(size, size), ctx = canvas.getContext('2d')!
@@ -271,8 +347,15 @@ export function createSpaceArtPack(): SpaceArtPack {
       themed[i], i)))
   const armorMaps = Array.from({length:4}, (_,i) =>
     add(makeSceneryMap(getWreckTexture(i + 4) ?? getCosmosLandmark(i), themed[i])))
+  const asteroidEntry = getRaidOtherCanvasSprite('asteroid')
+  // Background.loadAssets() has already awaited this entry before
+  // SpaceWorld3D is constructed. Use its original full-resolution 2D asset.
+  const actualAsteroid = asteroidEntry.loaded
+    ? Texture.from(asteroidEntry.image)
+    : undefined
   const asteroidMaps = Array.from({length:3}, (_,i) =>
-    add(makeSceneryMap(getCelestialArt((i+1) % 4) ?? getWreckTexture(i), themed[i])))
+    add(makeAsteroidMap(actualAsteroid,
+      getWreckTexture(i) ?? getCelestialArt((i+1)%4), themed[i], i)))
   const ringMaps = Array.from({length:3}, (_,i) =>
     add(makeRingBand(getCelestialArt((i+2) % 4) ?? getCosmosBackdrop(i), themed[(i+1)%5])))
   const haloMaps = themed.map(color => {
@@ -283,7 +366,7 @@ export function createSpaceArtPack(): SpaceArtPack {
       ?? getCosmosLandmark(i % 4), themed[i%5])))
   return {
     planetMaps, armorMaps, asteroidMaps, ringMaps, haloMaps, nebulaMaps,
-    artSources, dispose: () => {
+    artSources, realAsteroidSource: Boolean(actualAsteroid), dispose: () => {
       for (const texture of owned) texture.destroy(true)
       owned.length = 0
     },
