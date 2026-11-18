@@ -408,6 +408,8 @@ export class SpaceWorld3D {
     return {
       sourceAtlases: this.art.artSources,
       actual2DAsteroidTexturing: this.art.realAsteroidSource,
+      planetUvTextureWidth: this.art.planetMaps[0]?.width ?? 0,
+      asteroidUvTextureWidth: this.art.asteroidMaps[0]?.width ?? 0,
       texturedPlanets: this.planets.filter(m => Boolean((m.material as Material3D).textures.baseColor)).length,
       texturedRocks: this.rocks.filter(m => Boolean((m.node.material as Material3D).textures.baseColor)).length,
       stationParts: this.station.children.length,
