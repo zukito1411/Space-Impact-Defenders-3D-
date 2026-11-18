@@ -11,7 +11,7 @@
  */
 import {
   AmbientLight, CubeGeometry, Container3D, CylinderGeometry, DirectionalLight,
-  IcosahedronGeometry, Material3D, Mesh3D, ParticleContainer3D,
+  Geometry3D, IcosahedronGeometry, Material3D, Mesh3D, ParticleContainer3D,
   SphereGeometry, Sprite3D, TorusGeometry, View3D, packParticleColor,
 } from '@pixi/3d'
 import { Texture } from 'pixi.js'
@@ -67,6 +67,46 @@ function createStarTexture() {
   return Texture.from(canvas)
 }
 
+/** 
+ * A true GPU annulus instead of a thick TorusGeometry tube. This planar
+ * radial mesh produces realistic Saturn-style rings with rings woven out
+ * of the already-loaded colorful dust atlas (alpha-tapered at both edges).
+ * 80 segments = 162 verts, no CPU remeshing or per-frame allocations.
+ */
+function createAnnulus(inner: number, outer: number) {
+  const segments = 80
+  const positions = new Float32Array((segments + 1) * 2 * 3)
+  const normals = new Float32Array((segments + 1) * 2 * 3)
+  const uvs = new Float32Array((segments + 1) * 2 * 2)
+  const indices = new Uint16Array(segments * 6)
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments
+    const angle = t * Math.PI * 2
+    const c = Math.cos(angle), sn = Math.sin(angle)
+    for (let j = 0; j < 2; j++) {
+      const radius = j === 0 ? inner : outer
+      const p = (i * 2 + j) * 3
+      positions[p] = c * radius
+      positions[p + 1] = 0
+      positions[p + 2] = sn * radius
+      normals[p + 1] = 1
+      const uv = (i * 2 + j) * 2
+      uvs[uv] = t
+      uvs[uv + 1] = j
+    }
+    if (i < segments) {
+      const a = i * 2, ix = i * 6
+      indices[ix] = a
+      indices[ix + 1] = a + 2
+      indices[ix + 2] = a + 1
+      indices[ix + 3] = a + 1
+      indices[ix + 4] = a + 2
+      indices[ix + 5] = a + 3
+    }
+  }
+  return new Geometry3D({ positions, normals, uvs, indices })
+}
+
 export class SpaceWorld3D {
   readonly view = new View3D({
     autoResize: true,
@@ -76,8 +116,8 @@ export class SpaceWorld3D {
   private readonly geometries = [
     new SphereGeometry({ radius: 1, widthSegments: 64, heightSegments: 40 }),
     new IcosahedronGeometry({ radius: 1, detail: 2 }),
-    new TorusGeometry({ radius: 1.23, tube: .125, radialSegments: 12, tubularSegments: 96 }),
-    new TorusGeometry({ radius: 1.56, tube: .054, radialSegments: 9, tubularSegments: 96 }),
+    createAnnulus(1.08, 1.78),
+    createAnnulus(1.82, 1.98),
     new CylinderGeometry({ radiusTop: .25, radiusBottom: .25, height: 1.8, radialSegments: 12 }),
     new CubeGeometry({ width: 1, height: 1, depth: 1 }),
   ]
@@ -99,8 +139,8 @@ export class SpaceWorld3D {
       geometry: this.geometries[i + 2],
       material: new Material3D({
         baseColor: 0xffffff, baseColorTexture: this.art.ringMaps[i],
-        roughness: .63, metallic: .16,
-        emissive: { color: 0xf1b6ff, strength: .54 },
+        alphaMode: 'blend', alpha: .94, roughness: .81, metallic: .08,
+        emissive: { color: 0xc7dcff, strength: .30 },
       }),
       castShadow: false, receiveShadow: false,
     }))
@@ -272,7 +312,7 @@ export class SpaceWorld3D {
       ring.position.set(this.planets[0].position.x, this.planets[0].position.y,
         this.planets[0].position.z)
       ring.scale.set(14.65, 14.65, 14.65)
-      ring.rotation.set(.76, .24 + index * .12, .12)
+      ring.rotation.set(.53, .24 + index * .05, .14)
       ring.visible = region % 2 === 0 || index === 0
     })
     this.nebula.forEach((cloud, index) => {
