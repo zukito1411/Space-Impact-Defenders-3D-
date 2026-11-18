@@ -3,70 +3,106 @@ import { chromium } from 'playwright'
 import { PNG } from 'pngjs'
 import { spawn } from 'node:child_process'
 
-const url = 'http://127.0.0.1:5173/scripts/space3d-playfield-smoke.html'
+const origin = 'http://127.0.0.1:5173/scripts/space3d-playfield-smoke.html'
 const server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--host', '127.0.0.1'],
   { stdio: 'ignore' })
+
+function coverage(png) {
+  let vivid = 0
+  let bright = 0
+  let read = 0
+  for (let y = 14; y < png.height - 14; y += 2) {
+    for (let x = 14; x < png.width - 14; x += 2) {
+      const index = (y * png.width + x) * 4
+      const r = png.data[index], g = png.data[index + 1], b = png.data[index + 2]
+      const top = Math.max(r, g, b)
+      const bottom = Math.min(r, g, b)
+      read++
+      if (top > 55) bright++
+      if (top > 55 && top - bottom > 23) vivid++
+    }
+  }
+  return { bright: bright / Math.max(1, read), vivid: vivid / Math.max(1, read) }
+}
+function visible3DDifference(a, b) {
+  assert.equal(a.width, b.width)
+  assert.equal(a.height, b.height)
+  let changed = 0, total = 0, distinct = 0
+  for (let y = 14; y < a.height - 14; y += 2) {
+    for (let x = 14; x < a.width - 14; x += 2) {
+      const p = (y * a.width + x) * 4
+      const dr = Math.abs(a.data[p] - b.data[p])
+      const dg = Math.abs(a.data[p + 1] - b.data[p + 1])
+      const db = Math.abs(a.data[p + 2] - b.data[p + 2])
+      const magnitude = dr + dg + db
+      total++
+      if (magnitude > 66) changed++
+      if (magnitude > 145) distinct++
+    }
+  }
+  return { changed: changed / total, distinct: distinct / total }
+}
+
 let browser
 try {
   let ready = false
   for (let i = 0; i < 150; i++) {
     try {
-      const response = await fetch(url)
-      if (response.ok) { ready = true; break }
-    } catch { /* Vite still starting */ }
+      if ((await fetch(origin)).ok) { ready = true; break }
+    } catch { /* Vite starting */ }
     await new Promise(resolve => setTimeout(resolve, 250))
   }
-  assert.equal(ready, true, 'Vite playfield fixture must start')
+  assert.ok(ready, 'Vite must start')
+
   browser = await chromium.launch({
     channel: process.env.GITHUB_ACTIONS ? 'chrome' : undefined,
     args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader'],
   })
-  const page = await browser.newPage({ viewport: { width: 480, height: 720 } })
-  const uncaught = []
-  page.on('pageerror', error => uncaught.push(error.message))
-  await page.goto(url)
-  await page.waitForFunction(() => Boolean(window.space3dPlayfieldSmoke),
-    null, { timeout: 90000 })
-  const status = await page.evaluate(() => window.space3dPlayfieldSmoke)
-  console.log('Stage 1 hybrid renderer:', JSON.stringify(status))
-  assert.equal(status.success, true,
-    '3D world + original illustrated background must BOTH remain visible')
-  assert.deepEqual(uncaught, [], 'Background scene must not trigger uncaught page exceptions')
 
-  const screenshot = await page.locator('#raid-background-host').screenshot({
-    path: 'space-3d-playfield-smoke.png',
-    animations: 'disabled',
-  })
-  const png = PNG.sync.read(screenshot)
-  let vividPixels = 0
-  let brightPixels = 0
-  let readPixels = 0
-  // The rendered stage is ONLY background: there are no ships, bullets,
-  // HUD, or controls whose brightness could mask an empty cosmos.
-  for (let y = 15; y < png.height - 15; y += 2) {
-    for (let x = 15; x < png.width - 15; x += 2) {
-      const index = (y * png.width + x) * 4
-      const r = png.data[index]
-      const g = png.data[index + 1]
-      const b = png.data[index + 2]
-      const hi = Math.max(r, g, b)
-      const lo = Math.min(r, g, b)
-      readPixels++
-      if (hi > 55) brightPixels++
-      if (hi > 55 && hi - lo > 23) vividPixels++
-    }
+  // Test the old fixture AND the real mobile aspect of the screenshot.
+  // The earlier 480x720 test did not catch narrow portrait 3D frustum loss.
+  const variants = [
+    { width: 432, height: 960, name: 'portrait-phone' },
+    { width: 960, height: 432, name: 'landscape-phone' },
+  ]
+  for (const { width, height, name } of variants) {
+    const page = await browser.newPage({
+      viewport: { width, height },
+      deviceScaleFactor: 1,
+      isMobile: true, hasTouch: true,
+    })
+    const uncaught = []
+    page.on('pageerror', error => uncaught.push(error.message))
+    await page.goto(origin + '?width=' + width + '&height=' + height)
+    await page.waitForFunction(() => Boolean(window.space3dPlayfieldSmoke),
+      null, { timeout: 90000 })
+    const status = await page.evaluate(() => window.space3dPlayfieldSmoke)
+    assert.equal(status.success, true, 'Actual raid background must activate real 3D: ' + JSON.stringify({ name, status }))
+    assert.deepEqual(uncaught, [], 'No uncaught errors in ' + name)
+
+    const canvas = page.locator('#raid-background-host')
+    const screenshot3D = await canvas.screenshot({
+      path: 'space-3d-' + name + '-visible.png', animations: 'disabled',
+    })
+    const threeD = PNG.sync.read(screenshot3D)
+    assert.equal(threeD.width, width)
+    assert.equal(threeD.height, height)
+    const light = coverage(threeD)
+    assert.ok(light.bright > .035 && light.vivid > .022,
+      name + ' must retain bright/vivid original 2D art: ' + JSON.stringify(light))
+
+    // Compare the SAME scene/time with just View3D hidden. Ordinary 2D
+    // background brightness could make a broken 3D layer pass previous tests.
+    const disabled = await page.evaluate(() => window.disable3DForPixelComparison?.())
+    assert.equal(disabled, true, name + ' 3D world must exist')
+    const legacy = PNG.sync.read(await canvas.screenshot({ animations: 'disabled' }))
+    const diff = visible3DDifference(threeD, legacy)
+    console.log(name, JSON.stringify({ ...status, ...light, ...diff }))
+    assert.ok(diff.changed >= .012 && diff.distinct >= .003,
+      name + ' must DISPLAY 3D mesh pixels beyond the 2D scene: ' + JSON.stringify(diff))
+    await page.close()
   }
-  const vividShare = vividPixels / Math.max(1, readPixels)
-  const brightShare = brightPixels / Math.max(1, readPixels)
-  console.log('Stage 1 cosmos screenshot:', JSON.stringify({
-    pixels: readPixels, brightShare: +brightShare.toFixed(4),
-    vividShare: +vividShare.toFixed(4),
-  }))
-  // Catch the 3D APK regression where the output was nearly pitch black
-  // because all original sky layers were disabled before checking GPU output.
-  assert.ok(brightShare >= .035 && vividShare >= .022,
-    'Space environment is visually empty/dim: visible illustrated sky or 3D scene is missing')
-  console.log('Real raid space environment has visible HD art and actual 3D geometry.')
+  console.log('Real 3D geometry is visibly present in BOTH Android phone aspect ratios.')
 } finally {
   if (browser) await browser.close()
   server.kill()
