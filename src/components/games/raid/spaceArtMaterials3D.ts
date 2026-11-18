@@ -28,6 +28,7 @@ export type SpaceArtPack = {
 const DETAIL = getGraphicsQuality()
 // Do not shrink the original ~928px remastered planet tiles before
 // projecting them onto spherical UVs: v40 downsampled those tiles to 768.
+const SIZE = DETAIL === 'max' ? 1024 : DETAIL === 'high' ? 896 : DETAIL === 'medium' ? 640 : 512
 const PLANET_WIDTH = DETAIL === 'max' ? 1280 : DETAIL === 'high' ? 1024 : DETAIL === 'medium' ? 768 : 512
 const SCENERY_SIZE = DETAIL === 'max' ? 768 : DETAIL === 'high' ? 640 : DETAIL === 'medium' ? 512 : 384
 const CLOUD_SIZE = DETAIL === 'max' ? 896 : DETAIL === 'high' ? 768 : DETAIL === 'medium' ? 640 : 512
@@ -67,6 +68,14 @@ function upload(canvas: HTMLCanvasElement): Texture {
   texture.source.style.maxAnisotropy = 4
   return texture
 }
+function vividPixel(r: number, g: number, b: number, boost = 1.2): [number, number, number] {
+  const light = .2126 * r + .7152 * g + .0722 * b
+  return [
+    clamp((r - light) * boost + light * 1.10 + 4),
+    clamp((g - light) * boost + light * 1.10 + 4),
+    clamp((b - light) * boost + light * 1.10 + 4),
+  ]
+}
 function mix(a: number, b: number, t: number) { return a * (1 - t) + b * t }
 
 /** 
@@ -78,73 +87,86 @@ function mix(a: number, b: number, t: number) { return a * (1 - t) + b * t }
 function makePlanetMap(disk: Texture | undefined, terrain: Texture | undefined,
                        color: number, seed: number) {
   const w = PLANET_WIDTH, h = PLANET_WIDTH / 2
-  const surface = newCanvas(w, h), ctx = surface.getContext('2d')!
+  const surface = newCanvas(w, h), sctx = surface.getContext('2d')!
   const rgb = channels(color)
-  ctx.fillStyle = 'rgb(' + rgb.map(c => clamp(c * .56)).join(',') + ')'
-  ctx.fillRect(0, 0, w, h)
-  const terrainReady = paintFrame(ctx, terrain, 0, 0, w, h)
-
-  // A photographed/painted circular planet is NOT an equirectangular map.
-  // The previous front/back projection distorted its center into a
-  // kaleidoscopic mirror and generated a half-colored meridian as it spun.
-  // Preserve a SINGLE rectangular crop of the original HD illustration's
-  // central detailed surface across the whole 360-degree UV: the mesh is
-  // actually spherical and the original shading/colors remain high fidelity.
-  // Crop 60% from its centre, entirely INSIDE the circular planet artwork,
-  // so no black background corners or baked transparent silhouette enter
-  // the UV texture.
-  const raw = (disk?.source as { resource?: CanvasImageSource } | undefined)?.resource
-  const frame = disk?.frame
-  let diskReady = false
-  if (raw && frame && frame.width > 16 && frame.height > 16) {
-    try {
-      ctx.save()
-      ctx.imageSmoothingEnabled = true
-      ctx.imageSmoothingQuality = 'high'
-      ctx.filter = 'saturate(1.28) contrast(1.14) brightness(1.05)'
-      ctx.drawImage(raw,
-        frame.x + frame.width * .20, frame.y + frame.height * .20,
-        frame.width * .60, frame.height * .60,
-        0, 0, w, h)
-      ctx.restore()
-      diskReady = true
-    } catch {
-      ctx.restore()
-    }
-  }
-  if (!diskReady && !terrainReady) {
+  sctx.fillStyle = 'rgb(' + rgb.map(c => clamp(c * .56)).join(',') + ')'
+  sctx.fillRect(0, 0, w, h)
+  const sourceReady = paintFrame(sctx, terrain, 0, 0, w, h)
+  // Keep the original remastered surface visible; a screen-blended gas
+  // atlas here had washed out fine planet terrain and cloud features.
+  if (!sourceReady) {
+    // Only used if the optional high-resolution atlas was not decoded.
     for (let stripe = 0; stripe < 32; stripe++) {
       const y = Math.floor(stripe * h / 32)
-      ctx.fillStyle = 'rgba(' + rgb.join(',') + ',' +
-        (.15 + .4 * (.5 + .5 * Math.sin(stripe * 2.7 + seed * 4))) + ')'
-      ctx.fillRect(0, y, w, Math.max(1, h / 32))
+      const wave = .5 + .5 * Math.sin(stripe * 2.7 + seed * 4)
+      sctx.fillStyle = 'rgba(' + rgb.join(',') + ',' + (.15 + .4 * wave) + ')'
+      sctx.fillRect(0, y, w, Math.max(1, h / 32))
     }
   }
 
-  // A true 3D globe rotates past u=0/1. Feather the left/right 2D cut
-  // boundaries into one seamless meridian ONCE (rather than superimposing
-  // an unrelated painted surface over 50% of the visible planet).
-  const pixels = ctx.getImageData(0, 0, w, h)
-  const seam = Math.max(2, Math.floor(w * .12))
+  const diskCanvas = newCanvas(SIZE, SIZE)
+  const dctx = diskCanvas.getContext('2d')!
+  const artReady = paintFrame(dctx, disk, 0, 0, SIZE, SIZE)
+  const sdata = sctx.getImageData(0, 0, w, h)
+  // Full-equirect UVs must wrap at u=0/1. The old 2D landscape art has
+  // independent left/right borders; blend them into a single continuous
+  // meridian before putting the texture on a rotating sphere.
+  const seam = Math.floor(w * .16)
   for (let y = 0; y < h; y++) {
-    for (let x = 0; x < seam; x++) {
-      const left = (y * w + x) * 4
-      const right = (y * w + w - 1 - x) * 4
-      const t = x / Math.max(1, seam - 1)
-      const ramp = t * t * (3 - 2 * t)
+    for (let offset = 0; offset < seam; offset++) {
+      const left = (y * w + offset) * 4
+      const right = (y * w + (w - 1 - offset)) * 4
+      const t = offset / Math.max(1, seam - 1)
+      const a = t * t * (3 - 2 * t)
       for (let c = 0; c < 3; c++) {
-        const midpoint = (pixels.data[left + c] + pixels.data[right + c]) * .5
-        pixels.data[left + c] = mix(midpoint, pixels.data[left + c], ramp)
-        pixels.data[right + c] = mix(midpoint, pixels.data[right + c], ramp)
+        const midpoint = (sdata.data[left + c] + sdata.data[right + c]) * .5
+        sdata.data[left + c] = mix(midpoint, sdata.data[left + c], a)
+        sdata.data[right + c] = mix(midpoint, sdata.data[right + c], a)
       }
-      pixels.data[left + 3] = 255
-      pixels.data[right + 3] = 255
     }
   }
-  ctx.putImageData(pixels, 0, 0)
-  return { texture: upload(surface), usedArt: diskReady || terrainReady }
+  const ddata = dctx.getImageData(0, 0, SIZE, SIZE)
+  const out = sctx.createImageData(w, h)
+  const sinus = new Float32Array(w)
+  const cosinus = new Float32Array(w)
+  for (let x = 0; x < w; x++) {
+    const longitude = (x / (w - 1) - .5) * Math.PI * 2
+    sinus[x] = Math.sin(longitude)
+    cosinus[x] = Math.cos(longitude)
+  }
+  for (let y = 0; y < h; y++) {
+    const latitude = (y / (h - 1) - .5) * Math.PI
+    const cosLat = Math.cos(latitude)
+    const sinLat = Math.sin(latitude)
+    for (let x = 0; x < w; x++) {
+      const di = (y * w + x) * 4
+      const longitudeX = sinus[x] * cosLat
+      const forward = cosinus[x] * cosLat
+      // The original implementation jumped from a 79% front projection
+      // to a 30% mirrored rear projection at longitude=+/-90deg, creating
+      // a glaring hard vertical rectangle on the sphere. Reproject the
+      // original illustration continuously, fade towards the silhouette,
+      // and let the HD terrain art supply the back hemisphere seamlessly.
+      const u = clamp((.5 + longitudeX * .36) * (SIZE - 1), 0, SIZE - 1) | 0
+      const v = clamp((.5 - sinLat * .36) * (SIZE - 1), 0, SIZE - 1) | 0
+      const si = (v * SIZE + u) * 4
+      const texBrightness = Math.max(ddata.data[si], ddata.data[si + 1], ddata.data[si + 2])
+      const good = artReady && ddata.data[si + 3] > 90 && texBrightness > 28
+      const frontFade = clamp((forward + .35) / 1.18, 0, 1)
+      const smoothFront = frontFade * frontFade * (3 - 2 * frontFade)
+      const rim = clamp((Math.hypot(longitudeX, sinLat) - .58) / .40, 0, 1)
+      const smoothRim = rim * rim * (3 - 2 * rim)
+      const strength = good ? .72 * smoothFront * (1 - .65 * smoothRim) : 0
+      for (let c = 0; c < 3; c++)
+        out.data[di + c] = mix(sdata.data[di + c], ddata.data[si + c], strength)
+      const [r, g, b] = vividPixel(out.data[di], out.data[di + 1], out.data[di + 2], 1.20)
+      out.data[di] = r; out.data[di + 1] = g; out.data[di + 2] = b
+      out.data[di + 3] = 255
+    }
+  }
+  sctx.putImageData(out, 0, 0)
+  return { texture: upload(surface), usedArt: sourceReady || artReady }
 }
-
 /**
  * Real asteroids must NOT be textured using celestial GAS imagery.
  * Extract the detailed central rock surface from the actual asteroid art
