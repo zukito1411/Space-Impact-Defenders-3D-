@@ -10,12 +10,12 @@
  * the game's established atmosphere and saturated colour scheme.
  */
 import {
-  AmbientLight, CylinderGeometry, DirectionalLight, IcosahedronGeometry,
-  Material3D, Mesh3D, ParticleContainer3D, SphereGeometry, Sprite3D,
-  TorusGeometry, View3D, packParticleColor,
+  AmbientLight, CubeGeometry, Container3D, CylinderGeometry, DirectionalLight,
+  IcosahedronGeometry, Material3D, Mesh3D, ParticleContainer3D,
+  SphereGeometry, Sprite3D, TorusGeometry, View3D, packParticleColor,
 } from '@pixi/3d'
 import { Texture } from 'pixi.js'
-import { getCosmosBackdrop, getCosmosLandmark } from './cosmosArt'
+import { createSpaceArtPack } from './spaceArtMaterials3D'
 
 export type SpaceWorld3DFrame = {
   time: number
@@ -52,47 +52,6 @@ const SPACE_THEMES = [
   { ice: 0xffdc7c, mid: 0xc2834b, dark: 0x64414e, ring: 0xfce4b4 },
 ] as const
 
-function colourHex(hex: number) {
-  return [(hex >> 16) & 255, (hex >> 8) & 255, hex & 255] as const
-}
-
-/** A reusable equirectangular cloud-band/terrain texture: generated ONCE. */
-function createPlanetTexture(seed: number, palette: (typeof SPACE_THEMES)[number]) {
-  const canvas = document.createElement('canvas')
-  canvas.width = 512
-  canvas.height = 256
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return Texture.WHITE
-  const image = ctx.createImageData(canvas.width, canvas.height)
-  const bright = colourHex(palette.ice)
-  const middle = colourHex(palette.mid)
-  const deep = colourHex(palette.dark)
-  for (let y = 0; y < canvas.height; y++) {
-    const latitude = y / canvas.height
-    const bands = Math.sin(latitude * 72 + seed * 2.1)
-      + 0.55 * Math.sin(latitude * 155 + seed * 0.67)
-    for (let x = 0; x < canvas.width; x++) {
-      const u = x / canvas.width
-      const turbulence = Math.sin(u * 37 + latitude * 31 + 5 * Math.sin(u * 17 + latitude * 22))
-        * .36 + Math.sin(u * 94 - latitude * 68) * .15
-      const jet = bands * .24 + turbulence + .22 * Math.sin(latitude * 21 + u * 13)
-      const crest = Math.max(0, Math.min(1, jet * .84 + .42))
-      const mixed = crest > .58 ? bright : crest > .26 ? middle : deep
-      const glow = .66 + .34 * Math.max(0, Math.min(1, latitude * 2.3))
-      const bandShade = .75 + crest * .34
-      const offset = (y * canvas.width + x) * 4
-      image.data[offset] = Math.min(255, mixed[0] * glow * bandShade)
-      image.data[offset + 1] = Math.min(255, mixed[1] * glow * bandShade)
-      image.data[offset + 2] = Math.min(255, mixed[2] * glow * bandShade)
-      image.data[offset + 3] = 255
-    }
-  }
-  ctx.putImageData(image, 0, 0)
-  const texture = Texture.from(canvas)
-  texture.source.scaleMode = 'linear'
-  return texture
-}
-
 function createStarTexture() {
   const canvas = document.createElement('canvas')
   canvas.width = canvas.height = 64
@@ -111,24 +70,40 @@ function createStarTexture() {
 export class SpaceWorld3D {
   readonly view = new View3D({
     autoResize: true,
-    environment: { skyColor: 0x7297bd, groundColor: 0x131c35, intensity: .55 },
+    environment: { skyColor: 0x9cd1ff, groundColor: 0x47316d, intensity: 1.02 },
   })
+  private readonly art = createSpaceArtPack()
   private readonly geometries = [
-    new SphereGeometry({ radius: 1, widthSegments: 48, heightSegments: 32 }),
-    new IcosahedronGeometry({ radius: 1, detail: 1 }),
-    new TorusGeometry({ radius: 1.22, tube: .04, radialSegments: 8, tubularSegments: 72 }),
-    new TorusGeometry({ radius: 1.48, tube: .035, radialSegments: 8, tubularSegments: 72 }),
+    new SphereGeometry({ radius: 1, widthSegments: 64, heightSegments: 40 }),
+    new IcosahedronGeometry({ radius: 1, detail: 2 }),
+    new TorusGeometry({ radius: 1.23, tube: .125, radialSegments: 12, tubularSegments: 96 }),
+    new TorusGeometry({ radius: 1.56, tube: .054, radialSegments: 9, tubularSegments: 96 }),
     new CylinderGeometry({ radiusTop: .25, radiusBottom: .25, height: 1.8, radialSegments: 12 }),
+    new CubeGeometry({ width: 1, height: 1, depth: 1 }),
   ]
   private readonly starTexture = createStarTexture()
-  private readonly planets = Array.from({ length: 3 }, () =>
-    new Mesh3D({ geometry: this.geometries[0],
-      material: new Material3D({ baseColor: 0xffffff, roughness: .84, metallic: .02 }),
-      castShadow: false, receiveShadow: false }))
+  private readonly planets = Array.from({ length: 3 }, (_, index) =>
+    new Mesh3D({
+      geometry: this.geometries[0],
+      material: new Material3D({
+        baseColor: 0xffffff, baseColorTexture: this.art.planetMaps[index],
+        roughness: .78, metallic: .035,
+        emissive: { color: SPACE_THEMES[index].ice, strength: .33 },
+      }),
+      castShadow: false, receiveShadow: false,
+    }))
+  private readonly planetHalos = Array.from({ length: 3 }, (_, i) =>
+    new Sprite3D({ texture: this.art.haloMaps[i], width: 28, height: 28, alpha: .92 }))
   private readonly rings = Array.from({ length: 2 }, (_, i) =>
-    new Mesh3D({ geometry: this.geometries[2 + i],
-      material: new Material3D({ baseColor: SPACE_THEMES[0].ring, roughness: .78, metallic: .12 }),
-      castShadow: false, receiveShadow: false }))
+    new Mesh3D({
+      geometry: this.geometries[i + 2],
+      material: new Material3D({
+        baseColor: 0xffffff, baseColorTexture: this.art.ringMaps[i],
+        roughness: .63, metallic: .16,
+        emissive: { color: 0xf1b6ff, strength: .54 },
+      }),
+      castShadow: false, receiveShadow: false,
+    }))
   private readonly starfield = new ParticleContainer3D({
     texture: this.starTexture, capacity: STAR_COUNT, blendMode: 'add',
   })
@@ -147,12 +122,10 @@ export class SpaceWorld3D {
     }
   })
   private readonly rocks: FlyingBody[] = []
-  private readonly nebula = Array.from({ length: 5 }, () => new Sprite3D({
-    texture: Texture.WHITE, width: 42, height: 42, alpha: .28,
+  private readonly nebula = Array.from({ length: 8 }, () => new Sprite3D({
+    texture: Texture.WHITE, width: 44, height: 44, alpha: .36,
   }))
-  private readonly station: Mesh3D[] = []
-  private readonly ownedTextures: Texture[] = []
-  private readonly softNebulaTextures = new Map<Texture, Texture>()
+  private readonly station = new Container3D()
   private readonly materials: Material3D[] = []
   private lastTime = 0
   private clock = 0
