@@ -26,7 +26,7 @@ import type { CameraShakeState } from './types'
 import { clamp, seededNoise } from './utils'
 import { RaidGpuForeground } from './gpuForeground'
 import type { RaidGpuForegroundFrame } from './gpuForeground'
-import { getPreferredRaidRenderBackend, rememberWebGpuFailure } from './renderBackend'
+import { getPreferredRaidRenderBackend, getRaidRendererPreference, rememberWebGpuFailure } from './renderBackend'
 import type { SpaceWorld3D } from './spaceWorld3D'
 
 export type RaidPalette = {
@@ -964,6 +964,12 @@ export class PixiRaidBackground {
 
   async init(host: HTMLDivElement) {
     let preferred = getPreferredRaidRenderBackend()
+    // The @pixi/3d WebGPU backend can initialize yet fail to draw in some
+    // Android System WebViews. Prefer the tested WebGL 3D mesh pipe in Auto
+    // on Android; the user's explicit WebGPU setting still takes priority.
+    if (getRaidRendererPreference() === 'auto' &&
+        typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent))
+      preferred = 'webgl'
     // PixiJS 3D's WebGPU mesh pipeline requires indirect-first-instance.
     // Probing this ONCE before allocating the graphics context prevents a
     // partially initialized backend from stalling or blacking out Android.
