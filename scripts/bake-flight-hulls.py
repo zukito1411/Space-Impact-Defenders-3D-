@@ -115,13 +115,45 @@ def bake(key):
     scene.world = bpy.data.worlds.new("Neutral hangar")
     scene.world.use_nodes = True
     scene.world.node_tree.nodes["Background"].inputs[0].default_value = (0.55, 0.55, 0.55, 1)
-    scene.world.node_tree.nodes["Background"].inputs[1].default_value = 0.65
+    scene.world.node_tree.nodes["Background"].inputs[1].default_value = 0.48
+    # Broad overhead softbox and a narrow cool strip are reflected in glass and
+    # enamel. Diffuse world illumination stays neutral for the painted markings.
+    world_nodes = scene.world.node_tree.nodes
+    links = scene.world.node_tree.links
+    coords = world_nodes.new("ShaderNodeTexCoord")
+    facing = world_nodes.new("ShaderNodeVectorMath")
+    facing.operation = "DOT_PRODUCT"
+    facing.inputs[1].default_value = (.16, -.52, .84)
+    links.new(coords.outputs["Normal"], facing.inputs[0])
+    gradient = world_nodes.new("ShaderNodeValToRGB")
+    stops = gradient.color_ramp
+    stops.elements[0].color = (.045,.065,.10,1)
+    stops.elements[1].color = (1.5,1.8,2.1,1)
+    for spot,color in [(.54,(.10,.18,.22,1)),(.57,(1.9,2.3,2.6,1)),(.62,(.11,.16,.19,1)),
+                       (.77,(.22,.31,.35,1)),(.83,(2.1,2.25,2.32,1))]:
+        stops.elements.new(spot).color=color
+    links.new(facing.outputs["Value"],gradient.inputs[0])
+    reflected = world_nodes.new("ShaderNodeBackground")
+    links.new(gradient.outputs[0],reflected.inputs[0])
+    light_path = world_nodes.new("ShaderNodeLightPath")
+    world_mix = world_nodes.new("ShaderNodeMixShader")
+    links.new(light_path.outputs["Is Glossy Ray"],world_mix.inputs[0])
+    links.new(world_nodes["Background"].outputs[0],world_mix.inputs[1])
+    links.new(reflected.outputs[0],world_mix.inputs[2])
+    links.new(world_mix.outputs[0],world_nodes["World Output"].inputs[0])
     sun = bpy.data.lights.new("Key", "SUN")
     sun.energy = 1.4
     sun.angle = math.radians(18)
     light = bpy.data.objects.new("Key", sun)
     scene.collection.objects.link(light)
     light.rotation_euler = (0.52, -0.46, -0.25)
+    rim = bpy.data.lights.new("Cool trailing edge", "SUN")
+    rim.energy = .94
+    rim.color = (.74, .86, 1.)
+    rim.angle = math.radians(12)
+    rim_object = bpy.data.objects.new("Cool trailing edge", rim)
+    scene.collection.objects.link(rim_object)
+    rim_object.rotation_euler = (-1.06, .75, .42)
     scene.render.engine = "CYCLES"
     scene.cycles.samples = 12
     scene.cycles.max_bounces = 2
@@ -144,11 +176,11 @@ def bake(key):
                 bounds = alpha.point(lambda p: 255 if p > 96 else 0).getbbox()
                 if not bounds or min(bounds[:2]) < 1 or max(bounds[2:]) >= CELL:
                     raise ValueError(f"{key} pose {i} empty or clipped: {bounds}")
-            atlas.save(ART / "banking" / f"{key}-v12.webp", "WEBP", quality=96, method=4, exact=True)
+            atlas.save(ART / "banking" / f"{key}-v13.webp", "WEBP", quality=96, method=4, exact=True)
             for landscape, suffix in [(False, "portrait"), (True, "landscape")]:
                 preview = previews.get_trimmed_view(atlas, landscape)
                 preview.save(
-                    ART / "previews" / f"{key}-{suffix}-v5.webp",
+                    ART / "previews" / f"{key}-{suffix}-v6.webp",
                     "WEBP",
                     quality=96,
                     method=4,
