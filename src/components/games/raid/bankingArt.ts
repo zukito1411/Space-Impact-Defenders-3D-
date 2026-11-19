@@ -54,14 +54,14 @@ const legacyMechAtlases = new Set(['godGundam', 'godGundamBurning', 'spiegel'])
 export function getRaidBankingAtlasUrl(shipKey: string) {
   const key = bankingKey(shipKey)
   if (!Object.prototype.hasOwnProperty.call(registrations, key)) return null
-  const version = legacyMechAtlases.has(key) ? 7 : 10
+  const version = legacyMechAtlases.has(key) ? 7 : 11
   return getPublicAssetUrl(`assets/ships/banking/${key}-v${version}.webp`)
 }
 
 export function getRaidPicker3DPreviewUrl(shipKey: string, landscape: boolean) {
   const key = bankingKey(shipKey)
   if (!Object.prototype.hasOwnProperty.call(registrations, key)) return null
-  const version = legacyMechAtlases.has(key) ? 1 : 3
+  const version = legacyMechAtlases.has(key) ? 1 : 4
   return getPublicAssetUrl(`assets/ships/previews/${key}-${landscape ? 'landscape' : 'portrait'}-v${version}.webp`)
 }
 

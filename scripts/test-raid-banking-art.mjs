@@ -28,7 +28,7 @@ const art = await compile(`
   const anchors = ${JSON.stringify(registrations)}
   const getPublicAssetUrl = path => '/base/' + path
   const releaseCanvasSprite = () => {}
-  const makeImageCanvasSprite = (cacheKey, url) => ({ cacheKey, url, loaded: !cacheKey.includes('rocket-v10') })
+  const makeImageCanvasSprite = (cacheKey, url) => ({ cacheKey, url, loaded: !cacheKey.includes('rocket-v11') })
 ` + source.replace(/^import .*\n/gm, ''))
 // Preserve textured ship paint and reflections; a one-time tint is cheaper
 // than filters on every animated frame and should not wash out the hull.
@@ -90,10 +90,10 @@ const modelKeys = Object.keys(registrations).filter(key => !mechKeys.includes(ke
 assert.deepEqual(models.sort(), modelKeys.map(key => key + '.blend').sort())
 for (const key of Object.keys(registrations)) {
   const reconstructed = modelKeys.includes(key)
-  assert.equal(art.getRaidBankingAtlasUrl(key), `/base/assets/ships/banking/${key}-v${reconstructed ? 10 : 7}.webp`)
+  assert.equal(art.getRaidBankingAtlasUrl(key), `/base/assets/ships/banking/${key}-v${reconstructed ? 11 : 7}.webp`)
   for (const landscape of [false, true]) {
     const path = art.getRaidPicker3DPreviewUrl(key, landscape)
-    assert.equal(path, `/base/assets/ships/previews/${key}-${landscape ? 'landscape' : 'portrait'}-v${reconstructed ? 3 : 1}.webp`)
+    assert.equal(path, `/base/assets/ships/previews/${key}-${landscape ? 'landscape' : 'portrait'}-v${reconstructed ? 4 : 1}.webp`)
     const image = readFileSync(path.replace('/base/', 'public/'))
     assert.equal(image.toString('ascii', 8, 12), 'WEBP', key)
     assert.equal(image.readUIntLE(24, 3) + 1, 640, key)
@@ -117,6 +117,9 @@ for (const [key, entry] of Object.entries(registrations)) {
   assert.ok(image.byteLength > 10000, key + ': enhanced atlas must be a nonempty WebP image')
   assert.equal(entry.nozzles.length, 14, key)
   for (const outlets of entry.nozzles) {
+    if (key === 'xwing' || key === 'xwingElite') {
+      assert.equal(outlets.length, 4, key + ': every split drive needs a registered exhaust')
+    }
     assert.ok(outlets.length > 0, key)
     for (const [x, y, aperture] of outlets) {
       assert.ok(Math.abs(x) < .5 && y >= 0 && y < .5 && aperture > 0 && aperture < .18, key)

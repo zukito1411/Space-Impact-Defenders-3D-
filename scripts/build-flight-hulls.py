@@ -41,8 +41,6 @@ PROFILES = {
 def outlets(key):
     if key.startswith("coreLander") and key.endswith("Elite"):
         return [(144, 233 if key == "coreLanderElite" else 227, 19)]
-    if key.startswith("xwing"):
-        return [(120, 272, 17), (144, 271, 11), (168, 272, 17)]
     source = (ROOT / "src/components/games/raid/shipArtwork.ts").read_text()
     if key == "mesiahBlack":
         line = re.search(r"const mesiahBlackNozzles = (.+)", source)[1]
@@ -105,12 +103,165 @@ def turned_part(name, x, z, rings, materials, sides=24):
     return obj
 
 
+# Mount offset, root leading/trailing stations, exposed height, aft sweep,
+# outward cant, tip chord. Zero offset specifies a single centerline fin.
+TAIL_PROFILES = {
+    "rocket": (23, 161, 245, 51, 49, 14, 18),
+    "fast": (26, 183, 249, 47, 40, 18, 14),
+    "gatling": (0, 165, 247, 57, 57, 0, 18),
+    "laser": (43, 159, 250, 50, 55, 12, 9),
+    "dreadnought": (30, 139, 249, 64, 63, 14, 27),
+    "spaceEt": (0, 144, 250, 68, 63, 0, 21),
+    "mesiahBlack": (32, 146, 248, 62, 68, 18, 14),
+    "mesiahWhite": (32, 146, 248, 62, 68, 18, 14),
+    "mesiahRaptorBlack": (19, 150, 230, 51, 58, 23, 9),
+    "mesiahRaptorWhite": (19, 150, 230, 51, 58, 23, 9),
+    "coreLander": (0, 105, 174, 44, 41, 0, 13),
+    "coreLanderBurning": (13, 114, 180, 43, 43, 10, 11),
+}
+
+
+def build_tail(base, elite, paint, mask):
+    mount, lead, trail, height, sweep, cant, chord = TAIL_PROFILES[base]
+    if elite and base.startswith("coreLander"):
+        lead, trail, height, sweep = 137, 211, 42, 44
+    dark = base in ("rocket", "dreadnought", "mesiahBlack", "mesiahRaptorBlack")
+    skin = solid("Tail • enamel", (0.095, 0.13, 0.17) if dark else (0.60, 0.66, 0.71))
+    if base in ("spaceEt", "laser"):
+        color = (0.015, 0.36, 0.62)
+    elif base in ("fast", "rocket", "dreadnought", "mesiahBlack", "mesiahWhite"):
+        color = (0.88, 0.43, 0.055)
+    else:
+        color = (0.63, 0.035, 0.027)
+    stripe = solid("Tail • squadron flash", color)
+    spar = solid("Tail • trailing control surface", (0.055, 0.080, 0.11))
+    edge = solid("Tail • leading edge", (0.35, 0.42, 0.47), 0.65)
+    for side in ([-1, 1] if mount else [0]):
+        verts, faces, slots, uvs = [], [], [], []
+        # The thick base forms a fillet. Above it a tapered airfoil carries a
+        # leading-edge strip, a high-contrast flash and a separate dark rudder.
+        section = [(0, 0), (.13, 1), (.63, .72), (.70, .62), (1, .10),
+                   (1, -.10), (.70, -.62), (.63, -.72), (.13, -1)]
+        for ring, (t, half_width) in enumerate([(0, 6.0), (.24, 4.8), (.33, 2.9),
+                                                 (.72, 2.1), (.82, 1.9), (1, 1.0)]):
+            front = lead + sweep * t
+            rear = trail + (lead + sweep + chord - trail) * t
+            # A cropped crown on the heavy hull and hooked tips on the raptors
+            # give the aft profiles different outlines at combat scale.
+            if base in ("dreadnought", "gatling"):
+                front -= 18 * max(0, (t - .72) / .28)
+                rear += 7 * math.sin(math.pi*t)
+            elif "Raptor" in base or base == "laser":
+                rear -= 14 * math.sin(math.pi*t)
+                front += 7 * t*t
+            for along, across in section:
+                # Carry a portion of the shoulder armor onto the inset fin panel.
+                # The source width comes from each variant's own painted silhouette.
+                row = round(lead + (trail-lead)*(.10 + along*.58))
+                xs = np.flatnonzero(mask[row])
+                outer = (xs[-1]-144) if len(xs) else 24
+                u = 144 + (side or 1)*outer*(.22 + .53*t)
+                uvs.append(((u+.5)/288, 1-(row+.5)/288))
+                verts.append((side * (mount + cant*t) + across*half_width,
+                              144 - (front + along*(rear-front)), 2 + height*t))
+            n = len(section)
+            if ring:
+                for i in range(n):
+                    j = (i + 1) % n
+                    faces.append(((ring-1)*n+i, (ring-1)*n+j, ring*n+j, ring*n+i))
+                    if i in (3, 4, 5):
+                        slot = 2  # Rudder
+                    elif i in (0, 8):
+                        slot = 3  # Leading-edge cap
+                    elif ring == 4:
+                        slot = 1  # Squadron flash
+                    elif i in (1, 7) and ring <= 3:
+                        slot = 4  # Inset painted armor
+                    else:
+                        slot = 0
+                    slots.append(slot)
+        faces.extend([tuple(reversed(range(n))), tuple(range(len(verts)-n, len(verts)))])
+        obj = mesh_object("Swept stabilizer", verts, faces, [skin, stripe, spar, edge, paint])
+        # Section runs clockwise when viewed from above.
+        obj.data.flip_normals()
+        uv = obj.data.uv_layers.new(name="Tail inlay")
+        for loop in obj.data.loops:
+            uv.data[loop.index].uv = uvs[loop.vertex_index]
+        for poly, slot in zip(obj.data.polygons, slots):
+            poly.material_index = slot
+
+
+def build_crosswing(paint, steel, silver, bore, marker, elite):
+    ceramic = solid("Engine • ceramic armor", (.66, .69, .70))
+    red = solid("Engine • vermilion band", (.60, .028, .016))
+    for side in (-1, 1):
+        for index, level in enumerate((1, -1)):
+            upper = level == 1
+            span = 108 if upper else 97
+            tip_y = 172 if upper else 220
+            tip_z = 52 if upper else -46
+            root_y = 148 if upper else 182
+            # Each closed airfoil has its own chord, sweep and dihedral.
+            # Map its skin onto a matching painted panel in the original livery.
+            vertices, uvs = [], []
+            for t in (0, .32, .72, 1):
+                x = 144 + side * (15 + (span - 15)*t)
+                y = root_y + (tip_y - root_y)*t
+                z = level*6 + (tip_z - level*6)*t
+                chord = 55 - 32*t
+                thickness = 4 - 2*t
+                for v, h in [(0, 0), (.20, 1), (.82, .62), (1, 0), (.30, -.72)]:
+                    vertices.append((x-144, 144-y-v*chord, z+h*thickness))
+                    u = 144 + side*(35 + (54 if upper else 45)*t)
+                    front = (153 - 32*t) if upper else (193 + 44*t)
+                    back = (194 - 41*t) if upper else (224 + 33*t)
+                    uvs.append(((u+.5)/288, 1-(front + (back-front)*v+.5)/288))
+            faces = [(5*r+i, 5*(r+1)+i, 5*(r+1)+(i+1)%5, 5*r+(i+1)%5)
+                     for r in range(3) for i in range(5)]
+            faces += [tuple(range(5)), tuple(reversed(range(15, 20)))]
+            foil = mesh_object(f"S-foil {side:+}/{level:+}", vertices, faces, [paint, steel])
+            if side > 0:
+                foil.data.flip_normals()
+            uv = foil.data.uv_layers.new(name="Squadron panels")
+            for loop in foil.data.loops:
+                uv.data[loop.index].uv = uvs[loop.vertex_index]
+            for poly in foil.data.polygons:
+                if poly.index % 5 in (3, 4) or poly.index >= 15:
+                    poly.material_index = 1
+
+            x = 144 + side*span
+            muzzle = tip_y - (101 if upper else 113)
+            turned_part("Foil-tip laser", x, tip_z, [
+                (tip_y+24, 2.7, 0), (tip_y+18, 4.1, 1), (tip_y+1, 4.1, 0),
+                (tip_y-3, 4.3, 2), (tip_y-7, 3.0, 1), (tip_y-30, 2.7, 0),
+                (tip_y-32, 1.9, 1), (muzzle+9, 1.65, 1), (muzzle+8, 2.6, 0),
+                (muzzle, 2.5, 1), (muzzle, 1.3, 1), (muzzle+3, 1.1, 3)],
+                [steel, silver, red, bore], 20)
+            marker(f"Wing tip {int(side > 0)*2 + index+1}", x, muzzle, tip_z)
+
+            engine_x, engine_z = 144 + side*24, level*15
+            outlet = 262 if upper else 255
+            # Intake recess, enamel nacelle, exposed drive rings and exhaust bell.
+            rings = [(160, 6.5, 3), (150, 8, 3), (150, 10.5, 1), (154, 11.4, 0),
+                     (162, 11.4, 0), (163, 11.5, 2), (169 if elite else 166, 11.5, 2),
+                     (172, 11.3, 0), (203, 10.6, 0), (208, 9.1, 1), (212, 8.5, 3)]
+            for y in range(215, 240, 6):
+                rings.extend([(y, 9.2, 1), (y+2, 9.2, 1), (y+3, 8.0, 3)])
+            rings.extend([(245, 8.3, 3), (outlet-3, 9.4, 1), (outlet, 9.4, 1),
+                          (outlet, 7.2, 2), (outlet-4, 5.6, 3)])
+            # The first segment turns back into the intake. The main barrel runs aft.
+            engine = turned_part("Split drive nacelle", engine_x, engine_z, rings,
+                                 [ceramic, steel, red, bore])
+            engine.data.flip_normals()
+            marker(f"Nozzle {int(side > 0)*2 + index+1}", engine_x, outlet, engine_z, 15)
+
+
 def blueprint(key, file):
     atlas = Image.open(ART / "banking" / f"{key}-v7.webp")
     cell = atlas.crop((1344, 0, 1792, 448)).convert("RGBA")
     bounds = cell.getchannel("A").point(lambda a: 255 if a >= 96 else 0).getbbox()
-    # Crosswing's flight mesh has open S-foils. Retain its actual planform and markings.
-    image = (cell if key.startswith("xwing") else Image.open(file)).convert("RGBA")
+    # Use original livery for every hull. The atlas supplies only the framing.
+    image = Image.open(file).convert("RGBA")
     image = image.resize((288, 288), Image.Resampling.LANCZOS)
     mask = np.asarray(image.getchannel("A")) >= 96
     sy, sx = np.where(mask)
@@ -158,7 +309,13 @@ def build(key, file):
         "Collar finish", (0.76, 0.39, 0.055) if base == "fast" else (0.30, 0.055, 0.065), 0.45
     )
     bore = solid("Recessed bore", (0.009, 0.012, 0.018), 0.18)
-    bells = outlets(key)
+    bells = [] if base == "xwing" else outlets(key)
+    if base == "xwing":
+        # Retain the painted nose and cockpit. Four independent foil/engine assemblies
+        # replace the wings and nacelles in the flat reference.
+        yy, xx = np.indices(mask.shape)
+        mask &= abs(xx - 144) <= np.interp(yy, [12, 118, 155, 220, 249, 266], [12, 21, 22, 20, 13, 6])
+        mask[263:] = False
     # Remove the painted forward tubes so no wedge remains behind the physical gun assembly.
     if turret:
         mask[:76, 116:173] = False
@@ -180,6 +337,10 @@ def build(key, file):
     plate = np.clip((dist - 2.5) / 3.5, 0, 1) * np.clip((offset - root - 2) / 4, 0, 1)
     height += 2.2 * plate
     bottom = -1.8 - edge * (1.6 + body * 8)
+    # Deepen the pressure hull amidships, tapering the belly towards both ends.
+    midship = np.exp(-((iy - 153) / 83) ** 4) * edge * body
+    bottom -= 10 * midship
+    height += 4 * midship
     field = {
         "Hull": ([], [], {}),
         "Canopy": ([], [], {}),
@@ -238,36 +399,31 @@ def build(key, file):
         x, y = xy.T
         top = map_coordinates(height, [y, x], order=1)
         bot = map_coordinates(bottom, [y, x], order=1)
-        wing = name.endswith("wing")
-        # Crosswing's paired foils open above and below the longitudinal centerline.
-        split = np.maximum(abs(x - 144) - root, 0) * 0.30 if base == "xwing" and wing else 0
-        for lower in [False, True] if base == "xwing" and wing else [False]:
-            shift = -split if lower else split
-            vertices = np.vstack(
-                [
-                    np.column_stack((x - 144, 144 - y, top + shift)),
-                    np.column_stack((x - 144, 144 - y, bot + shift)),
-                ]
-            )
-            count = len(x)
-            meshfaces = list(faces)
-            meshfaces.extend(tuple(i + count for i in reversed(f)) for f in faces)
-            border = set()
-            for face in faces:
-                for a, b in zip(face, face[1:] + face[:1]):
-                    if (b, a) in border:
-                        border.remove((b, a))
-                    else:
-                        border.add((a, b))
-            meshfaces.extend((b, a, a + count, b + count) for a, b in sorted(border))
-            obj = mesh_object(("Lower " if lower else "") + name, vertices.tolist(), meshfaces, [paint])
-            uv = obj.data.uv_layers.new(name="Reference paint")
-            uv_table = np.column_stack(((x + 0.5) / 288, 1 - (y + 0.5) / 288))
-            loop_index = np.empty(len(obj.data.loops), dtype=np.int32)
-            obj.data.loops.foreach_get("vertex_index", loop_index)
-            uv.data.foreach_set("uv", uv_table[loop_index % count].astype("f").ravel())
-            for face in obj.data.polygons:
-                face.use_smooth = face.index < len(faces) * 2
+        vertices = np.vstack(
+            [
+                np.column_stack((x - 144, 144 - y, top)),
+                np.column_stack((x - 144, 144 - y, bot)),
+            ]
+        )
+        count = len(x)
+        meshfaces = list(faces)
+        meshfaces.extend(tuple(i + count for i in reversed(f)) for f in faces)
+        border = set()
+        for face in faces:
+            for a, b in zip(face, face[1:] + face[:1]):
+                if (b, a) in border:
+                    border.remove((b, a))
+                else:
+                    border.add((a, b))
+        meshfaces.extend((b, a, a + count, b + count) for a, b in sorted(border))
+        obj = mesh_object(name, vertices.tolist(), meshfaces, [paint])
+        uv = obj.data.uv_layers.new(name="Reference paint")
+        uv_table = np.column_stack(((x + 0.5) / 288, 1 - (y + 0.5) / 288))
+        loop_index = np.empty(len(obj.data.loops), dtype=np.int32)
+        obj.data.loops.foreach_get("vertex_index", loop_index)
+        uv.data.foreach_set("uv", uv_table[loop_index % count].astype("f").ravel())
+        for face in obj.data.polygons:
+            face.use_smooth = face.index < len(faces) * 2
 
     def marker(name, x, y, z, width=0):
         obj = bpy.data.objects.new(name, None)
@@ -351,29 +507,9 @@ def build(key, file):
                     [steel, silver, accent, bore],
                 )
     if base == "xwing":
-        for side in [-1, 1]:
-            for j, sign in enumerate([1, -1]):
-                x = 144 + side * 82
-                z = sign * 19 + 2
-                turned_part(
-                    f"S-foil cannon {side:+}/{sign:+}",
-                    x,
-                    z,
-                    [
-                        (181, 2.7, 0),
-                        (160, 2.7, 0),
-                        (158, 2.2, 1),
-                        (144, 2.2, 0),
-                        (142, 1.55, 1),
-                        (105, 1.55, 0),
-                        (103, 1.65, 1),
-                        (103, 0.85, 1),
-                        (105, 0.7, 3),
-                    ],
-                    [steel, silver, accent, bore],
-                    16,
-                )
-                marker(f"Wing tip {int(side > 0) * 2 + j + 1}", 144 + side * 82, 103, sign * 19 + 2)
+        build_crosswing(paint, steel, silver, bore, marker, key.endswith("Elite"))
+    else:
+        build_tail(base, key.endswith("Elite"), paint, mask)
     bpy.context.scene["atlas_transform"] = registration
     bpy.context.scene["reference_art"] = str(file.relative_to(ROOT))
     MODELS.mkdir(parents=True, exist_ok=True)

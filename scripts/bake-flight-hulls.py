@@ -116,11 +116,11 @@ def bake(key):
                 bounds = alpha.point(lambda p: 255 if p > 96 else 0).getbbox()
                 if not bounds or min(bounds[:2]) < 1 or max(bounds[2:]) >= CELL:
                     raise ValueError(f"{key} pose {i} empty or clipped: {bounds}")
-            atlas.save(ART / "banking" / f"{key}-v10.webp", "WEBP", quality=96, method=4, exact=True)
+            atlas.save(ART / "banking" / f"{key}-v11.webp", "WEBP", quality=96, method=4, exact=True)
             for landscape, suffix in [(False, "portrait"), (True, "landscape")]:
                 preview = previews.get_trimmed_view(atlas, landscape)
                 preview.save(
-                    ART / "previews" / f"{key}-{suffix}-v3.webp",
+                    ART / "previews" / f"{key}-{suffix}-v4.webp",
                     "WEBP",
                     quality=96,
                     method=4,
