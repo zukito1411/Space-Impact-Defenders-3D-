@@ -36,7 +36,7 @@ def match_release_paint(sheet, key):
     weights = np.array([.2126, .7152, .0722], dtype=np.float32)
     stops = [3, 20, 50, 80, 96]
     for row in range(2):
-        band = pixels[row*CELL:(row+1)*CELL]
+        band = pixels[row*CELL*3:(row+1)*CELL*3]
         master = reference[row*CELL:(row+1)*CELL]
         target = master[master[:, :, 3] > 224, :3].astype(np.float32)
         rgb = band[:, :, :3].astype(np.float32)
@@ -90,12 +90,14 @@ def bake(key):
     scene.camera = camera
     # Landscape looks across the upper deck. Even the steepest turn keeps the near wing visible.
     for row, angle in enumerate([0, -56]):
-        for col, bank in enumerate([-21, -14, -7, 0, 7, 14, 21]):
+        for pose in range(21):
+            bank = (pose - 10) * 2.1
+            col, atlas_row = pose % 7, row * 3 + pose // 7
             rot = Matrix.Rotation(math.radians(angle + bank), 4, "Y")
             scale = Matrix.Diagonal(Vector((sx, sy, sx, 1)))
             offset_x, offset_y = 144 * sx + ox - CELL / 2, CELL / 2 - 144 * sy - oy
-            center = Matrix.Translation(((col - 3) * CELL + offset_x, (0.5 - row) * CELL + offset_y, 0))
-            instance = bpy.data.objects.new(f"Flight pose {row + 1}/{col + 1}", None)
+            center = Matrix.Translation(((col - 3) * CELL + offset_x, (2.5 - atlas_row) * CELL + offset_y, 0))
+            instance = bpy.data.objects.new(f"Flight pose {row + 1}/{pose + 1}", None)
             scene.collection.objects.link(instance)
             instance.instance_type = "COLLECTION"
             instance.instance_collection = model
@@ -129,7 +131,7 @@ def bake(key):
     scene.cycles.use_denoising = False
     scene.render.film_transparent = True
     scene.render.resolution_x = CELL * 7
-    scene.render.resolution_y = CELL * 2
+    scene.render.resolution_y = CELL * 6
     scene.render.resolution_percentage = 100
     scene.view_settings.view_transform = "Standard"
     scene.render.image_settings.file_format = "PNG"
@@ -139,16 +141,13 @@ def bake(key):
         bpy.ops.render.render(write_still=True)
         with Image.open(scene.render.filepath) as raw:
             atlas = match_release_paint(raw, key)
-            for i in range(14):
+            for i in range(42):
                 x, y = i % 7 * CELL, i // 7 * CELL
                 alpha = atlas.crop((x, y, x + CELL, y + CELL)).getchannel("A")
                 bounds = alpha.point(lambda p: 255 if p > 96 else 0).getbbox()
                 if not bounds or min(bounds[:2]) < 1 or max(bounds[2:]) >= CELL:
                     raise ValueError(f"{key} pose {i} empty or clipped: {bounds}")
-            atlas.save(ART / "banking" / f"{key}-v14.webp", "WEBP", quality=96, method=4, exact=True)
-            preview = previews.get_trimmed_view(atlas, True)
-            preview.save(ART / "previews" / f"{key}-landscape-v7.webp",
-                         "WEBP", quality=96, method=4, exact=True)
+            atlas.save(ART / "banking" / f"{key}-v15.webp", "WEBP", quality=96, method=4, exact=True)
     return anchors
 
 
