@@ -1,0 +1,32 @@
+name: Bake revised flight hulls
+on:
+  push:
+    branches: [art/bake-elevation-liveries]
+permissions:
+  contents: write
+jobs:
+  bake:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Install Blender and image tools
+        run: |
+          sudo apt-get -qq update
+          sudo apt-get -qq install -y blender python3-scipy python3-pil python3-numpy
+      - name: Rebuild and publish the fleet
+        env:
+          OPENBLAS_NUM_THREADS: 1
+        run: |
+          set -euo pipefail
+          git checkout --detach bac444b9277c856648c0904b312a292d70d5cbc4
+          blender -b -t 4 --python-exit-code 1 -P scripts/build-flight-hulls.py
+          blender -b -t 4 --python-exit-code 1 -P scripts/bake-flight-hulls.py
+          test "$(ls art/3d/flight-hulls/*.blend | wc -l)" -eq 24
+          test "$(ls public/assets/ships/banking/*-v12.webp | wc -l)" -eq 24
+          test "$(ls public/assets/ships/previews/*-v5.webp | wc -l)" -eq 48
+          git add art/3d/flight-hulls/*.blend public/assets/ships/banking/*-v12.webp public/assets/ships/previews/*-v5.webp src/components/games/raid/bankingAnchors.json
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Bake 24 revised hulls, their banked flight poses and both selector views'
+          git push origin HEAD:refs/heads/art/flight-hull-elevations
