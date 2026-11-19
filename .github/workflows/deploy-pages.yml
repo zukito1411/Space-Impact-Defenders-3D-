@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build website for /space-defenders-impact/
+    name: Build website for /Space-Impact-Defenders-3D-/
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
@@ -41,7 +41,7 @@ jobs:
         run: |
           set -euo pipefail
           npx tsc -b
-          npx vite build --base /space-defenders-impact/
+          npx vite build --base /Space-Impact-Defenders-3D-/
           node scripts/verify-ui-artwork.mjs
 
       - name: Verify deployed URL paths and SPA fallback
@@ -49,7 +49,7 @@ jobs:
         run: |
           set -euo pipefail
           test -s dist/index.html
-          grep -q '/space-defenders-impact/assets/' dist/index.html
+          grep -q '/Space-Impact-Defenders-3D-/assets/' dist/index.html
           test -s dist/assets/ui/orbital-hangar-v1.png
           test -s dist/assets/ui/console-plate-v1.png
           cp dist/index.html dist/404.html

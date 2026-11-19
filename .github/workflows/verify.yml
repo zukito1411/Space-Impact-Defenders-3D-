@@ -167,8 +167,12 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm install --no-save --package-lock=false playwright@1.56.1
-      - name: Prepare browser
+      - name: Prepare browser and video recorder
         run: |
+          set -euo pipefail
+          # System Chrome does not include Playwright's FFmpeg helper.
+          # recordVideo in test-presentation-browser.mjs requires this binary.
+          npx playwright install ffmpeg
           if [ -x /usr/bin/google-chrome ]; then
             echo 'CHROMIUM_PATH=/usr/bin/google-chrome' >> "$GITHUB_ENV"
           else
