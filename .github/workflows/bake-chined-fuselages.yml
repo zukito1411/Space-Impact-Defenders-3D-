@@ -1,0 +1,35 @@
+name: Bake chined fuselages
+on:
+  push:
+    branches: [art/bake-chined-fuselages]
+permissions:
+  contents: write
+jobs:
+  bake:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    env:
+      OPENBLAS_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Select flight model source
+        run: git checkout --detach efd4cc1eeda8831573dfe8d8489537825222b9ee
+      - name: Install Blender and image tools
+        run: |
+          sudo apt-get -o Acquire::Retries=1 -qq install -y blender python3-scipy python3-pil python3-numpy || {
+            sudo apt-get -o Acquire::Retries=2 -qq update
+            sudo apt-get -qq install -y blender python3-scipy python3-pil python3-numpy
+          }
+      - name: Build 24 flight models
+        run: blender -b -t 4 --python-exit-code 1 -P scripts/build-flight-hulls.py
+      - name: Render banking atlases and selection views
+        run: blender -b -t 4 --python-exit-code 1 -P scripts/bake-flight-hulls.py
+      - name: Publish rendered fleet
+        run: |
+          test "$(ls public/assets/ships/previews/*-v6.webp | wc -l)" = 48
+          test "$(ls public/assets/ships/banking/*-v13.webp | wc -l)" = 24
+          git add art/3d/flight-hulls/*.blend public/assets/ships/banking/*-v13.webp public/assets/ships/previews/*-v6.webp src/components/games/raid/bankingAnchors.json
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Bake the remodeled fleet, bank poses and selection views"
+          git push origin HEAD:refs/heads/art/chined-fuselages
