@@ -17,7 +17,7 @@ No authored Blender source was recovered for the other ships. Do not describe th
 
 ## Refining shipped spacecraft artwork
 
-The spacecraft in flight and the ship picker use baked banking renders. The current detail pass starts with those renders and uses the game's top-view sprites as reference for wing panels, vents, rocket housings and exhaust collars. The Crimson Saw and Red Wraith turret assemblies are drawn into each pose, including their Elite variants.
+The spacecraft in flight and the ship picker use baked banking renders. The current detail pass starts with those renders and uses the game's top-view sprites as reference for wing panels, vents, rocket housings and exhaust collars. Edge-aware smoothing reduces speckled highlights while preserving the strong paint colors and hull outlines. Crimson Saw and Red Wraith have gunmetal turret barrels with painted mounts in every pose, including their Elite variants.
 
 With Pillow, NumPy and `opencv-python-headless` installed, run `python3 scripts/refine-3d-ship-details.py` from the repository root to rebuild the version 9 atlases and version 2 picker previews. Pass individual banking keys such as `fast` or `gatlingElite` to rebuild selected ships.
 

@@ -276,21 +276,29 @@ def register_detail(source, target, details, flow):
     return aligned * (visible * trust)[..., None]
 
 
-def apply_detail(frame, detail):
-    # Adjust value along each pixel's existing RGB proportions. Red stripes,
-    # tinted glass and other saturated paints keep their original chroma.
+def finish_hull(frame, detail):
+    # Suppress isolated glints before smoothing within material boundaries.
+    # Keep exhaust apertures, paint edges and the antialiased hull outline.
     alpha = frame[..., 3]
     inner = np.asarray(Image.fromarray(alpha).filter(ImageFilter.MinFilter(5)), dtype=np.float32) / 255
-    rgb = frame[..., :3].astype(np.float32)
+    paint = frame[..., :3].copy()
+    deglinted = cv2.medianBlur(paint, 7)
+    smoothed = cv2.bilateralFilter(deglinted, 15, 76, 3.8)
+    rgb = paint.astype(np.float32)
+    rgb += (.76 * inner)[..., None] * (smoothed - rgb)
+
+    # Shade along the existing RGB proportions so the larger paint regions
+    # keep their hue. Let highlights roll off on bright painted panels.
     value = rgb.max(axis=2)
     saturation = (value - rgb.min(axis=2)) / np.maximum(value, 1)
     shadow, highlight = np.moveaxis(detail, -1, 0)
-    shadow_strength = .65 - .23 * saturation
-    value_change = inner * (-shadow_strength * shadow * value + highlight * (.32 * value + 13))
+    shadow_strength = .39 - .13 * saturation
+    highlight_strength = (.19 * value + 7) * (1 - (value / 270) ** 3)
+    value_change = inner * (-shadow_strength * shadow * value + highlight * highlight_strength)
     target_value = np.clip(value + value_change, 0, 255)
     rgb *= (target_value / np.maximum(value, 1))[..., None]
     frame = frame.copy()
-    frame[..., :3] = np.clip(rgb, 0, 255).astype(np.uint8)
+    frame[..., :3] = np.clip(rgb, 0, 255).round().astype(np.uint8)
     return frame
 
 
@@ -313,28 +321,30 @@ def turret_layer(frame, family, row, col):
     def oval(x, y, rx, ry, fill):
         draw.ellipse(tuple(round(v * scale) for v in (x - rx, y - ry, x + rx, y + ry)), fill=fill)
 
-    def tube(x, top, bottom, r, light, *, muzzle=False, collar=False):
+    metal = (88, 81, 72) if family == "fast" else (73, 83, 94)
+    mount_metal = (162, 115, 43) if family == "fast" else (94, 103, 110)
+
+    def tube(x, top, bottom, r, light, *, muzzle=False, collar=False, painted=False):
         # A curved catchlight and dark edges describe the cylindrical jacket.
         # Only the front of each tube has a bore. The collars are solid steel.
+        tint = mount_metal if painted else metal
         for step in range(round(-r * scale), round(r * scale) + 1):
             u = step / (r * scale)
             lit = max(0, 1 - ((u - light) / 1.13) ** 2)
-            level = int(22 + 89 * lit + 104 * lit ** 11)
-            if collar:
-                level = min(250, level + 15)
-            warm = 11 if family == "fast" else 1
+            surface = .34 + .83 * lit
+            glint = int(52 * lit ** 5) + (7 if collar else 0)
             x_px = round(x * scale) + step
             arc = max(0, 1 - u * u) ** .5 * r * .18
             draw.line((x_px, round((top - arc) * scale), x_px, round((bottom + arc) * scale)),
-                      fill=(min(255, level + warm), min(255, level + 7), min(255, level + 11)))
+                      fill=tuple(min(255, int(channel * surface) + glint) for channel in tint))
         if muzzle:
-            oval(x, top, r, r * .23, (134, 145, 153))
-            oval(x, top - .25, r * .69, r * .136, (9, 15, 22))
-            oval(x - r * .08, top + r * .12, r * .69, r * .038, (208, 216, 222))
+            oval(x, top, r, r * .24, (112, 121, 128))
+            oval(x, top - .25, r * .66, r * .135, (19, 25, 32))
+            oval(x - r * .08, top + r * .12, r * .66, r * .042, (154, 162, 168))
         elif collar:
             # A highlight at the lip and a recessed seam under the collar.
-            ry = max(1, r * .18)
-            for y, fill in ((top + .85, (181, 188, 190)), (bottom - .27, (23, 29, 35))):
+            ry = max(1, r * .12)
+            for y, fill in ((top + .85, tuple(c + 35 for c in tint)), (bottom - .5, tuple(c // 2 for c in tint))):
                 points = [(round((x + r * u) * scale), round((y - ry * max(0, 1 - u*u)**.5) * scale))
                           for u in np.linspace(-.89, .89, 17)]
                 draw.line(points, fill=fill, width=scale)
@@ -343,26 +353,25 @@ def turret_layer(frame, family, row, col):
     # Keep the narrow side tubes separate where they're visible and stagger the
     # depth order so they pass naturally in front of the main one in a bank.
     casing = center - 2.5 * sin
-    tube(casing, mount_y - 19, mount_y + 16, radius + 7, -.39, collar=True)
-    for offset in sorted((-17, 0, 17), key=lambda x: -x * sin):
+    tube(casing, mount_y - 20, mount_y + 16, radius + 8, -.37, collar=True, painted=True)
+    for offset in sorted((-15, 0, 15), key=lambda x: -x * sin):
         is_bore = offset == 0
         px = center + offset * cos + (1.8 if is_bore else -1.5) * sin
         muzzle_y = (31 if is_bore else 49) + offset * sin * .12
         r = radius if is_bore else 5.2
         light = -.36 + .16 * sin
         tube(px, muzzle_y + 3, mount_y + 16, r * .87, light)
-        tube(px, muzzle_y, muzzle_y + (8 if is_bore else 6), r, light, muzzle=True)
-        collars = ((muzzle_y + 23, 4), (muzzle_y + 52, 5)) if is_bore else ((muzzle_y + 26, 4),)
-        for top, height in collars:
-            tube(px, top, top + height, r * .99, light, collar=True)
-        tube(px, mount_y - 8, mount_y + 16, r * 1.13, light, collar=True)
+        tube(px, muzzle_y, muzzle_y + (10 if is_bore else 7), r, light, muzzle=True)
+        collar_y = muzzle_y + (39 if is_bore else 25)
+        tube(px, collar_y, collar_y + 6, r * .99, light, collar=True)
+        tube(px, mount_y - 11, mount_y + 16, r * 1.13, light, collar=True, painted=True)
 
     # The new muzzle replaces just the tapered material ahead of the mount.
     # Feather the receiver into the existing painted collar and forebody.
     layer = layer.resize((CELL, CELL), Image.Resampling.LANCZOS)
-    receiver = Image.fromarray(np.uint8(np.clip((mount_y + 11 - Y) / 14, 0, 1) * 255))
+    receiver = Image.fromarray(np.uint8(np.clip((mount_y + 14 - Y) / 23, 0, 1) * 255))
     result = Image.fromarray(frame.copy())
-    original_alpha = frame[..., 3] * np.clip((Y - mount_y + 13) / 12, 0, 1)
+    original_alpha = frame[..., 3] * np.clip((Y - mount_y + 18) / 16, 0, 1)
     result.putalpha(Image.fromarray(original_alpha.astype(np.uint8)))
     layer.putalpha(Image.composite(layer.getchannel("A"), Image.new("L", layer.size), receiver))
     result.alpha_composite(layer)
@@ -392,7 +401,7 @@ def build(key):
                 side_weight = (.85, .9, .9, 1, .77, .43, .14)[col]
                 side = side_details if col == 3 else register_detail(side_neutral, frame, side_details, flow)
                 detail = (1 - side_weight) * detail + side_weight * side
-            refined = apply_detail(frame, detail)
+            refined = finish_hull(frame, detail)
             tile = turret_layer(refined, family, row, col) if family in ("fast", "gatling") else Image.fromarray(refined)
             result.paste(tile, (left, top))
 
