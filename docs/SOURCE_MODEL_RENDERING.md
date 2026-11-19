@@ -46,7 +46,7 @@ Exact paint placement and 100% shape equivalence cannot be guaranteed by automat
 
 ## Reconstructed flight hulls
 
-The 24 spacecraft in `art/3d/flight-hulls/` have editable Blender 4.3 files with packed paint textures. These reconstructions use the neutral flight pose for framing, the top-view art for paint and component placement, and inferred geometry for the sides and underside. The swept stabilizers carry panels sampled from each hull’s own livery. Crosswing maps its original squadron markings onto four separate S-foils, with four foil-tip lasers and four recessed drive nacelles. The three humanoid mech forms use their existing artwork.
+The 24 spacecraft in `art/3d/flight-hulls/` have editable Blender 4.3 files with packed paint textures. These reconstructions use the neutral flight pose for framing, the top-view art for paint and component placement, and the registered side painting for flank panels, canopy and belly depth, and stabilizer proportions. The underside carries structural shoulder paint, keel rails and recessed vents. The final flight renders use separate portrait and landscape tonal references from the 1.0.43 release. Crosswing maps its original squadron markings onto four separate S-foils, with four foil-tip lasers and four recessed drive nacelles. The three humanoid mech forms use their existing artwork.
 
 To change a ship, edit its saved model and bake it from the repository root. The two red fighters use the game keys `gatling` (Crimson Saw) and `fast` (Red Wraith). Each has a mounting ring, three forward tubes, wing launchers and exhaust bells. The bake projects the named attachment points into each of the 14 flight poses and produces both selector orientations.
 

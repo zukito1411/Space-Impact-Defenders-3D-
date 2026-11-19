@@ -121,10 +121,21 @@ TAIL_PROFILES = {
 }
 
 
-def build_tail(base, elite, paint, mask):
-    mount, lead, trail, height, sweep, cant, chord = TAIL_PROFILES[base]
-    if elite and base.startswith("coreLander"):
-        lead, trail, height, sweep = 137, 211, 42, 44
+def build_tail(base, paint, mask, roof, body_height):
+    mount, lead, trail, height, _, cant, chord = TAIL_PROFILES[base]
+    # Match the actual aft elevation. The previous fins rose 43–68 units
+    # regardless of ship length, on top of the existing engine deck.
+    aft = int(np.flatnonzero(np.any(mask, axis=1))[-1])
+    length = aft - int(np.flatnonzero(np.any(mask, axis=1))[0])
+    trail = min(aft - 8, trail + 9)
+    lead = trail - min(trail - lead, length * .21)
+    lead = int(lead)
+    deck = max(3., float(body_height[(lead + trail) // 2, 144 + mount]) - 3)
+    crown = float(np.percentile(roof[lead:trail + 1], 96))
+    height = min(height * .48, length * .093, max(5., crown - deck))
+    chord = min(chord * .73, length * .068)
+    sweep = trail - lead - chord * .96
+    cant *= .52
     dark = base in ("rocket", "dreadnought", "mesiahBlack", "mesiahRaptorBlack")
     skin = solid("Tail • enamel", (0.095, 0.13, 0.17) if dark else (0.60, 0.66, 0.71))
     if base in ("spaceEt", "laser"):
@@ -153,7 +164,8 @@ def build_tail(base, elite, paint, mask):
                 rear += 7 * math.sin(math.pi*t)
             elif "Raptor" in base or base == "laser":
                 rear -= 14 * math.sin(math.pi*t)
-                front += 7 * t*t
+                front += min(3, chord * .30) * t*t
+            rear = max(rear, front + chord * .5)
             for along, across in section:
                 # Carry a portion of the shoulder armor onto the inset fin panel.
                 # The source width comes from each variant's own painted silhouette.
@@ -162,8 +174,11 @@ def build_tail(base, elite, paint, mask):
                 outer = (xs[-1]-144) if len(xs) else 24
                 u = 144 + (side or 1)*outer*(.22 + .53*t)
                 uvs.append(((u+.5)/288, 1-(row+.5)/288))
-                verts.append((side * (mount + cant*t) + across*half_width,
-                              144 - (front + along*(rear-front)), 2 + height*t))
+                x = side * (mount + cant*t) + across*half_width
+                y = front + along*(rear-front)
+                root_z = body_height[round(y), round(144 + x)] - 2.5
+                z = (1-t)*root_z + t*(deck + height)
+                verts.append((x, 144-y, z))
             n = len(section)
             if ring:
                 for i in range(n):
@@ -175,7 +190,7 @@ def build_tail(base, elite, paint, mask):
                         slot = 3  # Leading-edge cap
                     elif ring == 4:
                         slot = 1  # Squadron flash
-                    elif i in (1, 7) and ring <= 3:
+                    elif i in (1, 2, 6, 7):
                         slot = 4  # Inset painted armor
                     else:
                         slot = 0
@@ -184,7 +199,7 @@ def build_tail(base, elite, paint, mask):
         obj = mesh_object("Swept stabilizer", verts, faces, [skin, stripe, spar, edge, paint])
         # Section runs clockwise when viewed from above.
         obj.data.flip_normals()
-        uv = obj.data.uv_layers.new(name="Tail inlay")
+        uv = obj.data.uv_layers.new(name="Reference paint")
         for loop in obj.data.loops:
             uv.data[loop.index].uv = uvs[loop.vertex_index]
         for poly, slot in zip(obj.data.polygons, slots):
@@ -222,7 +237,7 @@ def build_crosswing(paint, steel, silver, bore, marker, elite):
             foil = mesh_object(f"S-foil {side:+}/{level:+}", vertices, faces, [paint, steel])
             if side > 0:
                 foil.data.flip_normals()
-            uv = foil.data.uv_layers.new(name="Squadron panels")
+            uv = foil.data.uv_layers.new(name="Reference paint")
             for loop in foil.data.loops:
                 uv.data[loop.index].uv = uvs[loop.vertex_index]
             for poly in foil.data.polygons:
@@ -257,10 +272,11 @@ def build_crosswing(paint, steel, silver, bore, marker, elite):
 
 
 def blueprint(key, file):
-    atlas = Image.open(ART / "banking" / f"{key}-v7.webp")
+    version = 8 if key in ("mesiahBlack", "mesiahWhite") else 7
+    atlas = Image.open(ART / "banking" / f"{key}-v{version}.webp")
     cell = atlas.crop((1344, 0, 1792, 448)).convert("RGBA")
     bounds = cell.getchannel("A").point(lambda a: 255 if a >= 96 else 0).getbbox()
-    # Use original livery for every hull. The atlas supplies only the framing.
+    # Keep the painted markings; match their tonal range to the 1.0.43 level-flight frame.
     image = Image.open(file).convert("RGBA")
     image = image.resize((288, 288), Image.Resampling.LANCZOS)
     mask = np.asarray(image.getchannel("A")) >= 96
@@ -276,8 +292,136 @@ def blueprint(key, file):
     # Extend edge paint under the UV seam so the side panels sample opaque colors.
     nearest = distance_transform_edt(~mask, return_distances=False, return_indices=True)
     paint = np.array(image.convert("RGB"))
+    reference = np.asarray(cell)
+    reference = reference[reference[:, :, 3] >= 180, :3]
+    weights = np.array([.2126, .7152, .0722])
+    lightness = paint @ weights
+    stops = [7, 30, 60, 88, 98]
+    original = np.percentile(lightness[mask], stops)
+    target = np.percentile(reference @ weights, stops)
+    correction = np.interp(lightness, original, np.clip(target-original, -20, 20))
+    chroma = paint - lightness[:, :, None]
+    paint = np.uint8(np.clip((lightness + .65 * correction)[:, :, None] + 1.065 * chroma, 0, 255))
     paint[~mask] = paint[tuple(nearest[:, ~mask])]
     return paint, mask, list(map(float, transform))
+
+
+def load_elevation(key, mask, registration):
+    """Register the authored side elevation to the flight model's nose and exhaust datum."""
+    stems = {"rocket": "black-comet", "fast": "red-wraith", "gatling": "crimson-saw",
+             "laser": "night-lance", "dreadnought": "obsidian-ark", "spaceEt": "space-jet",
+             "xwing": "crosswing-nova", "mesiahBlack": "mesiah", "mesiahWhite": "mesiah-white",
+             "mesiahRaptorBlack": "mesiah-raptor-black", "mesiahRaptorWhite": "mesiah-raptor-white",
+             "coreLander": "core-lander", "coreLanderBurning": "core-lander-burning"}
+    base = key.removesuffix("Elite")
+    name = stems[base] + ("-elite" if key.endswith("Elite") else "")
+    source = ART / "sideview" / (name + "-v1.png")
+    with Image.open(source) as raw:
+        rgba = raw.convert("RGBA")
+        bounds = rgba.getchannel("A").point(lambda a: 255 if a >= 100 else 0).getbbox()
+        image = rgba.crop(bounds)
+        image.thumbnail((768, 768), Image.Resampling.LANCZOS)
+    alpha = np.asarray(image.getchannel("A")) > 100
+    h, w = alpha.shape
+    front, rear = np.where(mask)[0][[0, -1]]
+    # Use the nose center as the waterline. A tall fin must not move the engine axis.
+    row, _ = np.where(alpha[:, int(w * .83):int(w * .94)])
+    datum = float(np.median(row))
+    unit = (rear - front) / (w - 1) * registration[1] / registration[0]
+    station = np.clip(np.rint((rear - np.arange(288)) / (rear - front) * (w - 1)), 0, w - 1).astype(int)
+    roof, keel = [], []
+    for col in station:
+        occupied = np.flatnonzero(alpha[:, col])
+        if occupied.size:
+            runs = np.split(occupied, np.where(np.diff(occupied) > 1)[0] + 1)
+            center = min(runs, key=lambda run: np.min(abs(run - datum)))
+            roof.append(4 + (datum - center[0]) * unit)
+            keel.append(4 + (datum - center[-1]) * unit)
+        else:
+            roof.append(5.)
+            keel.append(3.)
+    nearest = distance_transform_edt(~alpha, return_distances=False, return_indices=True)
+    colors = np.array(image.convert("RGB"))
+    colors[~alpha] = colors[tuple(nearest[:, ~alpha])]
+    return colors, (front, rear, datum, unit), gaussian_filter(roof, 1), gaussian_filter(keel, 1)
+
+
+def pack_paint(nodes, name, pixels):
+    node = nodes.new("ShaderNodeTexImage")
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / (name + ".png")
+        Image.fromarray(pixels).save(path)
+        node.image = bpy.data.images.load(str(path))
+        node.image.pack()
+        node.image.filepath = "//" + path.name
+    node.extension = "EXTEND"
+    return node
+
+
+def fit_side_uv(obj, registration, pixels):
+    front, rear, datum, unit = registration
+    uv = obj.data.uv_layers.new(name="Side elevation")
+    h = pixels.shape[0]
+    for loop in obj.data.loops:
+        point = obj.data.vertices[loop.vertex_index].co
+        u = (rear - (144 - point.y)) / (rear - front)
+        v = 1 - (datum - (point.z - 4) / unit + .5) / h
+        uv.data[loop.index].uv = (u, v)
+
+
+def finish_livery(key, material, top, side):
+    tree = material.node_tree
+    nodes = tree.nodes
+    dorsal = pack_paint(nodes, key + "-dorsal", top)
+    flank = pack_paint(nodes, key + "-flank", side)
+    for node, uv_name in [(dorsal, "Reference paint"), (flank, "Side elevation")]:
+        coords = nodes.new("ShaderNodeUVMap")
+        coords.uv_map = uv_name
+        tree.links.new(coords.outputs["UV"], node.inputs["Vector"])
+    # Projection is fixed to the part, so the livery stays put as the ship banks.
+    geom = nodes.new("ShaderNodeNewGeometry")
+    local = nodes.new("ShaderNodeVectorTransform")
+    local.vector_type = "NORMAL"
+    local.convert_from, local.convert_to = "WORLD", "OBJECT"
+    tree.links.new(geom.outputs["Normal"], local.inputs[0])
+    axis = nodes.new("ShaderNodeSeparateXYZ")
+    tree.links.new(local.outputs[0], axis.inputs[0])
+    magnitude = nodes.new("ShaderNodeMath")
+    magnitude.operation = "ABSOLUTE"
+    tree.links.new(axis.outputs["X"], magnitude.inputs[0])
+    ramp = nodes.new("ShaderNodeValToRGB")
+    ramp.color_ramp.interpolation = "EASE"
+    ramp.color_ramp.elements[0].position = .24
+    ramp.color_ramp.elements[1].position = .68
+    tree.links.new(magnitude.outputs[0], ramp.inputs[0])
+    mix = nodes.new("ShaderNodeMixRGB")
+    tree.links.new(ramp.outputs[0], mix.inputs[0])
+    tree.links.new(dorsal.outputs["Color"], mix.inputs[1])
+    tree.links.new(flank.outputs["Color"], mix.inputs[2])
+    shader = nodes.get("Principled BSDF")
+    tree.links.new(mix.outputs[0], shader.inputs["Base Color"])
+    tree.links.new(mix.outputs[0], shader.inputs["Emission Color"])
+    shader.inputs["Emission Strength"].default_value = .39
+    shader.inputs["Roughness"].default_value = .44
+    nodes.active = dorsal
+    return dorsal
+
+
+def belly_livery(key, rgb, mask, root):
+    # Sample the painted structural shoulders for underside panels. Keep cockpit
+    # glass, dorsal markings and insignia off the ventral centerline.
+    y, x = np.indices(mask.shape)
+    shoulder = (144 + np.where(x < 144, -1, 1) * (root * .78 + abs(x - 144) * .42)).astype(int)
+    shoulder = np.clip(shoulder, 0, 287)
+    base = rgb[y, shoulder].astype(float)
+    mid = abs(x - 144) < root * .77
+    armor = np.where(mid[:, :, None], base, rgb.astype(float))
+    # Swept service panels flank the keel. The center strip carries recessed vents.
+    span = abs(x - 144)
+    seam = ((y + (span * .52).astype(int)) % 34 < 1) & (span > root * .25)
+    vents = (span < root * .30) & (y > 133) & (y < 222) & (y % 8 < 3)
+    gain = np.where(vents, .43, np.where(seam, .68, .88))
+    return np.uint8(np.clip(armor * gain[:, :, None], 0, 255))
 
 
 def build(key, file):
@@ -289,20 +433,17 @@ def build(key, file):
         cy, rx, ry, root = (107, 10, 21, 23)
     rgb, mask, registration = blueprint(key, file)
     paint = solid("Original flight livery", (0.5, 0.5, 0.5), 0.08)
-    nodes = paint.node_tree.nodes
-    tex = nodes.new("ShaderNodeTexImage")
-    with tempfile.TemporaryDirectory() as tmp:
-        path = Path(tmp) / f"{key}-livery.png"
-        Image.fromarray(rgb).save(path)
-        tex.image = bpy.data.images.load(str(path))
-        tex.image.pack()
-        tex.image.filepath = "//" + path.name
-    nodes.active = tex
-    shader = nodes.get("Principled BSDF")
-    paint.node_tree.links.new(tex.outputs["Color"], shader.inputs["Base Color"])
-    paint.node_tree.links.new(tex.outputs["Color"], shader.inputs["Emission Color"])
-    shader.inputs["Emission Strength"].default_value = 0.56
-    shader.inputs["Roughness"].default_value = 0.52
+    side_paint, side_registration, roof, keel = load_elevation(key, mask, registration)
+    dorsal = finish_livery(key, paint, rgb, side_paint)
+    underside = paint.copy()
+    underside.name = "Ventral service panels"
+    belly = pack_paint(underside.node_tree.nodes, key + "-belly", belly_livery(key, rgb, mask, root))
+    old_dorsal = underside.node_tree.nodes[dorsal.name]
+    for link in list(old_dorsal.outputs["Color"].links):
+        underside.node_tree.links.new(belly.outputs["Color"], link.to_socket)
+    underside.node_tree.links.new(old_dorsal.inputs["Vector"].links[0].from_socket, belly.inputs["Vector"])
+    underside.node_tree.nodes.remove(old_dorsal)
+    underside.node_tree.nodes.active = belly
     steel = solid("Machined gunmetal", (0.12, 0.15, 0.19), 0.6)
     silver = solid("Turned steel lip", (0.48, 0.53, 0.58), 0.55)
     accent = solid(
@@ -341,6 +482,17 @@ def build(key, file):
     midship = np.exp(-((iy - 153) / 83) ** 4) * edge * body
     bottom -= 10 * midship
     height += 4 * midship
+    # The fin is a separate airfoil. Use the forebody and engine deck for the
+    # pressure vessel so that the tail is not duplicated as a ridge down the spine.
+    main_roof = np.minimum(roof, np.interp(np.arange(288), [0, cy, 170, 287],
+                                           [10, max(24, rx * 2.7), root * .79, 11]))
+    crown = np.sqrt(np.clip(1 - (offset / (root * 1.05)) ** 2, 0, 1))
+    height = np.maximum(height * .79, 2 + np.maximum(main_roof[:, None] - 2, 0) * crown * edge)
+    bottom = np.minimum(bottom * .72, -2 + np.minimum(keel[:, None] + 2, 0) * crown * edge)
+    # An inset channel between two keel rails gives the belly its own cross-section.
+    rails = np.exp(-((offset - root*.33) / 2.8)**2)
+    underside_run = np.exp(-((iy-172)/58)**4) * edge
+    bottom -= 2.6 * rails * underside_run
     field = {
         "Hull": ([], [], {}),
         "Canopy": ([], [], {}),
@@ -416,7 +568,7 @@ def build(key, file):
                 else:
                     border.add((a, b))
         meshfaces.extend((b, a, a + count, b + count) for a, b in sorted(border))
-        obj = mesh_object(name, vertices.tolist(), meshfaces, [paint])
+        obj = mesh_object(name, vertices.tolist(), meshfaces, [paint, underside])
         uv = obj.data.uv_layers.new(name="Reference paint")
         uv_table = np.column_stack(((x + 0.5) / 288, 1 - (y + 0.5) / 288))
         loop_index = np.empty(len(obj.data.loops), dtype=np.int32)
@@ -424,6 +576,8 @@ def build(key, file):
         uv.data.foreach_set("uv", uv_table[loop_index % count].astype("f").ravel())
         for face in obj.data.polygons:
             face.use_smooth = face.index < len(faces) * 2
+            if len(faces) <= face.index < len(faces) * 2:
+                face.material_index = 1
 
     def marker(name, x, y, z, width=0):
         obj = bpy.data.objects.new(name, None)
@@ -508,8 +662,12 @@ def build(key, file):
                 )
     if base == "xwing":
         build_crosswing(paint, steel, silver, bore, marker, key.endswith("Elite"))
-    else:
-        build_tail(base, key.endswith("Elite"), paint, mask)
+    elif not base.startswith("coreLander"):
+        build_tail(base, paint, mask, roof, height)
+    for obj in bpy.context.scene.objects:
+        if obj.type == "MESH" and paint.name in obj.data.materials:
+            fit_side_uv(obj, side_registration, side_paint)
+            obj.data.uv_layers.active = obj.data.uv_layers.get("Reference paint")
     bpy.context.scene["atlas_transform"] = registration
     bpy.context.scene["reference_art"] = str(file.relative_to(ROOT))
     MODELS.mkdir(parents=True, exist_ok=True)

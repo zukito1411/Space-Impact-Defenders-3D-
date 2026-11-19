@@ -11,6 +11,7 @@ import tempfile
 from pathlib import Path
 
 import bpy
+import numpy as np
 from mathutils import Matrix, Vector
 from PIL import Image
 
@@ -24,6 +25,32 @@ spec = importlib.util.spec_from_file_location(
 previews = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(previews)
 CELL = 448
+
+
+def match_release_paint(sheet, key):
+    """Recover the paint contrast of 1.0.43 independently for each camera."""
+    version = 8 if key in ("mesiahWhite", "mesiahBlack") else 7
+    with Image.open(ART / "banking" / f"{key}-v{version}.webp") as source:
+        reference = np.asarray(source.convert("RGBA"))
+    pixels = np.array(sheet.convert("RGBA"))
+    weights = np.array([.2126, .7152, .0722], dtype=np.float32)
+    stops = [3, 20, 50, 80, 96]
+    for row in range(2):
+        band = pixels[row*CELL:(row+1)*CELL]
+        master = reference[row*CELL:(row+1)*CELL]
+        target = master[master[:, :, 3] > 224, :3].astype(np.float32)
+        rgb = band[:, :, :3].astype(np.float32)
+        opaque = band[:, :, 3] > 224
+        light = rgb @ weights
+        old = np.percentile(light[opaque], stops)
+        goal = np.percentile(target @ weights, stops)
+        lift = np.interp(light, old, np.clip(goal-old, -24., 40.))
+        spread = np.percentile(np.ptp(rgb[opaque], axis=1), 84)
+        target_spread = np.percentile(np.ptp(target, axis=1), 84)
+        saturation = np.clip(target_spread / max(spread, 1.), 1., 1.52)
+        linear = (light + lift*.91)[:, :, None] + (rgb-light[:, :, None])*saturation
+        band[:, :, :3] = np.uint8(np.clip(linear, 0, 255))
+    return Image.fromarray(pixels)
 
 
 def bake(key):
@@ -61,7 +88,7 @@ def bake(key):
     camera.location.z = 3000
     scene.collection.objects.link(camera)
     scene.camera = camera
-    for row, angle in enumerate([0, -72]):
+    for row, angle in enumerate([0, -79]):
         for col, bank in enumerate([-21, -14, -7, 0, 7, 14, 21]):
             rot = Matrix.Rotation(math.radians(angle + bank), 4, "Y")
             scale = Matrix.Diagonal(Vector((sx, sy, sx, 1)))
@@ -109,18 +136,19 @@ def bake(key):
     with tempfile.TemporaryDirectory() as temp:
         scene.render.filepath = str(Path(temp) / "sheet.png")
         bpy.ops.render.render(write_still=True)
-        with Image.open(scene.render.filepath) as atlas:
+        with Image.open(scene.render.filepath) as raw:
+            atlas = match_release_paint(raw, key)
             for i in range(14):
                 x, y = i % 7 * CELL, i // 7 * CELL
                 alpha = atlas.crop((x, y, x + CELL, y + CELL)).getchannel("A")
                 bounds = alpha.point(lambda p: 255 if p > 96 else 0).getbbox()
                 if not bounds or min(bounds[:2]) < 1 or max(bounds[2:]) >= CELL:
                     raise ValueError(f"{key} pose {i} empty or clipped: {bounds}")
-            atlas.save(ART / "banking" / f"{key}-v11.webp", "WEBP", quality=96, method=4, exact=True)
+            atlas.save(ART / "banking" / f"{key}-v12.webp", "WEBP", quality=96, method=4, exact=True)
             for landscape, suffix in [(False, "portrait"), (True, "landscape")]:
                 preview = previews.get_trimmed_view(atlas, landscape)
                 preview.save(
-                    ART / "previews" / f"{key}-{suffix}-v4.webp",
+                    ART / "previews" / f"{key}-{suffix}-v5.webp",
                     "WEBP",
                     quality=96,
                     method=4,
