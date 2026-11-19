@@ -1,0 +1,43 @@
+name: Review live Three presentation
+on:
+  push:
+    branches: [review/live-three-renderer]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Existing gameplay and fallback contracts
+        run: |
+          node scripts/test-combat-feel.mjs
+          node scripts/test-raid-muzzles.mjs
+          node scripts/test-engine-presentation.mjs
+          node scripts/test-raid-banking-art.mjs
+          node scripts/test-raid-ship-art.mjs
+          node scripts/test-carrier-launch.mjs
+          python3 scripts/test-3d-android-identity.py
+      - run: npm run build
+      - run: python3 scripts/test-android-asset-packaging.py --built-assets
+      - name: Prepare browser
+        run: |
+          npm install --no-save --package-lock=false playwright@1.56.1
+          if [ -x /usr/bin/google-chrome ]; then
+            echo 'CHROMIUM_PATH=/usr/bin/google-chrome' >> "$GITHUB_ENV"
+          else
+            npx playwright install --with-deps chromium
+          fi
+      - run: node scripts/test-live-three-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-three-review
+          path: presentation-review/live-three-*.png
+          if-no-files-found: ignore
