@@ -168,3 +168,6 @@
 .raid[data-carrier-stage="clearing"] .raid__carrier-phase--clearing { display:block; }
 .raid[data-carrier-stage="boarding"] > .raid__hud,
 .raid[data-carrier-stage="clearing"] > .raid__hud { visibility:hidden;pointer-events:none; }
+
+/* Live bay paint is attached to the depth-tested Three.js deck plane. */
+.raid[data-renderer="three"] .raid__carrier-plate { visibility: hidden; }

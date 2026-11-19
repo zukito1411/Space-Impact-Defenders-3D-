@@ -1,5 +1,5 @@
-import { useState, useSyncExternalStore } from 'react'
-import hullFrames from './raid/menuHullFrames.json'
+import { ThreeHullPreview } from './raid/ThreeHullPreview'
+import { useSyncExternalStore } from 'react'
 import { RAID_ELITE_FRAME_PATHS } from './raid/shipArtwork'
 import { getRaidPicker3DPreviewUrl } from './raid/bankingArt'
 import { getRaidSideShipSpriteUrl } from './raid/sideArtwork'
@@ -78,44 +78,12 @@ export function getRaidEliteSpriteUrl(variant: number) {
 // banking atlas (both camera orientations). They are lighter and much clearer
 // than loading all 27 full multi-pose textures onto the selection screen.
 export function RaidShipPickerPreview({ shipKey, landscape }: { shipKey: string; landscape: boolean }) {
-  const previewUrl = getRaidPicker3DPreviewUrl(shipKey, landscape)
-  const [failedUrl, setFailedUrl] = useState<string | null>(null)
-  const source = previewUrl && failedUrl !== previewUrl
-    ? previewUrl
-    : (landscape && getRaidSideShipSpriteUrl(shipKey)) || getRaidShipSpriteUrl(shipKey)
-
-  return (
-    <span className="raid__ship-preview" aria-hidden="true">
-      <img
-        key={source}
-        src={source}
-        alt=""
-        draggable={false}
-        decoding="async"
-        onError={() => { if (previewUrl && failedUrl !== previewUrl) setFailedUrl(previewUrl) }}
-      />
-    </span>
-  )
+  return <ThreeHullPreview shipKey={shipKey} landscape={landscape} className="raid__ship-preview" />
 }
 
-// Small static displays share the tightly framed 3D renders used in selection.
 export function RaidShipSprite({ shipKey, size, className = 'raid__ship-sprite', sideView }: {
   shipKey: string; size: number; className?: string; sideView?: boolean
 }) {
   const landscape = useLandscapeScreen()
-  const viewLandscape = sideView ?? landscape
-  const key = shipKey === 'mesiah' ? 'mesiahBlack' : shipKey
-  const frames = hullFrames as Readonly<Record<string, number[][]>>
-  const frame = frames[key]?.[viewLandscape ? 1 : 0] ?? [0, 0, 1]
-  return (
-    <span className={className} aria-hidden="true" style={{
-      position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      width: size, height: size, flexShrink: 0,
-    }}>
-      <img src={getRaidMenuShipSpriteUrl(shipKey, sideView ?? landscape)} alt="" draggable={false}
-        decoding="async" style={{ position: 'absolute', left: `${frame[0] * 100}%`,
-          top: `${frame[1] * 100}%`, width: `${frame[2] * 100}%`, height: `${frame[2] * 100}%`,
-          objectFit: 'contain' }} />
-    </span>
-  )
+  return <ThreeHullPreview shipKey={shipKey} landscape={sideView ?? landscape} size={size} className={className} />
 }

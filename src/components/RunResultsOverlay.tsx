@@ -1,4 +1,4 @@
-import { getRaidMenuShipSpriteUrl, useLandscapeScreen } from './games/RaidShipSprite'
+import { RaidShipSprite, useLandscapeScreen } from './games/RaidShipSprite'
 import { getLanguageText, getRaidText, getReleaseText, type LanguageCode } from '../i18n'
 import type { ProgressUpdate, RunResult } from '../progression'
 import { GameButton } from './ui/GameButton'
@@ -31,7 +31,7 @@ export function RunResultsOverlay({ result, update, language, onClose }: RunResu
     <GameDialog className={`result-overlay result-overlay--${result.status}`} aria-labelledby="result-title" onDismiss={onClose}>
       <div className="result-overlay__panel">
         <div className="result-overlay__hero">
-          <img className="result-overlay__ship" src={getRaidMenuShipSpriteUrl(result.visualShipKey ?? result.shipKey ?? 'dreadnought', landscape)} alt="" aria-hidden="true" draggable={false} />
+          <RaidShipSprite className="result-overlay__ship" shipKey={result.visualShipKey ?? result.shipKey ?? 'dreadnought'} size={144} sideView={landscape} />
           <span>{modeText.title} {modeText.label}</span>
           <h2 id="result-title">{statusLabel}</h2>
           <p>{text.combatReport}</p>

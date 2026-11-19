@@ -1,3 +1,7 @@
+import { drawLiveHull } from './liveHullBridge'
+import { GameButton } from '../../ui/GameButton'
+import { loadHull } from './liveHullAssets'
+import { ThreeRaidPresentation as PixiRaidBackground } from './threePresentation'
 import { RaidScenePresentation } from './scenePresentation'
 import { Capacitor } from '@capacitor/core'
 import { commandBossReleaseCue, markBossAttack, playGuestBossAttack, stopBossAttackAudio } from './bossAudio'
@@ -50,7 +54,7 @@ import type { CSSProperties } from 'react'
 import { RAID_DEVIL_MASTER_PROJECTILE_FILTER, RAID_DEVIL_MASTER_PROJECTILE_GLOW_STOPS, RAID_OTHER_ASSET_PATHS, RAID_PLAYER_LASER_HEAD_STOPS, RAID_SNAKE_FANG_GLOW_STOPS, RAID_SQUID_BUBBLE_STOPS, RAID_SQUID_INK_STOPS, RAID_VENOM_SPIT_STOPS, drawCanvasSpriteContain, getEnemyCanvasSize, getDerelictWreckVariantData, getDevilMasterProjectileCanvasSprite, getRaidSideShipCanvasSprite, getShipCanvasSprite, getNormalAlienCanvasSprite } from './assets'
 import type { CanvasSpriteEntry } from './assets'
 import { playCoreLanderPhysicalAttackSound, playPickupVoiceLine, warmPickupVoiceSamples } from './audio'
-import { DEFAULT_RAID_PALETTE, PixiRaidBackground, RAID_BOSS_BACKGROUND_THEME_FINAL, RAID_BOSS_BACKGROUND_THEME_SNAKE, RAID_BOSS_BACKGROUND_THEME_SQUID, drawVolcanicWorldForegroundClouds, drawWateryWorldForegroundClouds, getRaidCameraShakeOffset, isVolcanicWorldTheme, isWateryWorldTheme } from './background'
+import { DEFAULT_RAID_PALETTE, RAID_BOSS_BACKGROUND_THEME_FINAL, RAID_BOSS_BACKGROUND_THEME_SNAKE, RAID_BOSS_BACKGROUND_THEME_SQUID, drawVolcanicWorldForegroundClouds, drawWateryWorldForegroundClouds, getRaidCameraShakeOffset, isVolcanicWorldTheme, isWateryWorldTheme } from './background'
 import type { RaidPalette } from './background'
 import { forEachDevilBossBeamLane, forEachFinalBossBeamLane, getDevilBossBeamRadius, getDevilBossChargeDuration, getFinalBossBeamLaneCount, getFinalBossBeamRadius } from './bossAttacks'
 import { clearNormalEnemyRasters, drawRaidEnemy, getNormalEnemyFilter, pruneNormalEnemyRasters } from './bossRender'
@@ -68,7 +72,7 @@ import type { RaidViewportMetrics } from './graphics'
 import { clearPickupLoadout, extendLoadoutForSuperBoss, getPowerScore, resetStageLoadout } from './loadout'
 import { acquireHomingTarget, animateStageClearPlayer, applyRiftPullToPlayer, applyStartingStageLevel, fullyBuffRaidPlayer, getCoreLanderFireInterval, getGodGundamBarrageBossDamage, getGodGundamBarrageDamageMultiplier, getGodGundamMeleeDamagePerSecond, getGodGundamMeleeRange, getGodGundamPassivePose, getGodGundamStageAttackBonus, getNukeBossDamage, getNukeCooldownSeconds, getPlayerBaseAttack, getRiftCenter, getSpiegelShadowCloneDamageMultiplier, hasSpiegelShadowClones, isCoreLanderBurning, levelUpPlayer, movePlayerWithInput, revivePlayerForBossClear, updatePlayerTimers } from './mechanics'
 import { clampNetworkVelocity, cloneAsteroid, cloneDerelictWreck, cloneEnemy, cloneIonStrike, cloneMeteor, cloneRaidRandomEvent, cloneVec, compactPlayer, compactVec, getBufferedAsteroidVisuals, getBufferedEnemyVisuals, getBufferedPlayerVisual, getConnectionLabel, getGuestShotTtlMs, getOwnCorrectionBlend, getPlayerPickupAudioKind, getRemoteInterpolationDelayMs, hasClearedRaidInProgress, isNetworkVisible, keepNetworkVisibleInPlace, reconcilePlayerVisual, updateDerelictWreckMotion } from './network'
-import { getRaidBankingAtlas, getRaidBankingFrame, shouldUseRaidBankingArt } from './bankingArt'
+import { getRaidBankingFrame, shouldUseRaidBankingArt } from './bankingArt'
 import { drawRaidOptions, drawRaidPlayer, getCoreBlastSprite, getRaidPlayerFlightBank, warmRaidBankingArt, warmRaidSideCosmetics } from './playerRender'
 import { getRaidAssetPreloadInitialState, preloadGradiusRaidAssets, warmRaidGeneratedEffectSprites } from './preload'
 import { activateScoutSupportPickup, clonePlayer, getCheckpointStage, getDefaultPlayerVisualShipKey, getGodGundamGameplayRenderSize, getHighScore, getInitialPlayer, getOptionSupportStacks, getPlayerCoreLanderCombatModel, getRaidGundamName, getRaidPlayerVisualShipKey, getShipByKey, getUnlockedStage, isCoreLanderAoeShot, isGodGundamBarragePilot, normalizeMesiahDrones, normalizeMesiahScoutDrones, powerColor, sanitizePlayerVisualShipKey, saveCheckpointStage, saveHighScore, saveUnlockedStage } from './state'
@@ -180,6 +184,7 @@ export function GradiusRaid({
   shipSizeRef.current = shipSize
   const landscapeRef = useRef(landscape)
   landscapeRef.current = landscape
+  const [rendererError, setRendererError] = useState<string | null>(null)
   const pixiBackgroundHostRef = useRef<HTMLDivElement | null>(null)
   const pixiBackgroundRef = useRef<PixiRaidBackground | null>(null)
   const rendererPreparationRef = useRef<Promise<boolean> | null>(null)
@@ -382,13 +387,12 @@ export function GradiusRaid({
       warmRaidBankingArt(visualKey, landscape)
       if (visualKey === 'godGundam') warmRaidBankingArt('godGundamBurning', landscape)
     }
-    // The support craft must have their 3D poses ready before they enter the
-    // playfield; warming their atlas does not perform shield geometry work.
+    // Prepare shared support meshes before they enter the playfield.
     if (selectedShipKey === 'mesiah') {
-      getRaidBankingAtlas(getRaidShipBaseVisualKey(visualKey) === 'mesiahWhite' ? 'mesiahRaptorWhite' : 'mesiahRaptorBlack')
+      void loadHull(getRaidShipBaseVisualKey(visualKey) === 'mesiahWhite' ? 'mesiahRaptorWhite' : 'mesiahRaptorBlack').catch(() => {})
     } else if (selectedShipKey === 'dreadnought') {
-      getRaidBankingAtlas('rocket')
-      getRaidBankingAtlas('spaceEt')
+      void loadHull('rocket').catch(() => {})
+      void loadHull('spaceEt').catch(() => {})
     }
     if (!landscape) return
     const aura = getEquippedShipCosmetics(progressRef.current, selectedShipKey).aura
@@ -1624,7 +1628,7 @@ export function GradiusRaid({
     if (!host) return
 
     let cancelled = false
-    const background = new PixiRaidBackground()
+    const background = new PixiRaidBackground(setRendererError)
     pixiBackgroundRef.current = background
 
     const preparation = background.init(host)
@@ -1634,7 +1638,11 @@ export function GradiusRaid({
         background.destroy()
         return
       }
-      if (!ready && pixiBackgroundRef.current === background) pixiBackgroundRef.current = null
+      if (ready && rootRef.current) rootRef.current.dataset.renderer = 'three'
+      if (!ready && pixiBackgroundRef.current === background) {
+        pixiBackgroundRef.current = null
+        setRendererError('Live 3D rendering could not start. Reload to try again.')
+      }
     })
 
     return () => {
@@ -1686,6 +1694,7 @@ export function GradiusRaid({
       ctx.imageSmoothingQuality = nextSmoothingQuality
       fxCanvasSmoothingQualityRef.current = nextSmoothingQuality
     }
+    ctx.canvas.dataset.raidDpr = String(dpr)
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.clearRect(0, 0, cssWidth, cssHeight)
 
@@ -1761,8 +1770,7 @@ export function GradiusRaid({
     const measured = showPerfHudRef.current
     const costs = drawCostsRef.current
     const backgroundStart = measured ? performance.now() : 0
-    // Animation cadence follows the actual render frame; only expensive
-    // background geometry is throttled independently by PixiRaidBackground.
+    // The Three.js presentation follows the native render cadence.
     const pixiBackground = pixiBackgroundRef.current
     // Bake expensive composite boss artwork during the stage approach rather
     // than during the boss's first live combat frames.
@@ -1778,7 +1786,7 @@ export function GradiusRaid({
 
     // Update GPU scenery transforms on EVERY presented frame. The 31 ms mobile
     // throttle caused stars, clouds and islands to jump in visibly delayed steps.
-    // PixiRaidBackground.render keeps expensive vector tessellation cached.
+    // Scene geometry and texture resources are retained across frames.
     if (pixiBackground) {
       const stageRush = stageClearRef.current > 0 ? clamp(stageClearRef.current / STAGE_CLEAR_SECONDS, 0, 1) : 0
       const thrust = carrier ? (briefing && stop ? 0 : carrier.engine) : ownShipRef?.engineBoost ?? 0
@@ -1792,6 +1800,8 @@ export function GradiusRaid({
           : 0
 
       pixiBackground.render({
+        carrierBackdrop: carrier?.backdrop ?? 0,
+        carrierShift: carrier?.shift ?? 0,
         palette: paletteRef.current,
         width: cssWidth,
         height: cssHeight,
@@ -1850,7 +1860,11 @@ export function GradiusRaid({
       if (recovery && recovery.exteriorAlpha > 0) {
         const side = landscapeRef.current ? getRaidSideShipCanvasSprite('mesiah') : null
         const sprite = side?.loaded ? side : getShipCanvasSprite('mesiahBlack')
-        if (sprite.loaded) {
+        const liveCarrier = drawLiveHull(ctx,'mesiahBlack',toX(50+recovery.exteriorLead*6),
+          toY(22+recovery.exteriorLead*14),
+          Math.min(cssWidth*.94,cssHeight*.72)*recovery.exteriorSize,0,recovery.exteriorAlpha,
+          landscapeRef.current,'recovery-carrier')
+        if (!liveCarrier && sprite.loaded) {
           drawCanvasSpriteContain(ctx, sprite, toX(50 + recovery.exteriorLead * 6), toY(22 + recovery.exteriorLead * 14),
             Math.min(cssWidth * .94, cssHeight * .72) * recovery.exteriorSize,
             'none', recovery.exteriorAlpha, side?.loaded ? -Math.PI / 2 : 0)
@@ -1899,6 +1913,7 @@ export function GradiusRaid({
       }
       renderCarrierPilot(ownShipRef, 0, PLAYER_COLOR)
       renderCarrierPilot(isGuestView ? playerRef.current : remotePlayerRef.current, 1, ALLY_PLAYER_COLOR)
+      pixiBackground?.present()
       costs.canvasMs = measured ? performance.now() - canvasStart : 0
       costs.bossMs = 0
       return
@@ -2611,9 +2626,9 @@ export function GradiusRaid({
           size * (.24 + drift * .14), size * (.27 + drift * .14), enemy.id, false, (1 - drift) * .32)
         damagedShipsDrawn += 1
       }
-      if (gpuForegroundDrawn && !enemy.isBoss && !enemy.isMiniBoss) continue
+      if (gpuForegroundDrawn && !enemy.isBoss && !enemy.isMiniBoss && pixiBackground?.isEnemyGpuRendered(enemy.id)) continue
       drawRaidEnemy(ctx, enemy, toX, toY, cssWidth, time, normalEnemyFilter, dpr,
-        gpuForegroundDrawn && Boolean(enemy.isBoss && pixiBackground?.isBossGpuRendered(enemy.id)), landscapeRef.current)
+        gpuForegroundDrawn && Boolean(pixiBackground?.isBossGpuRendered(enemy.id)), landscapeRef.current)
       if (enemy.bossImpactTime && enemy.hp > 0) {
         drawBossImpact(ctx, enemy, toX(enemy.x), toY(enemy.y), cssWidth / WIDTH, cssHeight / HEIGHT,
           getEnemyCanvasSize(enemy, cssWidth, landscapeRef.current), reducedMotion)
@@ -2721,6 +2736,8 @@ export function GradiusRaid({
     if (ownShipRef && !hideOwnShipForBarrage) drawRaidPlayer(ctx, ownShipRef, phaseRef.current, toX, toY, cssWidth, time, PLAYER_COLOR, getCachedEquippedCosmetics(ownShipRef.ship.key), getRaidPlayerVisualShipKey(ownShipRef, progressRef.current), sameScreenIdentityAura ? PLAYER_COLOR : null, journeyRim, pixiBackground?.getEclipseAt(toX(ownShipRef.x), toY(ownShipRef.y)), sunlight, reducedMotion, landscapeRef.current)
     if (allyShipRef && !hideAllyShipForBarrage) drawRaidPlayer(ctx, allyShipRef, phaseRef.current, toX, toY, cssWidth, time, ALLY_PLAYER_COLOR, getCachedEquippedCosmetics(allyShipRef.ship.key), getRaidPlayerVisualShipKey(allyShipRef, progressRef.current), sameScreenIdentityAura ? ALLY_PLAYER_COLOR : null, journeyRim, pixiBackground?.getEclipseAt(toX(allyShipRef.x), toY(allyShipRef.y)), sunlight, reducedMotion, landscapeRef.current)
     if (devilAssistShipRef && !hideDevilAssistForBarrage) drawRaidPlayer(ctx, devilAssistShipRef, phaseRef.current, toX, toY, cssWidth, time, '#facc15', getCachedEquippedCosmetics(devilAssistShipRef.ship.key), getRaidPlayerVisualShipKey(devilAssistShipRef, progressRef.current), null, journeyRim, pixiBackground?.getEclipseAt(toX(devilAssistShipRef.x), toY(devilAssistShipRef.y)), sunlight, reducedMotion, landscapeRef.current)
+
+    pixiBackground?.present()
 
     if (gfxProfile.drawDecorativeOverlays && !(landscapeRef.current && (isWateryWorldTheme(backgroundStageTheme) || isVolcanicWorldTheme(backgroundStageTheme)))) {
       if (isWateryWorldTheme(backgroundStageTheme)) {
@@ -3126,7 +3143,21 @@ export function GradiusRaid({
     if (session && !session.isHost) return
     stopGameSounds()
     await preloadRaidAssetsForMenu(true)
-    if (rendererPreparationRef.current) await rendererPreparationRef.current
+    if (rendererPreparationRef.current && !await rendererPreparationRef.current) return
+    try {
+      await loadHull(getDefaultPlayerVisualShipKey(selectedShipRef.current.key, progressRef.current))
+      await pixiBackgroundRef.current?.prepareHull(getDefaultPlayerVisualShipKey(selectedShipRef.current.key, progressRef.current))
+      if (selectedShipRef.current.key === 'dreadnought') {
+        await pixiBackgroundRef.current?.prepareHull('rocket')
+        await pixiBackgroundRef.current?.prepareHull('spaceEt')
+      } else if (selectedShipRef.current.key === 'mesiah') {
+        const visual = getDefaultPlayerVisualShipKey(selectedShipRef.current.key, progressRef.current)
+        await pixiBackgroundRef.current?.prepareHull(getRaidShipBaseVisualKey(visual) === 'mesiahWhite' ? 'mesiahRaptorWhite' : 'mesiahRaptorBlack')
+      }
+    } catch {
+      setRendererError('The 3D hull could not load. Check the connection and reload.')
+      return
+    }
     if (!rootRef.current?.isConnected) return
     if (phaseRef.current !== 'briefing') {
       carrierStopRef.current = null
@@ -7977,6 +8008,11 @@ export function GradiusRaid({
 
       <div className="raid__playfield">
         <div ref={pixiBackgroundHostRef} className="raid__pixi-background" aria-hidden="true" />
+        {rendererError && <div role="alert" style={{ position: 'absolute', inset: 0, zIndex: 100,
+          display: 'grid', placeContent: 'center', gap: 16, padding: 24, background: '#050816', color: '#e2e8f0' }}>
+          <p>{rendererError}</p>
+          <GameButton type="button" onClick={() => window.location.reload()}>Reload 3D renderer</GameButton>
+        </div>}
         <RaidLaunchSequence landscape={landscape} deckRef={carrierDeckCanvasRef} />
         <canvas ref={fxCanvasRef} className="raid__fx-canvas" />
         {showPerfHud && !landscape && <div ref={perfHudRef} className="raid__perf-hud" aria-hidden="true">Measuring FPS…</div>}
