@@ -12,7 +12,7 @@ const relay = read('server/raid-relay.mjs')
 const code = ts.transpileModule([
   withoutImports(read(raid + 'shipArtwork.ts')),
   'const LEGACY_FIGHTER_COUNT = 8, RAID_FIGHTER_ASSETS = [], getPublicAssetUrl = path => path;',
-  section(withoutImports(read('src/components/games/RaidShipSprite.tsx')), 'export const RAID_SHIP_SPRITE_PATHS', 'export function RaidShipSprite'),
+  section(withoutImports(read('src/components/games/RaidShipSprite.tsx')), 'export const RAID_SHIP_SPRITE_PATHS', 'export function RaidShipPickerPreview'),
   'const getMesiahShipColor = progress => progress.color;',
   section(progression, 'export const CORE_LANDER_GOD_GUNDAM_UNLOCK_SCORE', 'export function createEmptyProgress('),
   section(progression, 'export function isCoreLanderGodGundamUnlocked(', 'export function getStoredTowerDefenseEndlessUnlock('),

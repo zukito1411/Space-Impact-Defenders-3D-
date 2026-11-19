@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { RAID_ELITE_FRAME_PATHS } from './raid/shipArtwork'
-import { drawRaidBankingCell, getRaidBankingAtlas, getRaidBankingAtlasUrl, isRaidGundamArt, raidBankingFrameIndex, raidBankingPreviewAngle } from './raid/bankingArt'
+import { drawRaidBankingCell, getRaidBankingAtlas, getRaidBankingAtlasUrl, getRaidPicker3DPreviewUrl, isRaidGundamArt, raidBankingFrameIndex, raidBankingPreviewAngle } from './raid/bankingArt'
 import { getRaidSideShipSpriteUrl } from './raid/sideArtwork'
 import { getPublicAssetUrl } from './sound'
 import { LEGACY_FIGHTER_COUNT, RAID_FIGHTER_ASSETS } from './raid/stageEncounters'
+
+export { getRaidPicker3DPreviewUrl }
 
 export const RAID_SHIP_SPRITE_PATHS: Record<string, string> = {
   rocket: 'assets/ships/black-comet-remaster-v1.webp',
@@ -74,12 +76,6 @@ export function getRaidEliteSpriteUrl(variant: number) {
 // Ship-picker previews are pre-cropped directly from each ship's actual 3D
 // banking atlas (both camera orientations). They are lighter and much clearer
 // than loading all 27 full multi-pose textures onto the selection screen.
-export function getRaidPicker3DPreviewUrl(shipKey: string, landscape: boolean) {
-  if (!getRaidBankingAtlasUrl(shipKey)) return null
-  const key = shipKey === 'mesiah' ? 'mesiahBlack' : shipKey
-  return getPublicAssetUrl(`assets/ships/previews/${key}-${landscape ? 'landscape' : 'portrait'}-v1.webp`)
-}
-
 export function RaidShipPickerPreview({ shipKey, landscape }: { shipKey: string; landscape: boolean }) {
   const previewUrl = getRaidPicker3DPreviewUrl(shipKey, landscape)
   const [failedUrl, setFailedUrl] = useState<string | null>(null)

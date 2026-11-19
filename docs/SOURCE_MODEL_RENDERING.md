@@ -43,3 +43,16 @@ The original 2D ships are retained in selection screens; Gundam and Spiegel rema
 ## Constraints
 
 Exact paint placement and 100% shape equivalence cannot be guaranteed by automatic material sampling. Final detailing requires a mesh/UV review against the original sprite. A color filter by itself cannot recreate missing 3D geometry.
+
+## Reconstructed flight hulls
+
+The 24 spacecraft in `art/3d/flight-hulls/` have editable Blender 4.3 files with packed paint textures. These reconstructions use the neutral flight pose for framing, the top-view art for paint and component placement, and inferred geometry for the sides and underside. Crosswing uses the flight pose as its paint reference to retain its open S-foils. The three humanoid mech forms use their existing artwork.
+
+To change a ship, edit its saved model and bake it from the repository root. The two red fighters use the game keys `gatling` (Crimson Saw) and `fast` (Red Wraith). Each has a mounting ring, three forward tubes, wing launchers and exhaust bells. The bake projects the named attachment points into each of the 14 flight poses and produces both selector orientations.
+
+```sh
+blender -b -t 8 --python-exit-code 1 -P scripts/bake-flight-hulls.py -- fast gatling
+node scripts/test-raid-banking-art.mjs
+```
+
+The optional `scripts/build-flight-hulls.py` recreates the starting meshes from the reference art. Running it overwrites the selected source models. Both scripts accept one or more ship keys after `--`. With no keys they process the fleet. The build needs NumPy, SciPy and Pillow in Blender's Python environment. The bake needs Pillow.

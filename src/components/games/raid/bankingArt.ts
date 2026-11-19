@@ -7,7 +7,6 @@ import anchors from './bankingAnchors.json'
 export const BANKING_COLUMNS = 7
 export const BANKING_ROWS = 2
 export const BANKING_CELL = 448
-// Unsharpened v1 originals retain fine panel details with light 2D-palette matching in v5.
 // The source atlas is oriented nose-up for both flight-camera modes. UI previews
 // must apply the flight camera's quarter turn when shown on a landscape screen.
 export function raidBankingPreviewAngle(landscape: boolean) { return landscape ? 90 : 0 }
@@ -50,15 +49,20 @@ function bankingKey(shipKey: string) {
   return shipKey === 'mesiah' ? 'mesiahBlack' : shipKey
 }
 
+const legacyMechAtlases = new Set(['godGundam', 'godGundamBurning', 'spiegel'])
+
 export function getRaidBankingAtlasUrl(shipKey: string) {
   const key = bankingKey(shipKey)
   if (!Object.prototype.hasOwnProperty.call(registrations, key)) return null
-  // Only the two Mesiah frames get a new, cleaner steel/material treatment.
-  // Other vivid v7 ships stay byte-for-byte unchanged.
-  if (key === 'mesiahBlack' || key === 'mesiahWhite') {
-    return getPublicAssetUrl(`assets/ships/banking/${key}-v8.webp`)
-  }
-  return getPublicAssetUrl(`assets/ships/banking/${key}-v7.webp`)
+  const version = legacyMechAtlases.has(key) ? 7 : 10
+  return getPublicAssetUrl(`assets/ships/banking/${key}-v${version}.webp`)
+}
+
+export function getRaidPicker3DPreviewUrl(shipKey: string, landscape: boolean) {
+  const key = bankingKey(shipKey)
+  if (!Object.prototype.hasOwnProperty.call(registrations, key)) return null
+  const version = legacyMechAtlases.has(key) ? 1 : 3
+  return getPublicAssetUrl(`assets/ships/previews/${key}-${landscape ? 'landscape' : 'portrait'}-v${version}.webp`)
 }
 
 // Hangar UI uses the same registered exhaust roots as the flight atlas.
