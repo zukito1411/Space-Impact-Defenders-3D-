@@ -1,0 +1,35 @@
+name: Render elevated flight camera
+on:
+  push:
+    branches: [art/elevated-flight-camera-build]
+permissions:
+  contents: write
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      OPENBLAS_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Render the original flight hulls
+        run: |
+          if python -m pip install --only-binary=:all: bpy==4.3.0 'numpy<2' Pillow && python scripts/bake-flight-hulls.py; then
+            exit 0
+          fi
+          sudo apt-get -qq update
+          sudo apt-get -qq install -y blender python3-pil python3-numpy
+          blender -b -t 4 --python-exit-code 1 -P scripts/bake-flight-hulls.py
+      - name: Publish camera renders
+        run: |
+          test "$(ls public/assets/ships/banking/*-v14.webp | wc -l)" = 24
+          test "$(ls public/assets/ships/previews/*-landscape-v7.webp | wc -l)" = 24
+          git reset --mixed 6df826bfe46c4edf9d7f9fd9b644b1d16066e562
+          git add scripts/bake-flight-hulls.py src/components/games/raid/bankingAnchors.json public/assets/ships/banking/*-v14.webp public/assets/ships/previews/*-landscape-v7.webp
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Render elevated landscape views from the original flight hulls'
+          git push origin HEAD:refs/heads/art/elevated-flight-camera-renders

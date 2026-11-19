@@ -88,7 +88,8 @@ def bake(key):
     camera.location.z = 3000
     scene.collection.objects.link(camera)
     scene.camera = camera
-    for row, angle in enumerate([0, -79]):
+    # Landscape looks across the upper deck. Even the steepest turn keeps the near wing visible.
+    for row, angle in enumerate([0, -56]):
         for col, bank in enumerate([-21, -14, -7, 0, 7, 14, 21]):
             rot = Matrix.Rotation(math.radians(angle + bank), 4, "Y")
             scale = Matrix.Diagonal(Vector((sx, sy, sx, 1)))
@@ -144,16 +145,10 @@ def bake(key):
                 bounds = alpha.point(lambda p: 255 if p > 96 else 0).getbbox()
                 if not bounds or min(bounds[:2]) < 1 or max(bounds[2:]) >= CELL:
                     raise ValueError(f"{key} pose {i} empty or clipped: {bounds}")
-            atlas.save(ART / "banking" / f"{key}-v12.webp", "WEBP", quality=96, method=4, exact=True)
-            for landscape, suffix in [(False, "portrait"), (True, "landscape")]:
-                preview = previews.get_trimmed_view(atlas, landscape)
-                preview.save(
-                    ART / "previews" / f"{key}-{suffix}-v5.webp",
-                    "WEBP",
-                    quality=96,
-                    method=4,
-                    exact=True,
-                )
+            atlas.save(ART / "banking" / f"{key}-v14.webp", "WEBP", quality=96, method=4, exact=True)
+            preview = previews.get_trimmed_view(atlas, True)
+            preview.save(ART / "previews" / f"{key}-landscape-v7.webp",
+                         "WEBP", quality=96, method=4, exact=True)
     return anchors
 
 
