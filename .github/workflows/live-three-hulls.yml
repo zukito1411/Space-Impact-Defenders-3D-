@@ -1,0 +1,34 @@
+name: Export live Three hull meshes
+on:
+  push:
+    branches: [art/live-three-hulls-build]
+permissions:
+  contents: write
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    env:
+      OPENBLAS_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Export authored meshes and preserve original paint
+        run: |
+          if python -m pip install --only-binary=:all: bpy==4.3.0 'numpy<2' Pillow && python scripts/export-live-hulls.py; then
+            exit 0
+          fi
+          sudo apt-get -qq update
+          sudo apt-get -qq install -y blender python3-pil python3-numpy
+          blender -b -t 4 --python-exit-code 1 -P scripts/export-live-hulls.py
+      - name: Publish live model assets
+        run: |
+          test "$(ls public/assets/ships/models/v1/*.glb | wc -l)" = 24
+          git reset --mixed 25994d78c8b0e96a201661146eb6f51a1619dcdc
+          git add scripts/export-live-hulls.py public/assets/ships/models/v1/
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Export live flight hull geometry with the original paint atlases'
+          git push origin HEAD:refs/heads/art/live-three-hulls-assets
