@@ -19,6 +19,7 @@ try {
   const errors=[]
   const page=await browser.newPage({viewport:{width:900,height:650}})
   page.on('pageerror',error=>errors.push(error.message))
+  page.on('response',response=>{if(response.status()>=400)errors.push(response.status()+' '+response.url())})
   page.on('console',message=>{if(message.type()==='error'&&!message.text().includes('net::')) errors.push(message.text())})
   const atlasRequests=[]
   page.on('request',request=>{if(/banking\/.*-v15\.webp/.test(request.url()))atlasRequests.push(request.url())})

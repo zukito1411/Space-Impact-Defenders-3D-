@@ -45,18 +45,18 @@ void main(){ray=normalize(position);gl_Position=projectionMatrix*modelViewMatrix
 `
 const skyFragment = `
 uniform sampler2D art;
-uniform vec2 region;
+uniform vec2 region, angularScale;
 uniform float time;
 varying vec3 ray;
 vec3 gas(vec2 uv){return texture2D(art,(region+clamp(uv,.008,.992))*.5).rgb;}
 void main(){
   vec3 r=normalize(ray);
-  vec2 st=.5+vec2(atan(r.x,-r.z),asin(clamp(r.y,-1.,1.)))/vec2(3.141593,3.141593);
+  vec2 st=.5+vec2(atan(r.x,-r.z),-asin(clamp(r.y,-1.,1.)))*angularScale;
   vec3 farGas=gas(st);
   vec3 middle=gas(st*1.09-.045+vec2(sin(time*.018)*.012,cos(time*.013)*.008));
   vec3 nearGas=gas(st*1.23-.115+vec2(-cos(time*.009)*.02,sin(time*.011)*.01));
   vec3 color=mix(farGas,middle,.26)+nearGas*.13;
-  gl_FragColor=vec4(color*.64,1.);
+  gl_FragColor=vec4(color*.84,1.);
   #include <colorspace_fragment>
 }
 `
@@ -77,11 +77,29 @@ void main(){
  gl_FragColor=vec4(color*(.3+.7*day),edge*.46);
 }`
 
+const galaxyVertex = `
+varying vec3 local;
+void main(){
+ local=position;
+ gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);
+}`
+const galaxyFragment = `
+uniform sampler2D art;
+varying vec3 local;
+void main(){
+ vec4 pigment=texture2D(art,.5+local.xy*.5);
+ float nucleus=1.-clamp(dot(local.xy,local.xy),0.,1.);
+ gl_FragColor=vec4(pigment.rgb*(1.+nucleus*nucleus*.35),pigment.a*.60);
+ #include <colorspace_fragment>
+}`
+
 /** Real depth-tested planets, volumetric sky dome and GPU-resident debris. */
 export class ThreeSpace {
   readonly root = new Group()
   private readonly stars: Points<BufferGeometry, ShaderMaterial>
   private readonly planets: Group[] = []
+  private readonly galaxies: Mesh<SphereGeometry,ShaderMaterial>[] = []
+  private readonly galaxyPaintKeys = ['', '', '']
   private readonly debris: InstancedMesh
   private readonly pose = new Object3D()
   private readonly sky: Mesh<SphereGeometry, ShaderMaterial>
@@ -94,6 +112,7 @@ export class ThreeSpace {
   }>()
   private region = -1
   private paintEpoch = 0
+  private paintSignature = ''
   private readonly journey = createRaidJourneyView()
   private previousStage = 0
   private stage = 0
@@ -129,13 +148,23 @@ export class ThreeSpace {
     this.root.add(this.stars)
     this.sky = new Mesh(new SphereGeometry(9000, 48, 24), new ShaderMaterial({
       vertexShader: skyVertex, fragmentShader: skyFragment, side: BackSide, depthWrite: false,
-      uniforms: { art: { value: null }, region: { value: [0, 0] }, time: { value: 0 } },
+      uniforms: { art: { value: null }, region: { value: [0, 0] }, angularScale: { value: [1,1] }, time: { value: 0 } },
     }))
     this.sky.renderOrder = -100
     this.root.add(this.sky)
     this.load('assets/raid-fx/cosmos-regions-remaster-v2.webp').then(texture => {
       if (!this.disposed) this.sky.material.uniforms.art.value = texture
     }).catch(() => {})
+    for (let i = 0; i < 3; i++) {
+      const galaxy = new Mesh(new SphereGeometry(1,48,24),new ShaderMaterial({
+        vertexShader: galaxyVertex, fragmentShader: galaxyFragment,
+        uniforms: { art: { value: null } }, transparent: true, depthWrite: false,
+        blending: AdditiveBlending,
+      }))
+      galaxy.visible = false
+      this.galaxies.push(galaxy)
+      this.root.add(galaxy)
+    }
     for (let i = 0; i < 3; i++) {
       const group = new Group()
       const material = new MeshStandardMaterial({ color: 0xffffff, roughness: .85, metalness: .02 })
@@ -150,6 +179,26 @@ export class ThreeSpace {
         const ring = new Mesh(new RingGeometry(1.26, 1.94, 128), new MeshStandardMaterial({
           color: 0xcda46e, roughness: .78, side: 2, transparent: true, opacity: .65,
         }))
+        ring.material.onBeforeCompile = shader => {
+          shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `
+            #include <color_fragment>
+            float radius = length(vViewPosition.xy);
+          `)
+          // RingGeometry UV v is radial, so detail stays attached to the ring
+          // under perspective rotation and the sphere naturally occludes it.
+          shader.vertexShader = 'varying float ringRadius;\n'+shader.vertexShader
+          shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>',
+            '#include <begin_vertex>\n ringRadius = length(position.xy);')
+          shader.fragmentShader = 'varying float ringRadius;\n'+shader.fragmentShader
+          shader.fragmentShader = shader.fragmentShader.replace('float radius = length(vViewPosition.xy);', `
+            float r = (ringRadius-1.26)/.68;
+            float grain = .72+.13*sin(r*470.)+.08*sin(r*1279.)+.05*sin(r*91.);
+            float gap = 1.-.92*exp(-pow((r-.63)*75.,2.));
+            diffuseColor.rgb *= grain*mix(vec3(.72,.65,.54),vec3(1.22,1.13,.94),r);
+            diffuseColor.a *= gap*smoothstep(0.,.025,r)*(1.-smoothstep(.94,1.,r));
+          `)
+        }
+        ring.material.depthWrite = false
         ring.rotation.x = .9
         group.add(ring)
       }
@@ -206,6 +255,19 @@ export class ThreeSpace {
     return texture
   }
 
+  private async paintGalaxy(index: number, asset: string) {
+    const path = asset === 'galaxy' ? 'galaxy.webp' : 'galaxy_'+asset.slice(-1)+'.webp'
+    const map = await this.load('assets/others/'+path)
+    if (this.disposed || this.galaxyPaintKeys[index] !== asset) {
+      map.dispose(); this.textures.delete(map)
+      return
+    }
+    const uniform = this.galaxies[index].material.uniforms.art
+    const old = uniform.value as import('three').Texture | null
+    if (old) { old.dispose(); this.textures.delete(old) }
+    uniform.value = map
+  }
+
   private reprojectPlanet(pixels: Uint8ClampedArray, radius: number, aspect: number) {
     if (!this.planetWorker) {
       this.planetWorker = new Worker(new URL('./planetPaint.worker.ts',import.meta.url), { type: 'module' })
@@ -227,22 +289,27 @@ export class ThreeSpace {
     })
   }
 
-  private async paintPlanet(index: number, path: string, epoch: number, discRadius: number) {
+  private async paintPlanet(index: number, path: string, epoch: number, discRadius: number, tile?: number) {
     const texture = await this.load(path)
-    if (this.disposed || epoch !== this.paintEpoch) return
+    if (this.disposed || epoch !== this.paintEpoch) { texture.dispose(); this.textures.delete(texture); return }
     const image = texture.image as HTMLImageElement
     // Reproject the approved disc painting onto a complete spherical UV map once.
     const source = document.createElement('canvas')
     source.width = source.height = 512
     const ctx = source.getContext('2d', { willReadFrequently: true })!
-    ctx.drawImage(image, 0, 0, 512, 512)
+    if (tile === undefined) ctx.drawImage(image, 0, 0, 512, 512)
+    else {
+      const cell = image.width/2, gutter = image.width*24/1024
+      ctx.drawImage(image,(tile%2)*cell+gutter,Math.floor(tile/2)*cell+gutter,
+        cell-2*gutter,cell-2*gutter,0,0,512,512)
+    }
     const pixels = ctx.getImageData(0, 0, 512, 512).data
     const canvas = document.createElement('canvas')
     canvas.width = 1024; canvas.height = 512
     const target = canvas.getContext('2d')!
     const output = target.createImageData(1024, 512)
-    const paint = await this.reprojectPlanet(pixels,discRadius,image.width/image.height)
-    if (this.disposed || epoch !== this.paintEpoch) return
+    const paint = await this.reprojectPlanet(pixels,discRadius,tile === undefined ? image.width/image.height : 1)
+    if (this.disposed || epoch !== this.paintEpoch) { texture.dispose(); this.textures.delete(texture); return }
     output.data.set(paint)
     target.putImageData(output, 0, 0)
     texture.dispose()
@@ -265,22 +332,37 @@ export class ThreeSpace {
     const t = this.elapsed
     const region = cosmicRegionIndex(frame.stageTheme)
     const scene = getRaidBackgroundScene(frame.stageTheme)
-    if (region !== this.region) {
-      this.region = region
-      this.paintEpoch++
-      this.sky.material.uniforms.region.value = [region % 2, Math.floor(region / 2)]
-      for (let i = 0; i < this.planets.length; i++) {
-        const asset = scene.planets[i]?.asset ?? (i ? 'planet2' : 'planet1')
-        this.paintPlanet(i, 'assets/others/' + (paths[asset] ?? paths.planet1), this.paintEpoch, asset === 'planet2' ? .29 : asset === 'planet1' ? .447 : .478).catch(() => {})
-      }
-    }
     if (frame.stageNumber !== undefined && this.stage !== frame.stageNumber) {
       this.previousStage = this.stage
       this.stage = frame.stageNumber
     }
     sampleRaidJourney(frame, this.journey, this.previousStage)
+    if (region !== this.region) {
+      this.region = region
+      this.sky.material.uniforms.region.value = [region%2,Math.floor(region/2)]
+    }
+    const signature = region+'|'+scene.planets[0]?.asset+'|'+scene.planets[1]?.asset+'|'+
+      scene.planets[2]?.asset+'|'+this.journey.planet
+    if (signature !== this.paintSignature) {
+      this.paintSignature = signature
+      this.paintEpoch++
+      for (let i = 0; i < this.planets.length; i++) {
+        if (i === 0 && this.journey.planet >= 0) {
+          this.paintPlanet(i,'assets/raid-fx/destination-worlds-remaster-v2.webp',
+            this.paintEpoch,.481,this.journey.planet).catch(() => {})
+          continue
+        }
+        const asset = scene.planets[i]?.asset
+        if (!asset) continue
+        this.paintPlanet(i,'assets/others/'+(paths[asset] ?? paths.planet1),
+          this.paintEpoch,asset === 'planet2' ? .29 : asset === 'planet1' ? .447 : .478).catch(() => {})
+      }
+    }
     const cx = frame.width*.5, cy = frame.height*.5
-    this.sky.position.set(cx, cy, -2200)
+    this.sky.position.set(cx, cy, frame.height*.5/Math.tan(35*Math.PI/360))
+    this.sky.material.uniforms.angularScale.value = [
+      1/(2*Math.atan(Math.tan(35*Math.PI/360)*frame.width/frame.height)), 180/(35*Math.PI),
+    ]
     this.sky.material.uniforms.time.value = t
     this.stars.position.set(cx, cy, 0)
     this.starUniforms.time.value = t
@@ -297,6 +379,22 @@ export class ThreeSpace {
       planet.scale.setScalar(radius)
       planet.rotation.y = t * (.012+i*.003)
       planet.rotation.z = .18+i*.28
+    }
+    const focal = frame.height*.5/Math.tan(35*Math.PI/360)
+    for (let i = 0; i < this.galaxies.length; i++) {
+      const galaxy = this.galaxies[i], authored = scene.galaxies[i]
+      galaxy.visible = Boolean(authored)
+      if (!authored) continue
+      if (this.galaxyPaintKeys[i] !== authored.asset) {
+        this.galaxyPaintKeys[i] = authored.asset
+        this.paintGalaxy(i,authored.asset).catch(() => {})
+      }
+      const depth = 2800+i*500, perspective = (focal+depth)/focal
+      galaxy.position.set(cx+(authored.x-.5)*frame.width*perspective,
+        cy+(.5-authored.y)*frame.height*perspective,-depth)
+      const radius = authored.width*frame.width*scene.galaxyScale*perspective*.5
+      galaxy.scale.set(radius,authored.height*frame.height*scene.galaxyScale*perspective*.5,radius*.12)
+      galaxy.rotation.set(.18+Math.sin(t*.008+i)*.06,.24,authored.rotation)
     }
     const journey = this.journey
     if (journey.enabled && journey.planet >= 0) {
