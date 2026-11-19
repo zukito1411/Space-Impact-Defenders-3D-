@@ -1,6 +1,7 @@
+import { ThreeHullPreview } from './games/raid/ThreeHullPreview'
 import { getRaidSideShipNozzles, getRaidSideShipSpriteUrl } from './games/raid/sideArtwork'
 import { getDefaultPlayerVisualShipKey, getRaidGundamName } from './games/raid/state'
-import { getRaidExhaustScale, getRaidShipBaseVisualKey, getRaidShipNozzles, usesRaidRemasteredHullArt } from './games/raid/shipArtwork'
+import { getRaidExhaustScale, getRaidShipBaseVisualKey, getRaidShipNozzles } from './games/raid/shipArtwork'
 import { LEGACY_FIGHTER_COUNT, RAID_FIGHTER_DEBUT_STAGES } from './games/raid/stageEncounters'
 import { GameButton } from './ui/GameButton'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
@@ -37,7 +38,7 @@ import { getLanguageText, getRaidText, getReleaseText, type LanguageCode } from 
 import { BossBriefingCanvas } from './games/GradiusRaid'
 import type { BossKind } from './games/raid/types'
 import { CAMPAIGN_BOSS_ART, GENERIC_BOSS_KINDS, getGenericBossArt } from './games/raid/bossCatalog'
-import { getRaidAlienSpriteUrl, getRaidEliteSpriteUrl, getRaidMenuShipSpriteUrl, useLandscapeScreen, RAID_ALIEN_SPRITE_COUNT, RAID_ELITE_SPRITE_COUNT, RAID_SHIP_SPRITE_PATHS } from './games/RaidShipSprite'
+import { RaidShipSprite, getRaidAlienSpriteUrl, getRaidEliteSpriteUrl, getRaidMenuShipSpriteUrl, useLandscapeScreen, RAID_ALIEN_SPRITE_COUNT, RAID_ELITE_SPRITE_COUNT, RAID_SHIP_SPRITE_PATHS } from './games/RaidShipSprite'
 import { getPublicAssetUrl } from './games/sound'
 import './ProgressionScreen.css'
 
@@ -1226,6 +1227,8 @@ function UnlockBadge({ badge, unlocked }: { badge: UnlockBadgeDef; unlocked: boo
       </svg>
       {badge.asset ? (
         <>
+          {shipKey ? <RaidShipSprite shipKey={shipKey} size={44} sideView={landscape}
+            className={`unlock-card__badge-asset unlock-card__badge-asset--${assetKind}`} /> : (
           <img
             className={`unlock-card__badge-asset unlock-card__badge-asset--${assetKind}`}
             src={shipKey ? getRaidMenuShipSpriteUrl(shipKey, landscape) : getPublicAssetUrl(badge.asset)}
@@ -1234,7 +1237,8 @@ function UnlockBadge({ badge, unlocked }: { badge: UnlockBadgeDef; unlocked: boo
             loading="lazy"
             decoding="async"
             draggable={false}
-          />
+          />          )}
+
           {badge.label ? <i className="unlock-card__badge-chip">{badge.label}</i> : null}
         </>
       ) : null}
@@ -1331,7 +1335,6 @@ function ShipCosmeticCanvasPreview({ shipKey, spriteKey, cosmetics, locked = fal
 
       if (!locked && cosmetics.trail && !drawTrailOverSprite) drawPreviewMasteryTrail(ctx, x, y, previewSize, time, visualKey, style, sideView)
       if (!locked && cosmetics.aura && image.complete) drawPreviewMasteryAura(ctx, image, x, y, previewSize, time, style)
-      drawPreviewShipSprite(ctx, image, x, y, previewSize, cosmetics.frame, locked, visualKey)
       if (!locked && cosmetics.trail && drawTrailOverSprite) {
         ctx.save()
         ctx.globalAlpha *= 0.72
@@ -1354,25 +1357,21 @@ function ShipCosmeticCanvasPreview({ shipKey, spriteKey, cosmetics, locked = fal
     }
   }, [shipKey, spriteKey, cosmetics.trail, cosmetics.aura, cosmetics.frame, locked, landscape])
 
-  return (
-    <canvas
-      ref={canvasRef}
-      className="progress-ship-preview__canvas"
-      width={SHIP_PREVIEW_CANVAS_WIDTH}
-      height={SHIP_PREVIEW_CANVAS_HEIGHT}
-      aria-hidden="true"
-    />
-  )
+  const visualKey = spriteKey ?? shipKey
+  const combat = visualKey === 'godGundam' || visualKey === 'spiegel'
+  const size = combat ? 96 : shipKey === 'coreLander' ? 86 : SHIP_PREVIEW_SIZE
+  const centerY = landscape ? SHIP_PREVIEW_CANVAS_HEIGHT / 2 : combat ? 46 : shipKey === 'coreLander' ? 43 : 40
+  return <span style={{ display: 'block', position: 'relative', width: SHIP_PREVIEW_CANVAS_WIDTH, height: SHIP_PREVIEW_CANVAS_HEIGHT }}>
+    <canvas ref={canvasRef} className="progress-ship-preview__canvas"
+      width={SHIP_PREVIEW_CANVAS_WIDTH} height={SHIP_PREVIEW_CANVAS_HEIGHT} aria-hidden="true" />
+    <span style={{ position: 'absolute', left: (SHIP_PREVIEW_CANVAS_WIDTH-size)/2, top: centerY-size/2, width: size, height: size }}>
+      <ThreeHullPreview shipKey={visualKey} landscape={landscape} />
+    </span>
+  </span>
 }
 
 function getShipPreviewVisualStyle(shipKey: string) {
   return SHIP_PREVIEW_VISUAL_STYLES[shipKey] ?? SHIP_PREVIEW_VISUAL_STYLES.rocket
-}
-
-function getPreviewShipFrameFilter(shipKey: string) {
-  if (shipKey === 'godGundam') return 'brightness(1.18) contrast(1.34) saturate(2.45) sepia(0.46) hue-rotate(350deg)'
-  if (shipKey === 'spiegel') return 'brightness(1.2) contrast(1.34) saturate(1.9) sepia(0.24) hue-rotate(342deg)'
-  return 'brightness(1.28) contrast(1.42) saturate(2.25)'
 }
 
 function drawPreviewImageContained(ctx: CanvasRenderingContext2D, image: HTMLImageElement, x: number, y: number, size: number) {
@@ -1381,14 +1380,6 @@ function drawPreviewImageContained(ctx: CanvasRenderingContext2D, image: HTMLIma
   const width = image.naturalWidth * scale
   const height = image.naturalHeight * scale
   ctx.drawImage(image, x - width / 2, y - height / 2, width, height)
-}
-
-function drawPreviewShipSprite(ctx: CanvasRenderingContext2D, image: HTMLImageElement, x: number, y: number, size: number, framed: boolean, locked = false, shipKey = '') {
-  if (!image.complete) return
-  ctx.save()
-  ctx.filter = locked ? 'brightness(0) contrast(1.18) drop-shadow(0 0 14px rgba(0,0,0,0.88))' : usesRaidRemasteredHullArt(shipKey) ? 'none' : framed ? getPreviewShipFrameFilter(shipKey) : 'brightness(1.12) contrast(1.14) saturate(1.26)'
-  drawPreviewImageContained(ctx, image, x, y, size)
-  ctx.restore()
 }
 
 function drawPreviewMasteryTrail(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, time: number, shipKey: string, style: ShipPreviewVisualStyle, sideView = false) {

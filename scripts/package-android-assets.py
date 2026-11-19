@@ -25,7 +25,7 @@ def package(public, dist, output):
             # before the native media store has been installed.
             if not source.is_file() or name == LOGO or source.suffix.lower() in MEDIA_METADATA_SUFFIXES:
                 continue
-            if source.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp", ".svg", ".mp3", ".wav", ".ogg"}:
+            if source.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp", ".svg", ".glb", ".mp3", ".wav", ".ogg"}:
                 raise ValueError(f"Unrecognized Android media: {name}")
             data = (dist / name).read_bytes()
             digest = hashlib.sha256(data).hexdigest()

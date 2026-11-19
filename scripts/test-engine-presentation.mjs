@@ -6,6 +6,8 @@ source=source.replace(/^import[^\r\n]*\r?\n/gm,'')
 const artwork=readFileSync(new URL('../src/components/games/raid/shipArtwork.ts',import.meta.url),'utf8')
 const muzzle=readFileSync(new URL('../src/components/games/raid/playerMuzzle.ts',import.meta.url),'utf8').replace(/^import[^\r\n]*\r?\n/gm,'')
 source=`
+const liveHullsEnabled=()=>false, drawLiveHull=()=>false, sampleLiveHullPoints=()=>null, loadHull=async()=>{};
+const CARRIER_EXIT_SECONDS=20;
 const WIDTH=100, HEIGHT=100, DEG=Math.PI/180, PLAYER_COLOR='#ef233c';
 const updateFlightPose=(pose)=>{pose.maneuverJet=globalThis.testManeuverJet??0;return 0};
 const GOD_GUNDAM_BURNING_BODY_SCALE=1.09,GOD_GUNDAM_BURNING_BODY_Y_OFFSET=-.064;

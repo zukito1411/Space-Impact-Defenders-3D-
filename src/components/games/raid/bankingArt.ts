@@ -1,5 +1,6 @@
+import { liveHullsEnabled, sampleLiveHullPoints } from './liveHullBridge'
 import { getPublicAssetUrl } from '../sound'
-import { getCanvasSpriteSource, makeImageCanvasSprite, releaseCanvasSprite } from './assets'
+import { getCanvasSpriteSource, getShipCanvasSprite, makeImageCanvasSprite, releaseCanvasSprite } from './assets'
 import type { CanvasSpriteEntry } from './assets'
 import type { ProtectionHull } from './shipProtection'
 import anchors from './bankingAnchors.json'
@@ -26,6 +27,9 @@ type BankingRegistration = { nozzles: ExhaustOutlet[][]; wing?: BankingPoint[][]
 const registrations = anchors as unknown as Readonly<Record<string, BankingRegistration>>
 
 export type RaidBankingFrame = {
+  key: string
+  bank: number
+  landscape: boolean
   sprite: CanvasSpriteEntry
   frame: number
   nozzles: readonly ExhaustOutlet[]
@@ -97,12 +101,18 @@ export function raidBankingFrameIndex(bank: number, landscape: boolean, reducedM
 }
 
 export function getRaidBankingFrame(shipKey: string, bank: number, landscape: boolean, reducedMotion: boolean): RaidBankingFrame | null {
+  if (liveHullsEnabled()) {
+    const key = bankingKey(shipKey)
+    const actualBank = reducedMotion ? 0 : bank
+    const points = sampleLiveHullPoints(key, actualBank, landscape)
+    if (points) return { key, bank: actualBank, landscape, sprite: getShipCanvasSprite(key), frame: 0, ...points }
+  }
   if (!shouldUseRaidBankingArt(shipKey, landscape)) return null
   const sprite = getRaidBankingAtlas(shipKey)
   if (!sprite?.loaded) return null
   const { nozzles, wing } = registrations[bankingKey(shipKey)]
   const frame = raidBankingFrameIndex(bank, landscape, reducedMotion, nozzles.length / 2)
-  return { sprite, frame, nozzles: nozzles[frame], wing: wing?.[frame] }
+  return { key: bankingKey(shipKey), bank, landscape, sprite, frame, nozzles: nozzles[frame], wing: wing?.[frame] }
 }
 
 export function getBankingProtectionHull(sprite: CanvasSpriteEntry, landscape: boolean): ProtectionHull {

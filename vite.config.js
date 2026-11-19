@@ -38,7 +38,10 @@ export default defineConfig({
                 ],
             },
             workbox: {
-                globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,mp3,ogg,wav,json,webmanifest}'],
+                globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,mp3,ogg,wav,json,glb,webmanifest}'],
+                // Keep the old sheets in source history/comparisons without fetching
+                // both artwork generations during offline installation.
+                globIgnores: ['assets/raid-fx/combat-atlas-v1.png', 'assets/raid-fx/explosion-atlas-v1.png'],
                 maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
                 cleanupOutdatedCaches: true,
                 clientsClaim: true,
