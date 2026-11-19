@@ -11,8 +11,20 @@ export function sampleCelestialStar(index: number, width: number, height: number
   const twinkle = wave * wave * (.82 + Math.sin(t * .39 + index) * .18)
   out.x = atmospheric ? width * (.025 + seed * .95) : mod(seed * (width + 40) - t * width * (.0007 + index % 3 * .0005), width + 40) - 20
   out.y = height * (atmospheric ? .055 + unit(index * .414213 + .11) * .45 : .025 + unit(index * .414213 + .11) * .95)
+  if (!atmospheric) {
+    // Distant bright stars share a pinhole projection, with a smooth fade
+    // while a catalogue point crosses the back of the viewing volume.
+    const depth = 3 + mod(index * .731 - t * .025, 12)
+    const focal = Math.max(width, height) * .93
+    out.x = width * .5 + (seed-.5) * 11 * focal / depth
+    out.y = height * .5 + (unit(index * .414213 + .11)-.5) * 11 * focal / depth
+  }
   out.size = Math.max(10, Math.min(24, Math.min(width, height) * .025)) * (.65 + unit(index * .729) * .7)
   out.alpha = (atmospheric ? .1 : .13) + twinkle * (atmospheric ? .54 : .58)
+  if (!atmospheric) {
+    const depth = mod(index * .731 - t * .025, 12)
+    out.alpha *= Math.min(1, depth * 2, (12-depth) * 2)
+  }
   return out
 }
 

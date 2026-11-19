@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useState, useSyncExternalStore } from 'react'
+import hullFrames from './raid/menuHullFrames.json'
 import { RAID_ELITE_FRAME_PATHS } from './raid/shipArtwork'
-import { drawRaidBankingCell, getRaidBankingAtlas, getRaidBankingAtlasUrl, getRaidPicker3DPreviewUrl, isRaidGundamArt, raidBankingFrameIndex, raidBankingPreviewAngle } from './raid/bankingArt'
+import { getRaidPicker3DPreviewUrl } from './raid/bankingArt'
 import { getRaidSideShipSpriteUrl } from './raid/sideArtwork'
 import { getPublicAssetUrl } from './sound'
 import { LEGACY_FIGHTER_COUNT, RAID_FIGHTER_ASSETS } from './raid/stageEncounters'
@@ -58,7 +59,7 @@ export function useLandscapeScreen() {
   return useSyncExternalStore(subscribeOrientation, getLandscapeSnapshot, () => false)
 }
 export function getRaidMenuShipSpriteUrl(shipKey: string, landscape: boolean) {
-  return (landscape && getRaidSideShipSpriteUrl(shipKey)) || getRaidShipSpriteUrl(shipKey)
+  return getRaidPicker3DPreviewUrl(shipKey, landscape) || (landscape && getRaidSideShipSpriteUrl(shipKey)) || getRaidShipSpriteUrl(shipKey)
 }
 
 export function getRaidAlienSpriteUrl(variant: number) {
@@ -81,7 +82,7 @@ export function RaidShipPickerPreview({ shipKey, landscape }: { shipKey: string;
   const [failedUrl, setFailedUrl] = useState<string | null>(null)
   const source = previewUrl && failedUrl !== previewUrl
     ? previewUrl
-    : getRaidMenuShipSpriteUrl(shipKey, landscape)
+    : (landscape && getRaidSideShipSpriteUrl(shipKey)) || getRaidShipSpriteUrl(shipKey)
 
   return (
     <span className="raid__ship-preview" aria-hidden="true">
@@ -97,69 +98,24 @@ export function RaidShipPickerPreview({ shipKey, landscape }: { shipKey: string;
   )
 }
 
-// Hangar and other 3D previews use a DPR-aware Canvas backed by the
-// palette-matched atlas. The ship-selection cards opt into the original 2D art.
-export function RaidShipSprite({ shipKey, size, className = 'raid__ship-sprite', sideView, preferOriginalArt = false }: { shipKey: string; size: number; className?: string; sideView?: boolean; preferOriginalArt?: boolean }) {
+// Small static displays share the tightly framed 3D renders used in selection.
+export function RaidShipSprite({ shipKey, size, className = 'raid__ship-sprite', sideView }: {
+  shipKey: string; size: number; className?: string; sideView?: boolean
+}) {
   const landscape = useLandscapeScreen()
   const viewLandscape = sideView ?? landscape
-  // Keep the original 2D art in the ship picker: the small card should show
-  // faithfully painted details rather than a magnified, baked banking frame.
-  // In-flight, the hangar and support ships still use the corrected 3D atlas.
-  const atlasUrl = (preferOriginalArt || isRaidGundamArt(shipKey)) ? null : getRaidBankingAtlasUrl(shipKey)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [loadedAtlas, setLoadedAtlas] = useState<string | null>(null)
-  const [failedAtlas, setFailedAtlas] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!atlasUrl) return
-    let active = true
-    const sprite = getRaidBankingAtlas(shipKey)
-    const paint = () => {
-      if (!active) return
-      const canvas = canvasRef.current
-      if (!sprite?.loaded || !canvas) {
-        setFailedAtlas(atlasUrl)
-        return
-      }
-      const ratio = Math.min(3, Math.max(1, window.devicePixelRatio || 1))
-      canvas.width = Math.max(1, Math.ceil(size * ratio))
-      canvas.height = Math.max(1, Math.ceil(size * ratio))
-      const ctx = canvas.getContext('2d')
-      if (!ctx) {
-        setFailedAtlas(atlasUrl)
-        return
-      }
-      ctx.setTransform(ratio, 0, 0, ratio, 0, 0)
-      ctx.clearRect(0, 0, size, size)
-      drawRaidBankingCell(ctx, sprite, raidBankingFrameIndex(0, viewLandscape, false), size / 2, size / 2, size)
-      setFailedAtlas(null)
-      setLoadedAtlas(atlasUrl)
-    }
-    if (sprite?.loaded) paint()
-    else if (sprite) void sprite.ready.then(paint)
-    else setFailedAtlas(atlasUrl)
-    return () => { active = false }
-  }, [atlasUrl, shipKey, size, viewLandscape])
-
-  const ready = atlasUrl !== null && loadedAtlas === atlasUrl && failedAtlas !== atlasUrl
-  const legacyFallback = !atlasUrl || failedAtlas === atlasUrl
+  const key = shipKey === 'mesiah' ? 'mesiahBlack' : shipKey
+  const frames = hullFrames as Readonly<Record<string, number[][]>>
+  const frame = frames[key]?.[viewLandscape ? 1 : 0] ?? [0, 0, 1]
   return (
     <span className={className} aria-hidden="true" style={{
-      position: 'relative', display: 'inline-flex', alignItems: 'center',
-      justifyContent: 'center', width: size, height: size, flexShrink: 0,
+      position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      width: size, height: size, flexShrink: 0,
     }}>
-      {legacyFallback && <img
-        src={getRaidMenuShipSpriteUrl(shipKey, viewLandscape)}
-        alt="" draggable={false}
-        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-      />}
-      {atlasUrl && <canvas ref={canvasRef} aria-hidden="true" style={{
-        position: 'absolute', left: 0, top: 0, width: '100%', height: '100%',
-        transform: `rotate(${raidBankingPreviewAngle(viewLandscape)}deg)`,
-        opacity: ready ? 1 : 0,
-        transition: 'opacity 140ms ease-out',
-        pointerEvents: 'none',
-      }}/>}
+      <img src={getRaidMenuShipSpriteUrl(shipKey, sideView ?? landscape)} alt="" draggable={false}
+        decoding="async" style={{ position: 'absolute', left: `${frame[0] * 100}%`,
+          top: `${frame[1] * 100}%`, width: `${frame[2] * 100}%`, height: `${frame[2] * 100}%`,
+          objectFit: 'contain' }} />
     </span>
   )
 }

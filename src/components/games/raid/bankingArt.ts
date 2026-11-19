@@ -5,7 +5,7 @@ import type { ProtectionHull } from './shipProtection'
 import anchors from './bankingAnchors.json'
 
 export const BANKING_COLUMNS = 7
-export const BANKING_ROWS = 2
+export const BANKING_ROWS = 6
 export const BANKING_CELL = 448
 // The source atlas is oriented nose-up for both flight-camera modes. UI previews
 // must apply the flight camera's quarter turn when shown on a landscape screen.
@@ -13,7 +13,7 @@ export function raidBankingPreviewAngle(landscape: boolean) { return landscape ?
 export function raidBankingPreviewNozzle(x: number, y: number, landscape: boolean) {
   return landscape ? { x: -y, y: x } : { x, y }
 }
-const LEVEL_FRAME = 3
+const BANKING_POSES = 21
 // Preserve the metal's original paint instead of flattening it to dim gray.
 export const RAID_BANKING_HULL_FILTER = 'none'
 const BANKING_CACHE_LIMIT = 6
@@ -54,7 +54,7 @@ const legacyMechAtlases = new Set(['godGundam', 'godGundamBurning', 'spiegel'])
 export function getRaidBankingAtlasUrl(shipKey: string) {
   const key = bankingKey(shipKey)
   if (!Object.prototype.hasOwnProperty.call(registrations, key)) return null
-  const version = legacyMechAtlases.has(key) ? 7 : 14
+  const version = legacyMechAtlases.has(key) ? 7 : 15
   return getPublicAssetUrl(`assets/ships/banking/${key}-v${version}.webp`)
 }
 
@@ -69,7 +69,7 @@ export function getRaidPicker3DPreviewUrl(shipKey: string, landscape: boolean) {
 export function getRaidBankingNozzles(shipKey: string, landscape: boolean) {
   const key = bankingKey(shipKey)
   return Object.prototype.hasOwnProperty.call(registrations, key)
-    ? registrations[key].nozzles[raidBankingFrameIndex(0, landscape, false)]
+    ? registrations[key].nozzles[raidBankingFrameIndex(0, landscape, false, registrations[key].nozzles.length / 2)]
     : null
 }
 
@@ -91,77 +91,35 @@ export function getRaidBankingAtlas(shipKey: string) {
   return sprite
 }
 
-export function raidBankingFrameIndex(bank: number, landscape: boolean, reducedMotion: boolean) {
+export function raidBankingFrameIndex(bank: number, landscape: boolean, reducedMotion: boolean, poses = BANKING_POSES) {
   const amount = reducedMotion ? 0 : Math.max(-1, Math.min(1, bank / .14))
-  const position = (landscape ? BANKING_COLUMNS : 0) + LEVEL_FRAME * (1 + amount)
-  const nearest = Math.round(position)
-  return Math.abs(nearest - position) < .0001 ? nearest : position
+  return (landscape ? poses : 0) + Math.round((poses - 1) * .5 * (1 + amount))
 }
 
 export function getRaidBankingFrame(shipKey: string, bank: number, landscape: boolean, reducedMotion: boolean): RaidBankingFrame | null {
   if (!shouldUseRaidBankingArt(shipKey, landscape)) return null
   const sprite = getRaidBankingAtlas(shipKey)
   if (!sprite?.loaded) return null
-  const frame = raidBankingFrameIndex(bank, landscape, reducedMotion)
   const { nozzles, wing } = registrations[bankingKey(shipKey)]
-  const lower = Math.floor(frame)
-  const t = frame - lower
-  if (!t) return { sprite, frame, nozzles: nozzles[lower], wing: wing?.[lower] }
-
-  const next = nozzles[lower + 1]
-  const nextWing = wing?.[lower + 1]
-  return {
-    sprite, frame,
-    nozzles: nozzles[lower].map(([x, y, width], i) => [
-      x + (next[i][0] - x) * t, y + (next[i][1] - y) * t, width + (next[i][2] - width) * t,
-    ]),
-    wing: nextWing && wing?.[lower].map(([x, y], i) =>
-      [x + (nextWing[i][0] - x) * t, y + (nextWing[i][1] - y) * t]),
-  }
+  const frame = raidBankingFrameIndex(bank, landscape, reducedMotion, nozzles.length / 2)
+  return { sprite, frame, nozzles: nozzles[frame], wing: wing?.[frame] }
 }
 
 export function getBankingProtectionHull(sprite: CanvasSpriteEntry, landscape: boolean): ProtectionHull {
   // Keep the energy shield stable during shallow banks. Computing a fresh
   // distance field every time the hull changes frame would stall flight.
-  return { sprite, columns: BANKING_COLUMNS, rows: BANKING_ROWS, frame: raidBankingFrameIndex(0, landscape, false) }
-}
-
-// Mix the two premultiplied poses on transparent pixels so the scenery never
-// enters the blend. A single reusable surface serves the entire formation.
-let blendSurface: CanvasRenderingContext2D | null = null
-
-function drawPose(ctx: CanvasRenderingContext2D, source: CanvasImageSource, frame: number,
-  left: number, top: number, size: number) {
-  ctx.drawImage(source, frame % BANKING_COLUMNS * BANKING_CELL,
-    Math.floor(frame / BANKING_COLUMNS) * BANKING_CELL, BANKING_CELL, BANKING_CELL,
-    left, top, size, size)
+  const poses = sprite.cacheKey.includes('-v15.webp') ? BANKING_POSES : 7
+  return { sprite, columns: BANKING_COLUMNS, rows: poses * 2 / BANKING_COLUMNS,
+    frame: raidBankingFrameIndex(0, landscape, false, poses) }
 }
 
 export function drawRaidBankingCell(ctx: CanvasRenderingContext2D, sprite: CanvasSpriteEntry, frame: number,
   x: number, y: number, size: number) {
-  const lower = Math.floor(frame)
-  const t = frame - lower
-  const source = getCanvasSpriteSource(sprite)
-  if (t && !blendSurface) {
-    const canvas = ctx.canvas.ownerDocument.createElement('canvas')
-    canvas.width = canvas.height = BANKING_CELL
-    blendSurface = canvas.getContext('2d')
-  }
   ctx.save()
   ctx.imageSmoothingEnabled = true
   ctx.imageSmoothingQuality = 'high'
-  if (t && blendSurface) {
-    const mix = blendSurface
-    mix.clearRect(0, 0, BANKING_CELL, BANKING_CELL)
-    mix.globalCompositeOperation = 'source-over'
-    mix.globalAlpha = 1 - t
-    drawPose(mix, source, lower, 0, 0, BANKING_CELL)
-    mix.globalCompositeOperation = 'lighter'
-    mix.globalAlpha = t
-    drawPose(mix, source, lower + 1, 0, 0, BANKING_CELL)
-    ctx.drawImage(mix.canvas, x - size / 2, y - size / 2, size, size)
-  } else {
-    drawPose(ctx, source, Math.round(frame), x - size / 2, y - size / 2, size)
-  }
+  ctx.drawImage(getCanvasSpriteSource(sprite),
+    frame % BANKING_COLUMNS * BANKING_CELL, Math.floor(frame / BANKING_COLUMNS) * BANKING_CELL,
+    BANKING_CELL, BANKING_CELL, x - size / 2, y - size / 2, size, size)
   ctx.restore()
 }

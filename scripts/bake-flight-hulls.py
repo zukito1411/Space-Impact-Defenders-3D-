@@ -1,4 +1,4 @@
-"""Render saved flight .blend models, both selector views and their projected attachments.
+"""Render 21 physical bank poses per view from the saved flight .blend models.
 
 blender -b -t 8 --python-exit-code 1 -P scripts/bake-flight-hulls.py [-- fast gatling]
 """

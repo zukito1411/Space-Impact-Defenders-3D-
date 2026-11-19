@@ -12,13 +12,14 @@ export function impactAlpha(progress: number) {
   return 1 - Math.pow(unit(progress), 1.65)
 }
 
-export type FlightPose = { time: number; x: number; bank: number; lateralSpeed?: number; maneuverJet?: number }
+export type FlightPose = { time: number; x: number; bank: number; bankVelocity?: number; lateralSpeed?: number; maneuverJet?: number }
 /** Responsive cosmetic bank; reset on teleports/resume rather than snapping. */
 export function updateFlightPose(pose: FlightPose, time: number, x: number) {
   const dt = (time - pose.time) / 1000
   if (dt === 0 && x === pose.x) return pose.bank
   if (dt <= 0 || dt > 0.15 || Math.abs(x - pose.x) > 12) {
     pose.bank = 0
+    pose.bankVelocity = 0
     pose.lateralSpeed = 0
     pose.maneuverJet = 0
   } else {
@@ -34,7 +35,14 @@ export function updateFlightPose(pose: FlightPose, time: number, x: number) {
     }
     pose.lateralSpeed = speed
     const target = Math.max(-1, Math.min(1, speed / 48)) * 0.14
-    pose.bank += (target - pose.bank) * (1 - Math.exp(-dt * 12))
+    // Exact critically damped spring preserves angular momentum through a
+    // reversal and settles level without oscillation or frame-rate dependence.
+    const omega = 18
+    const displacement = pose.bank - target
+    const impulse = (pose.bankVelocity ?? 0) + omega * displacement
+    const decay = Math.exp(-omega * dt)
+    pose.bank = target + (displacement + impulse * dt) * decay
+    pose.bankVelocity = ((pose.bankVelocity ?? 0) - omega * impulse * dt) * decay
   }
   pose.time = time
   pose.x = x

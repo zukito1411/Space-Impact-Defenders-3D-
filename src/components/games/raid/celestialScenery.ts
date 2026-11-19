@@ -62,10 +62,13 @@ export class CelestialScenery {
       sprite.visible = !atmosphere && !reduced && i < (quality === 'low' ? 3 : quality === 'medium' ? 6 : 12)
       if (!sprite.visible) continue
       sprite.texture = star
-      sprite.position.set(mod(width * (i * .618 % 1) - t * width * .004, width), height * (.03 + (i * .233 % .94)))
-      const size = Math.max(3, Math.min(width, height) * .007)
+      const depth = 1.4 + mod(i * .917 - t * .09, 9)
+      const focal = Math.max(width, height) * .93
+      sprite.position.set(width * .5 + ((i * .618 % 1)-.5) * 7 * focal / depth,
+        height * .5 + ((i * .233 % 1)-.5) * 7 * focal / depth)
+      const size = Math.max(3, Math.min(width, height) * .007) * 3 / depth
       sprite.width = size; sprite.height = size * .75
-      sprite.alpha = (.08 + Math.sin(t * .22 + i) * .035) * fade
+      sprite.alpha = (.08 + Math.sin(t * .22 + i) * .035) * fade * Math.min(1, (depth - 1.4) * 2, (10.4 - depth) * 2)
       sprite.tint = region === 1 ? 0xe8bc8e : 0x9bbfe9
     }
   }

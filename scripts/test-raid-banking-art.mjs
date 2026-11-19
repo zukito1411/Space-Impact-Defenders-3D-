@@ -28,7 +28,8 @@ const art = await compile(`
   const anchors = ${JSON.stringify(registrations)}
   const getPublicAssetUrl = path => '/base/' + path
   const releaseCanvasSprite = () => {}
-  const makeImageCanvasSprite = (cacheKey, url) => ({ cacheKey, url, loaded: !cacheKey.includes('rocket-v14') })
+  const getCanvasSpriteSource = sprite => sprite
+  const makeImageCanvasSprite = (cacheKey, url) => ({ cacheKey, url, loaded: !cacheKey.includes('rocket-v15') })
 ` + source.replace(/^import .*\n/gm, ''))
 // Preserve textured ship paint and reflections; a one-time tint is cheaper
 // than filters on every animated frame and should not wash out the hull.
@@ -37,10 +38,10 @@ assert.equal(art.BANKING_CELL, 448, 'banking poses must be high-DPI source resol
 assert.match(source, /makeImageCanvasSprite\(`ship-banking:/)
 assert.doesNotMatch(source, /globalCompositeOperation = 'source-atop'/)
 // Use the in-game indexing logic to exercise extremes, the portrait/landscape split and reduced motion.
-for (const [landscape, offset] of [[false, 0], [true, 7]]) {
+for (const [landscape, offset] of [[false, 0], [true, 21]]) {
   assert.deepEqual([-.3, -.14, 0, .14, .3].map(bank => art.raidBankingFrameIndex(bank, landscape, false)),
-    [0, 0, 3, 6, 6].map(i => i + offset))
-  assert.equal(art.raidBankingFrameIndex(.14, landscape, true), 3 + offset)
+    [0, 0, 10, 20, 20].map(i => i + offset))
+  assert.equal(art.raidBankingFrameIndex(.14, landscape, true), 10 + offset)
 }
 // Flight atlases are always nose-up before the game's rotating landscape
 // camera. Preview cards must apply that same quarter-turn to the hull and
@@ -50,19 +51,17 @@ assert.equal(art.raidBankingPreviewAngle(true), 90)
 assert.deepEqual(art.raidBankingPreviewNozzle(.09, .42, false), {x:.09, y:.42})
 assert.deepEqual(art.raidBankingPreviewNozzle(.09, .42, true), {x:-.42, y:.09})
 for (const landscape of [false, true]) {
-  const index = landscape ? 10 : 3
-  const bank = .14 / 6
-  const pose = art.getRaidBankingFrame('xwing', bank, landscape, false)
-  assert.equal(pose.frame, index + .5)
-  for (const group of ['wing', 'nozzles']) {
-    for (const [i, point] of pose[group].entries()) {
-      point.forEach((value, j) => {
-        const [a,b] = registrations.xwing[group].slice(index,index+2)
-        assert.ok(Math.abs(value - (a[i][j] + b[i][j]) / 2) < 1e-9)
-      })
-    }
+  const offset = landscape ? 21 : 0
+  for (let i=0;i<21;i++) {
+    const pose = art.getRaidBankingFrame('xwing', (i-10)*.014, landscape, false)
+    assert.equal(pose.frame, offset+i)
+    assert.deepEqual(pose.wing, registrations.xwing.wing[offset+i])
   }
-  assert.equal(art.getRaidBankingFrame('xwing', bank, landscape, true).frame, index)
+  const calls = []
+  const ctx = {save(){},restore(){},drawImage(...args){calls.push(args)}}
+  const source = {cacheKey:'test'}
+  art.drawRaidBankingCell(ctx,source,offset+10,10,10,80)
+  assert.equal(calls.length,1,'each bank must draw one solid pose')
 }
 // New atlases must originate from the unsharpened v1 source, never v2/v3.
 const baker = readFileSync('scripts/match-3d-to-2d-palette.py', 'utf8')
@@ -71,8 +70,8 @@ assert.match(baker, /ImageFilter.MedianFilter\(size=3\)/)
 assert.doesNotMatch(baker, /ImageFilter\.UnsharpMask\(/)
 assert.match(baker, /"-v7.webp"/)
 const preview = readFileSync('src/components/games/RaidShipSprite.tsx', 'utf8')
-assert.match(preview, /drawRaidBankingCell\(ctx, sprite, raidBankingFrameIndex\(0, viewLandscape, false\)/)
-assert.match(preview, /raidBankingPreviewAngle\(viewLandscape\)/)
+assert.match(preview, /getRaidMenuShipSpriteUrl\(shipKey, sideView \?\? landscape\)/)
+assert.match(preview, /return getRaidPicker3DPreviewUrl\(shipKey, landscape\)/)
 // Gundam/Spiegel stay 2D in landscape gameplay; selector previews are 3D.
 for (const key of ['godGundam', 'godGundamBurning', 'spiegel', 'coreLander',
                    'coreLanderBurning', 'coreLanderElite', 'coreLanderBurningElite']) {
@@ -94,7 +93,7 @@ const modelKeys = Object.keys(registrations).filter(key => !mechKeys.includes(ke
 assert.deepEqual(models.sort(), modelKeys.map(key => key + '.blend').sort())
 for (const key of Object.keys(registrations)) {
   const reconstructed = modelKeys.includes(key)
-  assert.equal(art.getRaidBankingAtlasUrl(key), `/base/assets/ships/banking/${key}-v${reconstructed ? 14 : 7}.webp`)
+  assert.equal(art.getRaidBankingAtlasUrl(key), `/base/assets/ships/banking/${key}-v${reconstructed ? 15 : 7}.webp`)
   for (const landscape of [false, true]) {
     const path = art.getRaidPicker3DPreviewUrl(key, landscape)
     assert.equal(path, `/base/assets/ships/previews/${key}-${landscape ? 'landscape' : 'portrait'}-v${reconstructed ? (landscape ? 7 : 5) : 1}.webp`)
@@ -108,18 +107,18 @@ for (const key of Object.keys(registrations)) {
 assert.equal(art.getRaidBankingAtlasUrl('mesiah'), art.getRaidBankingAtlasUrl('mesiahBlack'))
 assert.equal(art.getRaidBankingFrame('toString', 0, false, false), null)
 assert.equal(art.getRaidBankingFrame('rocket', 0, false, false), null, 'keep the original sprite until the atlas loads')
-assert.equal(art.getBankingProtectionHull(art.getRaidBankingAtlas('laser'), true).frame, 10)
+assert.equal(art.getBankingProtectionHull(art.getRaidBankingAtlas('laser'), true).frame, 31)
 for (const [key, entry] of Object.entries(registrations)) {
   const sourceImage = readFileSync('public/assets/ships/banking/' + key + '-v1.webp')
   const image = readFileSync(art.getRaidBankingAtlasUrl(key).replace('/base/', 'public/'))
   assert.equal(image.toString('ascii', 0, 4), 'RIFF', key)
   assert.equal(image.toString('ascii', 8, 16), 'WEBPVP8X', key)
   assert.equal(sourceImage.readUIntLE(24, 3) + 1, 224 * art.BANKING_COLUMNS, key)
-  assert.equal(sourceImage.readUIntLE(27, 3) + 1, 224 * art.BANKING_ROWS, key)
+  assert.equal(sourceImage.readUIntLE(27, 3) + 1, 224 * 2, key)
   assert.equal(image.readUIntLE(24, 3) + 1, art.BANKING_CELL * art.BANKING_COLUMNS, key)
-  assert.equal(image.readUIntLE(27, 3) + 1, art.BANKING_CELL * art.BANKING_ROWS, key)
+  assert.equal(image.readUIntLE(27, 3) + 1, art.BANKING_CELL * (modelKeys.includes(key) ? 6 : 2), key)
   assert.ok(image.byteLength > 10000, key + ': enhanced atlas must be a nonempty WebP image')
-  assert.equal(entry.nozzles.length, 14, key)
+  assert.equal(entry.nozzles.length, modelKeys.includes(key) ? 42 : 14, key)
   for (const outlets of entry.nozzles) {
     if (key === 'xwing' || key === 'xwingElite') {
       assert.equal(outlets.length, 4, key + ': every split drive needs a registered exhaust')
@@ -130,7 +129,7 @@ for (const [key, entry] of Object.entries(registrations)) {
     }
   }
   if (entry.wing) {
-    assert.equal(entry.wing.length, 14, key)
+    assert.equal(entry.wing.length, 42, key)
     for (const tips of entry.wing) {
       assert.equal(tips.length, 4, key)
       assert.ok(tips.every(([x, y]) => Math.abs(x) < .5 && y < 0 && y > -.5), key)
@@ -149,4 +148,4 @@ const [x, y] = tips[3]
 assert.equal(shots[0].x, ship.x + (Math.cos(bank) * x - Math.sin(bank) * y) * (size * 100 / 400))
 assert.equal(shots[0].y, ship.y + (Math.sin(bank) * x + Math.cos(bank) * y) * (size * 100 / 800))
 assert.equal(shots[0].vy, -80)
-console.log('27 banking atlases, seven banks, both views, reduced motion, fallback and cannon registration verified')
+console.log('Dense solid bank poses, both camera views, legacy assets and hardpoint registration verified')
