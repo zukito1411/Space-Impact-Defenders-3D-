@@ -1,3 +1,4 @@
+import { OrbitalCamera, OrbitalGlobe, OrbitalStars, CosmicGasVolume, globeStyles } from './orbitalSpace'
 import { orbitalShadowCoverage, sampleCapitalFlyby, sampleOrbitalShadow, type OrbitalShadow } from './flightEffects'
 import { LandscapePlanetAtmosphere } from './landscapeAtmosphere'
 import { CelestialScenery } from './celestialScenery'
@@ -853,6 +854,12 @@ export class PixiRaidBackground {
   private readonly scene = new Container()
   private readonly skyScene = new Container()
   private readonly nebulaScene = new Container()
+  private orbitalCamera: OrbitalCamera | null = null
+  private orbitalStars: OrbitalStars | null = null
+  private readonly globes: OrbitalGlobe[] = []
+  private readonly gasVolumes: CosmicGasVolume[] = []
+  private readonly projected = new Map<Sprite, { depth: number; x: number; y: number; sx: number; sy: number; active: boolean }>()
+
   private readonly worldScene = new Container()
   private readonly journeySurfaceSprite = new TilingSprite({ texture: Texture.WHITE, width: 1, height: 1 })
   private readonly surfaceCamera = createSurfaceCameraFrame()
@@ -966,7 +973,7 @@ export class PixiRaidBackground {
       this.scene.addChild(this.skyScene)
       this.skyScene.addChild(this.baseGraphics)
       // Only nebula art inherits this gain; the original galaxies remain above it.
-      this.nebulaScene.alpha = .3
+      this.nebulaScene.alpha = .66
       this.skyScene.addChild(this.nebulaScene)
       this.nebulaSprites.forEach((sprite) => this.nebulaScene.addChild(sprite))
       this.nebulaScene.addChild(this.nebulaGraphics)
@@ -1036,6 +1043,24 @@ export class PixiRaidBackground {
       }
       this.scene.addChild(this.explosionGraphics)
 
+      this.orbitalCamera = new OrbitalCamera()
+      this.orbitalStars = new OrbitalStars()
+      this.skyScene.addChild(this.orbitalStars.mesh)
+      for (const anchor of this.nebulaSprites) this.gasVolumes.push(new CosmicGasVolume(anchor))
+      for (const anchor of this.galaxySprites) this.gasVolumes.push(new CosmicGasVolume(anchor, true))
+      for (const anchor of [...this.planetSprites, ...this.atmosphereMoons]) this.globes.push(new OrbitalGlobe(anchor))
+      this.registerDepth(this.galaxySprites, 46)
+      this.registerDepth(this.celestialScenery.nebulaRoot.children as Sprite[], 20)
+      this.registerDepth(this.celestialScenery.root.children as Sprite[], 16)
+      this.registerDepth(this.planetSprites, 8)
+      this.registerDepth(this.scenicSprites, 6)
+      this.registerDepth(this.finalBattleSprites, 6)
+      this.registerDepth(this.finalBattleCruiserSprites, 5)
+      this.registerDepth(this.wreckSprites, 5)
+      this.registerDepth(this.asteroidSprites, 3.4)
+      this.registerDepth(this.debrisSprites, 2.8)
+      this.registerDepth([this.cometFlybySprite, this.capitalFlyby, ...this.dustFlybys], 2.4)
+
       const canvas = app.canvas as HTMLCanvasElement
       canvas.className = 'raid__pixi-background-canvas'
       host.textContent = ''
@@ -1077,6 +1102,9 @@ export class PixiRaidBackground {
     }
     this.gradientCache.forEach((gradient) => gradient.destroy())
     this.gradientCache.clear()
+    for (const object of [...this.gasVolumes, ...this.globes]) object.destroy()
+    this.orbitalStars?.destroy()
+    this.projected.clear()
     this.gpuForeground.destroy()
     this.landscapeAtmosphere.destroy()
     this.celestialScenery.destroy()
@@ -1098,6 +1126,14 @@ export class PixiRaidBackground {
       const { width, height, dpr, palette, quality, time, stageRush, bossIntensity, devilCorruption, finalBattleIntensity = 0 } = frame
       const seconds = time / 1000
       const celestialSeconds = this.celestialClock.advance(time, Boolean(frame.paused), this.reducedMotion)
+      // Restore the authored transforms before cached and per-frame layers update.
+      for (const [sprite, pose] of this.projected) {
+        if (!pose.active) continue
+        sprite.position.set(pose.x, pose.y)
+        sprite.scale.set(pose.sx, pose.sy)
+        pose.active = false
+      }
+
       if (frame.landscape && !this.backgroundSideShipsRequested) this.preloadBackgroundSideShips()
       if (this.journeyRun !== (frame.runToken ?? 0)) {
         this.wreckSeed = wreckRunSeed(frame.runToken ?? 0)
@@ -1193,7 +1229,16 @@ export class PixiRaidBackground {
       // Cheap GPU-backed movements continue on every frame, so the animated
       // starfield, scrolling scenery and background ships remain smooth.
       this.updateGalaxies(width, height, seconds, stageTheme, isLow, isMedium)
-      this.updateStarfield(width, height, quality, dpr, palette.starTint, palette.streak, stageTheme)
+      if (this.orbitalCamera && this.orbitalStars) {
+        this.orbitalCamera.setView(width, height, celestialSeconds, this.travel.rush, this.reducedMotion)
+        this.orbitalStars.mesh.visible = shouldDrawRaidStars(stageTheme)
+        if (this.orbitalStars.mesh.visible) {
+          this.orbitalStars.update(width, height, this.orbitalCamera,
+            celestialSeconds, isLow ? .4 : isMedium ? .7 : 1)
+        }
+      } else {
+        this.updateStarfield(width, height, quality, dpr, palette.starTint, palette.streak, stageTheme)
+      }
       if (shouldDrawRaidStars(stageTheme)) this.celestialScenery.update(width, height, celestialSeconds, this.cosmosRegion,
         quality, this.reducedMotion)
       else this.celestialScenery.hide()
@@ -1202,7 +1247,6 @@ export class PixiRaidBackground {
       this.updateWrecks(width, height, seconds, stageTheme, isLow, isMedium)
       this.updateScenic(width, height, seconds, stageTheme, isLow, isMedium)
       this.updateJourneyScenery(width, height, isLow, isMedium)
-      this.updateSceneryBloom(stageTheme, isLow, isMedium)
       this.updateRareCometFlyby(width, height, seconds, isLow, isMedium, stageTheme)
       this.updateBackgroundObjects(width, height, seconds, stageTheme, isLow, isMedium)
       // Space scenery stays anchored during ship steering, while independent
@@ -1231,8 +1275,23 @@ export class PixiRaidBackground {
       // Water and volcanic clouds keep their time-based drift, but do not
       // follow the player's steering. Island/terrain parallax remains intact.
       this.updateJourneyWorld(width, height, groundTheme, Boolean(frame.landscape), seconds, quality, frame.paused)
+      if (this.orbitalCamera && this.solidScenery.visible) {
+        for (const sprite of this.projected.keys()) {
+          if (!sprite.visible || sprite === this.capitalFlyby || this.dustFlybys.includes(sprite)) continue
+          this.projectScenery(sprite, width, height)
+        }
+      }
+      if (this.orbitalCamera) {
+        for (const volume of this.gasVolumes) volume.update(width, height, this.orbitalCamera)
+      }
+      this.updateSceneryBloom(stageTheme, isLow, isMedium)
+      for (const globe of this.globes) globe.update(celestialSeconds, this.globeStyle)
       this.updateOrbitalEffects(width, height, frame.stageNumber ?? 1, frame.stageAge ?? 0, frame.stageRush,
         bossIntensity, isLow, isMedium, !space, frame.landscape)
+      if (space && this.orbitalCamera) {
+        this.projectScenery(this.capitalFlyby, width, height)
+        for (const dust of this.dustFlybys) this.projectScenery(dust, width, height)
+      }
       // Present with the foreground once per rAF, not twice. Geometry,
       // scenery and textures are updated here on their existing cadence.
       return true
@@ -2191,6 +2250,36 @@ export class PixiRaidBackground {
     graphics.rect(0, 0, width, height).fill({ fill: surfaceWash, alpha: quality === 'medium' ? 0.08 : 0.12 })
     const pulse = 0.9 + Math.sin(seconds / 9) * 0.1
     this.fillRadial(graphics, width * 0.5, height * 0.46, Math.max(width, height) * 0.62 * pulse, Math.max(width, height) * 0.62, surfaceA, 'rgba(0,0,0,0)', 0.16)
+  }
+
+  private registerDepth(sprites: Sprite[], depth: number) {
+    sprites.forEach((sprite, i) => this.projected.set(sprite, {
+      depth: depth * (1 + (i * .618 % 1) * .7), x: 0, y: 0, sx: 1, sy: 1, active: false,
+    }))
+  }
+
+  private projectScenery(sprite: Sprite, width: number, height: number) {
+    const pose = this.projected.get(sprite)
+    if (!pose || !sprite.visible || !this.orbitalCamera) return
+    pose.x = sprite.x
+    pose.y = sprite.y
+    pose.sx = sprite.scale.x
+    pose.sy = sprite.scale.y
+    pose.active = true
+    this.orbitalCamera.project(sprite, pose.depth, width, height)
+  }
+
+  private readonly globeStyle = (texture: Texture) => {
+    if (texture === getJourneyPlanet(0)) return globeStyles.ocean
+    if (texture === getJourneyPlanet(1)) return globeStyles.volcanic
+    if (texture === getCosmosLandmark(0)) return globeStyles.blue
+    if (texture === getCosmosLandmark(1)) return globeStyles.ringLandmark
+    if (texture === this.assetTextures.get('planet1')) return globeStyles.earth
+    if (texture === this.assetTextures.get('planet2')) return globeStyles.ring
+    if (texture === this.assetTextures.get('planet3')) return globeStyles.violet
+    if (texture === this.assetTextures.get('planet4')) return globeStyles.green
+    if (texture === this.assetTextures.get('planet5')) return globeStyles.gold
+    return globeStyles.nebula
   }
 
   private updatePlanets(width: number, height: number, seconds: number, _palette: RaidPalette, stageTheme: number, isLow: boolean, isMedium: boolean) {

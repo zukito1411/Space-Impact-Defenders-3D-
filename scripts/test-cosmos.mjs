@@ -106,6 +106,7 @@ class TilingSprite extends Sprite {
 class Texture {static WHITE=frame}
 class Container {constructor(){this.position={set(){}};this.pivot={set(){}};this.scale={set(){}}} }
 class Graphics {constructor(){this.position={set(){}}} clear(){} }
+class WebGLRenderer {}
 class RaidGpuForeground {}
 class LandscapePlanetAtmosphere {root=new Container();seconds=0;warm(){} update(w,h,time){this.seconds=time/1000} hide(){} destroy(){}}
 class CelestialScenery {root=new Container();nebulaRoot=new Container();update(){}hide(){}destroy(){}}
