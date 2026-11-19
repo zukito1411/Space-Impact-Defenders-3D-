@@ -28,7 +28,7 @@ const art = await compile(`
   const anchors = ${JSON.stringify(registrations)}
   const getPublicAssetUrl = path => '/base/' + path
   const releaseCanvasSprite = () => {}
-  const makeImageCanvasSprite = (cacheKey, url) => ({ cacheKey, url, loaded: !cacheKey.includes('rocket-v13') })
+  const makeImageCanvasSprite = (cacheKey, url) => ({ cacheKey, url, loaded: !cacheKey.includes('rocket-v12') })
 ` + source.replace(/^import .*\n/gm, ''))
 // Preserve textured ship paint and reflections; a one-time tint is cheaper
 // than filters on every animated frame and should not wash out the hull.
@@ -90,10 +90,10 @@ const modelKeys = Object.keys(registrations).filter(key => !mechKeys.includes(ke
 assert.deepEqual(models.sort(), modelKeys.map(key => key + '.blend').sort())
 for (const key of Object.keys(registrations)) {
   const reconstructed = modelKeys.includes(key)
-  assert.equal(art.getRaidBankingAtlasUrl(key), `/base/assets/ships/banking/${key}-v${reconstructed ? 13 : 7}.webp`)
+  assert.equal(art.getRaidBankingAtlasUrl(key), `/base/assets/ships/banking/${key}-v${reconstructed ? 12 : 7}.webp`)
   for (const landscape of [false, true]) {
     const path = art.getRaidPicker3DPreviewUrl(key, landscape)
-    assert.equal(path, `/base/assets/ships/previews/${key}-${landscape ? 'landscape' : 'portrait'}-v${reconstructed ? 6 : 1}.webp`)
+    assert.equal(path, `/base/assets/ships/previews/${key}-${landscape ? 'landscape' : 'portrait'}-v${reconstructed ? 5 : 1}.webp`)
     const image = readFileSync(path.replace('/base/', 'public/'))
     assert.equal(image.toString('ascii', 8, 12), 'WEBP', key)
     assert.equal(image.readUIntLE(24, 3) + 1, 640, key)
