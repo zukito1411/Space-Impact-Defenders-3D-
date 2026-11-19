@@ -1,4 +1,5 @@
 import { CARRIER_EXIT_SECONDS } from './carrierLaunch'
+import { sampleLiveProtection } from './liveProtection'
 import { drawLiveHull, liveHullsEnabled, sampleLiveHullPoints } from './liveHullBridge'
 import { loadHull } from './liveHullAssets'
 import { getRaidPlayerHullSize } from './playerMuzzle'
@@ -993,6 +994,11 @@ export function drawRaidPlayer(
     (mechAttackStage === 'recover' || mechAttackStage === 'windup'))
   const flightBank = phase === 'playing' ? bank : 0
   const bankingKey = sideBurningKey && coreLanderBurningBlend >= .5 ? sideBurningKey : sideVisualKey
+  const liveBank = reducedMotion || phase !== 'playing' ? 0 : bank
+  const crouch = coreLanderCombatModel && presentation?.carrierAge !== undefined
+    ? clamp((CARRIER_EXIT_SECONDS+.8-presentation.carrierAge)/.8,0,1) : 0
+  const attack = coreLanderCombatModel && protectionAttackPose
+    ? Math.sin(Math.PI*clamp(1-player.fireCooldown/Math.max(.001,getCoreLanderFireInterval(player)),0,1)) : 0
   // Carrier ignition and the playable phase share the exact same 3D hull.
   // Dock/mech poses still take precedence when the carrier explicitly animates them.
   const banking = !liveHullsEnabled() && !isDown && (Boolean(presentation) || phase === 'playing' || phase === 'paused') &&
@@ -1100,6 +1106,14 @@ export function drawRaidPlayer(
         protectionY += renderSize * GOD_GUNDAM_BURNING_BODY_Y_OFFSET
       }
     }
+    if (liveHullsEnabled()) {
+      const contours = sampleLiveProtection(bankingKey,liveBank,landscape,attack,crouch)
+      if (contours) {
+        protectionHull = { sprite: getShipCanvasSprite(bankingKey),contours }
+        protectionSize = renderSize*scale
+        protectionY = y
+      }
+    }
     conditionHull = protectionHull
     conditionSize = protectionSize
     conditionY = protectionY
@@ -1128,11 +1142,7 @@ export function drawRaidPlayer(
   }
   if (spriteGlow) drawSpriteGlow(ctx, x, y, renderSize, spriteGlow, 0.68)
   else if (!isDown && (!landscape || banking) && player.forceField <= 0 && player.shield <= 0) drawSpriteGlow(ctx, x, y, renderSize, environmentRim ?? hexToRgba(color, 0.09), banking ? 0.20 : 0.55)
-  const crouch = coreLanderCombatModel && presentation?.carrierAge !== undefined
-    ? clamp((CARRIER_EXIT_SECONDS+.8-presentation.carrierAge)/.8,0,1) : 0
-  const attack = coreLanderCombatModel && protectionAttackPose
-    ? Math.sin(Math.PI*clamp(1-player.fireCooldown/Math.max(.001,getCoreLanderFireInterval(player)),0,1)) : 0
-  const liveHullDrawn = drawLiveHull(ctx, bankingKey, x, y, renderSize * scale, bank, alpha,
+  const liveHullDrawn = drawLiveHull(ctx, bankingKey, x, y, renderSize * scale, liveBank, alpha,
     landscape, color, { attack, crouch })
   if (liveHullDrawn && coreLanderCombatModel && import.meta.env.DEV) {
     if (dockPose) ctx.canvas.dataset.mechDockFrame = String(dockPose.frame)

@@ -1,17 +1,25 @@
 <!doctype html><html><head><link rel="icon" href="data:,"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>html,body{margin:0;background:#091827}#world{width:100vw;height:100vh}</style></head><body><div id="world"></div><script type="module">
 import { ThreeShipPresentation } from '/src/components/games/raid/threeShipPresentation.ts'
+import { sampleLiveProtection } from '/src/components/games/raid/liveProtection.ts'
+import { drawShipProtection } from '/src/components/games/raid/shipProtection.ts'
+const fx = document.createElement('canvas')
+fx.style.cssText='position:absolute;inset:0;pointer-events:none'
+document.body.appendChild(fx)
 const scene = new ThreeShipPresentation()
 const ready = await scene.init(document.getElementById('world'))
 window.shipFixture = {
  ready,scene,
- async draw(key,bank=0,landscape=false){
+ async draw(key,bank=0,landscape=false,protection=false){
   await scene.prepareHull(key)
   const width=innerWidth,height=innerHeight
   scene.render({width,height,dpr:1})
   const drawn=scene.submitHull({id:'subject',key,x:width*.5,y:height*.52,size:Math.min(width,height)*.66,bank,angle:0,alpha:1,landscape})
   scene.present()
-  return {drawn,...scene.getShipStats()}
+  fx.width=width;fx.height=height
+  const contours=sampleLiveProtection(key,bank,landscape)
+  if(protection&&contours)drawShipProtection(fx.getContext('2d'),width*.5,height*.52,Math.min(width,height)*.66,10000,1,1,{contours},false,5)
+  return {drawn,protected:Boolean(contours),...scene.getShipStats()}
  }
 }
 </script></body></html>

@@ -49,10 +49,13 @@ export function drawPlayerCondition(ctx: CanvasRenderingContext2D, player: Playe
     const duration = repair ? 1.15 : broken ? .8 : .38
     const progress = Math.max(0, Math.min(1, state.age / duration))
     if (progress < 1) {
-      const path = feedback.kind.startsWith('shield') ? art.shieldPath : art.fieldPath
+      const path = hull.contours
+        ? feedback.kind.startsWith('shield') ? hull.contours.shield : hull.contours.field
+        : feedback.kind.startsWith('shield') ? art.shieldPath : art.fieldPath
+      const coordinates = hull.contours ? 192 : 1
       let contact = 0, best = -Infinity
       for (let i = 0; i < 256; i++) {
-        const px = path.points[i * 2], py = path.points[i * 2 + 1]
+        const px = path.points[i * 2]*coordinates, py = path.points[i * 2 + 1]*coordinates
         const score = (px * feedback.dx + py * feedback.dy) / Math.max(1, Math.hypot(px, py))
         if (score > best) { contact = i; best = score }
       }
@@ -75,14 +78,14 @@ export function drawPlayerCondition(ctx: CanvasRenderingContext2D, player: Playe
           const travel = reducedMotion ? 0 : Math.round(progress * (broken ? 72 : 47))
           for (let step = 0; step < 18; step++) {
             const index = ((contact + direction * (travel + step)) % 256 + 256) % 256 * 2
-            if (!step) ctx.moveTo(path.points[index], path.points[index + 1])
-            else ctx.lineTo(path.points[index], path.points[index + 1])
+            if (!step) ctx.moveTo(path.points[index]*coordinates, path.points[index + 1]*coordinates)
+            else ctx.lineTo(path.points[index]*coordinates, path.points[index + 1]*coordinates)
           }
           ctx.stroke()
         }
         if (broken && !reducedMotion) for (let shard = 0; shard < 6; shard++) {
           const index = ((contact + shard * 9 - 23) % 256 + 256) % 256 * 2
-          const px = path.points[index], py = path.points[index + 1]
+          const px = path.points[index]*coordinates, py = path.points[index + 1]*coordinates
           const length = Math.hypot(px, py) || 1
           const drift = progress * (12 + shard * 2)
           const sx = px + px / length * drift, sy = py + py / length * drift

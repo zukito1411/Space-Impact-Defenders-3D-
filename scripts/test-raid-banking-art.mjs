@@ -71,7 +71,8 @@ assert.match(baker, /ImageFilter.MedianFilter\(size=3\)/)
 assert.doesNotMatch(baker, /ImageFilter\.UnsharpMask\(/)
 assert.match(baker, /"-v7.webp"/)
 const preview = readFileSync('src/components/games/RaidShipSprite.tsx', 'utf8')
-assert.match(preview, /return <ThreeHullPreview/)
+assert.match(preview, /return <img src=\{getRaidMenuShipSpriteUrl/)
+assert.doesNotMatch(preview, /ThreeHullPreview/)
 assert.match(preview, /return getRaidPicker3DPreviewUrl\(shipKey, landscape\)/)
 // Gundam/Spiegel stay 2D in landscape gameplay; selector previews are 3D.
 for (const key of ['godGundam', 'godGundamBurning', 'spiegel', 'coreLander',

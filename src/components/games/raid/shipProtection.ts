@@ -2,17 +2,87 @@ import { getCanvasSpriteDimensions } from './assets'
 import type { CanvasSpriteEntry } from './assets'
 import { hullDistanceField, protectionContour } from './protectionGeometry'
 import type { ProtectionContour } from './protectionGeometry'
+import type { LiveProtectionContours } from './liveProtection'
 
 const EDGE = 256
 const HULL_SIZE = 192
 const CACHE_LIMIT = 24
 export type ProtectionHull = {
   sprite: CanvasSpriteEntry
+  contours?: LiveProtectionContours
   contain?: boolean
   rotation?: number
   columns?: number
   rows?: number
   frame?: number
+}
+
+let lattice: HTMLCanvasElement | null = null
+function protectionLattice() {
+  if (lattice) return lattice
+  lattice = document.createElement('canvas')
+  lattice.width = lattice.height = 256
+  const ctx = lattice.getContext('2d')!
+  ctx.strokeStyle = 'rgba(200,255,255,.58)'
+  ctx.lineWidth = 1
+  for (let row = -1; row < 27; row++) for (let col = -1; col < 27; col++) {
+    const x = col*10.4+(row%2)*5.2, y = row*9
+    ctx.beginPath()
+    for (let corner = 0; corner < 6; corner++) {
+      const a = corner*Math.PI/3+Math.PI/6
+      const px = x+Math.cos(a)*5.3, py = y+Math.sin(a)*5.3
+      if (!corner) ctx.moveTo(px,py); else ctx.lineTo(px,py)
+    }
+    ctx.closePath(); ctx.stroke()
+  }
+  return lattice
+}
+
+function traceProtection(ctx: CanvasRenderingContext2D, path: ProtectionContour) {
+  for (let i = 0; i < 256; i++) {
+    const x = path.points[i*2], y = path.points[i*2+1]
+    if (!i) ctx.moveTo(x,y); else ctx.lineTo(x,y)
+  }
+  ctx.closePath()
+}
+
+/** The shell remains a Canvas effect, projected around the live mesh silhouette. */
+function drawLiveProtection(ctx: CanvasRenderingContext2D, x: number,y: number,size: number,
+  time: number,field: number,shield: number,contours: LiveProtectionContours,reduced: boolean,capacity: number) {
+  const force = Math.max(0,Math.min(1,field)), armor = Math.max(0,Math.min(1,shield))
+  const combined = force > 0 && armor > 0
+  const path = force > 0 && !combined ? contours.field : contours.shield
+  const color = combined ? '#bda8ff' : force > 0 ? '#64e8e0' : '#ffc85e'
+  ctx.save(); ctx.translate(x,y); ctx.scale(size,size)
+  ctx.globalCompositeOperation = 'lighter'
+  ctx.globalAlpha *= .64+Math.max(force,armor)*.3
+  ctx.save()
+  ctx.beginPath(); traceProtection(ctx,path); traceProtection(ctx,contours.hull)
+  ctx.fillStyle = combined ? 'rgba(141,116,255,.20)' : force > 0 ? 'rgba(45,212,191,.17)' : 'rgba(255,190,66,.20)'
+  ctx.fill('evenodd'); ctx.clip('evenodd')
+  ctx.drawImage(protectionLattice(),-2/3,-2/3,4/3,4/3)
+  ctx.restore()
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round'
+  ctx.shadowColor = color; ctx.shadowBlur = 5
+  strokeContour(ctx,path,color,armor > 0 ? .012 : .009)
+  ctx.shadowBlur = 0
+  if (combined) strokeContour(ctx,contours.field,'rgba(253,230,138,.8)',.006)
+  const clock = reduced ? 0 : time
+  for (let sweep = 0; sweep < 2; sweep++) {
+    const start = Math.floor(clock/(sweep ? -22 : 17)+sweep*128)
+    strokeContour(ctx,path,combined ? (sweep ? '#fde68a' : '#e9d5ff') : force > 0 ? '#cffafe' : '#fff7ed',
+      combined ? .014 : .010,start,combined ? 14 : 10)
+  }
+  const nodes = force > 0 ? capacity : 4
+  const active = force > 0 ? Math.max(1,Math.round(force*capacity)) : Math.max(1,Math.ceil(armor*nodes))
+  for (let node = 0; node < nodes; node++) {
+    const i = ((Math.round((node-(nodes-1)/2)*9))%256+256)%256*2
+    const px = path.points[i], py = path.points[i+1]
+    ctx.fillStyle = node >= active ? 'rgba(148,163,184,.2)' : active === 1 ? '#fbbf24' : combined ? '#fef3c7' : force > 0 ? '#a5f3fc' : '#fff7d6'
+    ctx.beginPath(); ctx.moveTo(px,py-.014); ctx.lineTo(px+.01,py)
+    ctx.lineTo(px,py+.014); ctx.lineTo(px-.01,py); ctx.closePath(); ctx.fill()
+  }
+  ctx.restore()
 }
 type ProtectionArt = { field: HTMLCanvasElement; shield: HTMLCanvasElement; combined: HTMLCanvasElement; repair: HTMLCanvasElement; fieldPath: ProtectionContour; shieldPath: ProtectionContour }
 const cache = new Map<string, ProtectionArt>()
@@ -160,6 +230,10 @@ export function warmShipProtection(hull: ProtectionHull): ProtectionArt | undefi
 export function drawShipProtection(ctx: CanvasRenderingContext2D, x: number, y: number, size: number,
   time: number, field: number, shield: number, hull: ProtectionHull, reducedMotion = false, capacity = 5) {
   if (size <= 0 || (field <= 0 && shield <= 0)) return
+  if (hull.contours) {
+    drawLiveProtection(ctx,x,y,size,time,field,shield,hull.contours,reducedMotion,capacity)
+    return
+  }
   const art = warmShipProtection(hull)
   if (!art) return
   const force = Math.max(0, Math.min(1, field)), armor = Math.max(0, Math.min(1, shield))

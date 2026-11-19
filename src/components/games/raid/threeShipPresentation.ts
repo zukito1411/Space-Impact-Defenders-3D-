@@ -1,4 +1,5 @@
 import { rigMechHull, poseMechHull } from './mechHullRig'
+import { prepareLiveProtection } from './liveProtection'
 import {
   DirectionalLight, Group, HemisphereLight, Mesh, MeshStandardMaterial,
   PerspectiveCamera, Scene, WebGLRenderer, type Object3D,
@@ -36,7 +37,7 @@ export class ThreeShipPresentation implements LiveHullSink {
   constructor(private readonly reportError: (message: string | null) => void = () => {}) {}
 
   async prepareHull(key: string) {
-    await loadHull(key)
+    const source = await loadHull(key)
     const renderer = this.renderer
     if (!renderer || this.disposed) return
     const asset = acquireHull(key)
@@ -49,7 +50,8 @@ export class ThreeShipPresentation implements LiveHullSink {
           renderer.initTexture(child.material.map)
         }
       })
-      await renderer.compileAsync(warmup, this.camera, this.world)
+      await Promise.all([renderer.compileAsync(warmup, this.camera, this.world),
+        prepareLiveProtection(key === 'mesiah' ? 'mesiahBlack' : key,source)])
     } finally {
       releaseHull(key, asset.object)
     }

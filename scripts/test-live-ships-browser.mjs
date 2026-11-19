@@ -30,6 +30,7 @@ try {
   for (const key of keys) {
     const stats=await page.evaluate(key=>window.shipFixture.draw(key,.031,true),key)
     assert.equal(stats.drawn,true,key)
+    assert.equal(stats.protected,true,key+' has no mesh-derived protection outline')
     assert.ok(stats.triangles>1000,key+' did not submit a real mesh')
   }
   for(const key of ['godGundam','spiegel']) {
@@ -46,6 +47,8 @@ try {
   await page.screenshot({path:'presentation-review/live-ships-portrait.png'})
   await page.evaluate(()=>window.shipFixture.draw('fast',-.071,true))
   await page.screenshot({path:'presentation-review/live-ships-landscape.png'})
+  await page.evaluate(()=>window.shipFixture.draw('xwing',.079,true,true))
+  await page.screenshot({path:'presentation-review/live-ships-protection.png'})
   assert.deepEqual(errors,[])
   await page.evaluate(()=>window.shipFixture.scene.destroy())
   await page.close()
@@ -56,6 +59,11 @@ try {
     gameplay.on('pageerror',error=>gameErrors.push(error.message))
     await gameplay.route('**/*',route=>new URL(route.request().url()).hostname==='127.0.0.1'?route.continue():route.abort())
     await gameplay.goto('http://127.0.0.1:5186/scripts/presentation-fixture.html')
+    await gameplay.waitForFunction(()=>[...document.querySelectorAll('.raid__ship-preview img')].length>0&&
+      [...document.querySelectorAll('.raid__ship-preview img')].every(image=>image.complete&&image.naturalWidth>0),{},{timeout:120000})
+    assert.ok((await gameplay.locator('.raid__ship-preview img').first().getAttribute('src')).includes('-'+name+'-'),
+      'menu must use the correct pre-rendered camera orientation')
+    assert.equal(await gameplay.locator('.raid__ship-preview canvas').count(),0)
     await gameplay.locator('button.raid__start').first().click({timeout:120000})
     await gameplay.locator('.raid__carrier-briefing').waitFor({timeout:120000})
     await gameplay.locator('.raid__carrier-skip').click()

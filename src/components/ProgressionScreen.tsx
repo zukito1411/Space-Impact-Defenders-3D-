@@ -1,4 +1,3 @@
-import { ThreeHullPreview } from './games/raid/ThreeHullPreview'
 import { getRaidSideShipNozzles, getRaidSideShipSpriteUrl } from './games/raid/sideArtwork'
 import { getDefaultPlayerVisualShipKey, getRaidGundamName } from './games/raid/state'
 import { getRaidExhaustScale, getRaidShipBaseVisualKey, getRaidShipNozzles } from './games/raid/shipArtwork'
@@ -1365,7 +1364,9 @@ function ShipCosmeticCanvasPreview({ shipKey, spriteKey, cosmetics, locked = fal
     <canvas ref={canvasRef} className="progress-ship-preview__canvas"
       width={SHIP_PREVIEW_CANVAS_WIDTH} height={SHIP_PREVIEW_CANVAS_HEIGHT} aria-hidden="true" />
     <span style={{ position: 'absolute', left: (SHIP_PREVIEW_CANVAS_WIDTH-size)/2, top: centerY-size/2, width: size, height: size }}>
-      <ThreeHullPreview shipKey={visualKey} landscape={landscape} />
+      <img src={getRaidMenuShipSpriteUrl(visualKey, landscape)} alt="" aria-hidden="true"
+        loading="eager" decoding="async" draggable={false}
+        style={{ display: 'block', width: '100%', height: '100%', objectFit: 'contain' }} />
     </span>
   </span>
 }

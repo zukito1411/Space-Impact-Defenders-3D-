@@ -1,4 +1,3 @@
-import { ThreeHullPreview } from './raid/ThreeHullPreview'
 import { useSyncExternalStore } from 'react'
 import { RAID_ELITE_FRAME_PATHS } from './raid/shipArtwork'
 import { getRaidPicker3DPreviewUrl } from './raid/bankingArt'
@@ -74,14 +73,19 @@ export function getRaidEliteSpriteUrl(variant: number) {
   return getPublicAssetUrl(RAID_ELITE_ASSET_PATHS[index])
 }
 
-// Visible ship displays share the live mesh renderer and original baked paint.
+// Small pre-rendered views retain the mesh's paint and load without WebGL.
 export function RaidShipPickerPreview({ shipKey, landscape }: { shipKey: string; landscape: boolean }) {
-  return <ThreeHullPreview shipKey={shipKey} landscape={landscape} className="raid__ship-preview" />
+  const wideScreen = useLandscapeScreen()
+  return <span className="raid__ship-preview"><img
+    src={getRaidMenuShipSpriteUrl(shipKey, landscape || wideScreen)}
+    alt="" aria-hidden="true" loading="eager" decoding="async" draggable={false} /></span>
 }
 
 export function RaidShipSprite({ shipKey, size, className = 'raid__ship-sprite', sideView }: {
   shipKey: string; size: number; className?: string; sideView?: boolean
 }) {
   const landscape = useLandscapeScreen()
-  return <ThreeHullPreview shipKey={shipKey} landscape={sideView ?? landscape} size={size} className={className} />
+  return <img src={getRaidMenuShipSpriteUrl(shipKey, sideView ?? landscape)}
+    width={size} height={size} className={className} alt="" aria-hidden="true"
+    loading="eager" decoding="async" draggable={false} style={{ objectFit: 'contain' }} />
 }
