@@ -89,7 +89,7 @@ varying vec3 local;
 void main(){
  vec4 pigment=texture2D(art,.5+local.xy*.5);
  float nucleus=1.-clamp(dot(local.xy,local.xy),0.,1.);
- gl_FragColor=vec4(pigment.rgb*(1.+nucleus*nucleus*.35),pigment.a*.60);
+ gl_FragColor=vec4(pigment.rgb*(1.+nucleus*nucleus*.35),pigment.a*.60*smoothstep(0.,.22,nucleus));
  #include <colorspace_fragment>
 }`
 

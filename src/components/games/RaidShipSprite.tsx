@@ -74,9 +74,7 @@ export function getRaidEliteSpriteUrl(variant: number) {
   return getPublicAssetUrl(RAID_ELITE_ASSET_PATHS[index])
 }
 
-// Ship-picker previews are pre-cropped directly from each ship's actual 3D
-// banking atlas (both camera orientations). They are lighter and much clearer
-// than loading all 27 full multi-pose textures onto the selection screen.
+// Visible ship displays share the live mesh renderer and original baked paint.
 export function RaidShipPickerPreview({ shipKey, landscape }: { shipKey: string; landscape: boolean }) {
   return <ThreeHullPreview shipKey={shipKey} landscape={landscape} className="raid__ship-preview" />
 }

@@ -62,13 +62,13 @@ function paint() {
       }
       entry.group = new Group()
       entry.group.add(asset.object)
-      const [sx, sy, ox, oy] = asset.registration.registration
-      const size = Math.min(rect.width, rect.height)
-      entry.group.scale.set(size*sx/448, size*sy/448, size*sx/448)
-      entry.group.position.set((144*sx+ox-224)*size/448, (224-144*sy-oy)*size/448, 0)
-      entry.group.rotation.y = entry.landscape ? -56*Math.PI/180 : 0
+      entry.group.userData.registration = asset.registration.registration
     }
     const group = entry.group
+    const [sx, sy, ox, oy] = group.userData.registration as number[]
+    const size = Math.min(rect.width, rect.height)
+    group.scale.set(size*sx/448, size*sy/448, size*sx/448)
+    group.position.set((144*sx+ox-224)*size/448, (224-144*sy-oy)*size/448, 0)
     const hover = Number(entry.element.dataset.orbitX) || 0
     group.rotation.y = (entry.landscape ? -56*Math.PI/180 : 0) + hover*.32
     scene.add(group)
@@ -124,5 +124,5 @@ export function ThreeHullPreview({ shipKey, landscape, className, size }: {
       schedule()
     }}
     onPointerLeave={event => { event.currentTarget.dataset.orbitX = '0'; schedule() }}
-    style={{ display: 'inline-block', position: 'relative', width: size ?? '100%', height: size ?? '100%', flexShrink: 0 }} />
+    style={{ display: 'inline-block', position: 'relative', width: size ?? (className ? undefined : '100%'), height: size ?? (className ? undefined : '100%'), flexShrink: 0 }} />
 }
