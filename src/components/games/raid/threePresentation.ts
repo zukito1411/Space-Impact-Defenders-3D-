@@ -51,14 +51,15 @@ export class ThreeRaidPresentation implements LiveHullSink {
     if (!renderer || this.disposed) return
     const asset = acquireHull(key)
     if (!asset) return
-    this.world.add(asset.object)
+    const warmup = new Scene()
+    warmup.add(asset.object)
     try {
       asset.object.traverse(child => {
         if (child instanceof Mesh && child.material instanceof MeshStandardMaterial && child.material.map) {
           renderer.initTexture(child.material.map)
         }
       })
-      await renderer.compileAsync(this.world, this.camera)
+      await renderer.compileAsync(warmup, this.camera, this.world)
     } finally {
       releaseHull(key, asset.object)
     }
@@ -214,7 +215,7 @@ export class ThreeRaidPresentation implements LiveHullSink {
   getEclipseAt(x: number, y: number) { return this.space.eclipseAt(x,y) }
   getOrbitalSunlight() { return this.space.sunlight() }
   getRaidGpuStats() {
-    return { ...this.actors.stats(), gpuFrameMs: this.timer?.milliseconds ?? null,
+    return { ...this.actors.stats(), textures: this.renderer?.info.memory.textures ?? 0, gpuFrameMs: this.timer?.milliseconds ?? null,
       drawCalls: this.renderer?.info.render.calls ?? 0, triangles: this.renderer?.info.render.triangles ?? 0 }
   }
 

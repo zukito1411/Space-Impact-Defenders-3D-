@@ -30,7 +30,7 @@ export class ThreeActors {
   private readonly rendered = new Set<number>()
   private readonly shots = new InstancedMesh(new SphereGeometry(1, 8, 6), new MeshBasicMaterial({ color: 0xffffff }), 4096)
   private readonly rings = new InstancedMesh(new RingGeometry(.82, 1, 48), new MeshBasicMaterial({
-    color: 0xffb45e, transparent: true, opacity: .5, depthWrite: false,
+    color: 0xffffff, transparent: true, opacity: .5, depthWrite: false,
   }), 256)
   private readonly effects = new ThreeFx(this.root)
   private readonly pose = new Object3D()
