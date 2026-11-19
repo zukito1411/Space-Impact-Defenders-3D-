@@ -4610,3 +4610,16 @@
     font-size: 10px;
   }
 }
+
+/* Ships alone use live 3D; retain the released scenery and 2D FX layers. */
+.raid__ships-3d {
+  position: absolute; inset: 0; z-index: 4; overflow: hidden;
+  pointer-events: none; contain: strict;
+  transform: translate3d(var(--raid-camera-x, 0px), var(--raid-camera-y, 0px), 0);
+  will-change: transform;
+}
+.raid__ship-canvas { display: block; width: 100%; height: 100%; }
+.raid__ship-renderer-error {
+  position: absolute; inset: 0; z-index: 100; display: grid; place-content: center;
+  gap: 16px; padding: 24px; background: #050816; color: #e2e8f0;
+}

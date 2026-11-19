@@ -1,28 +1,20 @@
 import { rigMechHull, poseMechHull } from './mechHullRig'
-import { GpuTimer } from './ThreeGpuTimer'
 import {
-  Color, DirectionalLight, Group, HemisphereLight, Mesh, MeshStandardMaterial,
+  DirectionalLight, Group, HemisphereLight, Mesh, MeshStandardMaterial,
   PerspectiveCamera, Scene, WebGLRenderer, type Object3D,
 } from 'three'
-import { ThreeSpace } from './threeSpace'
-import { ThreeActors } from './threeActors'
 import { acquireHull, loadHull, releaseHull, trimHullAssets } from './liveHullAssets'
 import { bindLiveHulls, unbindLiveHulls, type LiveHullDraw, type LiveHullSink } from './liveHullBridge'
-import type { PixiRaidBackgroundFrame } from './background'
-import type { RaidGpuForegroundFrame } from './gpuForeground'
 
 type HullNode = { key: string; group: Group; object: Object3D; used: number }
 
-/** Three.js presentation adapter, following Leighneron's single-renderer architecture.
- * The existing simulation remains authoritative for gameplay and network state. */
-export class ThreeRaidPresentation implements LiveHullSink {
+/** Transparent live mesh layer for player and support ships only.
+ * The original 1.0.51 Pixi/Canvas renderers own scenery, enemies and combat FX. */
+export class ThreeShipPresentation implements LiveHullSink {
   private renderer: WebGLRenderer | null = null
-  private timer: GpuTimer | null = null
-  private measureGpu = false
+  private eclipseAt: ((x: number,y: number) => number) | undefined
   private readonly world = new Scene()
   private readonly camera = new PerspectiveCamera(35, 1, 1, 20000)
-  private readonly space = new ThreeSpace()
-  private readonly actors = new ThreeActors()
   private readonly hulls = new Map<string, HullNode>()
   private readonly requests = new Set<string>()
   private width = 1
@@ -32,12 +24,10 @@ export class ThreeRaidPresentation implements LiveHullSink {
   private disposed = false
   private contextLost = false
   private readonly lost = (event: Event) => {
-    event.preventDefault(); this.contextLost = true; this.timer?.abandon()
+    event.preventDefault(); this.contextLost = true
     this.reportError('Graphics context interrupted. Restoring the 3D scene…')
   }
   private readonly restored = () => {
-    const context = this.renderer?.getContext()
-    if (context && 'beginQuery' in context) this.timer = new GpuTimer(context)
     this.contextLost = false
     this.reportError(null)
   }
@@ -68,15 +58,14 @@ export class ThreeRaidPresentation implements LiveHullSink {
   async init(host: HTMLDivElement) {
     if (this.disposed) return false
     try {
-      const renderer = new WebGLRenderer({ alpha: false, antialias: true, powerPreference: 'high-performance' })
+      const renderer = new WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'high-performance' })
       this.renderer = renderer
       const context = renderer.getContext()
       if (!('beginQuery' in context)) throw new Error('Live 3D requires WebGL 2')
-      this.timer = new GpuTimer(context)
-      renderer.setClearColor(new Color(0x020510), 1)
+      renderer.setClearColor(0, 0)
       renderer.setPixelRatio(1)
       renderer.outputColorSpace = 'srgb'
-      renderer.domElement.className = 'raid__pixi-background-canvas'
+      renderer.domElement.className = 'raid__ship-canvas'
       renderer.domElement.addEventListener('webglcontextlost', this.lost)
       renderer.domElement.addEventListener('webglcontextrestored', this.restored)
       this.world.add(new HemisphereLight(0xdcecff, 0x171c35, 2.1))
@@ -84,7 +73,7 @@ export class ThreeRaidPresentation implements LiveHullSink {
       key.position.set(-800, 1100, 1800)
       const rim = new DirectionalLight(0x89bfff, 1.2)
       rim.position.set(1000, -600, 900)
-      this.world.add(key, rim, this.space.root, this.actors.root)
+      this.world.add(key, rim)
       host.replaceChildren(renderer.domElement)
       bindLiveHulls(this)
       await this.prepareHull('rocket')
@@ -92,14 +81,14 @@ export class ThreeRaidPresentation implements LiveHullSink {
       await renderer.compileAsync(this.world, this.camera)
       return !this.disposed
     } catch (error) {
-      console.error('Live Three.js renderer initialization failed', error)
-      this.reportError('Live 3D rendering could not start. Reload to try again.')
+      console.error('Live ship renderer initialization failed', error)
+      this.reportError('The 3D ship renderer could not start. Reload to try again.')
       this.destroy()
       return false
     }
   }
 
-  render(frame: PixiRaidBackgroundFrame & { carrierBackdrop?: number; carrierShift?: number }) {
+  render(frame: { width: number; height: number; dpr: number; eclipseAt?: (x: number,y: number) => number }) {
     const renderer = this.renderer
     if (!renderer || this.disposed || this.contextLost) return false
     this.frame++
@@ -112,15 +101,8 @@ export class ThreeRaidPresentation implements LiveHullSink {
       this.camera.position.set(this.width*.5, this.height*.5, this.height*.5/Math.tan(35*Math.PI/360))
       this.camera.updateProjectionMatrix()
     }
-    this.space.update(frame)
+    this.eclipseAt = frame.eclipseAt
     for (const node of this.hulls.values()) node.group.visible = false
-    return true
-  }
-
-  renderForeground(frame: RaidGpuForegroundFrame) {
-    if (!this.renderer || this.disposed || this.contextLost) return false
-    this.measureGpu = frame.measureGpu
-    this.actors.update(frame)
     return true
   }
 
@@ -177,7 +159,7 @@ export class ThreeRaidPresentation implements LiveHullSink {
         const materials = Array.isArray(child.material) ? child.material : [child.material]
         for (const material of materials) if (material instanceof MeshStandardMaterial) {
           material.opacity = draw.alpha
-          material.color.setScalar(1-.40*this.space.eclipseAt(draw.x,draw.y))
+          material.color.setScalar(1-.40*(this.eclipseAt?.(draw.x,draw.y) ?? 0))
         }
       }
     })
@@ -187,9 +169,7 @@ export class ThreeRaidPresentation implements LiveHullSink {
   present() {
     if (!this.renderer || this.disposed || this.contextLost) return
     // One scene submission at the browser's native rAF rate.
-    this.timer?.poll()
-    this.timer?.begin(this.measureGpu)
-    try { this.renderer.render(this.world, this.camera) } finally { this.timer?.end() }
+    this.renderer.render(this.world, this.camera)
     for (const [id, node] of this.hulls) {
       if (this.frame-node.used < 120) continue
       this.releaseNode(node)
@@ -209,14 +189,11 @@ export class ThreeRaidPresentation implements LiveHullSink {
     node.group.removeFromParent()
   }
 
-  isEnemyGpuRendered(id: number) { return this.actors.hasEnemy(id) }
-  isBossGpuRendered(id: number) { return this.actors.hasEnemy(id) }
-  prewarmGpuBoss(_kind: string | null, _width: number, _height: number, _time: number) {}
-  getEclipseAt(x: number, y: number) { return this.space.eclipseAt(x,y) }
-  getOrbitalSunlight() { return this.space.sunlight() }
-  getRaidGpuStats() {
-    return { ...this.actors.stats(), textures: this.renderer?.info.memory.textures ?? 0, gpuFrameMs: this.timer?.milliseconds ?? null,
-      drawCalls: this.renderer?.info.render.calls ?? 0, triangles: this.renderer?.info.render.triangles ?? 0 }
+  getShipStats() {
+    return { hulls: [...this.hulls.values()].filter(node => node.group.visible).length,
+      textures: this.renderer?.info.memory.textures ?? 0,
+      drawCalls: this.renderer?.info.render.calls ?? 0,
+      triangles: this.renderer?.info.render.triangles ?? 0 }
   }
 
   destroy() {
@@ -225,12 +202,9 @@ export class ThreeRaidPresentation implements LiveHullSink {
     unbindLiveHulls(this)
     for (const node of this.hulls.values()) this.releaseNode(node)
     this.hulls.clear()
-    this.space.destroy()
-    this.actors.destroy()
     if (this.renderer) {
       this.renderer.domElement.removeEventListener('webglcontextlost', this.lost)
       this.renderer.domElement.removeEventListener('webglcontextrestored', this.restored)
-      this.timer?.destroy()
       this.renderer.dispose()
       this.renderer.forceContextLoss()
       this.renderer.domElement.remove()

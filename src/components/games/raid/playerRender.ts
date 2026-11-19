@@ -1132,7 +1132,7 @@ export function drawRaidPlayer(
     ? clamp((CARRIER_EXIT_SECONDS+.8-presentation.carrierAge)/.8,0,1) : 0
   const attack = coreLanderCombatModel && protectionAttackPose
     ? Math.sin(Math.PI*clamp(1-player.fireCooldown/Math.max(.001,getCoreLanderFireInterval(player)),0,1)) : 0
-  const liveHullDrawn = drawLiveHull(ctx, sideVisualKey, x, y, renderSize * scale, bank, alpha,
+  const liveHullDrawn = drawLiveHull(ctx, bankingKey, x, y, renderSize * scale, bank, alpha,
     landscape, color, { attack, crouch })
   if (liveHullDrawn && coreLanderCombatModel && import.meta.env.DEV) {
     if (dockPose) ctx.canvas.dataset.mechDockFrame = String(dockPose.frame)
@@ -1141,7 +1141,24 @@ export function drawRaidPlayer(
       ctx.canvas.dataset.mechActionModel = coreLanderCombatModel
     }
   }
-  if (!liveHullDrawn) {
+  if (liveHullDrawn && coreLanderCombatModel === 'spiegel' && coreLanderBurningBlend > .01 && !sideSprite?.loaded) {
+    const baseSprite = getShipCanvasSprite('spiegel')
+      for (const side of [-1, 1] as const) {
+        drawCanvasSprite(
+          ctx,
+          baseSprite,
+          x + side * renderSize * 0.52,
+          y + renderSize * 0.04,
+          renderSize * 0.9,
+          normalSpriteFilter,
+          alpha * coreLanderBurningBlend * 0.28,
+          rotation + side * 0.04,
+          scale,
+          masteryPaintColor,
+        )
+      }
+  }
+  // Dock exhaust remains the original 2D effect for live and fallback bodies.
   if(dockReady&&dockPose&&coreLanderCombatModel){
     if((presentation?.engine??0)>0){
       const nozzle=getMechDockNozzles(coreLanderCombatModel,dockPose.frame),wake=renderSize*.55
@@ -1149,6 +1166,9 @@ export function drawRaidPlayer(
       for(const [nx,ny,aperture]of nozzle.roots){ctx.save();ctx.translate(nx*renderSize,ny*renderSize);ctx.rotate(nozzle.angle);drawPlayerEngine(ctx,0,-wake*.34,wake,time,engineBoost,renderSize*aperture);ctx.restore()}
       ctx.restore()
     }
+  }
+  if (!liveHullDrawn) {
+  if(dockReady&&dockPose&&coreLanderCombatModel){
     drawMechDockPose(ctx,coreLanderCombatModel,dockPose,x,y,renderSize,alpha)
   } else if (banking) {
     const hullFilter = coreLanderCombatModel && !landscape && cosmetics.frame ? normalSpriteFilter : eclipseFilter

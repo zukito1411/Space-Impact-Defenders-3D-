@@ -240,7 +240,7 @@ export function drawRaidEnemy(
     const reducedMotion = prefersRaidReducedMotion()
     const recoil = !reducedMotion && enemy.bossImpact?.kind === 'heavy' ? (enemy.bossImpactTime ?? 0) * size * .12 : 0
     const drift = enemy.hp <= 0 && !reducedMotion ? (1 - defeatFade) * (enemy.id % 2 ? -.18 : .18) : 0
-    if (!skipGpuStageBossBody) drawGenericBossShip(ctx, enemy, x, y - recoil, size, rotation + drift, floatScale, defeatFade)
+    drawGenericBossShip(ctx, enemy, x, y - recoil, size, rotation + drift, floatScale, defeatFade)
     drawHullDamage(ctx, enemy, x, y - recoil, size, rotation + drift, floatScale, reducedMotion, defeatFade)
     drawCommandBossEnergy(ctx, enemy, toX, toY, size)
     ctx.save()
@@ -260,7 +260,7 @@ export function drawRaidEnemy(
     const floatScale = 1 + Math.sin(time / 760 + enemy.phase) * 0.035
     const rotation = Math.sin(time / 900 + enemy.phase) * 1.4 * DEG
     drawSpriteGlow(ctx, x, y, size, hexToRgba(enemy.color, 0.36), 1)
-    if (!skipGpuStageBossBody) drawCanvasSpriteContain(ctx, sprite, x, y, size, 'brightness(1.18) contrast(1.2) saturate(1.45)', 1, rotation, floatScale, enemy.color)
+    drawCanvasSpriteContain(ctx, sprite, x, y, size, 'brightness(1.18) contrast(1.2) saturate(1.45)', 1, rotation, floatScale, enemy.color)
     ctx.save()
     ctx.translate(x, y)
     drawBossResidualHit(ctx, enemy, size)
