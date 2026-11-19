@@ -1,5 +1,5 @@
 import { getRaidPlayerHullSize } from './playerMuzzle'
-import { drawRaidBankingCell, getBankingProtectionHull, getRaidBankingAtlas, getRaidBankingFrame, raidBankingResidualAngle } from './bankingArt'
+import { drawRaidBankingCell, getBankingProtectionHull, getRaidBankingAtlas, getRaidBankingFrame } from './bankingArt'
 import type { RaidBankingFrame } from './bankingArt'
 import { drawShipProtection, warmShipProtection } from './shipProtection'
 import { drawPlayerCondition } from './playerCondition'
@@ -859,6 +859,13 @@ const solarHullRims = new WeakMap<CanvasSpriteEntry, Map<number, HTMLCanvasEleme
 
 function drawSolarHullRim(ctx: CanvasRenderingContext2D, sprite: CanvasSpriteEntry, x: number, y: number, size: number, side: number, alpha: number, landscape = false, frame?: number) {
   if (!sprite.loaded || typeof document === 'undefined') return
+  if (frame !== undefined && !Number.isInteger(frame)) {
+    const lower = Math.floor(frame)
+    const t = frame - lower
+    drawSolarHullRim(ctx, sprite, x, y, size, side, alpha * (1 - t), landscape, lower)
+    drawSolarHullRim(ctx, sprite, x, y, size, side, alpha * t, landscape, lower + 1)
+    return
+  }
   const slot = side < 0 ? 0 : 1
   const key = frame === undefined ? slot : (frame + 1) * 2 + slot
   let rims = solarHullRims.get(sprite)
@@ -936,13 +943,11 @@ export function drawRaidPlayer(
     flightPoses.set(color, pose)
   }
   const bank = updateFlightPose(pose, time, player.x)
-  // The atlas already contains the physical 3D roll. Only turn the small
-  // difference between the real bank and the nearest baked pose; rotating the
-  // full angle on top of the atlas caused an exaggerated, jittery double roll.
+  // The blended pose already contains the full roll. Rotate only fallback art.
   const bankedHullReady = player.ship.key !== 'coreLander' && player.hp > 0 &&
     (Boolean(presentation) || phase === 'playing' || phase === 'paused') &&
     Boolean(getRaidBankingAtlas(visualShipKey)?.loaded)
-  const hullRoll = bankedHullReady ? raidBankingResidualAngle(bank, landscape, reducedMotion) : bank
+  const hullRoll = reducedMotion || bankedHullReady ? 0 : bank
   ctx.save()
   ctx.translate(x, y)
   ctx.rotate(!presentation && phase === 'playing' && player.hp > 0 && player.ship.key !== 'coreLander' ? hullRoll : 0)

@@ -54,14 +54,14 @@ const legacyMechAtlases = new Set(['godGundam', 'godGundamBurning', 'spiegel'])
 export function getRaidBankingAtlasUrl(shipKey: string) {
   const key = bankingKey(shipKey)
   if (!Object.prototype.hasOwnProperty.call(registrations, key)) return null
-  const version = legacyMechAtlases.has(key) ? 7 : 12
+  const version = legacyMechAtlases.has(key) ? 7 : 14
   return getPublicAssetUrl(`assets/ships/banking/${key}-v${version}.webp`)
 }
 
 export function getRaidPicker3DPreviewUrl(shipKey: string, landscape: boolean) {
   const key = bankingKey(shipKey)
   if (!Object.prototype.hasOwnProperty.call(registrations, key)) return null
-  const version = legacyMechAtlases.has(key) ? 1 : 5
+  const version = legacyMechAtlases.has(key) ? 1 : landscape ? 7 : 5
   return getPublicAssetUrl(`assets/ships/previews/${key}-${landscape ? 'landscape' : 'portrait'}-v${version}.webp`)
 }
 
@@ -93,17 +93,9 @@ export function getRaidBankingAtlas(shipKey: string) {
 
 export function raidBankingFrameIndex(bank: number, landscape: boolean, reducedMotion: boolean) {
   const amount = reducedMotion ? 0 : Math.max(-1, Math.min(1, bank / .14))
-  return (landscape ? BANKING_COLUMNS : 0) + Math.round(LEVEL_FRAME + amount * LEVEL_FRAME)
-}
-
-// Each atlas has seven baked physical roll poses. The tiny leftover angle
-// between poses is applied as a subframe correction rather than rotating the
-// whole baked roll a second time (which made turns look exaggerated/jumpy).
-export function raidBankingResidualAngle(bank: number, landscape: boolean, reducedMotion: boolean) {
-  if (reducedMotion) return 0
-  const selectedPose = raidBankingFrameIndex(bank, landscape, false) % BANKING_COLUMNS
-  const bakedAngle = (selectedPose - LEVEL_FRAME) * (0.14 / LEVEL_FRAME)
-  return Math.max(-0.14 / 6, Math.min(0.14 / 6, bank - bakedAngle))
+  const position = (landscape ? BANKING_COLUMNS : 0) + LEVEL_FRAME * (1 + amount)
+  const nearest = Math.round(position)
+  return Math.abs(nearest - position) < .0001 ? nearest : position
 }
 
 export function getRaidBankingFrame(shipKey: string, bank: number, landscape: boolean, reducedMotion: boolean): RaidBankingFrame | null {
@@ -112,7 +104,20 @@ export function getRaidBankingFrame(shipKey: string, bank: number, landscape: bo
   if (!sprite?.loaded) return null
   const frame = raidBankingFrameIndex(bank, landscape, reducedMotion)
   const { nozzles, wing } = registrations[bankingKey(shipKey)]
-  return { sprite, frame, nozzles: nozzles[frame], wing: wing?.[frame] }
+  const lower = Math.floor(frame)
+  const t = frame - lower
+  if (!t) return { sprite, frame, nozzles: nozzles[lower], wing: wing?.[lower] }
+
+  const next = nozzles[lower + 1]
+  const nextWing = wing?.[lower + 1]
+  return {
+    sprite, frame,
+    nozzles: nozzles[lower].map(([x, y, width], i) => [
+      x + (next[i][0] - x) * t, y + (next[i][1] - y) * t, width + (next[i][2] - width) * t,
+    ]),
+    wing: nextWing && wing?.[lower].map(([x, y], i) =>
+      [x + (nextWing[i][0] - x) * t, y + (nextWing[i][1] - y) * t]),
+  }
 }
 
 export function getBankingProtectionHull(sprite: CanvasSpriteEntry, landscape: boolean): ProtectionHull {
@@ -121,15 +126,42 @@ export function getBankingProtectionHull(sprite: CanvasSpriteEntry, landscape: b
   return { sprite, columns: BANKING_COLUMNS, rows: BANKING_ROWS, frame: raidBankingFrameIndex(0, landscape, false) }
 }
 
+// Mix the two premultiplied poses on transparent pixels so the scenery never
+// enters the blend. A single reusable surface serves the entire formation.
+let blendSurface: CanvasRenderingContext2D | null = null
+
+function drawPose(ctx: CanvasRenderingContext2D, source: CanvasImageSource, frame: number,
+  left: number, top: number, size: number) {
+  ctx.drawImage(source, frame % BANKING_COLUMNS * BANKING_CELL,
+    Math.floor(frame / BANKING_COLUMNS) * BANKING_CELL, BANKING_CELL, BANKING_CELL,
+    left, top, size, size)
+}
+
 export function drawRaidBankingCell(ctx: CanvasRenderingContext2D, sprite: CanvasSpriteEntry, frame: number,
   x: number, y: number, size: number) {
-  // Preserve subpixel surface detail while shrinking baked 3D art to the
-  // moving player's hull. Restore the caller's Canvas settings afterwards.
+  const lower = Math.floor(frame)
+  const t = frame - lower
+  const source = getCanvasSpriteSource(sprite)
+  if (t && !blendSurface) {
+    const canvas = ctx.canvas.ownerDocument.createElement('canvas')
+    canvas.width = canvas.height = BANKING_CELL
+    blendSurface = canvas.getContext('2d')
+  }
   ctx.save()
   ctx.imageSmoothingEnabled = true
   ctx.imageSmoothingQuality = 'high'
-  ctx.drawImage(getCanvasSpriteSource(sprite),
-    frame % BANKING_COLUMNS * BANKING_CELL, Math.floor(frame / BANKING_COLUMNS) * BANKING_CELL,
-    BANKING_CELL, BANKING_CELL, x - size / 2, y - size / 2, size, size)
+  if (t && blendSurface) {
+    const mix = blendSurface
+    mix.clearRect(0, 0, BANKING_CELL, BANKING_CELL)
+    mix.globalCompositeOperation = 'source-over'
+    mix.globalAlpha = 1 - t
+    drawPose(mix, source, lower, 0, 0, BANKING_CELL)
+    mix.globalCompositeOperation = 'lighter'
+    mix.globalAlpha = t
+    drawPose(mix, source, lower + 1, 0, 0, BANKING_CELL)
+    ctx.drawImage(mix.canvas, x - size / 2, y - size / 2, size, size)
+  } else {
+    drawPose(ctx, source, Math.round(frame), x - size / 2, y - size / 2, size)
+  }
   ctx.restore()
 }

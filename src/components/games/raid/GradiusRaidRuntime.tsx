@@ -3486,13 +3486,14 @@ export function GradiusRaid({
     const ownPilot = player === (fireCaptureRef.current ? remotePlayerRef.current : playerRef.current)
     const pilotColor = player === devilAssistPlayerRef.current ? '#facc15' : ownPilot ? PLAYER_COLOR : ALLY_PLAYER_COLOR
     const bank = shipKey === 'coreLander' ? 0 : getRaidPlayerFlightBank(pilotColor, player.x)
-    const wingTips = canFireMain && viewport && shipKey === 'xwing'
-      ? getRaidBankingFrame(getRaidPlayerVisualShipKey(player, progressRef.current), bank, landscapeRef.current,
-        window.matchMedia('(prefers-reduced-motion: reduce)').matches)?.wing
-      : undefined
+    const reducedFlightMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const firingPose = canFireMain && viewport && !coreLanderCombatModel && (bank !== 0 || shipKey === 'xwing')
+      ? getRaidBankingFrame(getRaidPlayerVisualShipKey(player, progressRef.current), bank, landscapeRef.current, reducedFlightMotion)
+      : null
     const emitMainShot = canFireMain && viewport
       ? createRaidMainShotEmitter(pushShot, player, shipKey, Boolean(coreLanderCombatModel),
-        viewport.cssWidth, viewport.cssHeight, bank, landscapeRef.current, player.sizeScale, coreLanderCombatModel, wingTips)
+        viewport.cssWidth, viewport.cssHeight, firingPose || reducedFlightMotion ? 0 : bank, landscapeRef.current,
+        player.sizeScale, coreLanderCombatModel, firingPose?.wing)
       : pushShot
     const defaultScoutOffset = isArk
       ? (isSmallViewport ? 14 : 7.4)

@@ -28,7 +28,7 @@ const art = await compile(`
   const anchors = ${JSON.stringify(registrations)}
   const getPublicAssetUrl = path => '/base/' + path
   const releaseCanvasSprite = () => {}
-  const makeImageCanvasSprite = (cacheKey, url) => ({ cacheKey, url, loaded: !cacheKey.includes('rocket-v12') })
+  const makeImageCanvasSprite = (cacheKey, url) => ({ cacheKey, url, loaded: !cacheKey.includes('rocket-v14') })
 ` + source.replace(/^import .*\n/gm, ''))
 // Preserve textured ship paint and reflections; a one-time tint is cheaper
 // than filters on every animated frame and should not wash out the hull.
@@ -50,15 +50,19 @@ assert.equal(art.raidBankingPreviewAngle(true), 90)
 assert.deepEqual(art.raidBankingPreviewNozzle(.09, .42, false), {x:.09, y:.42})
 assert.deepEqual(art.raidBankingPreviewNozzle(.09, .42, true), {x:-.42, y:.09})
 for (const landscape of [false, true]) {
-  for (const bank of [-.14, -.08, -.035, 0, .028, .08, .14]) {
-    const index = art.raidBankingFrameIndex(bank, landscape, false) % art.BANKING_COLUMNS
-    const bakedAngle = (index - 3) * (.14 / 3)
-    const remainingAngle = art.raidBankingResidualAngle(bank, landscape, false)
-    assert.ok(Math.abs(bakedAngle + remainingAngle - bank) < 1e-9,
-      'subframe roll should complete—not double—the selected baked bank')
-    assert.ok(Math.abs(remainingAngle) <= .14/6 + 1e-12)
+  const index = landscape ? 10 : 3
+  const bank = .14 / 6
+  const pose = art.getRaidBankingFrame('xwing', bank, landscape, false)
+  assert.equal(pose.frame, index + .5)
+  for (const group of ['wing', 'nozzles']) {
+    for (const [i, point] of pose[group].entries()) {
+      point.forEach((value, j) => {
+        const [a,b] = registrations.xwing[group].slice(index,index+2)
+        assert.ok(Math.abs(value - (a[i][j] + b[i][j]) / 2) < 1e-9)
+      })
+    }
   }
-  assert.equal(art.raidBankingResidualAngle(.12, landscape, true), 0)
+  assert.equal(art.getRaidBankingFrame('xwing', bank, landscape, true).frame, index)
 }
 // New atlases must originate from the unsharpened v1 source, never v2/v3.
 const baker = readFileSync('scripts/match-3d-to-2d-palette.py', 'utf8')
@@ -90,10 +94,10 @@ const modelKeys = Object.keys(registrations).filter(key => !mechKeys.includes(ke
 assert.deepEqual(models.sort(), modelKeys.map(key => key + '.blend').sort())
 for (const key of Object.keys(registrations)) {
   const reconstructed = modelKeys.includes(key)
-  assert.equal(art.getRaidBankingAtlasUrl(key), `/base/assets/ships/banking/${key}-v${reconstructed ? 12 : 7}.webp`)
+  assert.equal(art.getRaidBankingAtlasUrl(key), `/base/assets/ships/banking/${key}-v${reconstructed ? 14 : 7}.webp`)
   for (const landscape of [false, true]) {
     const path = art.getRaidPicker3DPreviewUrl(key, landscape)
-    assert.equal(path, `/base/assets/ships/previews/${key}-${landscape ? 'landscape' : 'portrait'}-v${reconstructed ? 5 : 1}.webp`)
+    assert.equal(path, `/base/assets/ships/previews/${key}-${landscape ? 'landscape' : 'portrait'}-v${reconstructed ? (landscape ? 7 : 5) : 1}.webp`)
     const image = readFileSync(path.replace('/base/', 'public/'))
     assert.equal(image.toString('ascii', 8, 12), 'WEBP', key)
     assert.equal(image.readUIntLE(24, 3) + 1, 640, key)

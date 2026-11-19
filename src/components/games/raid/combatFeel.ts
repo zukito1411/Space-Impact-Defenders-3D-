@@ -16,6 +16,7 @@ export type FlightPose = { time: number; x: number; bank: number; lateralSpeed?:
 /** Responsive cosmetic bank; reset on teleports/resume rather than snapping. */
 export function updateFlightPose(pose: FlightPose, time: number, x: number) {
   const dt = (time - pose.time) / 1000
+  if (dt === 0 && x === pose.x) return pose.bank
   if (dt <= 0 || dt > 0.15 || Math.abs(x - pose.x) > 12) {
     pose.bank = 0
     pose.lateralSpeed = 0
