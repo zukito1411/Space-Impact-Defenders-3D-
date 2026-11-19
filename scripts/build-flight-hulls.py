@@ -11,6 +11,9 @@ import sys
 import tempfile
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from flight_bodywork import build_bodywork
+
 import bpy
 import numpy as np
 from PIL import Image
@@ -493,6 +496,11 @@ def build(key, file):
     rails = np.exp(-((offset - root*.33) / 2.8)**2)
     underside_run = np.exp(-((iy-172)/58)**4) * edge
     bottom -= 2.6 * rails * underside_run
+    # The structural loft occupies the center. Keep the registered wing paint,
+    # rails and shoulder geometry where they meet its chines.
+    shoulder = np.clip((offset - root*.52)/(root*.53), 0, 1)
+    height *= .36 + .64*shoulder
+    bottom *= .54 + .46*shoulder
     field = {
         "Hull": ([], [], {}),
         "Canopy": ([], [], {}),
@@ -664,6 +672,7 @@ def build(key, file):
         build_crosswing(paint, steel, silver, bore, marker, key.endswith("Elite"))
     elif not base.startswith("coreLander"):
         build_tail(base, paint, mask, roof, height)
+    build_bodywork(key, mask, cy, bells, mesh_object, solid)
     for obj in bpy.context.scene.objects:
         if obj.type == "MESH" and paint.name in obj.data.materials:
             fit_side_uv(obj, side_registration, side_paint)
