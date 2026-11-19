@@ -9,14 +9,15 @@ const assets = readFileSync('src/components/games/RaidShipSprite.tsx', 'utf8') +
 const expectedKeys = [...assets.matchAll(/^  (\w+): 'assets\/ships\//gm)].map(match => match[1]).filter(key => key !== 'mesiah')
 assert.deepEqual(Object.keys(registrations).sort(), [...new Set(expectedKeys)].sort())
 
-// Generated textures must be committed together with any renderer version bump.
-// Otherwise CI fails late with ENOENT and the APK can contain missing ships.
 const bankingDir = 'public/assets/ships/banking/'
-const expectedV4Files = Object.keys(registrations).map(key => key + '-v7.webp').sort()
-const committedV4Files = readdirSync(bankingDir).filter(name => name.endsWith('-v7.webp')).sort()
-assert.deepEqual(committedV4Files, expectedV4Files,
-  'Every registered 3D banking ship needs its committed -v7.webp atlas before verification and release')
-
+const previewDir = 'public/assets/ships/previews/'
+const mechKeys = new Set(['godGundam', 'godGundamBurning', 'spiegel'])
+const refinedKeys = Object.keys(registrations).filter(key => !mechKeys.has(key))
+assert.deepEqual(readdirSync(bankingDir).filter(name => name.endsWith('-v9.webp')).sort(),
+  refinedKeys.map(key => key + '-v9.webp').sort(), 'Every refined spacecraft needs a flight atlas')
+assert.deepEqual(readdirSync(previewDir).filter(name => name.endsWith('-v2.webp')).sort(),
+  refinedKeys.flatMap(key => [key + '-portrait-v2.webp', key + '-landscape-v2.webp']).sort(),
+  'Every refined spacecraft needs both HD picker views')
 
 function compile(source) {
   const { outputText } = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } })
@@ -28,7 +29,7 @@ const art = await compile(`
   const anchors = ${JSON.stringify(registrations)}
   const getPublicAssetUrl = path => '/base/' + path
   const releaseCanvasSprite = () => {}
-  const makeImageCanvasSprite = (cacheKey, url) => ({ cacheKey, url, loaded: !cacheKey.includes('rocket-v7') })
+  const makeImageCanvasSprite = (cacheKey, url) => ({ cacheKey, url, loaded: !cacheKey.includes('rocket-v9') })
 ` + source.replace(/^import .*\n/gm, ''))
 // Preserve textured ship paint and reflections; a one-time tint is cheaper
 // than filters on every animated frame and should not wash out the hull.
@@ -84,30 +85,20 @@ assert.ok(preview.includes('RaidShipPickerPreview'), '3D selection component mus
 const picker = readFileSync('src/components/games/raid/GradiusRaidRuntime.tsx', 'utf8')
 assert.ok(picker.includes('<RaidShipPickerPreview shipKey={shipSpriteKey} landscape={landscape} />'))
 assert.ok(!picker.includes('<small>{locked ? lockedCopy : shipCopy.role}</small>'), 'ship cards show names only')
-assert.ok(source.includes('${key}-v8.webp'), 'clean Mesiah textures must be addressed by renderer')
-for (const key of ['mesiah', 'mesiahBlack', 'mesiahWhite']) {
-  assert.ok(art.getRaidBankingAtlasUrl(key)?.endsWith('-v8.webp'), key)
+for (const key of Object.keys(registrations)) {
+  const [atlasVersion, previewVersion] = mechKeys.has(key) ? [7, 1] : [9, 2]
+  assert.equal(art.getRaidBankingAtlasUrl(key), '/base/assets/ships/banking/' + key + '-v' + atlasVersion + '.webp')
+  for (const [landscape, view] of [[false, 'portrait'], [true, 'landscape']]) {
+    const name = key + '-' + view + '-v' + previewVersion + '.webp'
+    assert.equal(art.getRaidPicker3DPreviewUrl(key, landscape), '/base/assets/ships/previews/' + name)
+    const image = readFileSync(previewDir + name)
+    assert.equal(image.toString('ascii', 0, 4), 'RIFF', name)
+    assert.equal(image.toString('ascii', 8, 12), 'WEBP', name)
+    assert.ok(image.byteLength > 2048, name)
+  }
 }
-for (const key of ['rocket', 'xwing', 'spaceEt', 'godGundam']) {
-  assert.ok(art.getRaidBankingAtlasUrl(key)?.endsWith('-v7.webp'), key)
-}
-for (const key of ['mesiahBlack', 'mesiahWhite']) {
-  const image = readFileSync(bankingDir + key + '-v8.webp')
-  assert.equal(image.toString('ascii', 0, 4), 'RIFF', key)
-  assert.equal(image.toString('ascii', 8, 12), 'WEBP', key)
-}
-const previews = readdirSync('public/assets/ships/previews').filter(name => name.endsWith('-v1.webp'))
-const expectedPreviews = Object.keys(registrations).flatMap(key => [
-  key + '-portrait-v1.webp', key + '-landscape-v1.webp'
-]).sort()
-assert.deepEqual(previews.sort(), expectedPreviews, 'Every 3D ship requires both HD selector views')
-for (const name of previews) {
-  const image = readFileSync('public/assets/ships/previews/' + name)
-  assert.equal(image.toString('ascii', 0, 4), 'RIFF', name)
-  assert.equal(image.toString('ascii', 8, 12), 'WEBP', name)
-  assert.ok(image.byteLength > 2048, name)
-}
-assert.match(source, /assets\/ships\/banking\/\$\{key\}-v7.webp/)
+assert.equal(art.getRaidPicker3DPreviewUrl('mesiah', true), art.getRaidPicker3DPreviewUrl('mesiahBlack', true))
+assert.equal(art.getRaidPicker3DPreviewUrl('toString', false), null)
 
 assert.equal(art.getRaidBankingAtlasUrl('mesiah'), art.getRaidBankingAtlasUrl('mesiahBlack'))
 assert.equal(art.getRaidBankingFrame('toString', 0, false, false), null)
@@ -115,7 +106,7 @@ assert.equal(art.getRaidBankingFrame('rocket', 0, false, false), null, 'keep the
 assert.equal(art.getBankingProtectionHull(art.getRaidBankingAtlas('laser'), true).frame, 10)
 for (const [key, entry] of Object.entries(registrations)) {
   const sourceImage = readFileSync('public/assets/ships/banking/' + key + '-v1.webp')
-  const image = readFileSync('public/assets/ships/banking/' + key + '-v7.webp')
+  const image = readFileSync(bankingDir + key + (mechKeys.has(key) ? '-v7.webp' : '-v9.webp'))
   assert.equal(image.toString('ascii', 0, 4), 'RIFF', key)
   assert.equal(image.toString('ascii', 8, 16), 'WEBPVP8X', key)
   assert.equal(sourceImage.readUIntLE(24, 3) + 1, 224 * art.BANKING_COLUMNS, key)

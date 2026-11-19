@@ -7,7 +7,6 @@ import anchors from './bankingAnchors.json'
 export const BANKING_COLUMNS = 7
 export const BANKING_ROWS = 2
 export const BANKING_CELL = 448
-// Unsharpened v1 originals retain fine panel details with light 2D-palette matching in v5.
 // The source atlas is oriented nose-up for both flight-camera modes. UI previews
 // must apply the flight camera's quarter turn when shown on a landscape screen.
 export function raidBankingPreviewAngle(landscape: boolean) { return landscape ? 90 : 0 }
@@ -35,9 +34,10 @@ export type RaidBankingFrame = {
 
 // Gundam models retain their detailed hand-painted 2D combat poses in
 // landscape. In gameplay these remain 2D; the selector now has 3D preview-only art.
+const mechBankingKeys = new Set(['godGundam', 'godGundamBurning', 'spiegel'])
+
 export function isRaidGundamArt(shipKey: string) {
-  return shipKey === 'godGundam' || shipKey === 'godGundamBurning' ||
-    shipKey === 'spiegel' || shipKey === 'coreLander' ||
+  return mechBankingKeys.has(shipKey) || shipKey === 'coreLander' ||
     shipKey === 'coreLanderBurning' || shipKey === 'coreLanderElite' ||
     shipKey === 'coreLanderBurningElite'
 }
@@ -53,12 +53,17 @@ function bankingKey(shipKey: string) {
 export function getRaidBankingAtlasUrl(shipKey: string) {
   const key = bankingKey(shipKey)
   if (!Object.prototype.hasOwnProperty.call(registrations, key)) return null
-  // Only the two Mesiah frames get a new, cleaner steel/material treatment.
-  // Other vivid v7 ships stay byte-for-byte unchanged.
-  if (key === 'mesiahBlack' || key === 'mesiahWhite') {
-    return getPublicAssetUrl(`assets/ships/banking/${key}-v8.webp`)
-  }
-  return getPublicAssetUrl(`assets/ships/banking/${key}-v7.webp`)
+  const version = mechBankingKeys.has(key) ? 7 : 9
+  return getPublicAssetUrl(`assets/ships/banking/${key}-v${version}.webp`)
+}
+
+// Picker images are cropped from the same flight atlas at neutral bank.
+export function getRaidPicker3DPreviewUrl(shipKey: string, landscape: boolean) {
+  const key = bankingKey(shipKey)
+  if (!Object.prototype.hasOwnProperty.call(registrations, key)) return null
+  const version = mechBankingKeys.has(key) ? 1 : 2
+  const view = landscape ? 'landscape' : 'portrait'
+  return getPublicAssetUrl(`assets/ships/previews/${key}-${view}-v${version}.webp`)
 }
 
 // Hangar UI uses the same registered exhaust roots as the flight atlas.

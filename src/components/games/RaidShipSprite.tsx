@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { RAID_ELITE_FRAME_PATHS } from './raid/shipArtwork'
-import { drawRaidBankingCell, getRaidBankingAtlas, getRaidBankingAtlasUrl, isRaidGundamArt, raidBankingFrameIndex, raidBankingPreviewAngle } from './raid/bankingArt'
+import { drawRaidBankingCell, getRaidBankingAtlas, getRaidBankingAtlasUrl, getRaidPicker3DPreviewUrl, isRaidGundamArt, raidBankingFrameIndex, raidBankingPreviewAngle } from './raid/bankingArt'
 import { getRaidSideShipSpriteUrl } from './raid/sideArtwork'
 import { getPublicAssetUrl } from './sound'
 import { LEGACY_FIGHTER_COUNT, RAID_FIGHTER_ASSETS } from './raid/stageEncounters'
@@ -71,15 +71,6 @@ export function getRaidEliteSpriteUrl(variant: number) {
   return getPublicAssetUrl(RAID_ELITE_ASSET_PATHS[index])
 }
 
-// Ship-picker previews are pre-cropped directly from each ship's actual 3D
-// banking atlas (both camera orientations). They are lighter and much clearer
-// than loading all 27 full multi-pose textures onto the selection screen.
-export function getRaidPicker3DPreviewUrl(shipKey: string, landscape: boolean) {
-  if (!getRaidBankingAtlasUrl(shipKey)) return null
-  const key = shipKey === 'mesiah' ? 'mesiahBlack' : shipKey
-  return getPublicAssetUrl(`assets/ships/previews/${key}-${landscape ? 'landscape' : 'portrait'}-v1.webp`)
-}
-
 export function RaidShipPickerPreview({ shipKey, landscape }: { shipKey: string; landscape: boolean }) {
   const previewUrl = getRaidPicker3DPreviewUrl(shipKey, landscape)
   const [failedUrl, setFailedUrl] = useState<string | null>(null)
@@ -101,14 +92,10 @@ export function RaidShipPickerPreview({ shipKey, landscape }: { shipKey: string;
   )
 }
 
-// Hangar and other 3D previews use a DPR-aware Canvas backed by the
-// palette-matched atlas. The ship-selection cards opt into the original 2D art.
+// Hangar previews use a DPR-aware Canvas backed by the flight atlas.
 export function RaidShipSprite({ shipKey, size, className = 'raid__ship-sprite', sideView, preferOriginalArt = false }: { shipKey: string; size: number; className?: string; sideView?: boolean; preferOriginalArt?: boolean }) {
   const landscape = useLandscapeScreen()
   const viewLandscape = sideView ?? landscape
-  // Keep the original 2D art in the ship picker: the small card should show
-  // faithfully painted details rather than a magnified, baked banking frame.
-  // In-flight, the hangar and support ships still use the corrected 3D atlas.
   const atlasUrl = (preferOriginalArt || isRaidGundamArt(shipKey)) ? null : getRaidBankingAtlasUrl(shipKey)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [loadedAtlas, setLoadedAtlas] = useState<string | null>(null)

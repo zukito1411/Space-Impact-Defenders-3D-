@@ -15,6 +15,12 @@ Two original Blender 4.3 project files were recovered from the project's previou
 
 No authored Blender source was recovered for the other ships. Do not describe their existing baked atlases as high-polygon models.
 
+## Refining shipped spacecraft artwork
+
+The spacecraft in flight and the ship picker use baked banking renders. The current detail pass starts with those renders and uses the game's top-view sprites as reference for wing panels, vents, rocket housings and exhaust collars. The Crimson Saw and Red Wraith turret assemblies are drawn into each pose, including their Elite variants.
+
+With Pillow, NumPy and `opencv-python-headless` installed, run `python3 scripts/refine-3d-ship-details.py` from the repository root to rebuild the version 9 atlases and version 2 picker previews. Pass individual banking keys such as `fast` or `gatlingElite` to rebuild selected ships.
+
 ## Rendering approach
 
 1. Load the actual 3D mesh and retain the UV textures and existing shader-node connections.
@@ -38,7 +44,7 @@ python3 scripts/pack_source_model_banking.py \
 
 Or open **Actions → Render source Blender ship models (review only) → Run workflow** after uploading the verified `.blend` files to the repository. The workflow creates reviewable PNG renders and one `-source-v6.webp` test atlas as artifacts; it **does not** silently update game artwork, physics, main, or the signed Android APK. This prevents a new render from unexpectedly misaligning weapons/collisions.
 
-The original 2D ships are retained in selection screens; Gundam and Spiegel remain 2D in landscape.
+The ship picker uses cropped neutral poses from the flight atlases. Gundam and Spiegel use the original 2D art in landscape flight.
 
 ## Constraints
 
