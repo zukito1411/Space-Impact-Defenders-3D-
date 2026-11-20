@@ -20,8 +20,8 @@ export function samplePlanetMountain(x: number, z: number, peak: PlanetTerrainPe
   if (r >= 1) return 0
   const angle = Math.atan2(z, x)
   const erosion = atmosphereNoise(x * 6 + peak.seed, z * 6, 823) - .45
-  const ribs = Math.sin(angle * 9 + r * 6 + peak.seed) * .055
-    + Math.sin(angle * 17 - r * 9 + peak.seed * 2) * .024
+  const ribs = Math.sin(angle * 5 + r * 6 + peak.seed) * .028
+    + Math.sin(angle * 11 - r * 9 + peak.seed * 2) * .012
   const edge = Math.max(0, 1 - r * r)
   let profile = Math.pow(edge, wet ? 2.2 : 1.65)
   if (!wet) profile -= Math.exp(-((r / .16) ** 4)) * .29

@@ -10,6 +10,7 @@ Each world admits one static terrain mesh during loading (32,472 vertices / 61,4
 
 - Production build and packaged artwork/PWA verification.
 - Finite geometry, normalized normals, valid indices and backward travel direction.
+- Existing atmospheric pooling, low quality, planet switching, pause/resume and material/mesh teardown checks.
 - Actual gameplay pixel comparisons in Chromium/SwiftShader for both worlds at two travel times and across the world wrap.
 - Exact ground/terrain travel agreement, ground-foot projection, crater attachment, pause and reduced-motion checks.
 - Portrait scene visibility regression checks and normal landscape gameplay captures of stages 5 and 10.
@@ -21,3 +22,5 @@ RAID_REVIEW_TERRAIN_CHECK=1 RAID_REVIEW_STAGES=5,10 RAID_REVIEW_OUTPUT=presentat
 ```
 
 The CI workflow installs Playwright's Chromium and media dependencies and uploads the review evidence. This is a targeted visual/movement review, not a physical-device FPS benchmark or an expanded campaign performance audit.
+
+The older standalone `scripts/test-cosmos.mjs` is currently blocked by an existing test-double omission (`OrbitalCombatRocks` is undefined). Its `background.ts` input is unchanged by this update; the targeted browser checks use the real background renderer instead.
