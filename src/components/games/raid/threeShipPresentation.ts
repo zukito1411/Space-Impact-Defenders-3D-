@@ -5,7 +5,7 @@ import { isRaid2DMech } from './mechArtwork'
 import { prepareLiveProtection } from './liveProtection'
 import { poseOrganicBoss } from './specialBossGeometry'
 import {
-  DirectionalLight, Mesh, Group, HemisphereLight, NeutralToneMapping, Quaternion, Vector3,
+  Color, DirectionalLight, Mesh, Group, HemisphereLight, NeutralToneMapping, Quaternion, Vector3,
   PerspectiveCamera, Scene, WebGLRenderer, type Material, type Object3D, type Texture, WebGLRenderTarget,
 } from 'three'
 import { ENEMY_HULL_KEYS, ENEMY_HULL_SPECS } from './enemyHulls'
@@ -29,6 +29,7 @@ export class ThreeShipPresentation implements LiveHullSink {
   private readonly world = new Scene()
   private readonly keyLight = new DirectionalLight(0xfff0dc, 2.8)
   private readonly fillLight = new DirectionalLight(0x86bddc, .34)
+  private readonly readabilityTint = new Color(0xe7f0ff)
   private readonly ambientLight = new HemisphereLight(0xa0c5e4, 0x182436, .34)
   private readonly lighting = createShipLightingFrame()
   private readonly neutralLighting = createShipLightingFrame()
@@ -290,6 +291,7 @@ export class ThreeShipPresentation implements LiveHullSink {
     this.previousDock = dock; this.previousProbe = target.probe
     this.dockBlend += (Math.max(0,Math.min(1,dock))-this.dockBlend)*blend
     const indoor = this.dockBlend, deck = SHIP_LIGHTING_PALETTES[6], state = this.lighting
+    const combat = 1-indoor
     for (let axis = 0; axis < 3; axis++) {
       const sun = axis === 0 ? -.35 : axis === 1 ? -.78 : .75
       state.sun[axis] += (target.sun[axis]*(1-indoor)+sun*indoor-state.sun[axis])*blend
@@ -307,7 +309,12 @@ export class ThreeShipPresentation implements LiveHullSink {
     this.keyLight.color.setRGB(state.keyColor[0],state.keyColor[1],state.keyColor[2])
     this.keyLight.intensity = state.sunIntensity
     this.fillLight.color.setRGB(state.fillColor[0],state.fillColor[1],state.fillColor[2])
-    this.fillLight.intensity = state.fillIntensity
+    // Reuse the existing fill. A neutral, viewing-side minimum keeps combat
+    // paint readable when the sun is behind a hull or an eclipse dims its key.
+    // Stage-colored key/sky/reflections and the carrier's lighting remain.
+    this.fillLight.color.lerp(this.readabilityTint,.55*combat)
+    this.fillLight.intensity = Math.max(state.fillIntensity,
+      (1.5+.5*Math.max(0,-state.sun[2]))*combat)
     this.ambientLight.color.setRGB(state.skyColor[0],state.skyColor[1],state.skyColor[2])
     this.ambientLight.groundColor.setRGB(state.groundColor[0],state.groundColor[1],state.groundColor[2])
     this.ambientLight.intensity = state.ambientIntensity
@@ -324,7 +331,9 @@ export class ThreeShipPresentation implements LiveHullSink {
         this.world.environmentRotation.setFromQuaternion(this.reflectionTurn)
       } else this.world.environmentRotation.set(0,0,0)
     }
-    this.lightDirection.set(state.fillDirection[0],-state.fillDirection[1],state.fillDirection[2]).normalize()
+    const flank = 1-.75*combat
+    this.lightDirection.set(state.fillDirection[0]*flank,-state.fillDirection[1]*flank,
+      state.fillDirection[2]*flank+.9*combat).normalize()
     this.fillLight.position.copy(this.fillLight.target.position).addScaledVector(this.lightDirection,1800)
   }
 

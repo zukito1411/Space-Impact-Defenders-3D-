@@ -193,6 +193,10 @@ try {
     },refNames)
     await page.evaluate(async()=>{await new Promise(window.reviewRAF);await new Promise(window.reviewRAF)})
     assert.equal(await page.evaluate(()=>typeof window.reviewLoop),'function')
+    if(process.env.RAID_REVIEW_LIGHTING_CHECK==='1') {
+      const {checkCombatLighting}=await import('./check-combat-lighting.mjs')
+      await checkCombatLighting(page,output)
+    }
     if(landscape&&!profileOnly) for(const boss of catalog.filter(boss=>!selectedStages||selectedStages.includes(boss.stage))) {
       const filename='boss-'+String(boss.stage).padStart(2,'0')+'-landscape-v1.png'
       if(specialOnly&&![5,10,15].includes(boss.stage)) {

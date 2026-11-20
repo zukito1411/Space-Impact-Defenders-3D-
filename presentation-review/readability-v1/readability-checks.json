@@ -1,0 +1,1722 @@
+{
+  "environment": "Headless Chromium / SwiftShader",
+  "checks": [
+    {
+      "landscape": true,
+      "region": 0,
+      "scenario": "backlit",
+      "before": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 3110,
+            "luma": 20.483720578778048,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 2252,
+            "luma": 19.806969715808204,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 19.158577472236882,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 19.266912638815416,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 2975,
+            "luma": 10.608658957983176,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 1619,
+            "luma": 8.253651389746766,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 4879,
+            "luma": 16.949740233654367,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      },
+      "after": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 3110,
+            "luma": 46.467462443729914,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 2252,
+            "luma": 47.01860444049735,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 42.59582347964043,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 42.671774299312496,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 2975,
+            "luma": 29.108925714285803,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 1619,
+            "luma": 22.204905003088292,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 4879,
+            "luma": 38.10428120516506,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      }
+    },
+    {
+      "landscape": true,
+      "region": 0,
+      "scenario": "eclipse",
+      "before": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 3110,
+            "luma": 24.119865980707363,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 2252,
+            "luma": 22.632546714031943,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 57.65467318878912,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 57.69386631411954,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 2975,
+            "luma": 14.39779583193278,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 1619,
+            "luma": 12.139861025324281,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 4879,
+            "luma": 21.579358721049406,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      },
+      "after": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 3110,
+            "luma": 44.69203536977494,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 2252,
+            "luma": 44.459115630550606,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 67.71916615547333,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 67.82921671073493,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 2975,
+            "luma": 27.36192134453788,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 1619,
+            "luma": 21.31298492896849,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 4879,
+            "luma": 36.0904357450297,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      }
+    },
+    {
+      "landscape": true,
+      "region": 1,
+      "scenario": "backlit",
+      "before": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 3110,
+            "luma": 14.593777942122173,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 2252,
+            "luma": 15.247232859680272,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 23.247499841353754,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 23.32634373347435,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 2975,
+            "luma": 13.62507287394963,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 1619,
+            "luma": 11.852505497220498,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 4879,
+            "luma": 18.191678909612705,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      },
+      "after": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 3110,
+            "luma": 42.90003151125398,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 2252,
+            "luma": 43.98015506216696,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 45.81499746166058,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 45.860624537281794,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 2975,
+            "luma": 30.618035563025238,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 1619,
+            "luma": 24.723071155033928,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 4879,
+            "luma": 38.17017483090778,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      }
+    },
+    {
+      "landscape": true,
+      "region": 1,
+      "scenario": "eclipse",
+      "before": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 3110,
+            "luma": 21.6027421864952,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 2252,
+            "luma": 21.092423712255712,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 58.580239978847125,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 58.4942640930725,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 2975,
+            "luma": 16.511388436974766,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 1619,
+            "luma": 14.31799258801727,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 4879,
+            "luma": 22.124230539044895,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      },
+      "after": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 3110,
+            "luma": 41.63791112540187,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 2252,
+            "luma": 42.05802788632321,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 68.57271359069277,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 68.70491898466415,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 2975,
+            "luma": 28.773192470588114,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 1619,
+            "luma": 23.38035379864112,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 4879,
+            "luma": 35.82985255175225,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      }
+    },
+    {
+      "landscape": true,
+      "region": 2,
+      "scenario": "backlit",
+      "before": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 3110,
+            "luma": 16.345714533762123,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 2252,
+            "luma": 15.878493960923626,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 18.26408672659967,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 18.31512057112635,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 2975,
+            "luma": 9.400470588235292,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 1619,
+            "luma": 8.166156763434207,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 4879,
+            "luma": 14.840192826398798,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      },
+      "after": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 3110,
+            "luma": 43.73584463022496,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 2252,
+            "luma": 44.48755834813493,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 41.79909487043893,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 41.83606991010042,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 2975,
+            "luma": 27.863003159663688,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 1619,
+            "luma": 21.75625904879554,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 4879,
+            "luma": 36.277950973560294,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      }
+    },
+    {
+      "landscape": true,
+      "region": 2,
+      "scenario": "eclipse",
+      "before": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 3110,
+            "luma": 21.25561569131835,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 2252,
+            "luma": 20.00666012433393,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 53.68478688524599,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 53.668664621893164,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 2975,
+            "luma": 12.912167999999955,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 1619,
+            "luma": 11.384588264360698,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 4879,
+            "luma": 19.399805656896753,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      },
+      "after": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 3110,
+            "luma": 41.73466540192928,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 2252,
+            "luma": 41.797416429840226,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 64.17973495505018,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 64.2790419883659,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 2975,
+            "luma": 25.848912537815185,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 1619,
+            "luma": 20.498984187770237,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 4879,
+            "luma": 33.87137970895683,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      }
+    },
+    {
+      "landscape": true,
+      "region": 3,
+      "scenario": "backlit",
+      "before": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 3110,
+            "luma": 11.55442861736335,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 2252,
+            "luma": 11.476374689165178,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 17.145678900052882,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 17.23379925965099,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 2975,
+            "luma": 9.516462050420143,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 1619,
+            "luma": 8.44950586781965,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 4879,
+            "luma": 15.425848616519705,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      },
+      "after": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 3110,
+            "luma": 41.18571434083596,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 2252,
+            "luma": 41.97630870337472,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 40.741678688524566,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 40.81121173982023,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 2975,
+            "luma": 28.115130016806862,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 1619,
+            "luma": 21.858499691167374,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 4879,
+            "luma": 36.233153310104484,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      }
+    },
+    {
+      "landscape": true,
+      "region": 3,
+      "scenario": "eclipse",
+      "before": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 3110,
+            "luma": 18.724996398713852,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 2252,
+            "luma": 17.648141740674976,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 53.2933286092016,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 53.35819492332105,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 2975,
+            "luma": 12.797274621848757,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 1619,
+            "luma": 11.424318715256332,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 4879,
+            "luma": 19.853602500512316,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      },
+      "after": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 3110,
+            "luma": 39.84351691318326,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 2252,
+            "luma": 39.87222966252226,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 64.0366928609201,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 64.16579048122684,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 2975,
+            "luma": 26.214337815126065,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 1619,
+            "luma": 20.636850772081498,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 4879,
+            "luma": 34.104723426931734,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      }
+    },
+    {
+      "landscape": false,
+      "region": 0,
+      "scenario": "backlit",
+      "before": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 4858,
+            "luma": 25.343835034993845,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 3360,
+            "luma": 24.412980059523818,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 2673,
+            "luma": 19.752485746352438,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 2630,
+            "luma": 19.581390418250948,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 4500,
+            "luma": 9.933083244444429,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 2375,
+            "luma": 9.718222905263126,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 6964,
+            "luma": 17.920654451464657,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      },
+      "after": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 4858,
+            "luma": 62.77036442980609,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 3360,
+            "luma": 58.49420190476191,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 2673,
+            "luma": 49.930807557052084,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 2630,
+            "luma": 50.0526816730038,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 4500,
+            "luma": 33.98973320000008,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 2375,
+            "luma": 35.7597831578947,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 6964,
+            "luma": 48.93373957495686,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      }
+    },
+    {
+      "landscape": false,
+      "region": 0,
+      "scenario": "eclipse",
+      "before": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 4858,
+            "luma": 23.449497118155634,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 3360,
+            "luma": 21.586677440476176,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 2673,
+            "luma": 52.747718817807765,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 2630,
+            "luma": 54.595507376425886,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 4500,
+            "luma": 13.852812399999998,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 2375,
+            "luma": 14.13568960000003,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 6964,
+            "luma": 23.38235732337733,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      },
+      "after": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 4858,
+            "luma": 52.96633816385332,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 3360,
+            "luma": 49.2004971428572,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 2673,
+            "luma": 67.50280157126839,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 2630,
+            "luma": 69.70546342205311,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 4500,
+            "luma": 32.31793919999997,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 2375,
+            "luma": 30.636948715789494,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 6964,
+            "luma": 47.75586424468694,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      }
+    },
+    {
+      "landscape": false,
+      "region": 1,
+      "scenario": "backlit",
+      "before": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 4858,
+            "luma": 19.45784792095512,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 3360,
+            "luma": 19.19036880952382,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 2673,
+            "luma": 24.145668462401808,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 2630,
+            "luma": 24.06846707224336,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 4500,
+            "luma": 13.3192293333333,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 2375,
+            "luma": 14.297839915789478,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 6964,
+            "luma": 19.681073463526772,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      },
+      "after": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 4858,
+            "luma": 60.55172358995469,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 3360,
+            "luma": 56.08833505952382,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 2673,
+            "luma": 53.16051215862311,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 2630,
+            "luma": 53.3001372623573,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 4500,
+            "luma": 35.19396008888893,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 2375,
+            "luma": 37.68853347368417,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 6964,
+            "luma": 49.39746490522682,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      }
+    },
+    {
+      "landscape": false,
+      "region": 1,
+      "scenario": "eclipse",
+      "before": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 4858,
+            "luma": 20.389557883902874,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 3360,
+            "luma": 19.092761726190513,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 2673,
+            "luma": 53.71589412644963,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 2630,
+            "luma": 55.442462053231885,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 4500,
+            "luma": 16.19267377777775,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 2375,
+            "luma": 16.443207999999995,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 6964,
+            "luma": 24.494730068925875,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      },
+      "after": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 4858,
+            "luma": 50.446047262247944,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 3360,
+            "luma": 46.733149761904876,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 2673,
+            "luma": 68.83249487467282,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 2630,
+            "luma": 70.92782669201536,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 4500,
+            "luma": 33.33830840000003,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 2375,
+            "luma": 32.38687368421053,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 6964,
+            "luma": 47.80846875358984,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      }
+    },
+    {
+      "landscape": false,
+      "region": 2,
+      "scenario": "backlit",
+      "before": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 4858,
+            "luma": 20.82013054755045,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 3360,
+            "luma": 20.31718375000002,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 2673,
+            "luma": 18.863961092405575,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 2630,
+            "luma": 18.745064562737795,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 4500,
+            "luma": 8.818669599999978,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 2375,
+            "luma": 9.47614021052632,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 6964,
+            "luma": 15.589133744974182,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      },
+      "after": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 4858,
+            "luma": 60.07105862494852,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 3360,
+            "luma": 55.993761964285696,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 2673,
+            "luma": 49.20849165731382,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 2630,
+            "luma": 49.33781155893526,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 4500,
+            "luma": 32.67672893333331,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 2375,
+            "luma": 34.6747360842105,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 6964,
+            "luma": 47.07158497989664,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      }
+    },
+    {
+      "landscape": false,
+      "region": 2,
+      "scenario": "eclipse",
+      "before": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 4858,
+            "luma": 20.328369411280377,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 3360,
+            "luma": 18.719017261904757,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 2673,
+            "luma": 49.20893355780033,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 2630,
+            "luma": 50.95365346007609,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 4500,
+            "luma": 12.542745333333338,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 2375,
+            "luma": 13.259769936842114,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 6964,
+            "luma": 21.03150847214244,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      },
+      "after": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 4858,
+            "luma": 50.15834384520401,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 3360,
+            "luma": 46.59484327380957,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 2673,
+            "luma": 64.63878002244655,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 2630,
+            "luma": 66.6995597718631,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 4500,
+            "luma": 30.70980528888889,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 2375,
+            "luma": 29.385583747368326,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 6964,
+            "luma": 45.448049195864215,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      }
+    },
+    {
+      "landscape": false,
+      "region": 3,
+      "scenario": "backlit",
+      "before": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 4858,
+            "luma": 15.705187978591992,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 3360,
+            "luma": 15.709071488095262,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 2673,
+            "luma": 17.72386300037413,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 2630,
+            "luma": 17.56684996197722,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 4500,
+            "luma": 9.569204622222248,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 2375,
+            "luma": 9.880729263157903,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 6964,
+            "luma": 16.387205973578396,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      },
+      "after": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 4858,
+            "luma": 58.27003334705648,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 3360,
+            "luma": 53.91451642857152,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 2673,
+            "luma": 48.05720740740743,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 2630,
+            "luma": 48.15907551330796,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 4500,
+            "luma": 32.87245577777775,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 2375,
+            "luma": 34.96161541052627,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 6964,
+            "luma": 47.0879833141875,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      }
+    },
+    {
+      "landscape": false,
+      "region": 3,
+      "scenario": "eclipse",
+      "before": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 4858,
+            "luma": 17.292920543433517,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 3360,
+            "luma": 15.728323690476197,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 2673,
+            "luma": 48.86047699214368,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 2630,
+            "luma": 50.67601566539924,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 4500,
+            "luma": 13.069466622222263,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 2375,
+            "luma": 13.310822568421058,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 6964,
+            "luma": 21.81340663411824,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      },
+      "after": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 4858,
+            "luma": 48.469254302181724,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 3360,
+            "luma": 44.657589523809605,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 2673,
+            "luma": 64.40478039655821,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 2630,
+            "luma": 66.51428205323188,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 4500,
+            "luma": 31.10431684444445,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 2375,
+            "luma": 29.757353094736903,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 6964,
+            "luma": 45.752501952900495,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      }
+    },
+    {
+      "landscape": true,
+      "region": 0,
+      "scenario": "dock",
+      "before": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 3110,
+            "luma": 97.01203588424397,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 2252,
+            "luma": 91.05006678507988,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 73.7598468535168,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 73.13091549444732,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 2975,
+            "luma": 57.07577707563028,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 1619,
+            "luma": 49.40172686843735,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 4879,
+            "luma": 72.54797269932338,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      },
+      "after": {
+        "hulls": [
+          {
+            "key": "dreadnought",
+            "pixels": 3110,
+            "luma": 97.01203588424397,
+            "clipped": 0
+          },
+          {
+            "key": "rocket",
+            "pixels": 2252,
+            "luma": 91.05006678507988,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 73.7598468535168,
+            "clipped": 0
+          },
+          {
+            "key": "fighterCinder",
+            "pixels": 1891,
+            "luma": 73.13091549444732,
+            "clipped": 0
+          },
+          {
+            "key": "alienHull0",
+            "pixels": 2975,
+            "luma": 57.07577707563028,
+            "clipped": 0
+          },
+          {
+            "key": "eliteHull0",
+            "pixels": 1619,
+            "luma": 49.40172686843735,
+            "clipped": 0
+          },
+          {
+            "key": "commandHull2",
+            "pixels": 4879,
+            "luma": 72.54797269932338,
+            "clipped": 0
+          }
+        ],
+        "drawCalls": 7,
+        "instanceBatches": 1
+      }
+    }
+  ]
+}
