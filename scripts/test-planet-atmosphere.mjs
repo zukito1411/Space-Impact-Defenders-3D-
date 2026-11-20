@@ -57,7 +57,12 @@ class Point { x = 0; y = 0; set(x, y = x) { this.x = x; this.y = y } }
 class Container {
   children = []; position = new Point(); rotation = 0; visible = true
   constructor() { allocations++ }
-  addChild(...children) { this.children.push(...children) }
+  addChild(...children) {
+    for(const child of children) {
+      if(child.parent) child.parent.children=child.parent.children.filter(item=>item!==child)
+      child.parent=this;this.children.push(child)
+    }
+  }
   destroy() { this.destroyed = true }
 }
 class Sprite extends Container { anchor = new Point(); tileScale = new Point(); tilePosition = new Point(); constructor(texture) { super(); this.texture = texture } }
@@ -79,6 +84,10 @@ const initialAllocations = allocations
 scene.update(850,1600,35000,'cinder','high',false)
 assert.equal(scene.root.rotation, -Math.PI/2)
 assert.equal(scene.root.position.y,1600)
+assert.equal(scene.ashLayer.children.length,54)
+assert.equal(scene.emberLayer.children.length,18)
+assert.ok(scene.ashLayer.children.every(sprite=>sprite.blendMode==='normal'))
+assert.ok(scene.emberLayer.children.every(sprite=>sprite.blendMode==='add'))
 const positions = () => scene.clouds.map(sprite => [sprite.position.x,sprite.position.y])
 const beforePause = positions()
 scene.update(850,1600,45000,'cinder','high',false,true)
@@ -91,6 +100,8 @@ assert.equal(scene.clouds.filter(sprite=>sprite.visible).length,4)
 assert.equal(scene.motes.filter(sprite=>sprite.visible).length,18)
 assert.equal(scene.speedLines.filter(sprite=>sprite.visible).length,5)
 scene.update(390,844,50000,'pelagic','high',true)
+assert.equal(scene.ashLayer.children.length,0,'planet switching left ash behind')
+assert.equal(scene.emberLayer.children.length,72,'planet switching duplicated or lost pooled motes')
 const reduced=positions()
 scene.update(390,844,60000,'pelagic','high',true)
 assert.deepEqual(positions(),reduced,'reduced motion animated cloud travel')

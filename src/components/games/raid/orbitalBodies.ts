@@ -4,6 +4,18 @@ import type { AsteroidHazard } from './types'
 import { raidObjectInView } from './visibility'
 import type { RaidVisibilityBounds } from './visibility'
 
+/** Sun and viewing direction are uniform across a body. Normalize them once
+ * per pose instead of repeating these square roots for every shaded pixel. */
+function writeOrbitalLight(sun: Float32Array, source: Float32Array, half?: Float32Array) {
+  const scale=1/Math.max(1e-12,Math.hypot(source[0],source[1],source[2]))
+  const x=source[0]*scale,y=source[1]*scale,z=source[2]*scale
+  sun[0]=x;sun[1]=y;sun[2]=z
+  if (half) {
+    const rate=1/Math.max(1e-12,Math.hypot(x,y,z+1))
+    half[0]=x*rate;half[1]=y*rate;half[2]=(z+1)*rate
+  }
+}
+
 // These meshes share the existing Pixi context and painted surface textures.
 // Buffers are built once, then only the camera/rotation uniforms change.
 type SharedGeometry = { geometry: Geometry; references: number }
@@ -97,7 +109,7 @@ const fragment = `
 precision highp float;
 uniform sampler2D uArt;
 uniform vec4 uFrame;
-uniform vec3 uAir, uSun;
+uniform vec3 uAir, uSun, uHalfLight;
 uniform sampler2D uWeather;
 uniform vec4 uWeatherFrame;
 uniform vec2 uWeatherTurn;
@@ -112,7 +124,7 @@ void main() {
   if (facing < 0.) discard;
   vec4 texel = texture2D(uArt,uFrame.xy+clamp(paint,.002,.998)*uFrame.zw);
   vec3 pigment = texel.rgb/max(.025,texel.a);
-  vec3 n = normalize(normal), light = normalize(uSun);
+  vec3 n = normalize(normal), light = uSun;
   float incidence = dot(n,light), day = smoothstep(-.28,.85,incidence);
   vec3 color = pigment * mix(vec3(.34,.39,.51),vec3(1.22,1.16,1.09),day);
   float rim = pow(1.-max(0.,n.z),3.1);
@@ -135,11 +147,11 @@ void main() {
     vec3 cloudLight = mix(vec3(.23,.31,.44),vec3(1.12,1.09,1.04),day);
     color = mix(color,cloudLight,coverage*.62);
     float ocean = smoothstep(.04,.24,pigment.b-pigment.r)*(1.-coverage);
-    float specular = pow(max(0.,dot(n,normalize(light+vec3(0.,0.,1.)))),64.);
+    float specular = pow(max(0.,dot(n,uHalfLight)),64.);
     color += vec3(.38,.57,.68)*specular*ocean;
   }
   // A restrained mineral glint leaves the original crater/terrain detail clear.
-  float glint = pow(max(0.,dot(n,normalize(light+vec3(0.,0.,1.)))),30.);
+  float glint = pow(max(0.,dot(n,uHalfLight)),30.);
   color += vec3(.22,.20,.17)*glint*uRock;
   gl_FragColor = vec4(color,1.)*tint;
 }`
@@ -154,6 +166,7 @@ export class OrbitalSurface {
     uRoll: { value: new Float32Array([1, 0]), type: 'vec2<f32>' },
     uAir: { value: new Float32Array(3), type: 'vec3<f32>' },
     uSun: { value: new Float32Array([-.61, -.49, .62]), type: 'vec3<f32>' },
+    uHalfLight: { value: new Float32Array(3), type: 'vec3<f32>' },
     uWeatherFrame: { value: new Float32Array([0, 0, 1, 1]), type: 'vec4<f32>' },
     uWeatherTurn: { value: new Float32Array([1, 0]), type: 'vec2<f32>' },
     uWeatherAmount: { value: 0, type: 'f32' },
@@ -175,6 +188,7 @@ export class OrbitalSurface {
     this.mesh.eventMode = 'none'
     this.params.uniforms.uRock = variant < 0 ? 0 : 1
     if (variant >= 0) this.params.uniforms.uPerspective = .1
+    this.setLight(this.params.uniforms.uSun)
   }
   setTexture(texture: Texture) {
     if (this.mesh.texture === texture) return
@@ -191,7 +205,7 @@ export class OrbitalSurface {
     u.uViewSlope[1] = -slopeX * s + slopeY * c
     u.uRoll[0] = c; u.uRoll[1] = s
   }
-  setLight(light: Float32Array) { this.params.uniforms.uSun.set(light) }
+  setLight(light: Float32Array) { writeOrbitalLight(this.params.uniforms.uSun,light,this.params.uniforms.uHalfLight) }
   setWeather(texture: Texture | undefined, seconds: number, amount: number) {
     const u = this.params.uniforms
     u.uWeatherAmount = texture ? amount : 0
@@ -258,7 +272,7 @@ void main() {
   float path = closest2 < 1. ? shell-ground : shell*2.;
   vec3 n = normalize(point+towardEye*(shell-along));
   n.xy = mat2(uRoll.x,uRoll.y,-uRoll.y,uRoll.x)*n.xy;
-  float day = smoothstep(-.22,.7,dot(n,normalize(uSun)));
+  float day = smoothstep(-.22,.7,dot(n,uSun));
   float optical = 1.-exp(-path*5.);
   float coverage = 1.-smoothstep(outer*outer-.004,outer*outer,closest2);
   float alpha = optical*(.12+.6*day)*coverage;
@@ -279,7 +293,10 @@ export class OrbitalAtmosphere {
   private readonly shader = new Shader({ glProgram: GlProgram.from({ vertex: atmosphereVertex, fragment: atmosphereFragment }),
     resources: { atmosphere: this.params } })
   readonly mesh = new Mesh({ geometry: new MeshGeometry({}), shader: this.shader })
-  constructor() { this.mesh.pivot.set(.5); this.mesh.visible = false; this.mesh.eventMode = 'none' }
+  constructor() {
+    this.mesh.pivot.set(.5); this.mesh.visible = false; this.mesh.eventMode = 'none'
+    writeOrbitalLight(this.params.uniforms.uSun,this.params.uniforms.uSun)
+  }
   pose(rx: number, ry: number, perspective: number, slopeX: number, slopeY: number,
     roll: number, air: readonly number[], light?: Float32Array) {
     const u = this.params.uniforms, c = Math.cos(roll), s = Math.sin(roll)
@@ -295,7 +312,7 @@ export class OrbitalAtmosphere {
     u.uSlope[0] = sx; u.uSlope[1] = sy
     u.uRoll[0] = c; u.uRoll[1] = s
     u.uPerspective = k; u.uAir.set(air)
-    if (light) u.uSun.set(light)
+    if (light) writeOrbitalLight(u.uSun,light)
   }
   destroy() { this.mesh.geometry.destroy(true); this.shader.destroy(); this.mesh.destroy() }
 }

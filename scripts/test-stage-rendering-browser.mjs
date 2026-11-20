@@ -20,6 +20,9 @@ try {
   const page = await browser.newPage({ viewport: { width: 844, height: 390 } })
   const errors = []
   page.on('pageerror', error => errors.push(error.message))
+  page.on('console', message => {
+    if (message.type()==='error' && /THREE\.|WebGL|shader|program/i.test(message.text())) errors.push(message.text())
+  })
   await page.goto(base + '/scripts/presentation-fixture.html?briefing=1')
   await page.evaluate(async () => {
     const { PixiRaidBackground, DEFAULT_RAID_PALETTE } = await import('/src/components/games/raid/background.ts')
@@ -120,6 +123,32 @@ try {
     assert.ok(score.luma > 25, score.key + ' became unreadably dark')
   }
   await page.screenshot({path:'presentation-review/enemy-hulls-backlit.png'})
+  // All regular capital hulls must remain live meshes with bounded draws;
+  // this catches missing armor textures, shader failures and mesh-splitting regressions.
+  await page.setViewportSize({width:1440,height:960})
+  for (const landscape of [false,true]) {
+    const stats=await page.evaluate(async landscape => {
+      const scene=window.shipCheck.scene
+      const { CAMPAIGN_BOSS_ART }=await import('/src/components/games/raid/bossCatalog.ts')
+      const { BOSS_HULL_DESIGNS }=await import('/src/components/games/raid/bossHullDesigns.ts')
+      scene.render({width:1440,height:960,dpr:1})
+      for (let i=0;i<CAMPAIGN_BOSS_ART.length;i++) {
+        const stage=CAMPAIGN_BOSS_ART[i].stage,key='commandHull'+stage
+        if (!scene.submitHull({id:'review-'+stage,key,x:180+i%4*360,y:160+Math.floor(i/4)*320,
+          size:246,bank:0,angle:landscape?-Math.PI/2:0,alpha:1,landscape})) throw new Error('Missing boss '+stage)
+        const node=scene.hulls.get('review-'+stage)
+        if (BOSS_HULL_DESIGNS[stage].barrels.length && !node.object.getObjectByName('boss-armament-v1')) {
+          throw new Error('Missing physical cannon geometry at stage '+stage)
+        }
+      }
+      scene.present()
+      return scene.getShipStats()
+    },landscape)
+    assert.equal(stats.hulls,12,'regular boss catalog lost a 3D hull')
+    assert.ok(stats.drawCalls<=23,'boss details split into excessive draws')
+    assert.ok(stats.triangles>735872,'boss reconstruction lost the original mesh detail')
+    await page.screenshot({path:'presentation-review/boss-hulls-v1-'+(landscape?'landscape':'portrait')+'.png'})
+  }
   await page.evaluate(() => window.shipCheck.scene.destroy())
   assert.deepEqual(errors, [])
   console.log('Stage transitions retained detailed sky in both views. Backlit player and enemy hulls stayed readable.', scores)

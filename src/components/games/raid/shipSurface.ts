@@ -1,4 +1,6 @@
 import { Material, Mesh, MeshStandardMaterial, type Object3D, type Texture, type WebGLRenderer } from 'three'
+import { prepareVolumeSurface } from './volumeSurface'
+import { prepareBossArmor } from './bossHullMaterials'
 import { rigMechHull } from './mechHullRig'
 
 export const isMechHull = (key: string) => key === 'godGundam' || key === 'godGundamBurning' || key === 'spiegel'
@@ -29,7 +31,9 @@ export function prepareHullSurfaces(object: Object3D, key: string, renderer: Web
     // A low paint floor preserves the authored details on the night side.
     // Direct light and reflections still describe the hull's shape.
     if (material.map && material.emissiveMap === material.map) material.emissiveIntensity = isMechHull(key) ? .035 : .12
-    for (const texture of [material.map, material.emissiveMap]) {
+    prepareVolumeSurface(material)
+    const bossArmor = prepareBossArmor(material)
+    for (const texture of [material.map, material.emissiveMap, bossArmor]) {
       if (!texture || preparedTextures.has(texture)) continue
       if (texture.anisotropy !== anisotropy) { texture.anisotropy = anisotropy; texture.needsUpdate = true }
       renderer.initTexture(texture)

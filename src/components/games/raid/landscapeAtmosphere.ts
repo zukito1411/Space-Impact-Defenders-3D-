@@ -85,6 +85,8 @@ export class LandscapePlanetAtmosphere {
   private readonly vents = Array.from({ length: 3 }, () => new Sprite(Texture.WHITE))
   private readonly plumes = Array.from({ length: 6 }, () => new Sprite(Texture.WHITE))
   private readonly motes = Array.from({ length: 72 }, () => new Sprite(Texture.WHITE))
+  private readonly ashLayer = new Container()
+  private readonly emberLayer = new Container()
   private readonly speedLines = Array.from({ length: 20 }, () => new Sprite(Texture.WHITE))
   private readonly spray = Array.from({ length: 6 }, () => new Sprite(Texture.WHITE))
   private readonly lightning = new Graphics()
@@ -101,7 +103,7 @@ export class LandscapePlanetAtmosphere {
   constructor() {
     this.root.visible = false
     this.root.addChild(this.sky, this.celestialSky.root, this.water, this.ridges[0], this.ridges[1], ...this.vents, ...this.plumes,
-      this.ridges[2], ...this.clouds, ...this.mist, ...this.spray, this.lightning, ...this.motes, ...this.speedLines)
+      this.ridges[2], ...this.clouds, ...this.mist, ...this.spray, this.lightning, this.ashLayer, this.emberLayer, ...this.speedLines)
     for (const sprite of [...this.clouds, ...this.mist, ...this.vents, ...this.plumes, ...this.motes, ...this.speedLines, ...this.spray]) sprite.anchor.set(.5)
     for (const sprite of [...this.vents, ...this.motes]) sprite.blendMode = 'add'
     this.root.eventMode = 'none'
@@ -144,6 +146,14 @@ export class LandscapePlanetAtmosphere {
       for (const sprite of this.clouds) sprite.texture = getPlanetWeatherArt(wet ? 0 : 1) ?? this.cloud!
       for (const sprite of this.spray) sprite.texture = getPlanetWeatherArt(2) ?? this.cloud!
       for (const sprite of this.plumes) sprite.texture = getPlanetWeatherArt(3) ?? this.cloud!
+      // Keep every mote, but submit each blend mode contiguously. Interleaving
+      // one ember with three ash flakes forced two batch breaks per group.
+      for (let i = 0; i < this.motes.length; i++) {
+        const mote = this.motes[i], glowing = wet || i % 4 === 0
+        mote.texture = glowing ? this.glow! : this.flakeTexture!
+        mote.blendMode = glowing ? 'add' : 'normal'
+        ;(glowing ? this.emberLayer : this.ashLayer).addChild(mote)
+      }
     }
     this.sky.width = w; this.sky.height = h
     this.celestialSky.update(w, h, t, wet ? 0 : 1, quality, reduced, true, !wet)
@@ -213,8 +223,6 @@ export class LandscapePlanetAtmosphere {
       const mote = this.motes[i]; mote.visible = i < particleCount
       if (!mote.visible) continue
       const p = samplePlanetFlightParticle(i, t, w, h, wet, speed, false, this.particle)
-      mote.texture = wet || i % 4 === 0 ? this.glow! : this.flakeTexture!
-      mote.blendMode = wet || i % 4 === 0 ? 'add' : 'normal'
       mote.position.set(p.x,p.y); mote.width = p.width; mote.height = p.height; mote.rotation = p.rotation
       mote.tint = wet ? 0xa7c9de : i % 4 === 0 ? 0xff8948 : 0xada0a0; mote.alpha = p.alpha
     }

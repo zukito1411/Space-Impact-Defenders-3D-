@@ -3,6 +3,8 @@ import { Group, Mesh, MeshStandardMaterial, type Object3D } from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { getPublicAssetUrl } from '../sound'
 import { ENEMY_HULL_SPECS } from './enemyHulls'
+import { getBossArmorTexture, loadBossArmorTexture } from './bossHullMaterials'
+import { buildBossWeapons } from './bossHullWeapons'
 import { paintedVolume } from './paintedVolume'
 import { prepareHullDocking, type HullDocking } from './hullDocking'
 
@@ -49,9 +51,13 @@ export function loadHull(key: string): Promise<HullAsset> {
       const image = new Image()
       image.src = getPublicAssetUrl(enemy.assetPath)
       await image.decode()
-      const body = await paintedVolume(image, image.naturalWidth, image.naturalHeight, enemy.resolution, enemy.profile, enemy.filter)
+      const body = await paintedVolume(image, image.naturalWidth, image.naturalHeight, enemy.resolution, enemy.profile, enemy.filter, enemy.bossStage)
       body.scale.setScalar(288)
       object.add(body)
+      if (enemy.bossStage !== undefined) {
+        const weapons = buildBossWeapons(enemy.bossStage, await loadBossArmorTexture())
+        if (weapons) { weapons.scale.copy(body.scale); object.add(weapons) }
+      }
       registration = { registration: [448/288,448/288,0,0], nozzles: [], wing: [] }
     } else {
       manifest ??= fetch(getPublicAssetUrl('assets/ships/models/v1/manifest.json')).then(response => {
@@ -109,7 +115,7 @@ export function trimHullAssets() {
       child.geometry.dispose()
       const materials = Array.isArray(child.material) ? child.material : [child.material]
       for (const material of materials) {
-        if (material instanceof MeshStandardMaterial) material.map?.dispose()
+        if (material instanceof MeshStandardMaterial && material.map !== getBossArmorTexture()) material.map?.dispose()
         material.dispose()
       }
     })

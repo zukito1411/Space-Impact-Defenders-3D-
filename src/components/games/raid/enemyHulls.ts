@@ -10,6 +10,7 @@ export type EnemyHullSpec = {
   resolution: number
   filter?: string
   family: 'normal' | 'elite' | 'boss'
+  bossStage?: number
 }
 const legacyKeys = Array.from({ length: LEGACY_FIGHTER_COUNT }, (_, index) => 'alienHull' + index)
 const eliteKeys = Array.from({ length: 5 }, (_, index) => 'eliteHull' + index)
@@ -25,7 +26,7 @@ const entries: Array<[string, EnemyHullSpec]> = [
     assetPath: `assets/aliens/elite_${index}.png`, profile: 'organic', resolution: 160, family: 'elite',
   }]),
   ...CAMPAIGN_BOSS_ART.map((art): [string, EnemyHullSpec] => [bossKey(art.stage), {
-    assetPath: art.assetPath, profile: 'capital', resolution: 160, family: 'boss',
+    assetPath: art.assetPath, profile: 'capital', resolution: 160, family: 'boss', bossStage: art.stage,
   }]),
 ]
 /** All hostile designs share decoded paint and indexed geometry across their instances. */

@@ -1,9 +1,12 @@
+import { BOSS_HULL_DESIGNS, bossDeckElevation } from './bossHullDesigns'
+
 type Profile = 'art' | 'fighter' | 'organic' | 'capital'
-type VolumeInput = { pixels: Uint8ClampedArray; resolution: number; aspectX: number; aspectY: number; profile?: Profile }
+type VolumeInput = { pixels: Uint8ClampedArray; resolution: number; aspectX: number; aspectY: number; profile?: Profile; bossStage?: number }
 type Point = readonly [number, number]
 
 /** Clip the original silhouette before lofting its deck and keel. */
-export function buildVolumeGeometry({ pixels, resolution, aspectX, aspectY, profile }: VolumeInput) {
+export function buildVolumeGeometry({ pixels, resolution, aspectX, aspectY, profile, bossStage }: VolumeInput) {
+  const boss = bossStage === undefined ? undefined : BOSS_HULL_DESIGNS[bossStage]
   const edge = resolution - 1
   const alpha = (x: number, y: number) => pixels[(y * resolution + x) * 4 + 3] / 255 - .4
   const distance = new Float32Array(resolution * resolution)
@@ -36,7 +39,8 @@ export function buildVolumeGeometry({ pixels, resolution, aspectX, aspectY, prof
       * Math.max(0, 1 - Math.abs(v - .4) / .18)
     // Broad armor planes, narrow wing edges and a distinct center spine.
     // Painted highlights do not become bumps in the mesh.
-    const height = profile === 'fighter' ? .006 + bevel*(.017 + .035*spine + .022*canopy)
+    const height = boss ? bossDeckElevation(boss,u,v,bevel)
+      : profile === 'fighter' ? .006 + bevel*(.017 + .035*spine + .022*canopy)
       : profile === 'capital' ? .008 + bevel*(.035 + .055*spine + .018*canopy)
       : profile === 'organic' ? .006 + bevel*(.025 + .045*spine)
       : .008 + bevel*.06
@@ -72,7 +76,7 @@ export function buildVolumeGeometry({ pixels, resolution, aspectX, aspectY, prof
   }
   const topCount = indices.length, count = position.length/3
   for (let i = 0; i < count; i++) {
-    position.push(position[i*3],position[i*3+1],-position[i*3+2]*.58)
+    position.push(position[i*3],position[i*3+1],boss ? -boss.keel*(.5+Math.min(1,position[i*3+2]/.08)*.5) : -position[i*3+2]*.58)
     uv.push(uv[i*2],uv[i*2+1])
   }
   for (let i = 0; i < topCount; i += 3) indices.push(indices[i]+count,indices[i+2]+count,indices[i+1]+count)

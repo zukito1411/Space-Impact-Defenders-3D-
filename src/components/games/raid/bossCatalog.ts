@@ -13,6 +13,8 @@ export function getCampaignBossKind(stage: number): BossKind {
   return CYCLE[((Math.floor(stage) - 1) % CYCLE.length + CYCLE.length) % CYCLE.length]
 }
 
+export const BOSS_ARMOR_ASSET_PATH = 'assets/bosses/materials/capital-armor-atlas-v1.png'
+
 export type CampaignBossArt = {
   stage: number
   kind: GenericBossKind
