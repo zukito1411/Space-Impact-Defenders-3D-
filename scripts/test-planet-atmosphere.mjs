@@ -12,7 +12,7 @@ const view = {}, camera = {}, terrain = {}
 vm.runInNewContext(compile('raidView.ts'), { exports: view })
 vm.runInNewContext(compile('planetFlightCamera.ts'), { exports: camera, require: () => view })
 vm.runInNewContext(compile('planetTerrainGeometry.ts'), { exports: terrain,
-  require: name => name === './planetFlightCamera' ? camera : art })
+  require: name => name === './planetCloudMotion' ? cloudMotion : name === './planetFlightCamera' ? camera : art })
 for (const kind of ['pelagic','cinder']) {
   const peaks=terrain.createPlanetTerrainPeaks(kind), buffers=terrain.buildPlanetTerrain(kind,peaks)
   assert.ok(buffers.positions.every(Number.isFinite))
@@ -21,6 +21,17 @@ for (const kind of ['pelagic','cinder']) {
   assert.ok(buffers.positions.some((value,i)=>i%3===1&&value>.1),'terrain flattened into a billboard')
 }
 assert.ok(Math.abs(camera.PLANET_FLIGHT_PERIOD*camera.PLANET_FLIGHT_TEXTURE_SCALE-7)<1e-12,'travel wrap shifts the ground material')
+const cloudMotion={}
+vm.runInNewContext(compile('planetCloudMotion.ts'),{exports:cloudMotion})
+for(const mist of [false,true])for(let i=0;i<(mist?2:8);i++){
+ const width=844,size=width*(mist?1.2:.5+i%3*.1)
+ const x=cloudMotion.planetCloudX(i,10,width,size,mist),next=cloudMotion.planetCloudX(i,11,width,size,mist)
+ assert.ok(Math.abs(next-x)>width*.009,'cloud layer appears fixed')
+ for(const hz of [30,60,120]){
+  let value;for(let frame=0;frame<=hz;frame++)value=cloudMotion.planetCloudX(i,10+frame/hz,width,size,mist)
+  assert.equal(value,next,'cloud travel depends on refresh rate')
+ }
+}
 const particles = {}
 const weather = JSON.parse(readFileSync('docs/planet-weather-art-manifest.json','utf8'))
 const image = readFileSync(weather.file)
@@ -113,7 +124,7 @@ class Graphics extends Container { clear() { return this } moveTo() { return thi
 const renderer = {}
 vm.runInNewContext(compile('landscapeAtmosphere.ts'), { exports: renderer, Math, Set,
   document: { createElement() { throw new Error('rendering allocated a new canvas') } },
-  require: name => name === './planetFlightCamera' ? camera : name === './planetTerrainGeometry' ? terrain : name === './planetAtmosphereArt' ? art : name === './planetFlightParticles' ? particles : name === './celestialScenery' ? { CelestialScenery: class {root=new Container();update(){}destroy(){}} } : name === './surfaceArt' ? { getSurfaceTerrain: () => null, getPlanetWeatherArt: () => null }
+  require: name => name === './planetCloudMotion' ? cloudMotion : name === './planetFlightCamera' ? camera : name === './planetTerrainGeometry' ? terrain : name === './planetAtmosphereArt' ? art : name === './planetFlightParticles' ? particles : name === './celestialScenery' ? { CelestialScenery: class {root=new Container();update(){}destroy(){}} } : name === './surfaceArt' ? { getSurfaceTerrain: () => null, getPlanetWeatherArt: () => null }
     : { Container, Sprite, Graphics, TilingSprite: Sprite, Texture: { WHITE: {} } },
 })
 const scene = new renderer.LandscapePlanetAtmosphere()
