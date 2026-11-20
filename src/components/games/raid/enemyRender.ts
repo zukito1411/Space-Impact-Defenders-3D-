@@ -10,11 +10,12 @@ import { getEnemyCanvasSize } from './assets'
 import { DEG, STAGE_CLEAR_SECONDS } from './constants'
 import type { BossKind, Enemy, MirageBossKind } from './types'
 import { clamp } from './utils'
-import { drawBossShield, drawCachedBossBar } from './bossHudRender'
+import { drawCachedBossBar } from './bossHudRender'
 import { drawDevilGundamBoss } from './devilBossRender'
 import { drawSnakeVenomTelegraph } from './snakeBossRender'
-import { drawSquidWhipStrike } from './squidBossRender'
-import { drawCachedStageBossBody, drawFinalBossSpriteBody, getStageBossIntroProgress } from './stageBossRender'
+import { specialBossHullKey } from './specialBossCatalog'
+import { ORGANIC_BOSS_VIEW_YAW } from './raidView'
+import { getStageBossIntroProgress } from './stageBossRender'
 
 // Kept as lifecycle hooks for the runtime; enemy bodies no longer allocate Canvas rasters.
 export function pruneNormalEnemyRasters(_activeEnemies: readonly Enemy[], _maxRetire = 8) {}
@@ -37,14 +38,15 @@ function drawRaidEnemyHealthBar(
 ) {
   const draw = command ? drawCommandBossHealthBar : drawCachedBossBar
   if (!landscape) {
-    draw(ctx, enemy, x, y, size)
+    draw(ctx, enemy, x, y+(enemy.bossKind==='snake'?size*.1:0), size)
     return
   }
   // Keep the existing boss-bar artwork upright and contained on short screens.
   const barSize = Math.min(size, viewportWidth * .32)
   const margin = barSize * .9 + 12
   const screenX = clamp(viewportHeight - y, margin, viewportHeight - margin)
-  const barTop = clamp(x + size * .4, 90, viewportWidth - 40)
+  const snake=enemy.bossKind==='snake'
+  const barTop = clamp(x + size * (snake ? .62 : .4), 90, viewportWidth - (snake ? 32 : 40))
   const offset = command ? 12 : enemy.bossKind === 'devil' ? 30 : enemy.bossKind === 'final' ? 20
     : enemy.bossKind === 'snake' || enemy.bossKind === 'squid' || enemy.bossKind === 'super' ? 16 : 12
   ctx.save()
@@ -88,9 +90,7 @@ export function drawRaidEnemy(
       ctx.restore()
       if (enemy.hp > 0) {
         const bodyX = landscape ? x + size * 0.28 : x
-        const shieldY = landscape ? y : y + size * 0.18
         const barY = landscape ? y : y + size * 0.16
-        if (enemy.shieldTime > 0 || enemy.y < 18) drawBossShield(ctx, bodyX, shieldY, size * 0.86, time, enemy.color)
         drawRaidEnemyHealthBar(ctx, enemy, bodyX, barY, size, viewportWidth, toY(100), landscape)
       }
       return
@@ -105,30 +105,42 @@ export function drawRaidEnemy(
       if (landscape && (displayBossKind === 'squid' || displayBossKind === 'snake')) ctx.rotate(-Math.PI / 2)
       ctx.rotate(displayBossKind === 'snake' ? 0 : rotation * 0.45)
       ctx.globalAlpha *= 0.58 + introProgress * 0.42
-      ctx.scale(floatScale * introScale, floatScale * introScale)
-      if (!skipGpuStageBossBody) {
-        if (displayBossKind === 'squid') drawCachedStageBossBody(ctx, 'squid', size, time)
-        else if (displayBossKind === 'snake') {
-          const biteLungeActive = enemy.chargePattern === 'cross' && (enemy.chargeTimer > 0 || (enemy.beamVolleyRecovery ?? 0) > 0)
-          drawCachedStageBossBody(ctx, 'snake', size, time, biteLungeActive, biteLungeActive)
-        }
-        else {
-          const finalRage = clamp((0.55 - enemy.hp / Math.max(1, enemy.maxHp)) / 0.55, 0, 1)
-          // A single filtered source image is cheaper and smoother than
-          // re-rasterizing an enormous animated texture each art frame.
-          drawFinalBossSpriteBody(ctx, size, time, finalRage)
-        }
-      }
+      // Fit the hood and complete coils into the same boss envelope. This is
+      // presentation scale; simulation hit tests and committed lanes stay native.
+      const bodyScale=floatScale*introScale*(displayBossKind==='snake' ? .8 : 1)
+      ctx.scale(bodyScale,bodyScale)
+      const key=specialBossHullKey(displayBossKind)!
+      const organic=displayBossKind!=='final'
+      const reduced=prefersRaidReducedMotion()
+      const bite=displayBossKind==='snake'&&enemy.chargePattern==='cross'
+        &&(enemy.chargeTimer>0||(enemy.beamVolleyRecovery??0)>0)
+      const whip=displayBossKind==='squid'&&enemy.chargeTimer>0&&enemy.chargePattern!=='rotate'
+      const chargeWarm=clamp(1-enemy.chargeTimer/(bite?1.08:.9),0,1)
+      const attack=bite&&enemy.chargeTimer<=0
+        ?clamp((enemy.beamVolleyRecovery??0)/.42,0,1):bite||whip?chargeWarm:0
+      // Targets use the body's upright local plane. Undo the landscape yaw
+      // foreshortening so a 3D extension reaches the authoritative lane.
+      const dx=toX(enemy.chargeLane)-x,dy=toY(enemy.chargeTargetY??enemy.y+34)-y
+      const localX=(landscape?-dy:dx)/(size*bodyScale)
+      const localY=(landscape?-dx:-dy)/(size*bodyScale)
+      const rage=clamp((.55-enemy.hp/Math.max(1,enemy.maxHp))/.55,0,1)
+      drawLiveHull(ctx,key,0,0,size,0,1,landscape,'enemy:'+enemy.id,{
+        hit:Math.min(1,(enemy.hitFlash??0)/.18),
+        spin:organic||reduced?0:time/1000*(.055+rage*.018),
+        bossPose:organic?{seconds:time/1000,attack,targetX:localX/(landscape?Math.cos(ORGANIC_BOSS_VIEW_YAW):1),
+          targetY:localY,motion:reduced?0:1}:undefined,
+      })
       drawBossResidualHit(ctx, enemy, size)
       ctx.restore()
       if (enemy.hp > 0) {
         if (displayBossKind === 'squid' && enemy.chargeTimer > 0 && enemy.chargePattern !== 'rotate') {
-          drawSquidWhipStrike(ctx, x, y, toX(enemy.chargeLane), toY(enemy.chargeTargetY ?? enemy.y + 34), size, time, enemy.chargeTimer, landscape)
+          // Keep the actual target warning; the whip itself is a lit 3D limb.
+          drawBossFx(ctx,BOSS_FX.precision,toX(enemy.chargeLane),toY(enemy.chargeTargetY??enemy.y+34),
+            size*.24,size*.17,.7,0,true)
         }
         if (displayBossKind === 'snake' && (enemy.chargeTimer > 0 || (enemy.chargePattern === 'cross' && (enemy.beamVolleyRecovery ?? 0) > 0))) {
-          drawSnakeVenomTelegraph(ctx, x, y, toX(enemy.chargeLane), toY(enemy.chargeTargetY ?? enemy.y + 34), size, viewportWidth, time, enemy.chargeTimer, enemy.chargePattern, enemy.beamVolleyRecovery ?? 0, landscape)
+          drawSnakeVenomTelegraph(ctx, x, y, toX(enemy.chargeLane), toY(enemy.chargeTargetY ?? enemy.y + 34), size, viewportWidth, time, enemy.chargeTimer, enemy.chargePattern, enemy.beamVolleyRecovery ?? 0, landscape, true)
         }
-        if (enemy.shieldTime > 0 || enemy.y < 15) drawBossShield(ctx, x, y, size, time, enemy.color)
         drawRaidEnemyHealthBar(ctx, enemy, x, y, size, viewportWidth, toY(100), landscape)
       }
       return
@@ -146,7 +158,6 @@ export function drawRaidEnemy(
     drawBossResidualHit(ctx, enemy, size)
     ctx.restore()
     if (enemy.hp > 0) {
-      if (enemy.shieldTime > 0 || enemy.y < 15) drawBossShield(ctx, x, y, size, time, enemy.color)
       drawRaidEnemyHealthBar(ctx, enemy, x, y, size, viewportWidth, toY(100), landscape, true)
     }
     return
@@ -168,7 +179,6 @@ export function drawRaidEnemy(
     ctx.translate(x, y)
     drawBossResidualHit(ctx, enemy, size)
     ctx.restore()
-    if (enemy.shieldTime > 0 || enemy.y < 8) drawBossShield(ctx, x, y, size * 0.78, time, enemy.color)
     drawRaidEnemyHealthBar(ctx, enemy, x, y, size * 0.82, viewportWidth, toY(100), landscape)
     return
   }

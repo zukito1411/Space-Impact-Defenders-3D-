@@ -1,0 +1,249 @@
+{
+  "specialChecks": [
+    {
+      "view": "landscape",
+      "phase": "idle",
+      "stage": 5,
+      "attacking": false,
+      "hulls": 2,
+      "textures": 49,
+      "drawCalls": 3,
+      "triangles": 78260,
+      "limbVertices": 38590,
+      "attack": 0,
+      "headMoved": 0,
+      "motionPixels": 7740
+    },
+    {
+      "view": "landscape",
+      "phase": "attack",
+      "stage": 5,
+      "attacking": true,
+      "hulls": 2,
+      "textures": 49,
+      "drawCalls": 3,
+      "triangles": 78260,
+      "limbVertices": 38590,
+      "attack": 0.7777777777777778,
+      "headMoved": 0
+    },
+    {
+      "view": "landscape",
+      "phase": "idle",
+      "stage": 10,
+      "attacking": false,
+      "hulls": 2,
+      "textures": 49,
+      "drawCalls": 3,
+      "triangles": 82488,
+      "limbVertices": 2225,
+      "attack": 0,
+      "headMoved": 0.30463092423455634,
+      "faceOcclusion": {
+        "tested": 18727,
+        "covered": 0
+      },
+      "motionPixels": 4736
+    },
+    {
+      "view": "landscape",
+      "phase": "attack",
+      "stage": 10,
+      "attacking": true,
+      "hulls": 2,
+      "textures": 49,
+      "drawCalls": 3,
+      "triangles": 82488,
+      "limbVertices": 2225,
+      "attack": 0.8148148148148149,
+      "headMoved": 1.4200081638715423,
+      "faceOcclusion": {
+        "tested": 11455,
+        "covered": 0
+      }
+    },
+    {
+      "view": "landscape",
+      "phase": "bite",
+      "stage": 10,
+      "attacking": true,
+      "hulls": 2,
+      "textures": 49,
+      "drawCalls": 3,
+      "triangles": 82488,
+      "limbVertices": 2225,
+      "attack": 0.9990740740740741,
+      "headMoved": 1.7422356674682322,
+      "faceOcclusion": {
+        "tested": 10113,
+        "covered": 0
+      }
+    },
+    {
+      "view": "landscape",
+      "phase": "retract",
+      "stage": 10,
+      "attacking": true,
+      "hulls": 2,
+      "textures": 49,
+      "drawCalls": 3,
+      "triangles": 82488,
+      "limbVertices": 2225,
+      "attack": 0.5,
+      "headMoved": 0.9172965200069523,
+      "faceOcclusion": {
+        "tested": 13362,
+        "covered": 0
+      }
+    },
+    {
+      "view": "landscape",
+      "phase": "idle",
+      "stage": 15,
+      "attacking": false,
+      "hulls": 2,
+      "textures": 49,
+      "drawCalls": 3,
+      "triangles": 106044,
+      "limbVertices": 0,
+      "attack": 0,
+      "headMoved": 0
+    },
+    {
+      "view": "landscape",
+      "phase": "attack",
+      "stage": 15,
+      "attacking": true,
+      "hulls": 2,
+      "textures": 49,
+      "drawCalls": 3,
+      "triangles": 106044,
+      "limbVertices": 0,
+      "attack": 0,
+      "headMoved": 0
+    },
+    {
+      "view": "portrait",
+      "phase": "idle",
+      "stage": 5,
+      "attacking": false,
+      "hulls": 2,
+      "textures": 49,
+      "drawCalls": 3,
+      "triangles": 78260,
+      "limbVertices": 38590,
+      "attack": 0,
+      "headMoved": 0,
+      "motionPixels": 5431
+    },
+    {
+      "view": "portrait",
+      "phase": "attack",
+      "stage": 5,
+      "attacking": true,
+      "hulls": 2,
+      "textures": 49,
+      "drawCalls": 3,
+      "triangles": 78260,
+      "limbVertices": 38590,
+      "attack": 0.7777777777777778,
+      "headMoved": 0
+    },
+    {
+      "view": "portrait",
+      "phase": "idle",
+      "stage": 10,
+      "attacking": false,
+      "hulls": 2,
+      "textures": 49,
+      "drawCalls": 3,
+      "triangles": 82488,
+      "limbVertices": 2225,
+      "attack": 0,
+      "headMoved": 0.30463092423455634,
+      "faceOcclusion": {
+        "tested": 14134,
+        "covered": 0
+      },
+      "motionPixels": 5121
+    },
+    {
+      "view": "portrait",
+      "phase": "attack",
+      "stage": 10,
+      "attacking": true,
+      "hulls": 2,
+      "textures": 49,
+      "drawCalls": 3,
+      "triangles": 82488,
+      "limbVertices": 2225,
+      "attack": 0.8148148148148149,
+      "headMoved": 1.450476136109539,
+      "faceOcclusion": {
+        "tested": 10877,
+        "covered": 0
+      }
+    },
+    {
+      "view": "portrait",
+      "phase": "bite",
+      "stage": 10,
+      "attacking": true,
+      "hulls": 2,
+      "textures": 49,
+      "drawCalls": 3,
+      "triangles": 82488,
+      "limbVertices": 2225,
+      "attack": 0.9990740740740741,
+      "headMoved": 1.8031692320344992,
+      "faceOcclusion": {
+        "tested": 10127,
+        "covered": 0
+      }
+    },
+    {
+      "view": "portrait",
+      "phase": "retract",
+      "stage": 10,
+      "attacking": true,
+      "hulls": 2,
+      "textures": 49,
+      "drawCalls": 3,
+      "triangles": 82488,
+      "limbVertices": 2225,
+      "attack": 0.5,
+      "headMoved": 0.8888713853112691,
+      "faceOcclusion": {
+        "tested": 11770,
+        "covered": 0
+      }
+    },
+    {
+      "view": "portrait",
+      "phase": "idle",
+      "stage": 15,
+      "attacking": false,
+      "hulls": 2,
+      "textures": 49,
+      "drawCalls": 3,
+      "triangles": 106044,
+      "limbVertices": 0,
+      "attack": 0,
+      "headMoved": 0
+    },
+    {
+      "view": "portrait",
+      "phase": "attack",
+      "stage": 15,
+      "attacking": true,
+      "hulls": 2,
+      "textures": 49,
+      "drawCalls": 3,
+      "triangles": 106044,
+      "limbVertices": 0,
+      "attack": 0,
+      "headMoved": 0
+    }
+  ],
+  "errors": []
+}

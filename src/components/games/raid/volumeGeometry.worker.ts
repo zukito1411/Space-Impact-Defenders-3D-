@@ -1,12 +1,14 @@
-import { BOSS_HULL_DESIGNS, bossDeckElevation } from './bossHullDesigns'
+import { BOSS_HULL_DESIGNS, bossDeckElevation, bossKeelElevation } from './bossHullDesigns'
+import { MOB_HULL_DESIGNS,mobHullElevation } from './mobHullDesigns'
 
 type Profile = 'art' | 'fighter' | 'organic' | 'capital'
-type VolumeInput = { pixels: Uint8ClampedArray; resolution: number; aspectX: number; aspectY: number; profile?: Profile; bossStage?: number }
+type VolumeInput = { pixels: Uint8ClampedArray; resolution: number; aspectX: number; aspectY: number; profile?: Profile; bossStage?: number; hullDesign?:string }
 type Point = readonly [number, number]
 
 /** Clip the original silhouette before lofting its deck and keel. */
-export function buildVolumeGeometry({ pixels, resolution, aspectX, aspectY, profile, bossStage }: VolumeInput) {
+export function buildVolumeGeometry({ pixels, resolution, aspectX, aspectY, profile, bossStage, hullDesign }: VolumeInput) {
   const boss = bossStage === undefined ? undefined : BOSS_HULL_DESIGNS[bossStage]
+  const mob=hullDesign?MOB_HULL_DESIGNS[hullDesign]:undefined
   const edge = resolution - 1
   const alpha = (x: number, y: number) => pixels[(y * resolution + x) * 4 + 3] / 255 - .4
   const distance = new Float32Array(resolution * resolution)
@@ -21,7 +23,7 @@ export function buildVolumeGeometry({ pixels, resolution, aspectX, aspectY, prof
     const i = y * resolution + x
     distance[i] = Math.min(distance[i], distance[i + 1] + 1, distance[i + resolution] + 1)
   }
-  const position: number[] = [], uv: number[] = [], indices: number[] = []
+  const position: number[] = [], uv: number[] = [], indices: number[] = [], keel: number[] = []
   const vertices = new Map<string, number>()
   const boundary = new Map<string, readonly [number, number]>()
   const addVertex = ([x, y]: Point) => {
@@ -40,6 +42,7 @@ export function buildVolumeGeometry({ pixels, resolution, aspectX, aspectY, prof
     // Broad armor planes, narrow wing edges and a distinct center spine.
     // Painted highlights do not become bumps in the mesh.
     const height = boss ? bossDeckElevation(boss,u,v,bevel)
+      : mob ? mobHullElevation(mob,u,v,bevel)
       : profile === 'fighter' ? .006 + bevel*(.017 + .035*spine + .022*canopy)
       : profile === 'capital' ? .008 + bevel*(.035 + .055*spine + .018*canopy)
       : profile === 'organic' ? .006 + bevel*(.025 + .045*spine)
@@ -48,6 +51,7 @@ export function buildVolumeGeometry({ pixels, resolution, aspectX, aspectY, prof
     vertices.set(key, id)
     position.push((u-.5)*aspectX, (.5-v)*aspectY, height)
     uv.push(u, 1-v)
+    keel.push(boss ? bossKeelElevation(boss,u,v,bevel,height) : mob ? -.006-bevel*(.012+height*.36) : -height*.58)
     return id
   }
   const face = (points: Point[]) => {
@@ -76,7 +80,7 @@ export function buildVolumeGeometry({ pixels, resolution, aspectX, aspectY, prof
   }
   const topCount = indices.length, count = position.length/3
   for (let i = 0; i < count; i++) {
-    position.push(position[i*3],position[i*3+1],boss ? -boss.keel*(.5+Math.min(1,position[i*3+2]/.08)*.5) : -position[i*3+2]*.58)
+    position.push(position[i*3],position[i*3+1],keel[i])
     uv.push(uv[i*2],uv[i*2+1])
   }
   for (let i = 0; i < topCount; i += 3) indices.push(indices[i]+count,indices[i+2]+count,indices[i+1]+count)

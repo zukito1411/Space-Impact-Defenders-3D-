@@ -1,0 +1,87 @@
+# Squid, serpent and mothership 3D rendering v1
+
+Stage 5 (Abyss Squid), Stage 10 (Serpent Guardian), and Stage 15 (Mirage Mothership) now use the live Three.js hull renderer. Devil Gundam remains on its existing 2D Canvas/Pixi pose path, including landscape orientation.
+
+## Models and materials
+
+- The squid has a curved mantle, raised eye area, fins and eight continuous 3D appendages. The serpent has a rounded hood/forehead, recessed throat and a continuous 88-ring body. Its broad muscular coils, gradual tail taper and hood-to-neck transition follow cobra posture rather than a thin sinusoidal cable. A dedicated repeating crimson scale texture replaces the stretched crop of the gold-edged hood; admission-time arc-length UVs keep scale spacing consistent through curves. The pointed painted neck tip is clipped where the round body takes over. The hood is raised physically above the coils on local Z, and the final neck section rises into its underside, keeping the face in front throughout the bite and retraction in both orientations. Depth testing remains enabled. The complete hood and coils fit the existing visual envelope in short landscape screens, with the health bar placed beneath the body; target conversion includes that presentation scale. The mothership retains its golden circular silhouette, raised concentric decks, central spine, recessed ring channels, a convex lower lens with a thin rolled rim and eight physical radial batteries with recessed bores.
+- These are closed contour-derived textured meshes with designed depth profiles, rather than facing image planes. Organic appendages use curved tube regions with 24 radial segments, painted skin and deformed normals. Squid arms are joined to its mantle geometry; the serpent retains its separate continuous body mesh. Squid limbs share one draw call; the serpent body shares one draw call. Native boss HP, movement, encounter/attack clocks, hit tests, projectiles, target warnings and defeat rules remain authoritative.
+- Three shares player-ship lighting, environmental reflections, texture mipmaps and anisotropy. Organic faces use a shallower landscape presentation yaw to retain recognizable eyes/fangs. Capital hulls retain the existing ship view basis. The registered front paint is retained even on steep plates; only actual contour bulkheads use side paint. This corrects front details being replaced by repeated side patterns on all capital bosses. The mothership's lower lens and rim use their dedicated underside painting. Its shader variant has a separate program-cache key so it cannot inherit an ordinary capital ship's bulkhead material.
+- The new squid and cobra paintings preserve the original purple/crimson identities with finer surface detail. The mothership painting retains the existing gold/magenta design with transparent exterior pixels, so its backdrop does not become a rectangular mesh. Its lower lens uses a dedicated generated underside painting with radial gold panels, dark machinery and restrained magenta ports. The lower surface curves toward the rim rather than extruding the top silhouette vertically; it has independent UV paint and no mirrored top-deck spine. Its material variant and texture are warmed in admission, within the existing body draw. Source art is kept separately from the old assets.
+
+Cobra anatomy reference: [San Diego Zoo — Cobra](https://animals.sandiegozoo.org/animals/cobra), including the raised forebody, expanded neck hood and rounded coils shown in its reference photograph. The fantasy crimson/gold head identity is preserved.
+
+## Rendering and loading
+
+### Normal hulls and organic motion
+
+All 14 normal enemy hulls now have individual admission-time depth profiles in `mobHullDesigns.ts`: eight articulated carapaces and six mechanical fighters with cockpit, wing and engine-pod volumes. Mechanical weapon jackets and recessed bores merge into the actor's existing geometry/material in `mobHullDetail.ts`, retaining one draw per normal ship. Original silhouettes, paint UVs, resolution, flight headings, hitboxes and simulation are preserved. Flanks sample opaque species paint rather than transparent edge texels; mechanical cockpit regions use a restrained glass response. Both Canvas submission and Pixi foreground use the same live hull keys.
+
+The squid mantle and eight arms now share one connected indexed mesh with two paint groups. Root fans connect to mantle vertices inside the tissue; roots remain fixed while the arm lengths deform, including the targeted slap and a short visual retraction. A dedicated repeating purple skin replaces stretched mantle crops. The snake has a stronger travelling wave from neck toward tail, with its head/neck endpoint pinned and the raised face retained. Both animations deform GPU positions and normals without rebuilding buffers. Reduced-motion mode leaves the idle anatomy still.
+
+The cyan `BOSS_FX.pulse` artwork is removed from boss charging, phase-change and shield presentation, including mini-boss shields. Its fallback circle renderer is removed too. Native shield timers/damage rules, warning lanes, committed targets, muzzle flashes and projectiles remain unchanged.
+
+Geometry, paint decoding, GPU texture/buffer uploads and shader variants are prepared through the existing bounded hull-admission system. Per-instance uniforms animate the organic centerlines and corresponding surface normals on the GPU; there is no per-frame tube rebuild, normal recomputation or vertex-buffer upload. Shared geometry/paint remains immutable. Pool reuse resets the snake head transform and organic attack uniforms.
+
+The old segmented Canvas boss bodies and attack extensions are no longer called by live enemy rendering. Squid whips and serpent bites extend their 3D anatomy toward the committed lane in either orientation; target warning art remains visible. The mothership spins in its own local flight plane, before the shared landscape view tilt; its projected saucer orientation stays horizontal instead of turning into a wheel. Final-boss mirage appearance selects the corresponding 3D hull while keeping simulation ownership unchanged.
+
+Special boss briefing portraits now use the generated static artwork, like ordinary boss portraits. They no longer run a second animated squid/snake Canvas loop. Unused special-boss Canvas filter variants and body-pattern textures are no longer warmed. The optional legacy drawing helpers remain available to existing tooling; they are not the live combat body path. Devil's body/attack/animation implementation is unchanged.
+
+The persistent asset list includes the new artwork and its version is advanced to v26. All output art filenames use v1.
+
+## Verification
+
+- TypeScript: `node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json`.
+- Geometry/rig checks: `scripts/test-special-boss-geometry.mjs` and `scripts/test-enemy-volume.mjs`. They check mesh indices/normals/UVs, all 15 depth profiles, appendage buffers, GPU attack state, pool reset and the 2D Devil boundary.
+- Devil orientation/shield/Canvas-state regression: `scripts/test-devil-landscape.mjs`. Its source-extraction harness now normalizes CRLF before stripping imports.
+- Existing boss projectile artwork checks: `scripts/test-boss-art.mjs`.
+- Focused browser review: `node scripts/review-raid-campaign-browser.mjs --captures-only --verify-special --verify-mobs`. It launches through Start Raid, captures all 15 campaign bosses plus Devil with the actual landscape camera/HUD/scenery, and checks idle/charged organic/mothership states in both orientations. It checks live hulls, GPU pose clocks, immutable appendage buffers, physical mothership cannons and bounded draw calls. Cobra idle, wind-up, full-bite and retraction states compare rendered head pixels against the same camera with the body hidden, catching real face occlusion in portrait and landscape. Shader/page errors fail the run. The targeted follow-up `--special-only` refreshes these three bosses while requiring the unchanged gallery images to exist. The captures show the complete cobra below the HUD and within the short landscape viewport. The runner also checks that mothership spin changes local rotation without rotating its projected flight plane.
+
+Browser evidence is generated under `presentation-review/campaign-v1/`, including `special-boss-checks-v1.json`, idle/attack captures and the named 16-boss gallery. Captures use controlled HP/positions/timers for inspection. This is a focused renderer review, not a complete campaign playthrough or sustained FPS benchmark. Headless Chromium uses SwiftShader; physical device FPS, GPU throughput, compositing, thermals and rare stutters remain unmeasured. No universal FPS improvement is claimed.
+
+Latest verification completed: TypeScript, organic geometry/UV continuity, all 15 volume designs, Devil orientation/removed-ring/state, existing boss projectile art, 16 pose browser cases in both orientations, including eight cobra face-occlusion comparisons, and progressive defeat fade/final clear all passed. The 16-image actual landscape gallery is indexed in `presentation-review/campaign-v1/bosses-v1.md`; the latest special cases reported no page or shader errors and two draws per boss (three including the player). All eight cobra phase/orientation cases had zero body-covered opaque head pixels. Four idle motion checks verify visible squid/snake silhouette movement and a stable reduced-motion pose. Both normal-enemy boards contain all 14 variants at native gameplay scale and report 15 draws including the player. The squid remains two paint draws and adds 192 hidden root-connection triangles; the mechanical mobs add merged weapon geometry. No per-frame mesh rebuilding or new actor draw calls were introduced. Device FPS was not benchmarked.
+
+## Generated asset receipt
+
+Built-in imagegen was used (not CLI/API fallback). Original inputs were `public/assets/aliens/squid_boss.png`, `cobra_boss.png`, and `final_boss.png`, inspected before editing. Outputs:
+
+| File under `public/assets/bosses/special/` | Bytes | SHA-256 |
+|---|---:|---|
+| `abyss-squid-v1.png` | 2362016 | `26052a99ff7e047a8677b3f0432d2fd10f37917d98bdacc7a7cdf012694b7d14` |
+| `serpent-guardian-v1.png` | 2116688 | `d978cd1d1193d2e9290607813236a7661f11b66d10ac21d5699e1c829a78bb4b` |
+| `mirage-mothership-v1.png` | 2812646 | `fc039c1c7862703188925814178cf089c9a7cc97ada652ef9f023c9027df64cc` |
+| `serpent-skin-v1.png` | 3427022 | `505404b6743499f244b6fcee9c7efaa4223e7b6616314cad68f45d9a3a66326c` |
+| `mothership-keel-v1.png` | 3644243 | `f5b67bdd491e3388f7291376c53a59f758f2d76f1efa7bfb1240a9742739c3d2` |
+| `squid-skin-v1.png` | 3753088 | `41eafef99b56bd4a70600082476f89039c08a55ed6f5b3d25a146da5cb9396eb` |
+
+Final prompts:
+
+### Squid
+
+Use case: precise-object-edit. Asset: high resolution albedo painting for a real-time 3D boss. Upgrade the reference SPACE SQUID from pixel art to extremely detailed realistic hand-painted game art while keeping its exact front-facing upright pose, pointed tapered mantle, paired swept fins, central violet eye, eight tentacles, gold edging, overall framing and silhouette. Retain saturated deep amethyst armor, orchid highlights, restrained rose-gold seams and the dark magenta underside. Make scale/chitin plating, fine grooves, armor joints and wet biological texture beautifully crisp without hard baked rim lights, lens effects or fake bloom. NO scenery, shadows behind the subject, labels, text, UI or shapes. One isolated full creature centered, fully visible with clean transparent margins, true transparent background. Do not redesign into generic octopus, do not add limbs or change pose. Output portrait high resolution.
+
+### Cobra
+
+Use case: precise-object-edit. Asset: high-resolution albedo painting used to reconstruct a real 3D space cobra boss. Upgrade pixel art reference into richly detailed realistic game artwork. Preserve exact front-facing upright pose, wide spread cobra hood, tapered armored neck, central gold forehead crest, paired forward fangs, crown spikes, fierce open mouth with visible black throat, and crimson/ruby/gold/dark-maroon coloration. Strong readable silhouette matching reference, not a dragon, no legs, no extra wings or long body. Keep all anatomy visible. Fine overlapping serpent scale armor, bevelled chitin ridges, material creases, muted gold seams and clear white fang tips. Neutral soft front illumination, no baked rim glow, aura, bloom, shadows behind subject or scenery. One isolated subject centered with transparent margins, genuine transparent background, no text UI or labels. Portrait high resolution.
+
+### Mothership
+
+Use case: background-extraction. Create a clean transparent-background albedo sprite of this exact golden circular space mothership. Remove only the blue-grey background and all empty exterior pixels, keeping the entire original ship, all its small peripheral claws/weapon mounts, exact circular silhouette, gold segmented ring decks, raised central spine, magenta reactor ports and black panel seams. Preserve frontal top-view orientation, original proportions, framing, colors and tiny surface details. No redesign or additional elements. Full object with safe transparent margins, genuine transparent alpha, no shadow or glow outside silhouette, no lettering. High resolution.
+
+### Mothership underside
+
+Built-in imagegen, using `public/assets/bosses/special/mirage-mothership-v1.png` as the material reference. Saved to `public/assets/bosses/special/mothership-keel-v1.png`.
+
+Use case: stylized-concept. Asset type: square albedo texture for the curved UNDERSIDE of the supplied golden saucer mothership, used on a real 3D lens-shaped hull. Input reference: existing upper ship appearance and material identity only. Create an orthographic straight-on bottom view, centered concentric circular underside, centered at exact image center, outer circular hull radius 45 percent of image width. Rich antique gold and bronze segmented armor panels, charcoal recessed machinery and panel seams, subtle magenta reactor ports, eight integrated radial service bays, an understated central recessed reactor aperture. Clean high resolution game texture, crisply defined fine mechanical details and plausible joins. Underbelly is a coherent rounded saucer, not a copy of the top deck: no central raised spine, crown, towers, spikes, guns, legs, dangling parts or protruding exterior claws. Neutral even diffuse lighting only; no baked directional shading, specular glare, aura, bloom, painted perspective or scene. Fill the square corners beyond the circular hull with matching dark bronze metal paneling, fully opaque edge to edge; not transparent or black void. No text, labels, UI or border. Keep restrained metallic colors matching the reference, with quiet magenta ports rather than large glowing regions.
+
+### Squid skin
+
+Built-in imagegen, using `public/assets/bosses/special/abyss-squid-v1.png` as material reference. Saved to `public/assets/bosses/special/squid-skin-v1.png`.
+
+Use case: stylized-concept. Asset type: fully opaque seamless square albedo texture for the animated 3D tentacles of this violet space squid. Reference image role: material and color identity ONLY. Create one edge-to-edge tile of rich amethyst and dark orchid flexible chitin skin, with small overlapping rounded scale plates, subtle wet biological microtexture, fine darker seams, occasional muted rose-gold scale edges matching the reference mantle. Approximately 18 small plates across the tile and 22 staggered rows. Flexible organic material rather than rigid machinery. No large gold stripes or bands, no painted eye, no head, no tentacle silhouette, no objects or scene. All scales evenly sized, aligned downwards, seamlessly repeat in both directions. Neutral even diffuse illumination, no directional lighting or baked highlights, glow, shadows or vignette. Fine realistic hand-painted game texture with clear purple color. Fill the complete square with opaque textured material; no transparency, text, labels, borders or UI.
+
+### Cobra body scales
+
+Built-in imagegen, using `public/assets/bosses/special/serpent-guardian-v1.png` as the color/material reference. Saved to `public/assets/bosses/special/serpent-skin-v1.png`.
+
+Use case: stylized-concept. Asset type: seamless square albedo texture for the cylindrical 3D body of the crimson space cobra boss in reference image. Reference role: color/material identity ONLY, do not draw the head. Produce ONE fully opaque square texture swatch filled edge to edge with small, tightly fitted overlapping cobra scales, matching the ruby crimson, dark burgundy and restrained antique-gold scale edges of the reference head. Approximately 16 small scales across and 20 rows vertically; natural slightly rounded rhomboid scales with shallow engraved seams and subtle individual mottling. Scales all point downward, aligned in staggered rows, evenly sized. Subtle isolated muted-gold edges on a few scales, mostly rich red; NOT large gold stripes, no gold bands, no white lines. Seamlessly tile BOTH horizontally and vertically with no border or seams. Neutral diffuse illumination, physically plausible reptile scale material, no directional lighting, no painted specular glare, no shadows, no vignette, no glow. Orthographic flat material surface, no perspective, no object, no snake head or body silhouette, no text or labels, no background transparency. High resolution texture only.

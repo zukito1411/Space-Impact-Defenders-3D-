@@ -1,7 +1,8 @@
 import { getGenericBossArt } from './bossCatalog'
 import { getPublicAssetUrl } from '../sound'
 import { useEffect, useRef } from 'react'
-import { drawDevilGundamBoss, drawFinalBossSpriteBody, drawGalacticSnakeBoss, drawGalacticSquidBoss } from './bossRender'
+import { drawDevilGundamBoss } from './devilBossRender'
+import { SPECIAL_BOSS_ART } from './specialBossCatalog'
 import { BOSS_COLORS, BRIEFING_PICKUP_TYPES, HEIGHT, PICKUP_PREVIEW_SEEDS, WIDTH } from './constants'
 import { drawPowerUpCanvas } from './effectsRender'
 import { preloadRaidCanvasAssets } from './preload'
@@ -64,7 +65,8 @@ export function PickupPreviewCanvas({ type }: { type: PowerKind }) {
 }
 
 export function BossBriefingCanvas({ kind, stage }: { kind: BossKind; stage?: number }) {
-  const art = getGenericBossArt(kind, stage)
+  const special=kind==='squid'||kind==='snake'||kind==='final'?SPECIAL_BOSS_ART[kind]:undefined
+  const art = getGenericBossArt(kind, stage) ?? (special?{assetPath:special,name:kind==='squid'?'Abyss Squid':kind==='snake'?'Serpent Guardian':'Mirage Mothership'}:undefined)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
   useEffect(() => {
@@ -94,9 +96,7 @@ export function BossBriefingCanvas({ kind, stage }: { kind: BossKind; stage?: nu
       ctx.save()
       const size = Math.min(rect.width * (kind === 'devil' ? 0.86 : kind === 'snake' ? 0.58 : kind === 'final' ? 0.68 : 0.62), rect.height * (kind === 'devil' ? 0.96 : 0.78))
       ctx.translate(rect.width * 0.5, rect.height * (kind === 'devil' ? 0.33 : kind === 'final' ? 0.58 : 0.54))
-      if (kind === 'squid') drawGalacticSquidBoss(ctx, size, time)
-      else if (kind === 'snake') drawGalacticSnakeBoss(ctx, size, time)
-      else if (kind === 'devil') {
+      if (kind === 'devil') {
         drawDevilGundamBoss(ctx, {
           id: 0,
           x: 50,
@@ -126,9 +126,6 @@ export function BossBriefingCanvas({ kind, stage }: { kind: BossKind; stage?: nu
           chargeTargetY: 50,
           chargePattern: 'single',
         }, size, time)
-      } else {
-        const briefingRage = 0.45 + Math.sin(time / 900) * 0.18
-        drawFinalBossSpriteBody(ctx, size, time, briefingRage)
       }
       ctx.restore()
 

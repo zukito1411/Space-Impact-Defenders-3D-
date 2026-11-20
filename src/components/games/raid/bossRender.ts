@@ -1,4 +1,4 @@
-export { drawCachedBossAura, drawBossAura, drawBossBar, drawBossBarSkull, drawBossReticle, drawBossShield, drawCachedBossBar, drawCachedBossReticle, getNormalEnemyFilter } from './bossHudRender'
+export { drawCachedBossAura, drawBossAura, drawBossBar, drawBossBarSkull, drawBossReticle, drawCachedBossBar, drawCachedBossReticle, getNormalEnemyFilter } from './bossHudRender'
 export { drawGalacticSquidBoss, drawSquidWhipStrike, getSquidBossTentacleTextureCanvas } from './squidBossRender'
 export { drawCobraBossHead, drawGalacticSnakeBoss, drawSnakeBiteLungeModel, drawSnakeTerrorHead, drawSnakeVenomTelegraph, getCobraBossBodyTextureCanvas } from './snakeBossRender'
 export { drawCachedStageBossBody, drawEnemyHitFlash, drawFinalBossSpriteBody, drawStageBossBodyDirect, drawStageBossIntroEffect, getStageBossIntroProgress, hexToRgba } from './stageBossRender'

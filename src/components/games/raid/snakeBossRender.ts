@@ -202,7 +202,7 @@ export function drawSnakeBiteLungeModel(ctx: CanvasRenderingContext2D, x: number
   ctx.restore()
 }
 
-export function drawSnakeVenomTelegraph(ctx: CanvasRenderingContext2D, x: number, y: number, targetX: number, targetY: number, size: number, viewportWidth: number, time: number, chargeTimer: number, pattern: Enemy['chargePattern'], retractTimer = 0, landscape = false) {
+export function drawSnakeVenomTelegraph(ctx: CanvasRenderingContext2D, x: number, y: number, targetX: number, targetY: number, size: number, viewportWidth: number, time: number, chargeTimer: number, pattern: Enemy['chargePattern'], retractTimer = 0, landscape = false, body3D = false) {
   const chargeWarm = clamp(1 - chargeTimer / (pattern === 'horizontal' ? 1.18 : pattern === 'cross' ? 1.08 : 0.95), 0, 1)
   const warm = pattern === 'cross' && chargeTimer <= 0 && retractTimer > 0
     ? clamp(retractTimer / 0.42, 0, 1)
@@ -222,7 +222,8 @@ export function drawSnakeVenomTelegraph(ctx: CanvasRenderingContext2D, x: number
   }
 
   if (pattern === 'cross') {
-    drawSnakeBiteLungeModel(ctx, x, y, laneX, targetY, size, time, warm, pulse, landscape)
+    if(body3D)drawBossFx(ctx,BOSS_FX.precision,laneX,targetY,size*.25,size*.175,.7,0,true)
+    else drawSnakeBiteLungeModel(ctx, x, y, laneX, targetY, size, time, warm, pulse, landscape)
     ctx.restore()
     return
   }

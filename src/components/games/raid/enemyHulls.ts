@@ -3,6 +3,7 @@ import { FIGHTER_HULL_ART, FIGHTER_HULL_KEYS, fighterHullKey } from './fighterHu
 import { LEGACY_FIGHTER_COUNT, RAID_FIGHTER_ASSETS } from './stageEncounters'
 import type { Enemy } from './types'
 import type { VolumeProfile } from './paintedVolume'
+import { SPECIAL_BOSS_ART, specialBossHullKey, type SpecialBossKind } from './specialBossCatalog'
 
 export type EnemyHullSpec = {
   assetPath: string
@@ -11,22 +12,28 @@ export type EnemyHullSpec = {
   filter?: string
   family: 'normal' | 'elite' | 'boss'
   bossStage?: number
+  special?: SpecialBossKind
+  hullDesign?: string
 }
 const legacyKeys = Array.from({ length: LEGACY_FIGHTER_COUNT }, (_, index) => 'alienHull' + index)
 const eliteKeys = Array.from({ length: 5 }, (_, index) => 'eliteHull' + index)
 const bossKey = (stage: number) => 'commandHull' + stage
 const entries: Array<[string, EnemyHullSpec]> = [
   ...legacyKeys.map((key, index): [string, EnemyHullSpec] => [key, {
-    assetPath: `assets/aliens/alien_v${index}.png`, profile: 'organic', resolution: 144, family: 'normal',
+    assetPath: `assets/aliens/alien_v${index}.png`, profile: 'organic', resolution: 144, family: 'normal', hullDesign:key,
   }]),
   ...FIGHTER_HULL_KEYS.map((key): [string, EnemyHullSpec] => [key, {
-    assetPath: FIGHTER_HULL_ART[key], profile: 'fighter', resolution: 144, family: 'normal',
+    assetPath: FIGHTER_HULL_ART[key], profile: 'fighter', resolution: 144, family: 'normal', hullDesign:key,
   }]),
   ...eliteKeys.map((key, index): [string, EnemyHullSpec] => [key, {
     assetPath: `assets/aliens/elite_${index}.png`, profile: 'organic', resolution: 160, family: 'elite',
   }]),
   ...CAMPAIGN_BOSS_ART.map((art): [string, EnemyHullSpec] => [bossKey(art.stage), {
     assetPath: art.assetPath, profile: 'capital', resolution: 160, family: 'boss', bossStage: art.stage,
+  }]),
+  ...(['squid','snake','final'] as const).map((kind): [string, EnemyHullSpec] => [specialBossHullKey(kind)!, {
+    assetPath: SPECIAL_BOSS_ART[kind], profile: 'capital', resolution: 176, family: 'boss',
+    bossStage: kind === 'squid' ? 5 : kind === 'snake' ? 10 : 15, special: kind,
   }]),
 ]
 /** All hostile designs share decoded paint and indexed geometry across their instances. */
@@ -39,8 +46,9 @@ export function normalEnemyHullKey(variant: number) {
 }
 export function enemyHullKey(enemy: Pick<Enemy, 'isBoss' | 'isMiniBoss' | 'bossKind' | 'bossArtStage' | 'variant'>) {
   if (enemy.isBoss) {
-    // Keep the stage-5/10/15 and Devil Gundam renderers, including mirages, intact.
-    if (enemy.bossKind === 'squid' || enemy.bossKind === 'snake' || enemy.bossKind === 'final' || enemy.bossKind === 'devil') return null
+    if (enemy.bossKind === 'devil') return null
+    const special = specialBossHullKey(enemy.bossKind)
+    if (special) return special
     const art = getGenericBossArt(enemy.bossKind ?? 'carrier', enemy.bossArtStage)
     return art ? bossKey(art.stage) : null
   }

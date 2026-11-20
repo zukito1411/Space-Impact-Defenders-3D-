@@ -2,6 +2,8 @@ import { Material, Mesh, MeshStandardMaterial, type Object3D, type Texture, type
 import { prepareVolumeSurface } from './volumeSurface'
 import { prepareBossArmor } from './bossHullMaterials'
 import { rigMechHull } from './mechHullRig'
+import { prepareOrganicRig } from './specialBossGeometry'
+import { prepareMobHullSurface } from './mobHullDetail'
 
 export const isMechHull = (key: string) => key === 'godGundam' || key === 'godGundamBurning' || key === 'spiegel'
 export type HullSurfaceBinding = { material: MeshStandardMaterial; opacity: number; emissiveIntensity: number; sunVisibility: { value: number } }
@@ -25,15 +27,18 @@ export function prepareHullSurfaces(object: Object3D, key: string, renderer: Web
   const anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy())
   for (const material of owned) {
     if (!(material instanceof MeshStandardMaterial)) continue
+    prepareOrganicRig(material)
+    prepareMobHullSurface(material)
     material.roughness = Math.max(.46, Math.min(.64, material.roughness))
     material.metalness = Math.max(.14, Math.min(.32, material.metalness))
     material.envMapIntensity = .8
     // A low paint floor preserves the authored details on the night side.
     // Direct light and reflections still describe the hull's shape.
-    if (material.map && material.emissiveMap === material.map) material.emissiveIntensity = isMechHull(key) ? .035 : .12
+    if (material.map && material.emissiveMap === material.map) material.emissiveIntensity = isMechHull(key) ? .035
+      : material.userData.bossHullStage ? .065 : material.userData.bossOrganicLimb ? .025 : .12
     prepareVolumeSurface(material)
     const bossArmor = prepareBossArmor(material)
-    for (const texture of [material.map, material.emissiveMap, bossArmor]) {
+    for (const texture of [material.map, material.emissiveMap, ...(bossArmor??[])]) {
       if (!texture || preparedTextures.has(texture)) continue
       if (texture.anisotropy !== anisotropy) { texture.anisotropy = anisotropy; texture.needsUpdate = true }
       renderer.initTexture(texture)

@@ -1,7 +1,5 @@
-import { BOSS_FX, drawBossFx } from './combatArt'
 import type { Enemy } from './types'
 import { clamp, drawRadialEllipse, getOffscreenRenderScale, traceRoundedRect } from './utils'
-import { hexToRgba } from './stageBossRender'
 import type { StageBossRenderCacheEntry } from './stageBossRender'
 
 export const bossAuraSpriteCache = new Map<string, StageBossRenderCacheEntry>()
@@ -274,25 +272,7 @@ export function drawCachedBossReticle(ctx: CanvasRenderingContext2D, x: number, 
   ctx.drawImage(canvas, x - canvas.width / renderScale / 2, y - canvas.height / renderScale / 2, canvas.width / renderScale, canvas.height / renderScale)
 }
 
-export function drawBossShield(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, time: number, color = '#38bdf8') {
-  const pulse = 0.94 + Math.sin(time / 430) * 0.06
-  const diameter = size * 1.17 * pulse
-  if (drawBossFx(ctx, BOSS_FX.pulse, x, y, diameter, diameter, .43, 0, true)) return
-  ctx.save()
-  ctx.translate(x, y)
-  ctx.scale(pulse, pulse)
-  ctx.globalCompositeOperation = 'lighter'
-  ctx.strokeStyle = hexToRgba(color, 0.52)
-  ctx.fillStyle = hexToRgba(color, 0.04)
-  ctx.shadowBlur = 18
-  ctx.shadowColor = hexToRgba(color, 0.34)
-  ctx.lineWidth = Math.max(2, size * 0.012)
-  ctx.beginPath()
-  ctx.arc(0, 0, size * 0.56, 0, Math.PI * 2)
-  ctx.fill()
-  ctx.stroke()
-  ctx.restore()
-}
+
 
 export function drawBossBarSkull(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number, accent: string, finalBoss = false) {
   ctx.save()

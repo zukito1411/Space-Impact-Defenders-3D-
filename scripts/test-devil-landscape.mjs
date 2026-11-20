@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import ts from 'typescript'
 
-const read = file => readFileSync(new URL('../src/components/games/raid/' + file, import.meta.url), 'utf8')
+const read = file => readFileSync(new URL('../src/components/games/raid/' + file, import.meta.url), 'utf8').replace(/\r\n/g, '\n')
 const load = source => import('data:text/javascript;base64,' + Buffer.from(ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
 }).outputText).toString('base64'))
@@ -27,7 +27,7 @@ for (const landscape of [false,true]) for (const gpuReady of [false,true]) {
   assert.equal(body[1],landscape ? -Math.PI/2 : 0)
   assert.equal(body[2],gpuReady)
   const shield=enemyModule.calls.find(x=>x[0]==='shield')
-  assert.deepEqual(shield.slice(1),landscape ? [78,50] : [50,68])
+  assert.equal(shield,undefined,'boss-wide shield ring must remain removed')
   assert.ok(enemyModule.calls.some(x=>x[0]==='bar'),'health bar was lost')
   assert.equal(ctx.angle,0,'Canvas transform leaked')
 }
@@ -50,4 +50,4 @@ for (const landscape of [false,true]) {
   assert.ok(Math.abs(pair.base.rotation-(tilt-(landscape?Math.PI/2:0)))<1e-9)
   assert.equal(pair.blend.rotation,pair.base.rotation)
 }
-console.log('Devil Gundam Canvas and GPU orientations, shield positions, and Canvas state passed')
+console.log('Devil Gundam Canvas and GPU orientations, removed boss ring, and Canvas state passed')

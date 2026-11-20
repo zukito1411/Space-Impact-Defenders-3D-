@@ -2,9 +2,11 @@ import { LANDSCAPE_VIEW_YAW } from './raidView'
 import { isRaid2DMech } from './mechArtwork'
 import { projectHullDocking } from './hullDocking'
 import { getHullDocking, getHullRegistration } from './liveHullAssets'
+import type { OrganicBossPose } from './specialBossGeometry'
 export type LiveHullDraw = {
   id: string; key: string; x: number; y: number; size: number; bank: number
   angle: number; alpha: number; landscape: boolean; attack?: number; crouch?: number; hit?: number
+  bossPose?: OrganicBossPose; spin?: number
 }
 export interface LiveHullSink {
   submitHull(draw: LiveHullDraw): boolean
@@ -16,7 +18,8 @@ export function unbindLiveHulls(sink: LiveHullSink) { if (activeSink === sink) a
 export function submitLiveHull(draw: LiveHullDraw) { return !isRaid2DMech(draw.key) && (activeSink?.submitHull(draw) ?? false) }
 export function liveHullsEnabled() { return activeSink !== null }
 export function drawLiveHull(ctx: CanvasRenderingContext2D, key: string, x: number, y: number,
-  size: number, bank: number, alpha: number, landscape: boolean, identity = key, pose: { attack?: number; crouch?: number; hit?: number } = {}) {
+  size: number, bank: number, alpha: number, landscape: boolean, identity = key,
+  pose: { attack?: number; crouch?: number; hit?: number; bossPose?: OrganicBossPose; spin?: number } = {}) {
   if (!activeSink || isRaid2DMech(key)) return false
   const transform = ctx.getTransform()
   const density = Math.hypot(transform.a, transform.b)

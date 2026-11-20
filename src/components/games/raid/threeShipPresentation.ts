@@ -1,6 +1,7 @@
-import { LANDSCAPE_VIEW_YAW, RAID_CAMERA_FOV, raidCameraFocal } from './raidView'
+import { LANDSCAPE_VIEW_YAW, ORGANIC_BOSS_VIEW_YAW, RAID_CAMERA_FOV, raidCameraFocal } from './raidView'
 import { isRaid2DMech } from './mechArtwork'
 import { prepareLiveProtection } from './liveProtection'
+import { poseOrganicBoss } from './specialBossGeometry'
 import {
   DirectionalLight, Group, HemisphereLight, NeutralToneMapping, Quaternion, Vector3,
   PerspectiveCamera, Scene, WebGLRenderer, type Material, type Object3D, type Texture, WebGLRenderTarget,
@@ -31,6 +32,9 @@ export class ThreeShipPresentation implements LiveHullSink {
   private readonly reflectionAxis = new Vector3(-.61, .49, .62).normalize()
   private readonly reflectionTurn = new Quaternion()
   private readonly viewTurn = new Quaternion().setFromAxisAngle(new Vector3(0,1,0), LANDSCAPE_VIEW_YAW)
+  // Upright organic anatomy faces the combat camera rather than the flight
+  // plane's wing-bank basis. Keep depth while retaining the eyes and fangs.
+  private readonly organicViewTurn = new Quaternion().setFromAxisAngle(new Vector3(0,1,0), ORGANIC_BOSS_VIEW_YAW)
   private readonly headingTurn = new Quaternion()
   private readonly headingAxis = new Vector3(0,0,1)
   private readonly preparedTextures = new WeakSet<Texture>()
@@ -338,6 +342,7 @@ export class ThreeShipPresentation implements LiveHullSink {
       this.hulls.set(draw.id,node)
     }
     node.used = this.frame
+    if(draw.bossPose)poseOrganicBoss(node.object,draw.bossPose,draw.id)
     node.transient=draw.id.startsWith('fx:')
     const { group } = node
     group.visible = draw.alpha > .01
@@ -347,11 +352,14 @@ export class ThreeShipPresentation implements LiveHullSink {
     this.headingTurn.setFromAxisAngle(this.headingAxis,angle)
     // Bank in the hull's local flight frame, then turn that frame on screen.
     // This matches the Canvas hardpoints and keeps a sideways enemy's length.
-    if (draw.landscape) group.quaternion.copy(this.headingTurn).multiply(this.viewTurn)
+    if (draw.landscape) group.quaternion.copy(this.headingTurn).multiply(draw.bossPose?this.organicViewTurn:this.viewTurn)
     else group.quaternion.copy(this.headingTurn)
     group.scale.set(draw.size*sx/448, draw.size*sy/448, draw.size*sx/448)
     node.object.position.set((144*sx+ox-224)/sx,(224-144*sy-oy)/sy,0)
     node.object.rotation.y = this.reduced.matches ? 0 : draw.bank * 150*Math.PI/180
+    // Saucer spin belongs inside the inclined flight plane. Rotating the
+    // projected heading instead makes the disc stand up like a wheel.
+    node.object.rotation.z = this.reduced.matches ? 0 : draw.spin ?? 0
     const eclipse = Math.max(0, Math.min(1, this.eclipseAt?.(draw.x,draw.y) ?? 0)) * (1-this.dockBlend)
     for (const surface of node.surfaces) {
       surface.material.opacity = draw.alpha * surface.opacity

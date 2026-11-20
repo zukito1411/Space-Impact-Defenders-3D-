@@ -11,6 +11,9 @@ const output='presentation-review/campaign-v1'
 const profileOnly=process.argv.includes('--profile-only')
 const capturesOnly=process.argv.includes('--captures-only')||(!profileOnly&&!process.argv.includes('--profile'))
 const resume=process.argv.includes('--resume')
+const specialOnly=process.argv.includes('--special-only')
+const verifySpecial=specialOnly||process.argv.includes('--verify-special')
+const verifyMobs=process.argv.includes('--verify-mobs')
 const frames=Number(process.env.RAID_REVIEW_FRAMES ?? 24)
 assert.ok(Number.isInteger(frames)&&frames>=12&&frames<=180)
 const source=await readFile('src/components/games/raid/GradiusRaidRuntime.tsx','utf8')
@@ -35,7 +38,8 @@ try {
   }
   browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH,
     args:['--no-sandbox','--enable-unsafe-swiftshader','--use-angle=swiftshader']})
-  for(const landscape of (capturesOnly ? [true] : [true,false])) {
+  const specialChecks=[],mobChecks=[]
+  for(const landscape of (capturesOnly&&!verifySpecial&&!verifyMobs ? [true] : [true,false])) {
     const view=landscape?'landscape':'portrait'
     const page=await browser.newPage({viewport:landscape?{width:844,height:390}:{width:393,height:852},
       deviceScaleFactor:1,hasTouch:true,reducedMotion:'no-preference'})
@@ -189,6 +193,13 @@ try {
     assert.equal(await page.evaluate(()=>typeof window.reviewLoop),'function')
     if(landscape&&!profileOnly) for(const boss of catalog) {
       const filename='boss-'+String(boss.stage).padStart(2,'0')+'-landscape-v1.png'
+      if(specialOnly&&![5,10,15].includes(boss.stage)) {
+        // Reuse the unchanged bosses from the completed gallery while
+        // iterating only on special anatomy. Missing evidence fails loudly.
+        await access(output+'/'+filename)
+        captures.push({...boss,file:filename})
+        continue
+      }
       if(resume&&await access(output+'/'+filename).then(()=>true,()=>false)) {
         captures.push({...boss,file:filename})
         continue
@@ -204,6 +215,127 @@ try {
       await page.screenshot({path:output+'/'+filename})
       captures.push({...boss,file:filename})
       console.log('Captured',boss.stage,boss.name)
+    }
+    if(verifySpecial)for(const stage of [5,10,15])for(const phase of stage===10?['idle','attack','bite','retract']:['idle','attack']) {
+      const attacking=phase!=='idle'
+      const stats=await page.evaluate(({stage,attacking,phase})=>{
+        const review=window.campaignReview
+        review.reset(stage)
+        const enemy=review.r.enemiesRef.current[0]
+        if(attacking)Object.assign(enemy,{chargePattern:stage===10?'cross':'trident',chargeTimer:.2,
+          chargeLane:50,chargeTargetY:64})
+        if(phase==='bite')enemy.chargeTimer=.001
+        if(phase==='retract')Object.assign(enemy,{chargeTimer:0,beamVolleyRecovery:.21})
+        review.frame(false)
+        const node=review.ships.hulls.get('enemy:'+enemy.id)
+        if(!node||!node.group.visible)throw Error('Special boss missing live hull: '+stage)
+        const limb=node.object.getObjectByName(stage===5?'boss-organic-squid-v1':'boss-organic-appendages-v1')
+        const head=stage===5?limb:node.object.getObjectByName('boss-organic-head-v1')
+        if(stage!==15&&(!limb||!head))throw Error('Missing organic anatomy: '+stage)
+        const materials=limb?(Array.isArray(limb.material)?limb.material:[limb.material]):[]
+        const shaderPose=materials.at(-1)?.userData.bossPose
+        if(stage===5&&(limb.userData.squidAnchors?.length!==8||limb.geometry.groups.length!==2))throw Error('Squid is not one connected mantle/arm mesh')
+        if(stage!==15&&(!shaderPose||attacking&&shaderPose.attack.value<=0))throw Error('Organic attack did not reach GPU uniforms')
+        if(stage===15&&!node.object.getObjectByName('boss-armament-v1'))throw Error('Mothership batteries missing')
+        const buffers=limb?.geometry.getAttribute('position').array
+        const first=shaderPose?.time.value
+        const heading=node.group.quaternion.clone(),spin=node.object.rotation.z
+        review.actions.draw(performance.now()+180)
+        if(buffers&&limb.geometry.getAttribute('position').array!==buffers)throw Error('Organic animation rebuilt immutable buffers')
+        if(shaderPose&&shaderPose.time.value<=first)throw Error('Organic pose clock stopped')
+        if(stage===15) {
+          if(heading.angleTo(node.group.quaternion)>.025)throw Error('Mothership spin rotated the projected flight plane')
+          if(node.object.rotation.z<=spin)throw Error('Mothership local spin stopped')
+        }
+        let faceOcclusion
+        if(stage===10) {
+          // Compare actual lit head pixels with and without the body, in the
+          // native camera. The body must not replace opaque face fragments.
+          const source=review.ships.renderer.domElement,probe=document.createElement('canvas')
+          probe.width=source.width;probe.height=source.height
+          const ctx=probe.getContext('2d',{willReadFrequently:true})
+          ctx.drawImage(source,0,0)
+          const full=ctx.getImageData(0,0,probe.width,probe.height).data
+          limb.visible=false;review.ships.present()
+          ctx.clearRect(0,0,probe.width,probe.height);ctx.drawImage(source,0,0)
+          const isolated=ctx.getImageData(0,0,probe.width,probe.height).data
+          limb.visible=true;review.ships.present()
+          let tested=0,covered=0
+          const stride=probe.width*4
+          for(let y=1;y<probe.height-1;y++)for(let x=1;x<probe.width-1;x++) {
+            const i=(y*probe.width+x)*4
+            if([i,i-4,i+4,i-stride,i+stride].some(j=>isolated[j+3]<255))continue
+            tested++
+            if(Math.abs(full[i]-isolated[i])+Math.abs(full[i+1]-isolated[i+1])+Math.abs(full[i+2]-isolated[i+2])>12)covered++
+          }
+          faceOcclusion={tested,covered}
+          if(tested<1000||covered/tested>.002)throw Error('Cobra body covers its head in '+phase+': '+JSON.stringify(faceOcclusion))
+        }
+        let motionPixels
+        if(stage!==15&&!attacking) {
+          const source=review.ships.renderer.domElement,probe=document.createElement('canvas')
+          probe.width=source.width;probe.height=source.height
+          const ctx=probe.getContext('2d',{willReadFrequently:true})
+          const poses=materials.map(m=>m.userData.bossPose).filter(Boolean)
+          const time=shaderPose.time.value
+          const pixels=(seconds,motion)=>{
+            for(const pose of poses){pose.time.value=seconds;pose.motion.value=motion}
+            review.ships.present();ctx.clearRect(0,0,probe.width,probe.height);ctx.drawImage(source,0,0)
+            return ctx.getImageData(0,0,probe.width,probe.height).data
+          }
+          const difference=(a,b)=>{
+            let count=0;for(let i=3;i<a.length;i+=4)if((a[i]>128)!==(b[i]>128))count++
+            return count
+          }
+          motionPixels=difference(pixels(time,1),pixels(time+.55,1))
+          const still=difference(pixels(time,0),pixels(time+.55,0))
+          for(const pose of poses){pose.time.value=time;pose.motion.value=1}
+          review.ships.present()
+          if(motionPixels<150||still>1)throw Error('Organic motion missing or reduced-motion pose unstable: '+JSON.stringify({stage,motionPixels,still}))
+        }
+        return {stage,attacking,...review.ships.getShipStats(),limbVertices:buffers?.length/3||0,
+          attack:shaderPose?.attack.value||0,headMoved:head?.position.length()||0,faceOcclusion,motionPixels}
+      },{stage,attacking,phase})
+      specialChecks.push({view,phase,...stats})
+      assert.ok(stats.drawCalls<=4,'Special boss split into excessive draws')
+      assert.ok(stats.triangles>10000,'Boss geometry missing')
+      await page.screenshot({path:output+'/special-'+stage+'-'+view+(attacking?'-'+phase:'')+'-v1.png'})
+      console.log('Verified special',view,stage,phase,JSON.stringify(stats))
+    }
+    if(verifyMobs) {
+      const stats=await page.evaluate(landscape=>{
+        const review=window.campaignReview
+        review.reset(1,'waves')
+        while(review.r.enemiesRef.current.length<14)review.actions.formation()
+        review.r.enemiesRef.current.splice(14)
+        review.r.enemiesRef.current.forEach((enemy,i)=>Object.assign(enemy,{
+          variant:i,x:landscape?20+Math.floor(i/4)*20:17+(i%4)*22,
+          y:landscape?18+(i%4)*20:20+Math.floor(i/4)*17,vx:0,vy:8,phase:0,shieldTime:0,
+          hp:100000,maxHp:100000,fireCooldown:999,hitFlash:0,
+        }))
+        review.frame(false);review.actions.sync()
+        let singleDraw=0
+        for(const enemy of review.r.enemiesRef.current) {
+          const node=review.ships.hulls.get('enemy:'+enemy.id)
+          let meshes=0
+          node?.object.traverse(child=>{if(child.isMesh)meshes++})
+          if(!node||meshes!==1)throw Error('Normal mob lost its single merged hull: '+enemy.variant)
+          singleDraw++
+        }
+        return {...review.ships.getShipStats(),singleDraw}
+      },landscape)
+      assert.equal(stats.singleDraw,14)
+      assert.ok(stats.drawCalls<=15,'Mob details added per-ship draws')
+      mobChecks.push({view,...stats})
+      await page.screenshot({path:output+'/mobs-'+view+'-v1.png'})
+      console.log('Verified normal mobs',view,JSON.stringify(stats))
+      await page.evaluate(()=>{
+        const review=window.campaignReview;review.reset(2)
+        Object.assign(review.r.enemiesRef.current[0],{shieldTime:2,bossAttackState:'warning',bossAttackPattern:'fan',
+          bossAttackTimer:.6,bossWarningSeconds:1,bossEncounterAge:8,bossPhaseStartedAge:7.7,bossLastVolleyAge:0})
+        review.frame(false);review.actions.sync()
+      })
+      await page.screenshot({path:output+'/boss-charge-clean-'+view+'-v1.png'})
     }
     if(!capturesOnly) for(const stage of Array.from({length:15},(_,index)=>index+1)) {
       for(const scenario of ['waves','boss','burst','entry','transition',...([1,5,10,15].includes(stage)?['coop']:[])]) {
@@ -238,6 +370,8 @@ try {
     await page.close()
   }
   if(captures.length)await writeFile(output+'/bosses-v1.json',JSON.stringify(captures,null,2))
+  if(specialChecks.length)await writeFile(output+'/special-boss-checks-v1.json',JSON.stringify({specialChecks,errors},null,2))
+  if(mobChecks.length)await writeFile(output+'/mob-hull-checks-v1.json',JSON.stringify({mobChecks,errors},null,2))
   if(captures.length)await writeFile(output+'/bosses-v1.md',captures.map(boss=>
     `${boss.stage===16?'Anomaly':'Stage '+boss.stage} — ${boss.name}\n\n![${boss.name}](${boss.file})`).join('\n\n')+'\n')
   assert.deepEqual(errors,[])

@@ -5,7 +5,6 @@ import { getGenericBossArt } from './bossCatalog'
 import { getWreckCanvasSprite } from './wreckArt'
 import { getRaidAlienSpriteUrl, getRaidEliteSpriteUrl, getRaidShipSpriteUrl, RAID_ALIEN_SPRITE_COUNT, RAID_ELITE_SPRITE_COUNT } from '../RaidShipSprite'
 import { getPublicAssetUrl } from '../sound'
-import { getCobraBossBodyTextureCanvas, getSquidBossTentacleTextureCanvas } from './bossRender'
 import { PLAYER_COLOR } from './constants'
 import { DEG } from './constants'
 import type { BossKind, CoreLanderCombatModel, DevilBossPose, Enemy } from './types'
@@ -1126,8 +1125,6 @@ export function warmRaidCanvasFilterVariants() {
     for (const filter of RAID_ELITE_STATIC_FILTERS) enqueue(sprite, filter)
   }
 
-  for (const filter of RAID_SQUID_BOSS_STATIC_FILTERS) enqueue(getSquidBossCanvasSprite(), filter)
-  for (const filter of RAID_COBRA_BOSS_STATIC_FILTERS) enqueue(getCobraBossCanvasSprite(), filter)
   enqueue(getDevilMasterProjectileCanvasSprite(), RAID_DEVIL_MASTER_PROJECTILE_FILTER)
   for (const model of RAID_CORE_LANDER_COMBAT_MODELS) {
     for (const pose of Object.keys(RAID_CORE_LANDER_BARRAGE_ASSET_PATHS[model])) {
@@ -1135,9 +1132,6 @@ export function warmRaidCanvasFilterVariants() {
       enqueue(getGodGundamBarrageCanvasSprite(model, pose), getCoreLanderBarrageFilter(model, true))
     }
   }
-  for (const filter of RAID_FINAL_BOSS_STATIC_FILTERS) enqueue(getFinalBossCanvasSprite(), filter)
-  getSquidBossTentacleTextureCanvas()
-  getCobraBossBodyTextureCanvas()
 
   for (const key of Object.keys(RAID_OTHER_STATIC_FILTERS) as RaidOtherAssetKey[]) {
     const sprite = getRaidOtherCanvasSprite(key)

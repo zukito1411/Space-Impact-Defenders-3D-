@@ -5,9 +5,12 @@ import ts from 'typescript'
 const compile = source => ts.transpileModule(source, {compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText
 const dataUrl = source => 'data:text/javascript;base64,'+Buffer.from(compile(source)).toString('base64')
 const designUrl = dataUrl(readFileSync('src/components/games/raid/bossHullDesigns.ts','utf8'))
-const { BOSS_HULL_DESIGNS, sampleBossDeck } = await import(designUrl)
+const mobUrl = dataUrl(readFileSync('src/components/games/raid/mobHullDesigns.ts','utf8'))
+const {MOB_HULL_DESIGNS}=await import(mobUrl)
+const { BOSS_HULL_DESIGNS, sampleBossDeck, bossKeelElevation } = await import(designUrl)
 const source = readFileSync('src/components/games/raid/volumeGeometry.worker.ts','utf8')
   .replace("'./bossHullDesigns'",JSON.stringify(designUrl))
+  .replace("'./mobHullDesigns'",JSON.stringify(mobUrl))
 globalThis.self = {}
 const compiled = ts.transpileModule(source, {compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText
 const { buildVolumeGeometry } = await import('data:text/javascript;base64,'+Buffer.from(compiled).toString('base64'))
@@ -36,7 +39,16 @@ for(const profile of ['fighter','organic','capital']) {
 // Capital reconstructions retain the exact clipped footprint and UV paint,
 // while giving each encounter its own depth, recesses and physical armament.
 const capital=buildVolumeGeometry({pixels,resolution,aspectX:1,aspectY:1,profile:'capital'})
-assert.deepEqual(Object.keys(BOSS_HULL_DESIGNS).map(Number),[1,2,3,4,6,7,8,9,11,12,13,14])
+assert.equal(Object.keys(MOB_HULL_DESIGNS).length,14)
+for(const key of Object.keys(MOB_HULL_DESIGNS)) {
+ const mesh=buildVolumeGeometry({pixels,resolution,aspectX:1,aspectY:1,profile:'fighter',hullDesign:key})
+ assert.deepEqual(mesh.index,capital.index,'mob changed its registered silhouette')
+ assert.deepEqual(mesh.uv,capital.uv,'mob lost original paint coordinates')
+ assert.ok(mesh.position.every(Number.isFinite))
+ const heights=Array.from(mesh.position).filter((_,i)=>i%3===2)
+ assert.ok(Math.max(...heights)>.09&&Math.max(...heights)<.2,'mob lost its shaped cockpit/carapace')
+}
+assert.deepEqual(Object.keys(BOSS_HULL_DESIGNS).map(Number),[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15])
 for(const [stage,design] of Object.entries(BOSS_HULL_DESIGNS)) {
   const mesh=buildVolumeGeometry({pixels,resolution,aspectX:1,aspectY:1,profile:'capital',bossStage:Number(stage)})
   assert.deepEqual(mesh.index,capital.index,'boss changed its clipped topology')
@@ -57,4 +69,10 @@ for(const [stage,design] of Object.entries(BOSS_HULL_DESIGNS)) {
     assert.ok(gun.radius>0&&gun.height>0)
   }
 }
+const saucer=BOSS_HULL_DESIGNS[15]
+const keelCenter=bossKeelElevation(saucer,.5,.5),keelShoulder=bossKeelElevation(saucer,.86,.5)
+const keelRim=bossKeelElevation(saucer,.94,.5,0)
+assert.ok(keelCenter<-.1&&keelCenter<keelShoulder-.02,'saucer needs a curved lower lens')
+assert.ok(keelShoulder<keelRim-.04,'saucer keel must roll upward toward the rim')
+assert.ok(keelRim>-.01,'saucer contour must meet a thin edge, not an extruded skirt')
 console.log('Enemy decks, clipped silhouettes, UV bounds, wall groups and bounded hull depth verified')

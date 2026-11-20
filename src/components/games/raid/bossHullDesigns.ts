@@ -104,10 +104,36 @@ function hydra(): BossHullDesign {
     ...twinBarrels(113, 398, 113, 462, 10, .10)] }
 }
 
+function squid(): BossHullDesign {
+  return { sections: [section(256,186,78,174,.22,2),section(256,203,45,65,.27,2),
+    ...pair(129,186,49,100,.105,2),section(256,292,43,64,.18,2)],
+    recesses: [], barrels: [], keel: .085 }
+}
+
+function cobra(): BossHullDesign {
+  return { sections: [section(256,165,67,105,.26,2),...pair(151,222,99,113,.12,2),
+    section(256,323,64,127,.18,2),section(256,97,40,70,.21,2)],
+    recesses: [section(256,207,32,48,.06,2)], barrels: [], keel: .095 }
+}
+
+function mothership(): BossHullDesign {
+  const sections=[section(256,256,213,213,.105,2),section(256,256,174,174,.14,2),
+    section(256,256,125,125,.18,2),section(256,256,39,209,.245),section(256,256,56,61,.27,2)]
+  const recesses=[{...section(256,256,153,153,.084,2),inner:.88},
+    {...section(256,256,98,98,.115,2),inner:.8}]
+  const barrels: BossBarrel[]=[]
+  for(let i=0;i<8;i++) {
+    const a=i*Math.PI/4,c=Math.cos(a),s=Math.sin(a)
+    sections.push(section(256+c*172,256+s*172,28,28,.175,2))
+    barrels.push(barrel(256+c*174,256+s*174,256+c*225,256+s*225,7,.145))
+  }
+  return {sections,recesses,barrels,keel:.095}
+}
+
 export const BOSS_HULL_DESIGNS: Readonly<Record<number, BossHullDesign>> = {
-  1: carrier(1), 2: orrery(2), 3: reaper(3), 4: razor(), 6: fortress(6),
+  1: carrier(1), 2: orrery(2), 3: reaper(3), 4: razor(), 5: squid(), 6: fortress(6),
   7: carrier(7), 8: orrery(8), 9: reaper(9), 11: hydra(), 12: fortress(12),
-  13: carrier(13), 14: orrery(14),
+  10: cobra(), 13: carrier(13), 14: orrery(14), 15: mothership(),
 }
 
 function coverage(part: BossDeckSection, x: number, y: number) {
@@ -130,5 +156,39 @@ export function sampleBossDeck(design: BossHullDesign, u: number, v: number) {
 
 /** Match weapon seating and the worker's loft, including the deck datum. */
 export function bossDeckElevation(design: BossHullDesign, u: number, v: number, bevel = 1) {
+  if(design===BOSS_HULL_DESIGNS[15]) {
+    const radius=Math.hypot(u-.5,v-.5)/.445
+    const dome=Math.sqrt(Math.max(0,1-radius*radius))
+    // A broad curved saucer carries the registered deck relief. The outer
+    // contour meets a thin rim instead of extruding every painted protrusion.
+    const machinery=Math.max(0,sampleBossDeck(design,u,v)-.105)*.60
+    return .008+bevel*(.025+.090*dome+machinery)
+  }
+  if(design===BOSS_HULL_DESIGNS[5]||design===BOSS_HULL_DESIGNS[10]) {
+    const squid=design===BOSS_HULL_DESIGNS[5],x=u-.5
+    const dome=(cx:number,cy:number,rx:number,ry:number)=>
+      Math.sqrt(Math.max(0,1-((u-cx)/rx)**2-((v-cy)/ry)**2))
+    // Living curved mantles/hoods: no capital-ship terrace plateaus across
+    // painted faces. Eyes, crown, forehead and recessed throat have volume.
+    const mantle=squid?.045+.105*dome(.5,.29,.24,.35)
+      :.045+.065*dome(.5,.39,.49,.39)+.07*dome(.5,.26,.17,.22)
+    const focal=squid?.065*dome(.5,.40,.105,.11):.045*dome(.5,.28,.10,.10)
+    const throat=squid?0:.05*dome(.5,.42,.075,.105)
+    const spine=.018*Math.max(0,1-Math.abs(x)/.045)
+    return .008+bevel*(mantle+focal+spine-throat)
+  }
   return .008 + bevel*sampleBossDeck(design,u,v)*.85
+}
+
+/** Convex lower lens, with a rolled edge and a recessed reactor collar.
+ * Other capital keels retain their existing reconstruction exactly. */
+export function bossKeelElevation(design: BossHullDesign,u:number,v:number,bevel=1,
+  deckHeight=bossDeckElevation(design,u,v,bevel)) {
+  if(design===BOSS_HULL_DESIGNS[15]) {
+    const radius=Math.hypot(u-.5,v-.5)/.445
+    const lens=Math.sqrt(Math.max(0,1-radius*radius))
+    const collar=.008*Math.exp(-(((radius-.25)/.08)**2))
+    return -.008-bevel*(.018+.105*lens+collar)
+  }
+  return -design.keel*(.5+Math.min(1,deckHeight/.08)*.5)
 }

@@ -6,6 +6,7 @@ import { PLAYER_HULL_KEYS, getRaidPicker3DPreviewUrl } from './bankingArt'
 import { IMMERSION_AUDIO_URLS } from '../presentationAssets'
 import { CELESTIAL_ART_URLS, preloadCelestialArt } from './celestialArt'
 import { BOSS_ARMOR_ASSET_PATH, CAMPAIGN_BOSS_ART } from './bossCatalog'
+import { SPECIAL_BOSS_ART, SERPENT_SKIN_ART, MOTHERSHIP_KEEL_ART, SQUID_SKIN_ART } from './specialBossCatalog'
 import { WRECK_ART_URLS, preloadWreckArt } from './wreckArt'
 import { SURFACE_ART_URLS, preloadSurfaceArt } from './surfaceArt'
 import { COSMOS_ART_URLS, COSMOS_FALLBACK_ART_URLS, preloadCosmosArt } from './cosmosArt'
@@ -29,7 +30,7 @@ export const RAID_IMAGE_CACHE_NAME = 'space-defender-raid-images-v1'
 
 export const RAID_AUDIO_CACHE_NAME = 'space-defender-audio-v1'
 
-export const RAID_PERSISTENT_CACHE_VERSION = 'gradius-raid-assets-v22'
+export const RAID_PERSISTENT_CACHE_VERSION = 'gradius-raid-assets-v26'
 
 export const RAID_PERSISTENT_CACHE_STORAGE_KEY = 'gradiusRaidPersistentAssetCache'
 
@@ -87,6 +88,10 @@ export function getRaidPersistentImageUrls() {
   urls.add(getPublicAssetUrl(SPACE_JET_FORCE_FIELD_ASSET_PATH))
   for (const url of [...RAID_COMBAT_ART_URLS, ...COSMOS_ART_URLS, ...SURFACE_ART_URLS, ...WRECK_ART_URLS, ...CELESTIAL_ART_URLS]) urls.add(url)
   urls.add(getPublicAssetUrl(BOSS_ARMOR_ASSET_PATH))
+  for(const path of Object.values(SPECIAL_BOSS_ART))urls.add(getPublicAssetUrl(path))
+  urls.add(getPublicAssetUrl(SERPENT_SKIN_ART))
+  urls.add(getPublicAssetUrl(MOTHERSHIP_KEEL_ART))
+  urls.add(getPublicAssetUrl(SQUID_SKIN_ART))
   for (const art of CAMPAIGN_BOSS_ART) urls.add(getPublicAssetUrl(art.assetPath))
   urls.add(getPublicAssetUrl(RAID_FINAL_BOSS_ASSET_PATH))
   urls.add(getPublicAssetUrl(RAID_SQUID_BOSS_ASSET_PATH))

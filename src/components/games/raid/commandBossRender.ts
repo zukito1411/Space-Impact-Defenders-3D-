@@ -38,26 +38,10 @@ export function drawCommandBossEnergy(ctx: CanvasRenderingContext2D, enemy: Enem
   const age = enemy.bossEncounterAge
   if (enemy.hp <= 0 || age === undefined) return
 
-  const phaseAge = age - (enemy.bossPhaseStartedAge ?? -Infinity)
   const volleyAge = age - (enemy.bossLastVolleyAge ?? -Infinity)
-  const charging = enemy.bossAttackState === 'warning' && (enemy.bossAttackTimer ?? 0) > 0
-  const phasePulse = phaseAge >= 0 && phaseAge < .65
   const firing = volleyAge >= 0 && volleyAge < .18
-  if (!charging && !phasePulse && !firing) return
-
-  const x = toX(enemy.x)
-  const y = toY(enemy.y)
+  if (!firing) return
   const motionReduced = prefersRaidReducedMotion()
-  if (phasePulse) {
-    const progress = phaseAge / .65
-    const diameter = size * (motionReduced ? 1.28 : 1.06 + .74 * progress)
-    drawBossFx(ctx, BOSS_FX.pulse, x, y, diameter, diameter * .82, .78 * (1 - progress), 0, true)
-  }
-  if (charging) {
-    const progress = Math.max(0, Math.min(1, 1 - (enemy.bossAttackTimer ?? 0) / Math.max(.01, enemy.bossWarningSeconds ?? 1)))
-    const diameter = size * (motionReduced ? 1.08 : 1.24 - progress * .16)
-    drawBossFx(ctx, BOSS_FX.pulse, x, y, diameter, diameter * .92, .18 + progress * .42, 0, true)
-  }
   if (firing) {
     const count = writeCommandVolley(enemy, preview, Math.max(0, (enemy.bossBurstIndex ?? 1) - 1))
     const progress = volleyAge / .18

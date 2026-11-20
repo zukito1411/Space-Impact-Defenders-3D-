@@ -3,10 +3,13 @@ import { Group, Mesh, MeshStandardMaterial, type Object3D } from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { getPublicAssetUrl } from '../sound'
 import { ENEMY_HULL_SPECS } from './enemyHulls'
-import { getBossArmorTexture, loadBossArmorTexture } from './bossHullMaterials'
+import { getBossArmorTexture, loadBossArmorTexture, loadMothershipKeelTexture } from './bossHullMaterials'
 import { buildBossWeapons } from './bossHullWeapons'
 import { paintedVolume } from './paintedVolume'
 import { prepareHullDocking, type HullDocking } from './hullDocking'
+import { buildOrganicAppendages, connectSquidBody, specialBossBodySource, SERPENT_HEAD_ELEVATION } from './specialBossGeometry'
+import { SERPENT_SKIN_ART, SQUID_SKIN_ART } from './specialBossCatalog'
+import { addMobHullDetail } from './mobHullDetail'
 
 export type HullRegistration = {
   registration: number[]
@@ -51,12 +54,27 @@ export function loadHull(key: string): Promise<HullAsset> {
       const image = new Image()
       image.src = getPublicAssetUrl(enemy.assetPath)
       await image.decode()
-      const body = await paintedVolume(image, image.naturalWidth, image.naturalHeight, enemy.resolution, enemy.profile, enemy.filter, enemy.bossStage)
-      body.scale.setScalar(288)
-      object.add(body)
+      const source=enemy.special ? specialBossBodySource(image,enemy.special) : image
+      const body = await paintedVolume(source, image.naturalWidth, image.naturalHeight, enemy.resolution, enemy.profile, enemy.filter, enemy.bossStage,enemy.hullDesign)
+      if(enemy.hullDesign)addMobHullDetail(body,enemy.hullDesign,image.naturalWidth,image.naturalHeight)
+      const assembly=new Group();assembly.scale.setScalar(288);object.add(assembly)
+      if(enemy.special==='squid') {
+        const skin=new Image();skin.src=getPublicAssetUrl(SQUID_SKIN_ART);await skin.decode()
+        assembly.add(connectSquidBody(body,skin))
+      } else assembly.add(body)
+      if(enemy.special==='snake') {
+        body.name='boss-organic-head-v1';body.userData.organicKind=enemy.special
+        let skin=image
+        if(enemy.special==='snake') {
+          skin=new Image();skin.src=getPublicAssetUrl(SERPENT_SKIN_ART);await skin.decode()
+          body.position.set(0,.12,SERPENT_HEAD_ELEVATION);body.scale.setScalar(.9)
+        }
+        assembly.add(buildOrganicAppendages(skin,enemy.special))
+      }
+      if(enemy.special==='final')await loadMothershipKeelTexture()
       if (enemy.bossStage !== undefined) {
         const weapons = buildBossWeapons(enemy.bossStage, await loadBossArmorTexture())
-        if (weapons) { weapons.scale.copy(body.scale); object.add(weapons) }
+        if (weapons) assembly.add(weapons)
       }
       registration = { registration: [448/288,448/288,0,0], nozzles: [], wing: [] }
     } else {

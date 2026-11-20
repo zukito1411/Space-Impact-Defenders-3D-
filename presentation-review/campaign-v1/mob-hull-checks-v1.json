@@ -1,0 +1,21 @@
+{
+  "mobChecks": [
+    {
+      "view": "landscape",
+      "hulls": 15,
+      "textures": 49,
+      "drawCalls": 15,
+      "triangles": 654808,
+      "singleDraw": 14
+    },
+    {
+      "view": "portrait",
+      "hulls": 15,
+      "textures": 49,
+      "drawCalls": 15,
+      "triangles": 654808,
+      "singleDraw": 14
+    }
+  ],
+  "errors": []
+}
