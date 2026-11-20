@@ -16,6 +16,7 @@ const resume=process.argv.includes('--resume')
 const specialOnly=process.argv.includes('--special-only')
 const verifySpecial=specialOnly||process.argv.includes('--verify-special')
 const verifyTerrain=process.env.RAID_REVIEW_TERRAIN_CHECK==='1'
+const verifyKeels=process.env.RAID_REVIEW_KEEL_CHECK==='1'
 const verifyMobs=process.argv.includes('--verify-mobs')
 const frames=Number(process.env.RAID_REVIEW_FRAMES ?? 24)
 assert.ok(Number.isInteger(frames)&&frames>=12&&frames<=180)
@@ -42,7 +43,7 @@ try {
   browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH,
     args:['--no-sandbox','--enable-unsafe-swiftshader','--use-angle=swiftshader']})
   const specialChecks=[],mobChecks=[]
-  for(const landscape of (capturesOnly&&!verifySpecial&&!verifyMobs&&!verifyTerrain ? [true] : [true,false])) {
+  for(const landscape of (capturesOnly&&!verifySpecial&&!verifyMobs&&!verifyTerrain&&!verifyKeels ? [true] : [true,false])) {
     const view=landscape?'landscape':'portrait'
     const page=await browser.newPage({viewport:landscape?(desktop?{width:1920,height:1080}:{width:844,height:390}):{width:393,height:852},
       deviceScaleFactor:1,hasTouch:!desktop,reducedMotion:'no-preference'})
@@ -201,6 +202,10 @@ try {
     if(verifyTerrain) {
       const {checkPlanetTerrain}=await import('./check-planet-terrain.mjs')
       await checkPlanetTerrain(page,output,landscape)
+    }
+    if(verifyKeels) {
+      const {checkBossKeels}=await import('./check-boss-keels.mjs')
+      await checkBossKeels(page,output,landscape)
     }
     if(landscape&&!profileOnly) for(const boss of catalog.filter(boss=>!selectedStages||selectedStages.includes(boss.stage))) {
       const filename='boss-'+String(boss.stage).padStart(2,'0')+'-landscape-v1.png'

@@ -1,3 +1,4 @@
+import { BOSS_KEEL_DESIGNS } from './bossKeelDesigns'
 import { BOSS_HULL_DESIGNS, bossDeckElevation, bossKeelElevation } from './bossHullDesigns'
 import { MOB_HULL_DESIGNS,mobHullElevation } from './mobHullDesigns'
 
@@ -8,6 +9,8 @@ type Point = readonly [number, number]
 /** Clip the original silhouette before lofting its deck and keel. */
 export function buildVolumeGeometry({ pixels, resolution, aspectX, aspectY, profile, bossStage, hullDesign }: VolumeInput) {
   const boss = bossStage === undefined ? undefined : BOSS_HULL_DESIGNS[bossStage]
+  const ventral=bossStage!==undefined&&Boolean(BOSS_KEEL_DESIGNS[bossStage])
+  const lowerXY:number[]=[]
   const mob=hullDesign?MOB_HULL_DESIGNS[hullDesign]:undefined
   const edge = resolution - 1
   const alpha = (x: number, y: number) => pixels[(y * resolution + x) * 4 + 3] / 255 - .4
@@ -32,7 +35,7 @@ export function buildVolumeGeometry({ pixels, resolution, aspectX, aspectY, prof
     if (cached !== undefined) return cached
     const u = x / edge, v = y / edge
     const x0 = Math.floor(x), y0 = Math.floor(y), dx = x - x0, dy = y - y0
-    const sample = (a: number, b: number) => distance[Math.min(edge, b) * resolution + Math.min(edge, a)]
+    const sample = (a: number, b: number) => distance[Math.max(0,Math.min(edge, b)) * resolution + Math.max(0,Math.min(edge, a))]
     const depth = sample(x0,y0)*(1-dx)*(1-dy)+sample(x0+1,y0)*dx*(1-dy)
       +sample(x0,y0+1)*(1-dx)*dy+sample(x0+1,y0+1)*dx*dy
     const bevel = Math.min(1, depth / Math.max(2, resolution * .035))
@@ -51,6 +54,11 @@ export function buildVolumeGeometry({ pixels, resolution, aspectX, aspectY, prof
     vertices.set(key, id)
     position.push((u-.5)*aspectX, (.5-v)*aspectY, height)
     uv.push(u, 1-v)
+    // A rolled lower shoulder pulls inward while the painted deck and its
+    // contour stay at their exact original coordinates.
+    const gx=sample(x0+1,y0)-sample(x0-1,y0),gy=sample(x0,y0+1)-sample(x0,y0-1)
+    const length=Math.hypot(gx,gy)||1,inset=ventral?.0055*(1-bevel)**2:0
+    lowerXY.push((u-.5+gx/length*inset)*aspectX,(.5-v-gy/length*inset)*aspectY)
     keel.push(boss ? bossKeelElevation(boss,u,v,bevel,height) : mob ? -.006-bevel*(.012+height*.36) : -height*.58)
     return id
   }
@@ -80,22 +88,34 @@ export function buildVolumeGeometry({ pixels, resolution, aspectX, aspectY, prof
   }
   const topCount = indices.length, count = position.length/3
   for (let i = 0; i < count; i++) {
-    position.push(position[i*3],position[i*3+1],keel[i])
+    position.push(lowerXY[i*2],lowerXY[i*2+1],keel[i])
     uv.push(uv[i*2],uv[i*2+1])
   }
   for (let i = 0; i < topCount; i += 3) indices.push(indices[i]+count,indices[i+2]+count,indices[i+1]+count)
   const sideStart = indices.length
-  // Separate wall vertices keep the bevel's normals off the painted deck.
+  // Isolated wall normals preserve every upper face. Only mechanical
+  // bosses gain the lower armor belt and the inward-rolled keel shoulder.
   for (const [a,b] of boundary.values()) {
-    const start = position.length/3
-    for (const id of [a,b,b+count,a+count]) {
-      position.push(position[id*3],position[id*3+1],position[id*3+2])
-      uv.push(uv[id*2],uv[id*2+1])
+    const quad=(points:number[][])=>{
+      const start=position.length/3
+      for(let j=0;j<4;j++) {
+        position.push(...points[j])
+        const id=j===0||j===3?a:b
+        uv.push(uv[id*2],uv[id*2+1])
+      }
+      indices.push(start,start+1,start+2,start,start+2,start+3)
     }
-    indices.push(start,start+1,start+2,start,start+2,start+3)
+    const point=(id:number)=>position.slice(id*3,id*3+3)
+    if(!ventral)quad([point(a),point(b),point(b+count),point(a+count)])
+    else {
+      const at=(id:number,z:number)=>[position[id*3],position[id*3+1],z]
+      quad([point(a),point(b),at(b,0),at(a,0)])
+      quad([at(a,0),at(b,0),at(b,-.009),at(a,-.009)])
+      quad([at(a,-.009),at(b,-.009),point(b+count),point(a+count)])
+    }
   }
   return { position: new Float32Array(position), uv: new Float32Array(uv),
-    index: position.length/3 > 65535 ? new Uint32Array(indices) : new Uint16Array(indices), sideStart }
+    index: position.length/3 > 65535 ? new Uint32Array(indices) : new Uint16Array(indices), sideStart, deckVertexCount:count, deckIndexCount:topCount }
 }
 
 declare const self: { onmessage: ((event: MessageEvent<VolumeInput & { id: number }>) => void) | null

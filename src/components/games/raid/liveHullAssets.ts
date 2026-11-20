@@ -1,3 +1,4 @@
+import { addBossVentralDetail } from './bossVentralDetail'
 import { prepareHullOcclusion } from './hullOcclusion'
 import { isRaid2DMech } from './mechArtwork'
 import { Group, Mesh, MeshStandardMaterial, type Object3D } from 'three'
@@ -57,6 +58,7 @@ export function loadHull(key: string): Promise<HullAsset> {
       await image.decode()
       const source=enemy.special ? specialBossBodySource(image,enemy.special) : image
       const body = await paintedVolume(source, image.naturalWidth, image.naturalHeight, enemy.resolution, enemy.profile, enemy.filter, enemy.bossStage,enemy.hullDesign)
+      if(enemy.bossStage!==undefined)addBossVentralDetail(body,enemy.bossStage,source,image.naturalWidth,image.naturalHeight)
       if(enemy.hullDesign)addMobHullDetail(body,enemy.hullDesign,image.naturalWidth,image.naturalHeight)
       const assembly=new Group();assembly.scale.setScalar(288);object.add(assembly)
       if(enemy.special==='squid') {
