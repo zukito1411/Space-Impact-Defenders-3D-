@@ -1,0 +1,92 @@
+[
+  {
+    "stage": 5,
+    "landscape": true,
+    "active": true,
+    "vertices": 32472,
+    "triangles": 61440,
+    "elevated": true,
+    "oldRidges": false,
+    "paused": true,
+    "reduced": true,
+    "frames": [
+      {
+        "seconds": 40,
+        "changed": 159600,
+        "groundTravel": 2.2,
+        "terrainTravel": 2.2,
+        "footError": 4.440892098500626e-16,
+        "anchorError": 0
+      },
+      {
+        "seconds": 45,
+        "changed": 156959,
+        "groundTravel": 2.475,
+        "terrainTravel": 2.475,
+        "footError": 2.220446049250313e-16,
+        "anchorError": 0
+      },
+      {
+        "seconds": 303.0293030303031,
+        "changed": 127150,
+        "groundTravel": 16.666611666666668,
+        "terrainTravel": 16.666611666666668,
+        "footError": 4.440892098500626e-16,
+        "anchorError": 0
+      },
+      {
+        "seconds": 303.03130303030304,
+        "changed": 127139,
+        "groundTravel": 0.00005499999999969418,
+        "terrainTravel": 0.00005499999999969418,
+        "footError": 4.440892098500626e-16,
+        "anchorError": 0
+      }
+    ]
+  },
+  {
+    "stage": 10,
+    "landscape": true,
+    "active": true,
+    "vertices": 32472,
+    "triangles": 61440,
+    "elevated": true,
+    "oldRidges": false,
+    "paused": true,
+    "reduced": true,
+    "frames": [
+      {
+        "seconds": 40,
+        "changed": 63115,
+        "groundTravel": 2.2,
+        "terrainTravel": 2.2,
+        "footError": 4.440892098500626e-16,
+        "anchorError": 0
+      },
+      {
+        "seconds": 45,
+        "changed": 59808,
+        "groundTravel": 2.475,
+        "terrainTravel": 2.475,
+        "footError": 2.220446049250313e-16,
+        "anchorError": 0
+      },
+      {
+        "seconds": 303.0293030303031,
+        "changed": 44703,
+        "groundTravel": 16.666611666666668,
+        "terrainTravel": 16.666611666666668,
+        "footError": 4.440892098500626e-16,
+        "anchorError": 0
+      },
+      {
+        "seconds": 303.03130303030304,
+        "changed": 44670,
+        "groundTravel": 0.00005499999999969418,
+        "terrainTravel": 0.00005499999999969418,
+        "footError": 4.440892098500626e-16,
+        "anchorError": 0
+      }
+    ]
+  }
+]

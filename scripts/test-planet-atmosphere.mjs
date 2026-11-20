@@ -8,6 +8,19 @@ const compile = file => ts.transpileModule(readFileSync(`src/components/games/ra
 }).outputText
 const art = {}
 vm.runInNewContext(compile('planetAtmosphereArt.ts'), { exports: art })
+const view = {}, camera = {}, terrain = {}
+vm.runInNewContext(compile('raidView.ts'), { exports: view })
+vm.runInNewContext(compile('planetFlightCamera.ts'), { exports: camera, require: () => view })
+vm.runInNewContext(compile('planetTerrainGeometry.ts'), { exports: terrain,
+  require: name => name === './planetFlightCamera' ? camera : art })
+for (const kind of ['pelagic','cinder']) {
+  const peaks=terrain.createPlanetTerrainPeaks(kind), buffers=terrain.buildPlanetTerrain(kind,peaks)
+  assert.ok(buffers.positions.every(Number.isFinite))
+  assert.ok(buffers.indices.every(index=>index<buffers.positions.length/3),'terrain index exceeds the admitted vertices')
+  for(let i=0;i<buffers.normals.length;i+=3)assert.ok(Math.abs(Math.hypot(...buffers.normals.subarray(i,i+3))-1)<1e-6)
+  assert.ok(buffers.positions.some((value,i)=>i%3===1&&value>.1),'terrain flattened into a billboard')
+}
+assert.ok(Math.abs(camera.PLANET_FLIGHT_PERIOD*camera.PLANET_FLIGHT_TEXTURE_SCALE-7)<1e-12,'travel wrap shifts the ground material')
 const particles = {}
 const weather = JSON.parse(readFileSync('docs/planet-weather-art-manifest.json','utf8'))
 const image = readFileSync(weather.file)
@@ -100,7 +113,7 @@ class Graphics extends Container { clear() { return this } moveTo() { return thi
 const renderer = {}
 vm.runInNewContext(compile('landscapeAtmosphere.ts'), { exports: renderer, Math, Set,
   document: { createElement() { throw new Error('rendering allocated a new canvas') } },
-  require: name => name === './planetAtmosphereArt' ? art : name === './planetFlightParticles' ? particles : name === './celestialScenery' ? { CelestialScenery: class {root=new Container();update(){}destroy(){}} } : name === './surfaceArt' ? { getSurfaceTerrain: () => null, getPlanetWeatherArt: () => null }
+  require: name => name === './planetFlightCamera' ? camera : name === './planetTerrainGeometry' ? terrain : name === './planetAtmosphereArt' ? art : name === './planetFlightParticles' ? particles : name === './celestialScenery' ? { CelestialScenery: class {root=new Container();update(){}destroy(){}} } : name === './surfaceArt' ? { getSurfaceTerrain: () => null, getPlanetWeatherArt: () => null }
     : { Container, Sprite, Graphics, TilingSprite: Sprite, Texture: { WHITE: {} } },
 })
 const scene = new renderer.LandscapePlanetAtmosphere()
@@ -110,6 +123,10 @@ const water = makeTexture()
 for (const kind of ['pelagic', 'cinder']) scene.art.set(kind, { sky: makeTexture(), terrain: [makeTexture(),makeTexture(),makeTexture()], water })
 scene.cloud = makeTexture(); scene.glow = makeTexture()
 scene.streakTexture = makeTexture(); scene.flakeTexture = makeTexture()
+for (const kind of ['pelagic','cinder']) scene.terrain.set(kind, {
+  peaks: terrain.createPlanetTerrainPeaks(kind), mesh: new Container(), update() {}, destroy() { this.destroyed = true },
+})
+const admittedTerrain = [...scene.terrain.values()]
 const initialAllocations = allocations
 scene.update(850,1600,35000,'cinder','high',false)
 assert.equal(scene.root.rotation, -Math.PI/2)
@@ -139,5 +156,5 @@ assert.equal(scene.motes.filter(sprite=>sprite.visible).length,0)
 assert.equal(scene.speedLines.filter(sprite=>sprite.visible).length,0)
 assert.ok(scene.vents.every(sprite=>!sprite.visible),'Pelagic retained Cinder eruption glows')
 scene.hide();assert.equal(scene.root.visible,false)
-scene.destroy();assert.ok(owned.every(texture=>texture.destroyed),'planet material teardown leaked textures')
+scene.destroy();assert.ok(admittedTerrain.every(terrain=>terrain.destroyed),'3D terrain leaked on teardown');assert.ok(owned.every(texture=>texture.destroyed),'planet material teardown leaked textures')
 console.log('Planet atmosphere: periodic terrain, distinct materials, upright horizon, pooled sprites, pause/resume, low quality, reduced motion, planet switching and texture teardown passed')

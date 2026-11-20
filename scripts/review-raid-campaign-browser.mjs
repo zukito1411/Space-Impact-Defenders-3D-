@@ -15,6 +15,7 @@ const capturesOnly=process.argv.includes('--captures-only')||(!profileOnly&&!pro
 const resume=process.argv.includes('--resume')
 const specialOnly=process.argv.includes('--special-only')
 const verifySpecial=specialOnly||process.argv.includes('--verify-special')
+const verifyTerrain=process.env.RAID_REVIEW_TERRAIN_CHECK==='1'
 const verifyMobs=process.argv.includes('--verify-mobs')
 const frames=Number(process.env.RAID_REVIEW_FRAMES ?? 24)
 assert.ok(Number.isInteger(frames)&&frames>=12&&frames<=180)
@@ -41,7 +42,7 @@ try {
   browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH,
     args:['--no-sandbox','--enable-unsafe-swiftshader','--use-angle=swiftshader']})
   const specialChecks=[],mobChecks=[]
-  for(const landscape of (capturesOnly&&!verifySpecial&&!verifyMobs ? [true] : [true,false])) {
+  for(const landscape of (capturesOnly&&!verifySpecial&&!verifyMobs&&!verifyTerrain ? [true] : [true,false])) {
     const view=landscape?'landscape':'portrait'
     const page=await browser.newPage({viewport:landscape?(desktop?{width:1920,height:1080}:{width:844,height:390}):{width:393,height:852},
       deviceScaleFactor:1,hasTouch:!desktop,reducedMotion:'no-preference'})
@@ -197,6 +198,10 @@ try {
       const {checkCombatLighting}=await import('./check-combat-lighting.mjs')
       await checkCombatLighting(page,output)
     }
+    if(verifyTerrain) {
+      const {checkPlanetTerrain}=await import('./check-planet-terrain.mjs')
+      await checkPlanetTerrain(page,output,landscape)
+    }
     if(landscape&&!profileOnly) for(const boss of catalog.filter(boss=>!selectedStages||selectedStages.includes(boss.stage))) {
       const filename='boss-'+String(boss.stage).padStart(2,'0')+'-landscape-v1.png'
       if(specialOnly&&![5,10,15].includes(boss.stage)) {
@@ -218,6 +223,11 @@ try {
       await page.waitForTimeout(240)
       await page.evaluate(()=>{window.campaignReview.frame(false);window.campaignReview.actions.sync()})
       await page.evaluate(()=>new Promise(window.reviewRAF))
+      if(verifyTerrain&&[5,10].includes(boss.stage))await page.evaluate(()=>{
+        const review=window.campaignReview
+        review.background.landscapeAtmosphere.lastTime=null
+        review.actions.draw(40000)
+      })
       await page.screenshot({path:output+'/'+filename})
       captures.push({...boss,file:filename})
       if(selectedStages) {
