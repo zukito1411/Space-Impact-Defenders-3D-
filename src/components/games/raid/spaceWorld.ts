@@ -105,7 +105,10 @@ export class SpaceCamera {
   admit(out: SpacePlacement, xPx: number, yPx: number, widthPx: number, heightPx: number,
     width: number, height: number, texture: number, epoch: number,
     physicalWidthKm = 0, radiusKm = 0, roll = 0) {
+    // A slot can change from a local wreck to a stellar-scale sun. Its new
+    // physical span must be paired with its newly calculated distance.
     const keepPlacement = out.admitted && out.mode === 'stream' && out.epoch === epoch
+      && out.texture === texture && physicalWidthKm === 0
     const previousX = out.xKm, previousY = out.yKm, previousZ = out.zKm
     let distanceKm = out.referenceDistanceKm
     if (physicalWidthKm > 0) distanceKm = Math.max(radiusKm * 1.025,

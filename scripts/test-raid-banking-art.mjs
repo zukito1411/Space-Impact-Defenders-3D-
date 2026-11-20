@@ -7,7 +7,8 @@ const read=file=>readFileSync(file,'utf8')
 const registrations=JSON.parse(read('public/assets/ships/models/v1/manifest.json'))
 const anchors=JSON.parse(read(root+'bankingAnchors.json'))
 const mechs=new Set(['godGundam','godGundamBurning','spiegel'])
-const code=ts.transpileModule(`
+const view=read(root+'raidView.ts').replace(/export /g,'')
+const code=ts.transpileModule(view+'\n'+`
   const isRaid2DMech=key=>['godGundam','godGundamBurning','spiegel'].includes(key);
   const getHullRegistration=key=>registrations[key==='mesiah'?'mesiahBlack':key]??null;
   const registrations=${JSON.stringify(registrations)};
@@ -29,7 +30,7 @@ for(const [key,data] of Object.entries(registrations)){
     const [sx,sy,ox,oy]=data.registration
     for(const [index,[x,y,z,aperture]] of data.nozzles.entries()){
       const point=sampled.nozzles[index]
-      near(point[0],(sx*(Math.cos(yaw)*x+Math.sin(yaw)*z)+144*sx+ox-224)/448)
+      near(point[0],(sx*(Math.cos(yaw)*x+Math.sin(yaw)*z)+Math.cos(landscape?-56*Math.PI/180:0)*(144*sx+ox-224))/448)
       near(point[1],-(sy*y+224-144*sy-oy)/448)
       near(point[2],aperture*sx/448)
     }

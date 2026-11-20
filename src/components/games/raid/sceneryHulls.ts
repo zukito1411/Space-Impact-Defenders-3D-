@@ -20,12 +20,12 @@ varying vec4 tint;
 void main() {
   vec3 local = vec3((uRegistration.x*aHull.x+144.*uRegistration.x+uRegistration.z-224.)/448.,
     (uRegistration.y*aHull.y+224.-144.*uRegistration.y-uRegistration.w)/448.,uRegistration.x*aHull.z/448.);
-  // Heading belongs to the world flight plane; the shared oblique camera is
-  // applied afterward, exactly as in ThreeShipPresentation.
-  vec3 p = vec3(uRoll.x*local.x+uRoll.y*local.y,-uRoll.y*local.x+uRoll.x*local.y,local.z);
-  p = vec3(uYaw.x*p.x+uYaw.y*p.z,p.y,-uYaw.y*p.x+uYaw.x*p.z);
-  vec3 n = vec3(uRoll.x*aNormal.x+uRoll.y*aNormal.y,-uRoll.y*aNormal.x+uRoll.x*aNormal.y,aNormal.z);
-  normal = vec3(uYaw.x*n.x+uYaw.y*n.z,-n.y,-uYaw.y*n.x+uYaw.x*n.z);
+  // View the local hull before applying its screen heading, matching the
+  // live ships and their Canvas weapon/exhaust attachment points.
+  vec3 p = vec3(uYaw.x*local.x+uYaw.y*local.z,local.y,-uYaw.y*local.x+uYaw.x*local.z);
+  p = vec3(uRoll.x*p.x+uRoll.y*p.y,-uRoll.y*p.x+uRoll.x*p.y,p.z);
+  vec3 n = vec3(uYaw.x*aNormal.x+uYaw.y*aNormal.z,aNormal.y,-uYaw.y*aNormal.x+uYaw.x*aNormal.z);
+  normal = vec3(uRoll.x*n.x+uRoll.y*n.y,uRoll.y*n.x-uRoll.x*n.y,n.z);
   viewDirection = vec3(-uSlope,1.);
   vec3 q = vec3(p.x,-p.y,p.z);
   float denominator = max(.025,1.-q.z*uSpanRatio);

@@ -22,6 +22,8 @@ export class ThreeShipPresentation implements LiveHullSink {
   private readonly world = new Scene()
   private readonly keyLight = new DirectionalLight(0xfff0dc, 2.8)
   private readonly fillLight = new DirectionalLight(0x86bddc, .34)
+  // Broad viewing-side fill keeps armor legible under backlighting.
+  private readonly visibilityLight = new DirectionalLight(0xe4eeff, 1.8)
   private readonly ambientLight = new HemisphereLight(0xa0c5e4, 0x182436, .34)
   private readonly lighting = createShipLightingFrame()
   private readonly neutralLighting = createShipLightingFrame()
@@ -143,7 +145,7 @@ export class ThreeShipPresentation implements LiveHullSink {
     const upload = new Scene()
     upload.environment = this.world.environment
     upload.environmentIntensity = this.world.environmentIntensity
-    upload.add(this.keyLight.clone(), this.fillLight.clone(), this.ambientLight.clone())
+    upload.add(this.keyLight.clone(), this.fillLight.clone(), this.visibilityLight.clone(), this.ambientLight.clone())
     for (const node of pool) { node.group.visible = true; upload.add(node.group) }
     const camera = this.camera.clone()
     camera.aspect = 1; camera.position.set(0, 0, 1000); camera.updateProjectionMatrix()
@@ -190,8 +192,8 @@ export class ThreeShipPresentation implements LiveHullSink {
       renderer.domElement.className = 'raid__ship-canvas'
       renderer.domElement.addEventListener('webglcontextlost', this.lost)
       renderer.domElement.addEventListener('webglcontextrestored', this.restored)
-      this.world.add(this.keyLight, this.fillLight, this.ambientLight,
-        this.keyLight.target, this.fillLight.target)
+      this.world.add(this.keyLight, this.fillLight, this.visibilityLight, this.ambientLight,
+        this.keyLight.target, this.fillLight.target, this.visibilityLight.target)
       try {
         this.reflectionTargets = prepareShipReflections(renderer)
         this.world.environment = this.reflectionTargets[0].texture
@@ -277,6 +279,8 @@ export class ThreeShipPresentation implements LiveHullSink {
     this.ambientLight.intensity = state.ambientIntensity
     this.keyLight.target.position.set(this.width*.5,this.height*.5,0)
     this.fillLight.target.position.copy(this.keyLight.target.position)
+    this.visibilityLight.target.position.copy(this.keyLight.target.position)
+    this.visibilityLight.position.set(this.width*.5, this.height*.5, 1800)
     this.lightDirection.set(state.sun[0],-state.sun[1],state.sun[2]).normalize()
     this.keyLight.position.copy(this.keyLight.target.position).addScaledVector(this.lightDirection,1800)
     const probe = this.reflectionTargets[indoor > .5 ? 6 : target.probe]
@@ -341,9 +345,9 @@ export class ThreeShipPresentation implements LiveHullSink {
     const angle=draw.angle
     group.position.set(draw.x,this.height-draw.y,0)
     this.headingTurn.setFromAxisAngle(this.headingAxis,angle)
-    // A shared camera basis precedes each hull's heading. Applying the view
-    // after heading makes opposite-facing ships inhabit the same flight plane.
-    if (draw.landscape) group.quaternion.copy(this.viewTurn).multiply(this.headingTurn)
+    // Bank in the hull's local flight frame, then turn that frame on screen.
+    // This matches the Canvas hardpoints and keeps a sideways enemy's length.
+    if (draw.landscape) group.quaternion.copy(this.headingTurn).multiply(this.viewTurn)
     else group.quaternion.copy(this.headingTurn)
     group.scale.set(draw.size*sx/448, draw.size*sy/448, draw.size*sx/448)
     node.object.position.set((144*sx+ox-224)/sx,(224-144*sy-oy)/sy,0)

@@ -26,9 +26,9 @@ export function prepareHullSurfaces(object: Object3D, key: string, renderer: Web
     material.roughness = Math.max(.46, Math.min(.64, material.roughness))
     material.metalness = Math.max(.14, Math.min(.32, material.metalness))
     material.envMapIntensity = .8
-    // The hull paint is reflective, not a light source. Canvas still owns
-    // engines, weapons and the other deliberately emissive flight effects.
-    if (material.map && material.emissiveMap === material.map) material.emissiveIntensity = isMechHull(key) ? .035 : 0
+    // A low paint floor preserves the authored details on the night side.
+    // Direct light and reflections still describe the hull's shape.
+    if (material.map && material.emissiveMap === material.map) material.emissiveIntensity = isMechHull(key) ? .035 : .12
     for (const texture of [material.map, material.emissiveMap]) {
       if (!texture || preparedTextures.has(texture)) continue
       if (texture.anisotropy !== anisotropy) { texture.anisotropy = anisotropy; texture.needsUpdate = true }

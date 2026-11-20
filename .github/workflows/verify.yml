@@ -49,6 +49,8 @@ jobs:
           node scripts/test-celestial-animation.mjs
           node scripts/test-ultra-scenery.mjs
           node scripts/test-raid-travel.mjs
+          node scripts/test-scenery-slot-transition.mjs
+          node scripts/test-enemy-volume.mjs
       - name: Test flight presentation and boss feedback
         run: |
           node scripts/test-raid-banking-art.mjs
@@ -178,6 +180,7 @@ jobs:
           else
             npx playwright install --with-deps chromium
           fi
+      - run: node scripts/test-stage-rendering-browser.mjs
       - run: node scripts/test-live-ships-browser.mjs
       - uses: actions/upload-artifact@v4
         if: always()

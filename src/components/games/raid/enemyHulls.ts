@@ -11,21 +11,18 @@ export type EnemyHullSpec = {
   filter?: string
   family: 'normal' | 'elite' | 'boss'
 }
-const hues = [-18, 24, -8, 36, -30, 12, 44, -40] as const
 const legacyKeys = Array.from({ length: LEGACY_FIGHTER_COUNT }, (_, index) => 'alienHull' + index)
 const eliteKeys = Array.from({ length: 5 }, (_, index) => 'eliteHull' + index)
 const bossKey = (stage: number) => 'commandHull' + stage
 const entries: Array<[string, EnemyHullSpec]> = [
   ...legacyKeys.map((key, index): [string, EnemyHullSpec] => [key, {
-    assetPath: `assets/aliens/alien_v${index}.png`, profile: 'organic', resolution: 128, family: 'normal',
-    filter: `brightness(1.19) contrast(1.12) saturate(1.38) hue-rotate(${hues[index]}deg)`,
+    assetPath: `assets/aliens/alien_v${index}.png`, profile: 'organic', resolution: 144, family: 'normal',
   }]),
   ...FIGHTER_HULL_KEYS.map((key): [string, EnemyHullSpec] => [key, {
-    assetPath: FIGHTER_HULL_ART[key], profile: 'fighter', resolution: 112, family: 'normal',
+    assetPath: FIGHTER_HULL_ART[key], profile: 'fighter', resolution: 144, family: 'normal',
   }]),
   ...eliteKeys.map((key, index): [string, EnemyHullSpec] => [key, {
-    assetPath: `assets/aliens/elite_${index}.png`, profile: 'organic', resolution: 144, family: 'elite',
-    filter: 'brightness(1.18) contrast(1.2) saturate(1.45)',
+    assetPath: `assets/aliens/elite_${index}.png`, profile: 'organic', resolution: 160, family: 'elite',
   }]),
   ...CAMPAIGN_BOSS_ART.map((art): [string, EnemyHullSpec] => [bossKey(art.stage), {
     assetPath: art.assetPath, profile: 'capital', resolution: 160, family: 'boss',

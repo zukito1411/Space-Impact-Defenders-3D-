@@ -1,82 +1,98 @@
-export {}
-declare const self: {
-  onmessage: ((event: MessageEvent<{ id: number; pixels: Uint8ClampedArray; resolution: number; aspectX: number; aspectY: number; profile?: 'art' | 'fighter' | 'organic' | 'capital' }>) => void) | null
-  postMessage(message: unknown, transfer: Transferable[]): void
-}
-self.onmessage = event => {
-  const { id, pixels, resolution, profile } = event.data
-  const depth = new Float32Array(resolution * resolution)
-  for (let i = 0; i < depth.length; i++) depth[i] = pixels[i * 4 + 3] >= 80 ? resolution : 0
-  for (let y = 1; y < resolution - 1; y++) for (let x = 1; x < resolution - 1; x++) {
-    const i = y * resolution + x
-    depth[i] = Math.min(depth[i], depth[i - 1] + 1, depth[i - resolution] + 1)
-  }
-  for (let y = resolution - 2; y > 0; y--) for (let x = resolution - 2; x > 0; x--) {
-    const i = y * resolution + x
-    depth[i] = Math.min(depth[i], depth[i + 1] + 1, depth[i + resolution] + 1)
-  }
-  const occupied = (x: number, y: number) => x >= 0 && y >= 0 && x < resolution - 1 && y < resolution - 1 &&
-    (profile === 'organic' || profile === 'capital'
-      ? [0, 1, resolution, resolution + 1].some(offset => depth[y * resolution + x + offset] > 0)
-      : [0, 1, resolution, resolution + 1].every(offset => depth[y * resolution + x + offset] > 0))
-  const positions: number[] = [], uvs: number[] = [], indices: number[] = []
-  const shared = new Map<number, number>()
-  const { aspectX, aspectY } = event.data
-  const vertex = (x: number, y: number, side: number) => {
-    const u = x / (resolution - 1), v = y / (resolution - 1)
-    {
-      const tag = (side > 0 ? resolution * resolution : 0) + y * resolution + x
-      const existing = shared.get(tag)
-      if (existing !== undefined) { indices.push(existing); return }
-      shared.set(tag,positions.length/3)
-      indices.push(positions.length/3)
-    }
-    let thickness = .012 + Math.min(.14, depth[y * resolution + x] * .012)
-    if (profile === 'fighter') {
-      const edge = Math.min(1,depth[y*resolution+x]/5)
-      const spine = Math.exp(-(((u-.5)/.15)**2))
-      const canopy = Math.exp(-(((u-.5)/.1)**2)-(((v-.4)/.16)**2))
-      thickness = .012 + Math.min(.095,depth[y*resolution+x]*.010)*(.45+.55*spine)
-        + (side > 0 ? .025*canopy*edge : 0)
-      if (side < 0) thickness *= .62
-    }
-    if (profile === 'organic' || profile === 'capital') {
-      const edge = Math.min(1, depth[y * resolution + x] / (resolution * .075))
-      const spine = Math.exp(-(((u - .5) / .28) ** 2))
-      const pixel = (y * resolution + x) * 4
-      const luminance = (pixels[pixel] * .2126 + pixels[pixel + 1] * .7152 + pixels[pixel + 2] * .0722) / 255
-      if (profile === 'organic') {
-        // Rounded carapace, thinner limbs and raised painted shell ridges.
-        thickness = .008 + Math.sqrt(edge) * (.036 + .092 * spine)
-          + luminance * edge * .012
-      } else {
-        // Broad armor decks and a deeper central bridge; thin cutouts stay open.
-        const bridge = Math.exp(-(((u - .5) / .13) ** 2) - (((v - .35) / .24) ** 2))
-        thickness = .012 + edge * (.055 + .048 * spine + .042 * bridge)
-          + edge * luminance * .014
-      }
-      if (side < 0) thickness *= .58
-    }
-    positions.push((u - .5) * aspectX, (.5 - v) * aspectY, side * thickness)
-    uvs.push(u, 1 - v)
-  }
-  for (let y = 0; y < resolution - 1; y++) for (let x = 0; x < resolution - 1; x++) {
-    if (!occupied(x, y)) continue
-    for (const side of [1, -1]) {
-      const corners = side > 0 ? [[0, 0], [0, 1], [1, 1], [0, 0], [1, 1], [1, 0]]
-        : [[0, 0], [1, 0], [1, 1], [0, 0], [1, 1], [0, 1]]
-      for (const [dx, dy] of corners) vertex(x + dx, y + dy, side)
-    }
-    for (const [dx, dy, ax, ay, bx, by] of [[-1, 0, 0, 0, 0, 1], [1, 0, 1, 1, 1, 0],
-      [0, -1, 1, 0, 0, 0], [0, 1, 0, 1, 1, 1]]) {
-      if (occupied(x + dx, y + dy)) continue
-      for (const [px, py, side] of [[ax, ay, 1], [ax, ay, -1], [bx, by, -1],
-        [ax, ay, 1], [bx, by, -1], [bx, by, 1]]) vertex(x + px, y + py, side)
-    }
-  }
+type Profile = 'art' | 'fighter' | 'organic' | 'capital'
+type VolumeInput = { pixels: Uint8ClampedArray; resolution: number; aspectX: number; aspectY: number; profile?: Profile }
+type Point = readonly [number, number]
 
-  const position = new Float32Array(positions)
-  const uv = new Float32Array(uvs)
-  const index = positions.length / 3 > 65535 ? new Uint32Array(indices) : new Uint16Array(indices)
-  self.postMessage({ id, position, uv, index }, [position.buffer, uv.buffer, index.buffer])
+/** Clip the original silhouette before lofting its deck and keel. */
+export function buildVolumeGeometry({ pixels, resolution, aspectX, aspectY, profile }: VolumeInput) {
+  const edge = resolution - 1
+  const alpha = (x: number, y: number) => pixels[(y * resolution + x) * 4 + 3] / 255 - .4
+  const distance = new Float32Array(resolution * resolution)
+  for (let y = 0; y < resolution; y++) for (let x = 0; x < resolution; x++) {
+    distance[y * resolution + x] = alpha(x, y) > 0 ? Math.min(x, y, edge - x, edge - y, resolution) : 0
+  }
+  for (let y = 1; y < edge; y++) for (let x = 1; x < edge; x++) {
+    const i = y * resolution + x
+    distance[i] = Math.min(distance[i], distance[i - 1] + 1, distance[i - resolution] + 1)
+  }
+  for (let y = edge - 1; y > 0; y--) for (let x = edge - 1; x > 0; x--) {
+    const i = y * resolution + x
+    distance[i] = Math.min(distance[i], distance[i + 1] + 1, distance[i + resolution] + 1)
+  }
+  const position: number[] = [], uv: number[] = [], indices: number[] = []
+  const vertices = new Map<string, number>()
+  const boundary = new Map<string, readonly [number, number]>()
+  const addVertex = ([x, y]: Point) => {
+    const key = `${x.toFixed(5)},${y.toFixed(5)}`
+    const cached = vertices.get(key)
+    if (cached !== undefined) return cached
+    const u = x / edge, v = y / edge
+    const x0 = Math.floor(x), y0 = Math.floor(y), dx = x - x0, dy = y - y0
+    const sample = (a: number, b: number) => distance[Math.min(edge, b) * resolution + Math.min(edge, a)]
+    const depth = sample(x0,y0)*(1-dx)*(1-dy)+sample(x0+1,y0)*dx*(1-dy)
+      +sample(x0,y0+1)*(1-dx)*dy+sample(x0+1,y0+1)*dx*dy
+    const bevel = Math.min(1, depth / Math.max(2, resolution * .035))
+    const spine = Math.max(0, 1 - Math.abs(u - .5) / .19)
+    const canopy = Math.max(0, 1 - Math.abs(u - .5) / .10)
+      * Math.max(0, 1 - Math.abs(v - .4) / .18)
+    // Broad armor planes, narrow wing edges and a distinct center spine.
+    // Painted highlights do not become bumps in the mesh.
+    const height = profile === 'fighter' ? .006 + bevel*(.017 + .035*spine + .022*canopy)
+      : profile === 'capital' ? .008 + bevel*(.035 + .055*spine + .018*canopy)
+      : profile === 'organic' ? .006 + bevel*(.025 + .045*spine)
+      : .008 + bevel*.06
+    const id = position.length / 3
+    vertices.set(key, id)
+    position.push((u-.5)*aspectX, (.5-v)*aspectY, height)
+    uv.push(u, 1-v)
+    return id
+  }
+  const face = (points: Point[]) => {
+    const ids = points.map(addVertex)
+    for (let i = 1; i < ids.length-1; i++) indices.push(ids[0], ids[i+1], ids[i])
+    for (let i = 0; i < ids.length; i++) {
+      const a = ids[i], b = ids[(i+1)%ids.length]
+      if (boundary.has(`${b}:${a}`)) boundary.delete(`${b}:${a}`)
+      else boundary.set(`${a}:${b}`, [a,b])
+    }
+  }
+  for (let y = 0; y < edge; y++) for (let x = 0; x < edge; x++) {
+    for (const triangle of [[[x,y],[x+1,y],[x+1,y+1]],[[x,y],[x+1,y+1],[x,y+1]]] as Point[][]) {
+      const clipped: Point[] = []
+      for (let i = 0; i < 3; i++) {
+        const a = triangle[i], b = triangle[(i+1)%3]
+        const av = alpha(a[0], a[1]), bv = alpha(b[0], b[1])
+        if (av > 0) clipped.push(a)
+        if ((av > 0) !== (bv > 0)) {
+          const t = av / (av-bv)
+          clipped.push([a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t])
+        }
+      }
+      if (clipped.length >= 3) face(clipped)
+    }
+  }
+  const topCount = indices.length, count = position.length/3
+  for (let i = 0; i < count; i++) {
+    position.push(position[i*3],position[i*3+1],-position[i*3+2]*.58)
+    uv.push(uv[i*2],uv[i*2+1])
+  }
+  for (let i = 0; i < topCount; i += 3) indices.push(indices[i]+count,indices[i+2]+count,indices[i+1]+count)
+  const sideStart = indices.length
+  // Separate wall vertices keep the bevel's normals off the painted deck.
+  for (const [a,b] of boundary.values()) {
+    const start = position.length/3
+    for (const id of [a,b,b+count,a+count]) {
+      position.push(position[id*3],position[id*3+1],position[id*3+2])
+      uv.push(uv[id*2],uv[id*2+1])
+    }
+    indices.push(start,start+1,start+2,start,start+2,start+3)
+  }
+  return { position: new Float32Array(position), uv: new Float32Array(uv),
+    index: position.length/3 > 65535 ? new Uint32Array(indices) : new Uint16Array(indices), sideStart }
+}
+
+declare const self: { onmessage: ((event: MessageEvent<VolumeInput & { id: number }>) => void) | null
+  postMessage(message: unknown, transfer: Transferable[]): void }
+self.onmessage = event => {
+  const result = buildVolumeGeometry(event.data)
+  self.postMessage({ id: event.data.id, ...result }, [result.position.buffer,result.uv.buffer,result.index.buffer])
 }

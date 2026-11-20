@@ -1,8 +1,8 @@
-import { BufferAttribute, BufferGeometry, Float32BufferAttribute, Mesh, MeshStandardMaterial, Texture, SRGBColorSpace } from 'three'
+import { BufferAttribute, BufferGeometry, Float32BufferAttribute, Mesh, MeshStandardMaterial, Texture, SRGBColorSpace, LinearMipmapLinearFilter } from 'three'
 
 export type VolumeProfile = 'art' | 'fighter' | 'organic' | 'capital'
 
-type VolumeBuffers = { position: Float32Array; uv: Float32Array; index?: Uint16Array | Uint32Array }
+type VolumeBuffers = { position: Float32Array; uv: Float32Array; index?: Uint16Array | Uint32Array; sideStart: number }
 let worker: Worker | null = null
 let serial = 0
 const jobs = new Map<number, { resolve(value: VolumeBuffers): void; reject(error: Error): void }>()
@@ -44,18 +44,26 @@ export async function paintedVolume(source: CanvasImageSource, width: number, he
   const probe = sample.getContext('2d', { willReadFrequently: true })!
   probe.drawImage(canvas, 0, 0, resolution, resolution)
   const pixels = probe.getImageData(0, 0, resolution, resolution).data
-  const { position, uv, index } = await volumeBuffers(pixels, resolution, width, height, profile)
+  const { position, uv, index, sideStart } = await volumeBuffers(pixels, resolution, width, height, profile)
   const geometry = new BufferGeometry()
   geometry.setAttribute('position', new Float32BufferAttribute(position, 3))
   geometry.setAttribute('uv', new Float32BufferAttribute(uv, 2))
   if (index) geometry.setIndex(new BufferAttribute(index, 1))
+  geometry.addGroup(0, sideStart, 0)
+  geometry.addGroup(sideStart, (index?.length ?? position.length/3)-sideStart, 1)
   geometry.computeVertexNormals()
   const map = new Texture(canvas)
   map.colorSpace = SRGBColorSpace
+  map.generateMipmaps = true
+  map.minFilter = LinearMipmapLinearFilter
   map.needsUpdate = true
-  const material = new MeshStandardMaterial({ map, roughness: .48, metalness: .12, alphaTest: .25 })
+  const material = new MeshStandardMaterial({ map, roughness: .52, metalness: .22, alphaTest: .15 })
   material.emissive.setHex(0xffffff)
   material.emissiveMap = map
   material.emissiveIntensity = .20
-  return new Mesh(geometry, material)
+  const wall = material.clone()
+  wall.color.setHex(0xa9b6c5)
+  wall.roughness = .60
+  wall.metalness = .30
+  return new Mesh(geometry, [material, wall])
 }
