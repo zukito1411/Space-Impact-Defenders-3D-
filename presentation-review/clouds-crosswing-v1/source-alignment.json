@@ -1,0 +1,82 @@
+[
+  {
+    "key": "xwing",
+    "editedMeshes": [
+      "Foil-tip laser.001",
+      "Foil-tip laser.003",
+      "S-foil +1/-1",
+      "S-foil -1/-1",
+      "Split drive nacelle.001",
+      "Split drive nacelle.003"
+    ],
+    "unalteredMeshes": 10,
+    "pairs": [
+      {
+        "side": -1,
+        "upperTip": [
+          -108.0,
+          73.0,
+          52.0
+        ],
+        "lowerTip": [
+          -108.0,
+          73.0,
+          -52.0
+        ]
+      },
+      {
+        "side": 1,
+        "upperTip": [
+          108.0,
+          73.0,
+          52.0
+        ],
+        "lowerTip": [
+          108.0,
+          73.0,
+          -52.0
+        ]
+      }
+    ]
+  },
+  {
+    "key": "xwingElite",
+    "editedMeshes": [
+      "Foil-tip laser.001",
+      "Foil-tip laser.003",
+      "S-foil +1/-1",
+      "S-foil -1/-1",
+      "Split drive nacelle.001",
+      "Split drive nacelle.003"
+    ],
+    "unalteredMeshes": 10,
+    "pairs": [
+      {
+        "side": -1,
+        "upperTip": [
+          -108.0,
+          73.0,
+          52.0
+        ],
+        "lowerTip": [
+          -108.0,
+          73.0,
+          -52.0
+        ]
+      },
+      {
+        "side": 1,
+        "upperTip": [
+          108.0,
+          73.0,
+          52.0
+        ],
+        "lowerTip": [
+          108.0,
+          73.0,
+          -52.0
+        ]
+      }
+    ]
+  }
+]

@@ -213,11 +213,11 @@ def build_crosswing(paint, steel, silver, bore, marker, elite):
     for side in (-1, 1):
         for index, level in enumerate((1, -1)):
             upper = level == 1
-            span = 108 if upper else 97
-            tip_y = 172 if upper else 220
-            tip_z = 52 if upper else -46
-            root_y = 148 if upper else 182
-            # Each closed airfoil has its own chord, sweep and dihedral.
+            span = 108
+            tip_y = 172
+            tip_z = level * 52
+            root_y = 148
+            # Upper/lower foils share the same plan column; only dihedral separates them.
             # Map its skin onto a matching painted panel in the original livery.
             vertices, uvs = [], []
             for t in (0, .32, .72, 1):
@@ -246,7 +246,7 @@ def build_crosswing(paint, steel, silver, bore, marker, elite):
                     poly.material_index = 1
 
             x = 144 + side*span
-            muzzle = tip_y - (101 if upper else 113)
+            muzzle = tip_y - 101
             turned_part("Foil-tip laser", x, tip_z, [
                 (tip_y+24, 2.7, 0), (tip_y+18, 4.1, 1), (tip_y+1, 4.1, 0),
                 (tip_y-3, 4.3, 2), (tip_y-7, 3.0, 1), (tip_y-30, 2.7, 0),
@@ -256,7 +256,7 @@ def build_crosswing(paint, steel, silver, bore, marker, elite):
             marker(f"Wing tip {int(side > 0)*2 + index+1}", x, muzzle, tip_z)
 
             engine_x, engine_z = 144 + side*24, level*15
-            outlet = 262 if upper else 255
+            outlet = 262
             # Intake recess, enamel nacelle, exposed drive rings and exhaust bell.
             rings = [(160, 6.5, 3), (150, 8, 3), (150, 10.5, 1), (154, 11.4, 0),
                      (162, 11.4, 0), (163, 11.5, 2), (169 if elite else 166, 11.5, 2),

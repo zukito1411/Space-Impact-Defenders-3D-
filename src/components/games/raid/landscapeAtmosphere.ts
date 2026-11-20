@@ -1,3 +1,4 @@
+import { planetCloudX } from './planetCloudMotion'
 import { PlanetFlightSurface } from './planetFlightSurface'
 import { PlanetFlightTerrain } from './planetFlightTerrain'
 import { planetFlightTravel, projectPlanetFlightPoint, type PlanetFlightPoint } from './planetFlightCamera'
@@ -176,7 +177,7 @@ export class LandscapePlanetAtmosphere {
       const sprite = this.clouds[i]; sprite.visible = i < frame.cloudCount
       if (!sprite.visible) continue
       const lane = i % 4
-      sprite.position.set(mod(w * (.16 + i * .217) - t * w * (.0018 + i * .00025) + w * .5, w * 1.6) - w * .3,
+      sprite.position.set(planetCloudX(i,t,w,w*(.5+i%3*.1)),
         h * (.12 + lane * .135) + (reduced ? 0 : Math.sin(t * .035 + i) * h * .009))
       const billow = 1 + Math.sin(t * (.034 + i * .003) + i * 1.7) * .025
       sprite.width = w * (.5 + i % 3 * .1) * billow; sprite.height = h * (.31 + i % 2 * .07) / billow
@@ -186,7 +187,7 @@ export class LandscapePlanetAtmosphere {
     }
     for (let i = 0; i < 2; i++) {
       const fog = this.mist[i]
-      fog.position.set(w * (.28 + i * .48) + Math.sin(t * .025 + i) * w * .025, h * (.68 + i * .16))
+      fog.position.set(planetCloudX(i,t,w,w*1.2,true), h * (.68 + i * .16))
       fog.width = w * 1.2; fog.height = h * (i ? .14 : .16)
       fog.tint = wet ? 0x97cae0 : 0xc49278; fog.alpha = wet ? .11 : .095
     }
