@@ -45,8 +45,8 @@ export function bakePlanetWater(width = 1024, height = 512) {
     const wave = samplePlanetWater((x + .5) / width, (y + .5) / height)
     const i = (y * width + x) * 4
     data[i] = 12 + wave * 22
-    data[i + 1] = 31 + wave * 40
-    data[i + 2] = 47 + wave * 48
+    data[i + 1] = 5 + wave * 12
+    data[i + 2] = 38 + wave * 54
     data[i + 3] = 255
   }
   return data
