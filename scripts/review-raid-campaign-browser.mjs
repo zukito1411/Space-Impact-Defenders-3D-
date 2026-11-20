@@ -8,8 +8,8 @@ import { chromium } from 'playwright'
 // cameras, renderers, stage artwork and quality budgets are used unchanged.
 const base=process.env.RAID_TEST_URL ?? 'http://127.0.0.1:5200'
 const output='presentation-review/campaign-v1'
-const capturesOnly=process.argv.includes('--captures-only')
 const profileOnly=process.argv.includes('--profile-only')
+const capturesOnly=process.argv.includes('--captures-only')||(!profileOnly&&!process.argv.includes('--profile'))
 const resume=process.argv.includes('--resume')
 const frames=Number(process.env.RAID_REVIEW_FRAMES ?? 24)
 assert.ok(Number.isInteger(frames)&&frames>=12&&frames<=180)

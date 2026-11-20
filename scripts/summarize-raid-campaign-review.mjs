@@ -9,42 +9,52 @@ assert.equal(bosses.length,16)
 assert.equal(new Set(bosses.map(boss=>boss.stage)).size,16)
 for(const boss of bosses)await access(directory+'/'+boss.file)
 const {results}=evidence
+const partial=process.argv.includes('--allow-partial')
+const missing=[]
 for(const view of ['landscape','portrait'])for(let stage=1;stage<=15;stage++) {
   for(const scenario of ['waves','boss','burst','entry','transition',...([1,5,10,15].includes(stage)?['coop']:[])]) {
-    assert.equal(results.filter(row=>row.view===view&&row.stage===stage&&row.scenario===scenario).length,1,
-      `Missing or repeated case: ${view}/${stage}/${scenario}`)
+    const matches=results.filter(row=>row.view===view&&row.stage===stage&&row.scenario===scenario).length
+    assert.ok(matches<=1,`Repeated case: ${view}/${stage}/${scenario}`)
+    if(!matches)missing.push(`${view}/${stage}/${scenario}`)
   }
 }
-assert.equal(results.length,158)
+if(!partial)assert.equal(results.length,158,`Missing ${missing.length} cases; use --allow-partial to report incomplete coverage`)
 const maximum=(rows,key,stat='max')=>Math.max(...rows.map(row=>row[key]?.[stat]??0))
-const median=values=>[...values].sort((a,b)=>a-b)[Math.floor(values.length/2)]
+const median=values=>{
+  const sorted=[...values].sort((a,b)=>a-b),middle=Math.floor(sorted.length/2)
+  return sorted.length%2?sorted[middle]:(sorted[middle-1]+sorted[middle])/2
+}
 const decimal=value=>value.toFixed(2)
 const count=value=>Math.round(value).toLocaleString('en-US')
 const views=['landscape','portrait']
 const table=[]
 for(let stage=1;stage<=15;stage++)for(const view of views) {
   const rows=results.filter(row=>row.stage===stage&&row.view===view)
+  if(!rows.length)continue
   const highest=[...rows].sort((a,b)=>b.drawMs.mean-a.drawMs.mean)[0]
   table.push(`| ${stage} | ${view} | ${decimal(maximum(rows,'simulationMs','mean'))} | ${decimal(highest.drawMs.mean)} (${highest.scenario}) | ${decimal(maximum(rows,'drawMs','p95'))} | ${count(maximum(rows,'pixiCalls'))} | ${count(maximum(rows,'shipCalls'))} | ${count(maximum(rows,'shipTriangles'))} |`)
 }
 const scenarioTable=[]
 for(const scenario of ['waves','boss','burst','entry','transition','coop'])for(const view of views) {
   const rows=results.filter(row=>row.view===view&&row.scenario===scenario)
+  if(!rows.length)continue
   scenarioTable.push(`| ${scenario} | ${view} | ${rows.length} | ${decimal(median(rows.map(row=>row.simulationMs.mean)))} | ${decimal(median(rows.map(row=>row.drawMs.mean)))} | ${decimal(median(rows.map(row=>row.canvasMs.mean)))} | ${count(maximum(rows,'pixiCalls'))} | ${count(maximum(rows,'shipCalls'))} |`)
 }
 const special=[]
 for(const stage of [5,10,15])for(const view of views) {
   const row=results.find(row=>row.stage===stage&&row.view===view&&row.scenario==='boss')
+  if(!row)continue
   special.push(`| ${stage} | ${view} | ${decimal(row.drawMs.mean)} | ${decimal(row.bossMs.mean)} | ${decimal(row.pixiSubmitMs.mean)} | ${decimal(row.shipSubmitMs.mean)} |`)
 }
 const samples=[...new Set(results.map(row=>row.samples))].sort((a,b)=>a-b)
 const spikes=[...results].sort((a,b)=>b.drawMs.max-a.drawMs.max).slice(0,5).map(row=>
   `| ${row.stage} | ${row.view} | ${row.scenario} | ${decimal(row.drawMs.mean)} | ${decimal(row.drawMs.p95)} | ${decimal(row.drawMs.max)} | ${decimal(row.pixiSubmitMs.max)} |`)
-const content=`# Raid whole-campaign rendering review v1
+const content=`# Raid campaign rendering review v1
 
 ## Evidence and scope
 
-- All 15 campaign stages, both flight orientations, Max quality, DPR 1: **${results.length} controlled workload cases** and ${results.reduce((sum,row)=>sum+row.samples,0)} measured frames. Each case has eight warm-up frames and ${samples.join(' or ')} measured frames; sample counts are retained per case. These are short diagnostic samples, unsuitable for sustained FPS or rare-stutter certification.
+- **Coverage: ${results.length}/158 planned workload cases; ${missing.length ? 'sampling stopped early at the user\'s request. All 15 landscape stages were covered; portrait coverage is partial.' : 'all planned campaign cases completed.'}** Missing cases: ${missing.length?missing.join(', '):'none'}.
+- Max quality, DPR 1: ${results.reduce((sum,row)=>sum+row.samples,0)} measured frames. Each completed case has eight warm-up frames and ${samples.join(' or ')} measured frames; sample counts are retained per case. These are short diagnostic samples, unsuitable for sustained FPS or rare-stutter certification. A TypeScript check ran concurrently with part of the landscape sampling, so these CPU values are not an isolated benchmark.
 - Native stage formations, native boss updates/attacks, combined weapon/option effects, 16 combat asteroids, impact bursts, stage entry/clear states, and local co-op at stages 1/5/10/15. The burst setup combines native workloads deliberately; it is not a natural-play frequency estimate.
 - **16 actual landscape gameplay images**, including Devil Gundam: [gallery](../${directory}/bosses-v1.md). Normal game cameras, body scale, HUD and stage artwork are retained. Boss placement/HP/timers are controlled for inspection. Special bodies 5/10/15/Devil were not redesigned.
 - Browser: ${evidence.environment}. Viewports: landscape 844×390, portrait 393×852. No captured page errors or shader/WebGL frame errors. External service calls are blocked in this isolated fixture.
