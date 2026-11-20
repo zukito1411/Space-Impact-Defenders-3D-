@@ -5,7 +5,7 @@ export const RAID_ELITE_FRAME_PATHS = {
   gatlingElite: 'assets/ships/previews/gatlingElite-portrait-v5.webp',
   laserElite: 'assets/ships/previews/laserElite-portrait-v5.webp',
   dreadnoughtElite: 'assets/ships/previews/dreadnoughtElite-portrait-v5.webp',
-  xwingElite: 'assets/ships/previews/xwingElite-portrait-v5.webp',
+  xwingElite: 'assets/ships/previews/xwingElite-portrait-v9.webp',
   spaceEtElite: 'assets/ships/previews/spaceEtElite-portrait-v5.webp',
   mesiahBlackElite: 'assets/ships/previews/mesiahBlackElite-portrait-v5.webp',
   mesiahWhiteElite: 'assets/ships/previews/mesiahWhiteElite-portrait-v5.webp',

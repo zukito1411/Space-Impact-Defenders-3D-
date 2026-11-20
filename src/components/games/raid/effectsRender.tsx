@@ -1,3 +1,5 @@
+import { bossChargeKind, bossChargeLabel, bossChargeProgress } from './bossWarnings'
+import type { LanguageCode } from '../../../i18n'
 import { BOSS_FX, drawBossFx, drawBossFxLane, COMBAT_TILE, drawRaidCombatTexture, getRaidCombatFrame, getRaidExplosionFrame } from './combatArt'
 import { impactAlpha, impactFrameProgress } from './combatFeel'
 import { getCanvasSpriteDimensions, RAID_DERELICT_WRECK_FILTER, RAID_SPIEGEL_SHADOW_CLONE_FILTER, RAID_SPIEGEL_SHADOW_CLONE_IMPACT_STOPS, drawCanvasImageContain, drawCanvasSpriteContain, getDerelictWreckCanvasSprite, getDerelictWreckVariantIndex, getGodGundamBarrageCanvasSprite, getRaidOtherCanvasSprite, getRaidSideShipCanvasSprite, getShipCanvasSprite } from './assets'
@@ -890,19 +892,21 @@ export function drawPowerUpCanvas(
 
 /** Compact, high-contrast boss attack cue, drawn on the existing FX canvas. */
 function drawBossChargeAlert(ctx: CanvasRenderingContext2D, width: number, height: number, progress: number, label: string) {
-  const scale = Math.min(width / 420, height / 240, 1.25)
-  const barWidth = 176 * scale
+  const scale = Math.max(.8,Math.min(width / 420, 1.25))
+  const barWidth = Math.min(width-24,240*scale)
   const barHeight = Math.max(3, 5 * scale)
   const x = width * .5 - barWidth * .5
-  const y = Math.max(14, height * .12)
+  const y = Math.min(height-20,Math.max(76,height*.125))
   ctx.save()
   ctx.textAlign = 'center'
   ctx.textBaseline = 'bottom'
   ctx.font = `bold ${Math.max(11, Math.round(14 * scale))}px sans-serif`
   ctx.shadowColor = '#000'
   ctx.shadowBlur = 5
+  ctx.fillStyle = 'rgba(8,12,24,.88)'
+  ctx.fillRect(x-8,y-26*scale,barWidth+16,barHeight+32*scale)
   ctx.fillStyle = '#fff1f2'
-  ctx.fillText(label, width * .5, y - 5 * scale)
+  ctx.fillText(label,width*.5,y-5*scale,barWidth)
   ctx.shadowBlur = 0
   ctx.fillStyle = 'rgba(8, 12, 24, .85)'
   ctx.fillRect(x - 2, y - 2, barWidth + 4, barHeight + 4)
@@ -911,6 +915,43 @@ function drawBossChargeAlert(ctx: CanvasRenderingContext2D, width: number, heigh
   ctx.strokeStyle = '#fecaca'
   ctx.lineWidth = 1
   ctx.strokeRect(x, y, barWidth, barHeight)
+  ctx.restore()
+}
+
+/** One upright, attack-specific countdown; target boxes match direct-hit areas. */
+export function drawBossAttackAlert(ctx: CanvasRenderingContext2D,enemies: Enemy[],
+  width: number,height: number,landscape: boolean,language: LanguageCode) {
+  let urgent: Enemy | undefined
+  for (const enemy of enemies) {
+    if (enemy.hp <= 0 || !enemy.isBoss || enemy.chargeTimer <= 0) continue
+    const kind = bossChargeKind(enemy)
+    if (kind !== 'final' && kind !== 'devil' && kind !== 'squid' && kind !== 'snake') continue
+    if (!urgent || enemy.chargeTimer < urgent.chargeTimer) urgent = enemy
+    const strike = kind === 'squid' && enemy.chargePattern !== 'rotate'
+    const bite = kind === 'snake' && enemy.chargePattern === 'cross'
+    const burst = kind === 'devil' && enemy.chargePattern === 'cross'
+    if (strike || bite || burst) {
+      const dx = burst ? 10.5 : bite ? 9.5 : 8.5, dy = burst ? 8.5 : 7.5
+      const x = (enemy.chargeLane-dx)/WIDTH*width
+      const y = ((enemy.chargeTargetY ?? enemy.y+34)-dy)/HEIGHT*height
+      ctx.save()
+      ctx.fillStyle = 'rgba(255,62,86,.12)'
+      ctx.strokeStyle = '#ff7288'; ctx.lineWidth = 2
+      ctx.fillRect(x,y,2*dx/WIDTH*width,2*dy/HEIGHT*height)
+      ctx.strokeRect(x,y,2*dx/WIDTH*width,2*dy/HEIGHT*height)
+      ctx.restore()
+    }
+  }
+  if (!urgent) return
+  const kind = bossChargeKind(urgent)
+  const fallback = kind === 'final' ? FINAL_BOSS_BEAM_CHARGE_SECONDS
+    : kind === 'devil' ? getDevilBossChargeDuration(urgent.chargePattern,(urgent.beamVolleyLeft ?? 0)>0)
+    : kind === 'squid' ? urgent.chargePattern === 'rotate' ? .78 : .9
+    : urgent.chargePattern === 'horizontal' ? 1.18 : urgent.chargePattern === 'cross' || urgent.chargePattern === 'scatter' ? 1.08 : .95
+  ctx.save()
+  if (landscape) { ctx.translate(0,height); ctx.rotate(-Math.PI/2) }
+  drawBossChargeAlert(ctx,landscape ? height : width,landscape ? width : height,
+    bossChargeProgress(urgent,fallback),bossChargeLabel(urgent,language))
   ctx.restore()
 }
 
@@ -924,14 +965,13 @@ export function drawFinalChargeLines(
 ) {
   let hasFinalCharge = false
   for (const enemy of enemies) {
-    if (enemy.bossKind === 'final' && enemy.chargeTimer > 0) {
+    if (bossChargeKind(enemy) === 'final' && enemy.hp > 0 && enemy.chargeTimer > 0) {
       hasFinalCharge = true
       break
     }
   }
   if (!hasFinalCharge) return
-  const finalCharge = enemies.find(enemy => enemy.bossKind === 'final' && enemy.chargeTimer > 0)!
-  drawBossChargeAlert(ctx, viewportWidth, viewportHeight, 1 - finalCharge.chargeTimer / FINAL_BOSS_BEAM_CHARGE_SECONDS, 'DANGER — BEAM ATTACK')
+
 
   const toViewportY = (value: number) => (value / HEIGHT) * viewportHeight
   const length = Math.hypot(viewportWidth, viewportHeight) * 1.48
@@ -942,9 +982,9 @@ export function drawFinalChargeLines(
   }
 
   for (const enemy of enemies) {
-    if (enemy.bossKind !== 'final' || enemy.chargeTimer <= 0) continue
+    if (bossChargeKind(enemy) !== 'final' || enemy.hp <= 0 || enemy.chargeTimer <= 0) continue
 
-    const chargeProgress = 1 - clamp(enemy.chargeTimer / FINAL_BOSS_BEAM_CHARGE_SECONDS, 0, 1)
+    const chargeProgress = bossChargeProgress(enemy,FINAL_BOSS_BEAM_CHARGE_SECONDS)
     const alpha = 0.28 + chargeProgress * 0.72
     const radius = getFinalBossBeamRadius(enemy.chargePattern)
     const lineWidth = Math.max(32, Math.min(viewportWidth * 0.15, (radius / WIDTH) * viewportWidth * 2.45))
@@ -957,7 +997,7 @@ export function drawFinalChargeLines(
 
     if (enemy.chargePattern === 'diagonal' || enemy.chargePattern === 'cross' || enemy.chargePattern === 'rotate') {
       const baseAngle = enemy.chargePattern === 'rotate'
-        ? time / 1800 + enemy.phase
+        ? enemy.phase+Math.PI/4
         : enemy.chargeLane < 50 ? Math.PI / 4 : -Math.PI / 4
       drawWarningBeam(viewportWidth * 0.5, viewportHeight * 0.5, baseAngle, lineWidth, alpha, warningPulse)
       if (enemy.chargePattern === 'cross' || enemy.chargePattern === 'rotate') {
@@ -984,14 +1024,13 @@ export function drawDevilChargeWarnings(
 ) {
   let hasDevilCharge = false
   for (const enemy of enemies) {
-    if (enemy.bossKind === 'devil' && enemy.chargeTimer > 0) {
+    if (enemy.bossKind === 'devil' && enemy.hp > 0 && enemy.chargeTimer > 0) {
       hasDevilCharge = true
       break
     }
   }
   if (!hasDevilCharge) return
-  const devilCharge = enemies.find(enemy => enemy.bossKind === 'devil' && enemy.chargeTimer > 0)!
-  drawBossChargeAlert(ctx, viewportWidth, viewportHeight, 1 - devilCharge.chargeTimer / getDevilBossChargeDuration(devilCharge.chargePattern, (devilCharge.beamVolleyLeft ?? 0) > 0), 'DANGER — SPECIAL ATTACK')
+
 
   const length = Math.hypot(viewportWidth, viewportHeight) * 1.48
   const drawWarningBeam = (x: number, y: number, angle: number, width: number, alpha: number, pulse: number) => {
@@ -1012,10 +1051,10 @@ export function drawDevilChargeWarnings(
   }
 
   for (const enemy of enemies) {
-    if (enemy.bossKind !== 'devil' || enemy.chargeTimer <= 0) continue
+    if (enemy.bossKind !== 'devil' || enemy.hp <= 0 || enemy.chargeTimer <= 0) continue
 
     const maxCharge = getDevilBossChargeDuration(enemy.chargePattern, (enemy.beamVolleyLeft ?? 0) > 0)
-    const chargeProgress = 1 - clamp(enemy.chargeTimer / maxCharge, 0, 1)
+    const chargeProgress = bossChargeProgress(enemy,maxCharge)
     const alpha = 0.28 + chargeProgress * 0.72
     const radius = getDevilBossBeamRadius(enemy.chargePattern)
     const maxBeamWidth = viewportWidth > 1100 ? viewportWidth * 0.052 : viewportWidth * 0.11
@@ -1049,7 +1088,7 @@ export function drawDevilChargeWarnings(
     }
 
     if (enemy.chargePattern === 'rotate') {
-      const baseAngle = time / 1600 + enemy.phase + Math.PI / 4
+      const baseAngle = enemy.phase+Math.PI/4
       drawWarningBeam(viewportWidth * 0.5, viewportHeight * 0.5, baseAngle, lineWidth, alpha, warningPulse)
       drawWarningBeam(viewportWidth * 0.5, viewportHeight * 0.5, baseAngle + Math.PI / 2, lineWidth, alpha * 0.92, warningPulse)
       continue

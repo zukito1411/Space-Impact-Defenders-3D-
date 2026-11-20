@@ -15,20 +15,13 @@ export function raidBankingPreviewNozzle(x:number,y:number,landscape:boolean){re
 export function getRaidPicker3DPreviewPath(shipKey:string,landscape:boolean){
   const key=keyFor(shipKey)
   if(isRaid2DMech(key)||!registrations[key])return null
-  // Updated X-Wing portrait artwork lives in the authored remaster sources.
-  // The shipped portrait v5 render still shows the pre-remaster hull.
-  if (key === 'xwing' && !landscape) return 'art/source-ships/crosswing-nova-remaster-v1.webp'
-  if (key === 'xwingElite' && !landscape) return 'art/source-ships/crosswing-nova-elite-remaster-v1.webp'
+  if (key === 'xwing' || key === 'xwingElite') return `assets/ships/previews/${key}-${landscape?'landscape':'portrait'}-v9.webp`
   const version=landscape?7:5
   return `assets/ships/previews/${key}-${landscape?'landscape':'portrait'}-v${version}.webp`
 }
 export function getRaidPicker3DPreviewUrl(shipKey:string,landscape:boolean){
   const path=getRaidPicker3DPreviewPath(shipKey,landscape)
-  if (!path) return null
-  if (path.startsWith('art/source-ships/')) {
-    return `https://raw.githubusercontent.com/zukito1411/Space-Impact-Defenders-3D-/main/${path}`
-  }
-  return getPublicAssetUrl(path)
+  return path?getPublicAssetUrl(path):null
 }
 export function raidBankingFrameIndex(bank:number,landscape:boolean,reduced:boolean,poses=21){
   const amount=reduced?0:Math.max(-1,Math.min(1,bank/.14))
