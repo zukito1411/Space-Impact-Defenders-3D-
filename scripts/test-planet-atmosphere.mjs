@@ -52,6 +52,36 @@ for (const [width, height] of [[390,844],[850,1600],[320,640],[1080,1920]]) {
   assert.ok(frame.horizon > width * .65 && frame.horizon < width * .72)
   assert.equal(art.sampleLandscapeAtmosphere(width,height,100000,true,'low',{}).seconds,0)
 }
+// Repeat boundaries must join in value and slope on both water axes.
+for (const u of [-2.37, -.001, 0, .17, .5, .999, 1.41]) for (const v of [-.2, 0, .43, .999, 1.7]) {
+  const height=art.samplePlanetWater(u,v),epsilon=1e-5
+  assert.ok(Math.abs(height-art.samplePlanetWater(u+1,v))<1e-10)
+  assert.ok(Math.abs(height-art.samplePlanetWater(u,v+1))<1e-10)
+  for(const axis of [0,1]) {
+    const slope=(x,y)=>(art.samplePlanetWater(x+(axis?0:epsilon),y+(axis?epsilon:0))
+      -art.samplePlanetWater(x-(axis?0:epsilon),y-(axis?epsilon:0)))/(2*epsilon)
+    assert.ok(Math.abs(slope(u,v)-slope(u+(axis?0:1),v+(axis?1:0)))<1e-6,'water slope breaks at a tile boundary')
+  }
+}
+const waterTile=art.bakePlanetWater()
+const seamError=(axis)=>{
+  let boundary=0,neighbor=0
+  const width=1024,height=512,count=axis?width:height
+  for(let i=0;i<count;i++) {
+    const a=axis?i:(i*width),b=axis?(height-1)*width+i:i*width+width-1
+    const near=axis?width+i:i*width+1
+    for(let channel=0;channel<3;channel++) {
+      boundary+=Math.abs(waterTile[a*4+channel]-waterTile[b*4+channel])
+      neighbor+=Math.abs(waterTile[a*4+channel]-waterTile[near*4+channel])
+    }
+  }
+  return {boundary:boundary/count,neighbor:neighbor/count}
+}
+for(const axis of [0,1]) {
+  const seam=seamError(axis)
+  assert.ok(seam.boundary<seam.neighbor*1.5+.2,'water tile has a visible wrap edge: '+JSON.stringify(seam))
+}
+console.log('Water tile: continuous values/slopes and filtered repeat edges on both axes passed')
 let allocations = 0
 class Point { x = 0; y = 0; set(x, y = x) { this.x = x; this.y = y } }
 class Container {

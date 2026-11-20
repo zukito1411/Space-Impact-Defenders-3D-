@@ -1,7 +1,7 @@
 import { PlanetFlightSurface } from './planetFlightSurface'
 import type { ShipLightingFrame } from './shipLighting'
 import { Container, Graphics, Sprite, Texture, TilingSprite, type Renderer } from 'pixi.js'
-import { atmosphereNoise, bakeAtmosphereCloud, bakePlanetTerrain, CINDER_VENTS, planetTerrainHeight, sampleLandscapeAtmosphere } from './planetAtmosphereArt'
+import { atmosphereNoise, bakeAtmosphereCloud, bakePlanetTerrain, bakePlanetWater, CINDER_VENTS, planetTerrainHeight, sampleLandscapeAtmosphere } from './planetAtmosphereArt'
 import type { LandscapeAtmosphereFrame, PlanetAtmosphereKind } from './planetAtmosphereArt'
 import { getPlanetWeatherArt, getSurfaceTerrain } from './surfaceArt'
 import { samplePlanetFlightParticle } from './planetFlightParticles'
@@ -59,20 +59,9 @@ function makeSky(kind: PlanetAtmosphereKind) {
   return texture(source)
 }
 function makeWater() {
-  const source = canvas(1024, 256), ctx = source.getContext('2d')!, image = ctx.createImageData(1024, 256)
-  for (let y = 0; y < 256; y++) for (let x = 0; x < 1024; x++) {
-    const u = x / 1024, v = y / 256
-    const wave = atmosphereNoise(u * 48, v * 105, 36)
-    const shimmer = Math.max(0, wave - .51) * 2.1
-    const highlight = Math.exp(-(((u - .68) / (.045 + v * .3)) ** 2)) * shimmer
-    const i = (y * 1024 + x) * 4
-    image.data[i] = 10 + (1 - v) * 19 + wave * 10 + highlight * 100
-    image.data[i + 1] = 28 + (1 - v) * 28 + wave * 24 + highlight * 131
-    image.data[i + 2] = 43 + (1 - v) * 32 + wave * 27 + highlight * 147
-    image.data[i + 3] = 255
-  }
-  ctx.putImageData(image, 0, 0)
-  return texture(source)
+  const water = pixels(bakePlanetWater(), 1024, 512)
+  water.source.style.addressMode = 'repeat'
+  return water
 }
 
 /** Upright, pooled horizon layers inside the rotated logical playfield. */

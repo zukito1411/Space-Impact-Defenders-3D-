@@ -227,6 +227,23 @@ try {
         assert.ok(hud.background.endsWith('0.28)'),'HUD skin overrode translucent background')
         await writeFile(output+'/hud-checks.json',JSON.stringify(hud,null,2))
       }
+      if(process.env.RAID_REVIEW_SURFACE_CHECK==='1'&&[5,10].includes(boss.stage)) {
+        const surface=await page.evaluate(()=>{
+          const bg=window.campaignReview.background
+          const moons=bg.atmosphereMoons
+          const meshes=bg.globes.filter(globe=>moons.includes(globe.anchor))
+          const atmosphere=bg.landscapeAtmosphere
+          return {skyPlanets:moons.filter(moon=>moon.visible).length,
+            planetMeshes:meshes.filter(globe=>globe.mesh.visible).length,
+            atmospheric:atmosphere.root.visible,waterRepeat:atmosphere.art.get('pelagic').water.source.style.addressMode,
+            texel:Array.from(atmosphere.surface.parameters.uniforms.uTexel)}
+        })
+        assert.equal(surface.skyPlanets,0,'Planet prop remained inside the atmosphere')
+        assert.equal(surface.planetMeshes,0,'Hidden planet anchor left its 3D body visible')
+        assert.equal(surface.atmospheric,true,'Surface flight was replaced')
+        assert.equal(surface.waterRepeat,'repeat','Water cannot filter across its wrap edges')
+        await writeFile(output+'/stage-'+boss.stage+'-surface-checks.json',JSON.stringify(surface,null,2))
+      }
       console.log('Captured',boss.stage,boss.name)
     }
     if(verifySpecial)for(const stage of [5,10,15])for(const phase of stage===10?['idle','attack','bite','retract']:['idle','attack']) {

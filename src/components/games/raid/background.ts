@@ -1769,17 +1769,9 @@ export class PixiRaidBackground {
     const texture = world ? (getSurfaceTerrain(kind) ?? getJourneySurface(kind)) : undefined
     const sprite = this.journeySurfaceSprite
     sprite.visible = Boolean(texture && world && !atmospheric)
-    for (let i = 0; i < this.atmosphereMoons.length; i++) {
-      const moon = this.atmosphereMoons[i]
-      const moonTexture = this.assetTextures.get(i === 0 ? 'planet1' : 'planet4')
-      moon.visible = atmospheric && Boolean(moonTexture)
-      if (moon.visible && moonTexture) {
-        const size = Math.min(width, height) * (i === 0 ? 0.19 : 0.095)
-        const drift = this.reducedMotion ? 0 : Math.sin(this.landscapeAtmosphere.seconds * 0.035 + i) * height * 0.012
-        setPixiSpriteContain(moon, moonTexture, width * (i === 0 ? 0.19 : 0.34), height * (i === 0 ? 0.76 : 0.28) + drift, size, size, 0.58, -Math.PI / 2)
-        moon.tint = isWateryWorldTheme(groundTheme) ? 0xb6c7e4 : 0xffbfa1
-      }
-    }
+    // These are surface-flight arenas. Keep orbiting planet props out of
+    // their atmosphere; normal space-stage planets retain their own path.
+    for (const moon of this.atmosphereMoons) moon.visible = false
     if (texture && !atmospheric) {
       sprite.texture = texture
       // This is one repeated quad. Its geometry covers the camera, while the

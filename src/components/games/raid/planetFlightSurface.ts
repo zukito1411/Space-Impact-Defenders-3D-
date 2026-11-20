@@ -15,12 +15,13 @@ void main() {
 const fragment = `#version 300 es
 precision highp float;
 uniform sampler2D uGround;
-uniform vec2 uViewport, uView;
+uniform vec2 uViewport, uView, uTexel;
 uniform vec3 uSun, uKey, uSky, uBounce;
 uniform float uFocal, uTravel, uWet;
 in vec2 screen;
 out vec4 finalColor;
-vec3 ground(vec2 uv) { return textureGrad(uGround,fract(uv),dFdx(uv),dFdy(uv)).rgb; }
+// Let the repeat sampler filter across tile boundaries, including mip levels.
+vec3 ground(vec2 uv) { return textureGrad(uGround,uv,dFdx(uv),dFdy(uv)).rgb; }
 void main() {
   vec2 ray = (vec2(screen.x-.5,.5-screen.y)*uViewport)/uFocal;
   // View pitch is the same flight-plane basis used by the live hulls. The
@@ -30,9 +31,8 @@ void main() {
   vec2 uv = vec2(ray.x*depth-uTravel,(uView.y+ray.y*uView.x)*depth)*.42;
   vec3 paint = ground(uv);
   float h = dot(paint,vec3(.2126,.7152,.0722));
-  vec2 delta = vec2(1./1024.,0.);
-  float dx = dot(ground(uv+delta),vec3(.2126,.7152,.0722))-h;
-  float dz = dot(ground(uv+delta.yx),vec3(.2126,.7152,.0722))-h;
+  float dx = dot(ground(uv+vec2(uTexel.x,0.)),vec3(.2126,.7152,.0722))-h;
+  float dz = dot(ground(uv+vec2(0.,uTexel.y)),vec3(.2126,.7152,.0722))-h;
   float relief = mix(2.6,1.1,uWet);
   vec3 n = normalize(vec3(-dx*relief,uView.y-dz*uView.x*relief,uView.x+dz*uView.y*relief));
   vec3 eye = normalize(vec3(-ray,1.));
@@ -55,6 +55,7 @@ export class PlanetFlightSurface {
   private readonly parameters = new UniformGroup({
     uViewport: { value: new Float32Array([1,1]), type: 'vec2<f32>' },
     uView: { value: new Float32Array([Math.cos(LANDSCAPE_VIEW_YAW),-Math.sin(LANDSCAPE_VIEW_YAW)]), type: 'vec2<f32>' },
+    uTexel: { value: new Float32Array([1/1024,1/512]), type: 'vec2<f32>' },
     uSun: { value: new Float32Array([.48,.65,.72]), type: 'vec3<f32>' },
     uKey: { value: new Float32Array([1,.8,.65]), type: 'vec3<f32>' },
     uSky: { value: new Float32Array([.35,.5,.65]), type: 'vec3<f32>' },
@@ -80,6 +81,7 @@ export class PlanetFlightSurface {
     const u = this.parameters.uniforms
     u.uViewport[0] = width; u.uViewport[1] = height
     u.uFocal = raidCameraFocal(width); u.uWet = wet ? 1 : 0
+    u.uTexel[0] = 1/paint.width; u.uTexel[1] = 1/paint.height
     u.uTravel = (seconds*.055)%1024
     if (this.mesh.texture !== paint) { this.mesh.texture = paint; this.mesh.shader!.resources.uGround = paint.source }
     if (lighting) {

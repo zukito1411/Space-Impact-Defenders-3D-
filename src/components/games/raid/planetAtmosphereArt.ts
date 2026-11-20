@@ -22,6 +22,35 @@ export function atmosphereNoise(x: number, y: number, seed: number) {
   }
   return value
 }
+
+function waterNoise(u: number, v: number, columns: number, rows: number, seed: number) {
+  const x = u * columns, y = v * rows, ix = Math.floor(x), iy = Math.floor(y)
+  const sx = smooth(fract(x)), sy = smooth(fract(y))
+  const cell = (a: number, b: number) => hash(((a % columns) + columns) % columns,
+    ((b % rows) + rows) % rows, seed)
+  return mix(mix(cell(ix, iy), cell(ix + 1, iy), sx),
+    mix(cell(ix, iy + 1), cell(ix + 1, iy + 1), sx), sy)
+}
+/** Periodic in both directions, including slopes. Lighting belongs in the
+ * surface shader, never in a repeating horizon gradient or bright stripe. */
+export function samplePlanetWater(u: number, v: number) {
+  const bend = (waterNoise(u, v, 8, 8, 361) - .5) * .045
+  return waterNoise(u, v + bend, 24, 48, 362) * .58
+    + waterNoise(u, v + bend, 48, 96, 363) * .28
+    + waterNoise(u, v + bend, 96, 192, 364) * .14
+}
+export function bakePlanetWater(width = 1024, height = 512) {
+  const data = new Uint8ClampedArray(width * height * 4)
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    const wave = samplePlanetWater((x + .5) / width, (y + .5) / height)
+    const i = (y * width + x) * 4
+    data[i] = 12 + wave * 22
+    data[i + 1] = 31 + wave * 40
+    data[i + 2] = 47 + wave * 48
+    data[i + 3] = 255
+  }
+  return data
+}
 export const CINDER_VENTS = [.18, .61, .86] as const
 export function planetTerrainHeight(u: number, layer: number, kind: PlanetAtmosphereKind) {
   u = fract(u)
@@ -58,7 +87,6 @@ export function bakePlanetTerrain(kind: PlanetAtmosphereKind, layer: number, wid
       const strata = atmosphereNoise(u * 128 + v * 3, v * 52, 87 + layer)
       const shade = .48 + n * .65 + strata * .23 + grain * .09
       const i = (y * width + x) * 4
-      const shore = kind === 'pelagic' && layer < 2 && v > .865 && v < .88 && ridge < height * .8 && n > .46
       let lava = 0
       if (kind === 'cinder' && layer === 1) for (let ventIndex = 0; ventIndex < CINDER_VENTS.length; ventIndex++) {
         const vent = CINDER_VENTS[ventIndex], flow = v - ventHeights[ventIndex]
@@ -68,8 +96,8 @@ export function bakePlanetTerrain(kind: PlanetAtmosphereKind, layer: number, wid
         if (flow > .18 && flow < .5 && Math.abs(u - tributary) < .0007) lava = .3 + n * .25
       }
       data[i] = color[0] * shade + lava * 205
-      data[i + 1] = color[1] * shade + lava * 66 + (shore ? 31 : 0)
-      data[i + 2] = color[2] * shade + lava * 12 + (shore ? 33 : 0)
+      data[i + 1] = color[1] * shade + lava * 66
+      data[i + 2] = color[2] * shade + lava * 12
       const edge = Math.min(1, y - ridge + 1)
       data[i + 3] = edge * 255 * (kind === 'pelagic' && layer < 2 ? Math.max(0, Math.min(1, (.93 - v) * 18)) : 1)
     }
