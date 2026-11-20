@@ -18,7 +18,7 @@ import math
 import numpy as np
 from PIL import Image
 
-BANKING = Path("public/assets/ships/banking")
+BANKING = Path("art/source-ships/banking")
 PREVIEWS = Path("public/assets/ships/previews")
 SOURCE_CELL = 448
 COLUMNS = 7

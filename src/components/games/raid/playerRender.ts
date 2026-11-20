@@ -1,9 +1,10 @@
+import { isRaid2DMech } from './mechArtwork'
 import { CARRIER_EXIT_SECONDS } from './carrierLaunch'
-import { sampleLiveProtection } from './liveProtection'
+import { prepareLiveProtection, sampleLiveProtection } from './liveProtection'
 import { drawLiveHull, liveHullsEnabled, sampleLiveHullPoints } from './liveHullBridge'
 import { loadHull } from './liveHullAssets'
 import { getRaidPlayerHullSize } from './playerMuzzle'
-import { drawRaidBankingCell, getBankingProtectionHull, getRaidBankingAtlas, getRaidBankingFrame } from './bankingArt'
+import { getRaidBankingFrame } from './bankingArt'
 import type { RaidBankingFrame } from './bankingArt'
 import { drawShipProtection, warmShipProtection } from './shipProtection'
 import { drawPlayerCondition } from './playerCondition'
@@ -15,12 +16,11 @@ import { getRaidExhaustScale, getRaidShipBaseVisualKey, getRaidShipNozzles, uses
 import { updateFlightPose, type FlightPose } from './combatFeel'
 import { COMBAT_TILE, drawRaidCombatTexture, getRaidCombatFrame } from './combatArt'
 import type { ShipCosmeticEquipState } from '../../../progression'
-import { drawCanvasSprite, drawCanvasSpriteContain, drawSpriteGlow, getCanvasSpriteDimensions, getCanvasSpriteSource, getRaidSideShipCanvasSprite, getShipCanvasSprite } from './assets'
+import { drawCanvasSprite, drawCanvasSpriteContain, drawSpriteGlow, getRaidSideShipCanvasSprite, getShipCanvasSprite } from './assets'
 import type { CanvasSpriteEntry } from './assets'
 import { hexToRgba } from './bossRender'
-import { ALLY_PLAYER_COLOR, FORCE_FIELD_ARMOR, GOD_GUNDAM_BURNING_BODY_SCALE, GOD_GUNDAM_BURNING_BODY_Y_OFFSET, GOD_GUNDAM_BURNING_HALO_SCALE, GOD_GUNDAM_BURNING_HALO_Y_OFFSET, MESIAH_DRONE_HOME_OFFSET, MESIAH_DRONE_MAX_FIRE_RANGE, MESIAH_DRONE_MIN_FIRE_RANGE, MESIAH_DRONE_MOBILE_HOME_OFFSET, PLAYER_COLOR, SPACE_ET_PASSIVE_FORCE_FIELD_CHARGES, SPIEGEL_AFTERIMAGE_CAP, getShipSpriteSize } from './constants'
+import { ALLY_PLAYER_COLOR, DEG, FORCE_FIELD_ARMOR, GOD_GUNDAM_BURNING_BODY_SCALE, GOD_GUNDAM_BURNING_BODY_Y_OFFSET, GOD_GUNDAM_BURNING_HALO_SCALE, GOD_GUNDAM_BURNING_HALO_Y_OFFSET, MESIAH_DRONE_HOME_OFFSET, MESIAH_DRONE_MAX_FIRE_RANGE, MESIAH_DRONE_MIN_FIRE_RANGE, MESIAH_DRONE_MOBILE_HOME_OFFSET, PLAYER_COLOR, SPACE_ET_PASSIVE_FORCE_FIELD_CHARGES, SPIEGEL_AFTERIMAGE_CAP, getShipSpriteSize } from './constants'
 import { coreBlastSpriteCache } from './effectsRender'
-import { DEG } from './constants'
 import { getCoreLanderBurningRage, getCoreLanderFireInterval, isCoreLanderBurning } from './mechanics'
 import { getCoreLanderCombatModelFromVisualShipKey, getOptionSupportStacks, normalizeMesiahDrones, normalizeMesiahScoutDrones } from './state'
 import type { CoreLanderCombatModel, Enemy, GamePhase, MesiahDroneUnit, MesiahScoutUnit, Player, PowerKind, SpiegelAfterimage, Vec } from './types'
@@ -261,11 +261,9 @@ export function drawRaidOptions(
   const formationBank = getRaidPlayerFlightBank(color, player.x)
   if (supportStacks <= 0 && !isArk && !isMesiah) return
 
-  const drawSupportPair = (shipKey: string, offset: number, yOffset: number, maxBox: number, scale: number, filter: string) => {
+  const drawSupportPair = (shipKey: string, offset: number, yOffset: number, maxBox: number, scale: number, _filter: string) => {
     const optionShipSize = getShipSpriteSize(shipKey, 'option')
     const drawSize = Math.min(optionShipSize * scale, maxBox) * (landscape ? 1.15 : 1) * supportSizeScale
-    const sprite = getShipCanvasSprite(shipKey)
-    const sideSprite = landscape ? getRaidSideShipCanvasSprite(shipKey) : null
     const banking = getRaidBankingFrame(shipKey, formationBank, landscape, false)
 
     for (const side of [-1, 1]) {
@@ -273,11 +271,15 @@ export function drawRaidOptions(
       const y = toY(player.y + yOffset) + Math.sin(time / 900 + (side > 0 ? 0.18 : 0)) * 2.5
       const trailOverHull = shipKey === 'godGundam' || shipKey === 'spiegel'
       const throttle = .14 + (player.engineBoost ?? 0) * .58
-      if (!trailOverHull) drawSupportEngineTrail(ctx, x, y, drawSize, time, 0, 0.9, shipKey, throttle, Boolean(sideSprite?.loaded), banking?.nozzles)
-      if (banking) drawBankedHull(ctx, banking, x, y, drawSize, 1, 'none', color + ':option:' + shipKey + ':' + side)
-      else if (sideSprite?.loaded) drawCanvasSpriteContain(ctx, sideSprite, x, y, drawSize, 'none', 1, -Math.PI / 2, 1, color)
-      else drawCanvasSprite(ctx, sprite, x, y, drawSize, filter, 1, 0, 1, color)
-      if (trailOverHull) drawSupportEngineTrail(ctx, x, y, drawSize, time, 0, .7, shipKey, throttle, Boolean(sideSprite?.loaded), banking?.nozzles)
+      if (!trailOverHull) drawSupportEngineTrail(ctx, x, y, drawSize, time, 0, 0.9, shipKey, throttle, landscape, banking?.nozzles)
+      if (isRaid2DMech(shipKey)) {
+        const sprite = landscape ? getRaidSideShipCanvasSprite(shipKey) : getShipCanvasSprite(shipKey)
+        if (sprite?.loaded) {
+          if (landscape) drawCanvasSpriteContain(ctx, sprite, x, y, drawSize, _filter, 1, -Math.PI / 2, 1, color)
+          else drawCanvasSprite(ctx, sprite, x, y, drawSize, _filter, 1, 0, 1, color)
+        }
+      } else drawLiveHull(ctx,shipKey,x,y,drawSize,formationBank,1,landscape,color+':option:'+shipKey+':'+side)
+      if (trailOverHull) drawSupportEngineTrail(ctx, x, y, drawSize, time, 0, .7, shipKey, throttle, landscape, banking?.nozzles)
     }
   }
 
@@ -305,8 +307,6 @@ export function drawRaidOptions(
 
   if (isMesiah) {
     const droneShipKey = isWhiteMesiah ? 'mesiahRaptorWhite' : 'mesiahRaptorBlack'
-    const sprite = getShipCanvasSprite(droneShipKey)
-    const sideSprite = landscape ? getRaidSideShipCanvasSprite(droneShipKey) : null
     const drawSize = Math.min(getShipSpriteSize(droneShipKey, 'option') * (viewportWidth < 860 ? 1.14 : 1.28), viewportWidth < 860 ? 35 : 54) * (landscape ? 1.15 : 1) * supportSizeScale
     for (const drone of normalizeMesiahDrones(player)) {
       const idle = !isMesiahSortie || !drone.active
@@ -314,28 +314,17 @@ export function drawRaidOptions(
       const y = toY(drone.y) + Math.sin(time / (idle ? 520 : 135) + drone.side) * (idle ? 1.4 : 0.8)
       const alpha = idle ? 0.72 : 1
       const scale = idle ? 0.9 : 1
-      const filter = idle
-        ? 'brightness(0.86) contrast(1.08) saturate(0.92)'
-        : 'brightness(1.08) contrast(1.18) saturate(1.35)'
       const banking = getRaidBankingFrame(droneShipKey, idle ? 0 : clamp(drone.rotation, -.14, .14), landscape, false)
-      drawSupportEngineTrail(ctx, x, y, drawSize * scale, time, idle ? 0 : drone.rotation, idle ? 0.7 : 0.92, droneShipKey, idle ? .06 : .70, Boolean(sideSprite?.loaded), banking?.nozzles)
-      if (banking) {
-        ctx.save()
-        ctx.translate(x, y)
-        ctx.rotate(idle ? 0 : drone.rotation)
-        ctx.translate(-x, -y)
-        drawBankedHull(ctx, banking, x, y, drawSize * scale, alpha, 'none', color + ':drone:' + drone.side)
-        ctx.restore()
-      } else if (sideSprite?.loaded) drawCanvasSpriteContain(ctx, sideSprite, x, y, drawSize, 'none', alpha, (idle ? 0 : drone.rotation) - Math.PI / 2, scale, color)
-      else drawCanvasSprite(ctx, sprite, x, y, drawSize, filter, alpha, idle ? 0 : drone.rotation, scale, color)
+      drawSupportEngineTrail(ctx, x, y, drawSize * scale, time, idle ? 0 : drone.rotation, idle ? 0.7 : 0.92, droneShipKey, idle ? .06 : .70, landscape, banking?.nozzles)
+      ctx.save();ctx.translate(x,y);ctx.rotate(idle?0:drone.rotation);ctx.translate(-x,-y)
+      drawLiveHull(ctx,droneShipKey,x,y,drawSize*scale,idle?0:clamp(drone.rotation,-.14,.14),alpha,landscape,color+':drone:'+drone.side)
+      ctx.restore()
     }
   }
 
   if (supportStacks > 0) {
     if (player.ship.key === 'mesiah') {
       const scoutShipKey = isWhiteMesiah ? 'mesiahRaptorWhite' : 'mesiahRaptorBlack'
-      const scoutSprite = getShipCanvasSprite(scoutShipKey)
-      const sideScoutSprite = landscape ? getRaidSideShipCanvasSprite(scoutShipKey) : null
       const scoutSizeKey = scoutShipKey
       const scoutSize = Math.min(getShipSpriteSize(scoutSizeKey, 'option') * (viewportWidth < 860 ? 1.14 : 1.28), viewportWidth < 860 ? 35 : 54) * (landscape ? 1.15 : 1) * supportSizeScale
       for (const scout of normalizeMesiahScoutDrones(player)) {
@@ -343,16 +332,10 @@ export function drawRaidOptions(
         const x = toX(scout.x)
         const y = toY(scout.y)
         const banking = getRaidBankingFrame(scoutShipKey, clamp(scout.rotation, -.14, .14), landscape, false)
-        drawSupportEngineTrail(ctx, x, y, scoutSize, time, scout.rotation, 0.9, scoutShipKey, scout.canFire ? .48 : .78, Boolean(sideScoutSprite?.loaded), banking?.nozzles)
-        if (banking) {
-          ctx.save()
-          ctx.translate(x, y)
-          ctx.rotate(scout.rotation)
-          ctx.translate(-x, -y)
-          drawBankedHull(ctx, banking, x, y, scoutSize, 1, 'none', color + ':scout:' + scout.stack + ':' + scout.side)
-          ctx.restore()
-        } else if (sideScoutSprite?.loaded) drawCanvasSpriteContain(ctx, sideScoutSprite, x, y, scoutSize, 'none', 1, scout.rotation - Math.PI / 2, 1, color)
-        else drawCanvasSprite(ctx, scoutSprite, x, y, scoutSize, 'brightness(1.14) contrast(1.16) saturate(1.34)', 1, scout.rotation, 1, color)
+        drawSupportEngineTrail(ctx, x, y, scoutSize, time, scout.rotation, 0.9, scoutShipKey, scout.canFire ? .48 : .78, landscape, banking?.nozzles)
+        ctx.save();ctx.translate(x,y);ctx.rotate(scout.rotation);ctx.translate(-x,-y)
+        drawLiveHull(ctx,scoutShipKey,x,y,scoutSize,clamp(scout.rotation,-.14,.14),1,landscape,color+':scout:'+scout.stack+':'+scout.side)
+        ctx.restore()
       }
     } else {
       const supportShipKey = player.ship.key === 'coreLander'
@@ -859,67 +842,6 @@ export function getRaidPlayerFlightBank(color: string, x: number) {
   return pose && performance.now() - pose.time <= 150 && Math.abs(x - pose.x) <= 12 ? pose.bank : 0
 }
 
-const solarHullRims = new WeakMap<CanvasSpriteEntry, Map<number, HTMLCanvasElement>>()
-
-function drawSolarHullRim(ctx: CanvasRenderingContext2D, sprite: CanvasSpriteEntry, x: number, y: number, size: number, side: number, alpha: number, landscape = false, frame?: number) {
-  if (!sprite.loaded || typeof document === 'undefined') return
-  if (frame !== undefined && !Number.isInteger(frame)) {
-    const lower = Math.floor(frame)
-    const t = frame - lower
-    drawSolarHullRim(ctx, sprite, x, y, size, side, alpha * (1 - t), landscape, lower)
-    drawSolarHullRim(ctx, sprite, x, y, size, side, alpha * t, landscape, lower + 1)
-    return
-  }
-  const slot = side < 0 ? 0 : 1
-  const key = frame === undefined ? slot : (frame + 1) * 2 + slot
-  let rims = solarHullRims.get(sprite)
-  if (!rims) {
-    rims = new Map()
-    solarHullRims.set(sprite, rims)
-  }
-  let rim = rims.get(key)
-  if (!rim) {
-    rim = document.createElement('canvas')
-    const edge = 96
-    rim.width = rim.height = edge
-    const bake = rim.getContext('2d')
-    if (!bake) return
-    if (frame !== undefined) drawRaidBankingCell(bake, sprite, frame, edge / 2, edge / 2, edge)
-    else if (landscape) {
-      const { source, width, height } = getCanvasSpriteDimensions(sprite)
-      const fit = edge / Math.max(1, width, height)
-      bake.save()
-      bake.translate(edge / 2, edge / 2)
-      bake.rotate(-Math.PI / 2)
-      bake.drawImage(source, -width * fit / 2, -height * fit / 2, width * fit, height * fit)
-      bake.restore()
-    } else bake.drawImage(getCanvasSpriteSource(sprite), 0, 0, edge, edge)
-    bake.globalCompositeOperation = 'source-in'
-    const ramp = bake.createLinearGradient(slot === 0 ? 0 : edge, 12, slot === 0 ? edge : 0, 62)
-    ramp.addColorStop(0, 'rgba(255,226,181,.7)')
-    ramp.addColorStop(.39, 'rgba(255,197,133,.25)')
-    ramp.addColorStop(.54, 'rgba(255,197,133,0)')
-    bake.fillStyle = ramp
-    bake.fillRect(0, 0, edge, edge)
-    rims.set(key, rim)
-  }
-  ctx.save()
-  ctx.globalCompositeOperation = 'lighter'
-  ctx.globalAlpha *= alpha
-  ctx.drawImage(rim, x - size / 2, y - size / 2, size, size)
-  ctx.restore()
-}
-
-function drawBankedHull(ctx: CanvasRenderingContext2D, banking: RaidBankingFrame, x: number, y: number,
-  size: number, alpha: number, filter: string, identity = banking.key) {
-  if (drawLiveHull(ctx, banking.key, x, y, size, banking.bank, alpha, banking.landscape, identity)) return
-  ctx.save()
-  ctx.globalAlpha *= alpha
-  if (filter && filter !== 'none') ctx.filter = filter
-  drawRaidBankingCell(ctx, banking.sprite, banking.frame, x, y, size)
-  ctx.restore()
-}
-
 export function drawRaidPlayer(
   ctx: CanvasRenderingContext2D,
   player: Player,
@@ -932,9 +854,9 @@ export function drawRaidPlayer(
   cosmetics: Required<ShipCosmeticEquipState> = { trail: false, aura: false, frame: false },
   visualShipKey = player.ship.key,
   identityAuraColor: string | null = null,
-  environmentRim: string | null = null,
+  _environmentRim: string | null = null,
   eclipse = 0,
-  sunlight = 0,
+  _sunlight = 0,
   reducedMotion = false,
   landscape = false,
   presentation?: { scale: number; engine: number; hideCombatFx: boolean; carrierAge?: number },
@@ -948,15 +870,7 @@ export function drawRaidPlayer(
     flightPoses.set(color, pose)
   }
   const bank = updateFlightPose(pose, time, player.x)
-  // The blended pose already contains the full roll. Rotate only fallback art.
-  const bankedHullReady = liveHullsEnabled() || player.ship.key !== 'coreLander' && player.hp > 0 &&
-    (Boolean(presentation) || phase === 'playing' || phase === 'paused') &&
-    Boolean(getRaidBankingAtlas(visualShipKey)?.loaded)
-  const hullRoll = reducedMotion || bankedHullReady ? 0 : bank
   ctx.save()
-  ctx.translate(x, y)
-  ctx.rotate(!presentation && phase === 'playing' && player.hp > 0 && player.ship.key !== 'coreLander' ? hullRoll : 0)
-  ctx.translate(-x, -y)
   try {
   const size = getRaidPlayerHullSize(player.ship.key, viewportWidth, landscape, player.sizeScale) * (presentation?.scale ?? 1)
   const isDown = phase === 'gameover' || player.hp <= 0
@@ -989,31 +903,21 @@ export function drawRaidPlayer(
     (player.godMeleeCloak ?? 0) <= 0
   const protectionAttackPose = coreLanderCombatModel && sideSprite?.loaded && attackActive
     ? sampleMechAttack(coreLanderCombatModel, player.fireCooldown, getCoreLanderFireInterval(player), reducedMotion) : null
-  const mechAttackStage = protectionAttackPose?.stage
-  const mayBankMech = !protectionAttackPose || (Math.abs(bank) > .041 &&
-    (mechAttackStage === 'recover' || mechAttackStage === 'windup'))
-  const flightBank = phase === 'playing' ? bank : 0
   const bankingKey = sideBurningKey && coreLanderBurningBlend >= .5 ? sideBurningKey : sideVisualKey
-  const liveBank = reducedMotion || phase !== 'playing' ? 0 : bank
+  const liveBank = reducedMotion || phase !== 'playing' || presentation ? 0 : bank
   const crouch = coreLanderCombatModel && presentation?.carrierAge !== undefined
     ? clamp((CARRIER_EXIT_SECONDS+.8-presentation.carrierAge)/.8,0,1) : 0
   const attack = coreLanderCombatModel && protectionAttackPose
     ? Math.sin(Math.PI*clamp(1-player.fireCooldown/Math.max(.001,getCoreLanderFireInterval(player)),0,1)) : 0
-  // Carrier ignition and the playable phase share the exact same 3D hull.
-  // Dock/mech poses still take precedence when the carrier explicitly animates them.
-  const banking = !liveHullsEnabled() && !isDown && (Boolean(presentation) || phase === 'playing' || phase === 'paused') &&
-    (!coreLanderCombatModel || mayBankMech)
-    ? getRaidBankingFrame(bankingKey, flightBank, landscape, reducedMotion) : null
-  const livePoints = liveHullsEnabled() ? sampleLiveHullPoints(sideVisualKey, reducedMotion ? 0 : bank, landscape) : null
-  const nozzles = livePoints?.nozzles ?? banking?.nozzles ?? (landscape ? getRaidSideShipNozzles(sideVisualKey) : undefined) ?? getRaidShipNozzles(sideVisualKey)
+  const livePoints = !coreLanderCombatModel && liveHullsEnabled() ? sampleLiveHullPoints(bankingKey, liveBank, landscape) : null
+  const nozzles = livePoints?.nozzles ?? (landscape ? getRaidSideShipNozzles(sideVisualKey) : undefined) ?? getRaidShipNozzles(sideVisualKey)
 
   if (!isDown && !coreLanderCombatModel && (presentation?.engine ?? 1) > 0) {
     ctx.save()
     ctx.globalAlpha *= presentation?.engine ?? 1
-    drawHullExhaust(ctx, x, y, renderSize, time, engineBoost, visualShipKey, undefined, trailColor, cosmeticShipKey, landscape && Boolean(sideSprite?.loaded), livePoints?.nozzles ?? banking?.nozzles)
+    drawHullExhaust(ctx, x, y, renderSize, time, engineBoost, visualShipKey, undefined, trailColor, cosmeticShipKey, landscape && Boolean(sideSprite?.loaded), livePoints?.nozzles)
     ctx.restore()
   }
-  const sunSide = Math.sign(sunlight)
   const maneuverJet = pose.maneuverJet ?? 0
   if (nozzles?.length && player.ship.key !== 'coreLander' && !isDown && phase === 'playing' && !reducedMotion && Math.abs(maneuverJet) > .065) {
     const side = Math.sign(maneuverJet)
@@ -1092,9 +996,7 @@ export function drawRaidPlayer(
     let protectionHull: ProtectionHull = sideSprite?.loaded
       ? { sprite: sideSprite, contain: true, rotation: -Math.PI / 2 }
       : { sprite: getShipCanvasSprite(sideVisualKey) }
-    if (banking) {
-      protectionHull = getBankingProtectionHull(banking.sprite, landscape)
-    } else if (coreLanderCombatModel && protectionAttackPose) {
+    if (coreLanderCombatModel && protectionAttackPose) {
       const atlas = getMechActionAtlas(coreLanderCombatModel, coreLanderBurning)
       if (atlas.loaded) protectionHull = { sprite: atlas, contain: true, rotation: -Math.PI / 2,
         columns: coreLanderCombatModel === 'godGundam' ? 3 : 2, rows: 2, frame: protectionAttackPose.frame }
@@ -1106,7 +1008,7 @@ export function drawRaidPlayer(
         protectionY += renderSize * GOD_GUNDAM_BURNING_BODY_Y_OFFSET
       }
     }
-    if (liveHullsEnabled()) {
+    if (!coreLanderCombatModel && liveHullsEnabled()) {
       const contours = sampleLiveProtection(bankingKey,liveBank,landscape,attack,crouch)
       if (contours) {
         protectionHull = { sprite: getShipCanvasSprite(bankingKey),contours }
@@ -1135,39 +1037,9 @@ export function drawRaidPlayer(
         : `rgba(251,${Math.round(191 - 74 * coreLanderBurningRage)},${Math.round(36 - 20 * coreLanderBurningRage)},${(0.28 + coreLanderBurningRage * 0.16).toFixed(2)})`
       : 'rgba(251,191,36,0.28)'
     : player.forceField > 0 || player.shield > 0 ? null : player.invuln > 0 ? 'rgba(226,232,240,0.1)' : null
-  // Diffuse portrait-space lighting appears as a detached ring beside thin side-view ships.
-  if (!landscape && sunSide && eclipse < .86 && !isDown) {
-    drawSpriteGlow(ctx, x + sunSide * renderSize * .18, y - renderSize * .13, renderSize * .71,
-      'rgba(255,226,178,.27)', .62 * Math.abs(sunlight) * (1 - eclipse))
-  }
-  if (spriteGlow) drawSpriteGlow(ctx, x, y, renderSize, spriteGlow, 0.68)
-  else if (!isDown && (!landscape || banking) && player.forceField <= 0 && player.shield <= 0) drawSpriteGlow(ctx, x, y, renderSize, environmentRim ?? hexToRgba(color, 0.09), banking ? 0.20 : 0.55)
-  const liveHullDrawn = drawLiveHull(ctx, bankingKey, x, y, renderSize * scale, liveBank, alpha,
+  const liveHullDrawn = !coreLanderCombatModel && drawLiveHull(ctx, bankingKey, x, y, renderSize * scale, liveBank, alpha,
     landscape, color, { attack, crouch })
-  if (liveHullDrawn && coreLanderCombatModel && import.meta.env.DEV) {
-    if (dockPose) ctx.canvas.dataset.mechDockFrame = String(dockPose.frame)
-    if (protectionAttackPose) {
-      ctx.canvas.dataset.mechActionStage = protectionAttackPose.stage
-      ctx.canvas.dataset.mechActionModel = coreLanderCombatModel
-    }
-  }
-  if (liveHullDrawn && coreLanderCombatModel === 'spiegel' && coreLanderBurningBlend > .01 && !sideSprite?.loaded) {
-    const baseSprite = getShipCanvasSprite('spiegel')
-      for (const side of [-1, 1] as const) {
-        drawCanvasSprite(
-          ctx,
-          baseSprite,
-          x + side * renderSize * 0.52,
-          y + renderSize * 0.04,
-          renderSize * 0.9,
-          normalSpriteFilter,
-          alpha * coreLanderBurningBlend * 0.28,
-          rotation + side * 0.04,
-          scale,
-          masteryPaintColor,
-        )
-      }
-  }
+  if (spriteGlow && (!liveHullDrawn || coreLanderBurning)) drawSpriteGlow(ctx, x, y, renderSize, spriteGlow, .68)
   // Dock exhaust remains the original 2D effect for live and fallback bodies.
   if(dockReady&&dockPose&&coreLanderCombatModel){
     if((presentation?.engine??0)>0){
@@ -1177,16 +1049,9 @@ export function drawRaidPlayer(
       ctx.restore()
     }
   }
-  if (!liveHullDrawn) {
+  if (coreLanderCombatModel) {
   if(dockReady&&dockPose&&coreLanderCombatModel){
     drawMechDockPose(ctx,coreLanderCombatModel,dockPose,x,y,renderSize,alpha)
-  } else if (banking) {
-    const hullFilter = coreLanderCombatModel && !landscape && cosmetics.frame ? normalSpriteFilter : eclipseFilter
-    drawBankedHull(ctx, banking, x, y, renderSize, alpha, hullFilter)
-    if (ctx.canvas.dataset && import.meta.env.DEV) {
-      ctx.canvas.dataset.raidBankingFrame = String(banking.frame)
-      ctx.canvas.dataset.raidBankingShip = bankingKey
-    }
   } else if (sideSprite?.loaded) {
     // The playfield turns clockwise; rotate the right-facing art into its
     // logical upward flight direction before the camera transform.
@@ -1282,15 +1147,10 @@ export function drawRaidPlayer(
     )
   }
   }
-  if (sunSide && nozzles && player.ship.key !== 'coreLander' && !isDown && eclipse < .86) {
-    drawSolarHullRim(ctx, banking?.sprite ?? (sideSprite?.loaded ? sideSprite : sprite), x, y, renderSize, sunSide, (banking ? .38 : .56) * Math.abs(sunlight) * (1 - eclipse), Boolean(sideSprite?.loaded), banking?.frame)
-  }
   if (coreLanderCombatModel && !dockReady && !isDown && (presentation?.engine ?? 1) > 0) {
     ctx.save()
     ctx.globalAlpha *= .7 * (presentation?.engine ?? 1)
-    if (banking) {
-      drawHullExhaust(ctx, x, y, renderSize, time, engineBoost, bankingKey, undefined, trailColor, cosmeticShipKey, landscape, banking.nozzles)
-    } else if (landscape && sideSprite?.loaded) {
+    if (landscape && sideSprite?.loaded) {
       if (coreLanderCombatModel === 'godGundam' && coreLanderBurningBlend > .01) {
         drawCrossfadeExhaust(ctx, x, y, renderSize, sideVisualKey, y, renderSize, 'godGundamBurning', coreLanderBurningBlend, time, engineBoost, trailColor, cosmeticShipKey, true)
       } else drawHullExhaust(ctx, x, y, renderSize, time, engineBoost, sideVisualKey, undefined, trailColor, cosmeticShipKey, true)
@@ -1465,6 +1325,8 @@ function drawHullExhaust(ctx: CanvasRenderingContext2D, x: number, y: number, si
   }
 }
 
+
+
 function drawCrossfadeExhaust(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, visualKey: string,
   burningY: number, burningSize: number, burningKey: string, blend: number, time: number, boost: number,
   trailColor: string | undefined, cosmeticKey: string, landscape = false) {
@@ -1620,31 +1482,33 @@ function getSideAuraSprite(sprite: CanvasSpriteEntry) {
   return canvas
 }
 
-export function warmRaidBankingArt(visualShipKey: string, _landscape: boolean) {
-  void loadHull(visualShipKey).catch(() => {})
-  const sprite = getShipCanvasSprite(visualShipKey)
-  void sprite.ready.then(() => { if (sprite.loaded) warmShipProtection({ sprite }) })
+export function warmRaidBankingArt(visualShipKey:string,_landscape=false){
+  if (isRaid2DMech(visualShipKey)) {
+    warmRaidSideCosmetics(visualShipKey)
+    return
+  }
+  void loadHull(visualShipKey).then(asset=>prepareLiveProtection(visualShipKey,asset)).catch(error=>console.warn('Hull preparation:',visualShipKey,error))
 }
-
 export function warmRaidSideCosmetics(visualShipKey: string, aura = true) {
+  if (!isRaid2DMech(visualShipKey)) {
+    warmRaidBankingArt(visualShipKey, true)
+    return
+  }
   const portrait = getShipCanvasSprite(visualShipKey)
   void portrait.ready.then(() => { warmShipProtection({ sprite: portrait }) })
-  const model = visualShipKey.startsWith('godGundam') ? 'godGundam' : visualShipKey === 'spiegel' ? 'spiegel' : null
-  if (model) {
-    for (const burning of model === 'godGundam' ? [false, true] : [false]) {
-      const atlas = getMechActionAtlas(model, burning)
-      void atlas.ready.then(() => {
-        const columns = model === 'godGundam' ? 3 : 2
-        for (let frame = 0; frame < columns * 2; frame++) warmShipProtection({
-          sprite: atlas, contain: true, rotation: -Math.PI / 2, columns, rows: 2, frame,
-        })
-      })
-    }
-  }
-  const sprite = getRaidSideShipCanvasSprite(visualShipKey)
-  if (sprite) void sprite.ready.then(() => {
-    warmShipProtection({ sprite, contain: true, rotation: -Math.PI / 2 })
-    if (aura) getSideAuraSprite(sprite)
+  const model = visualShipKey === 'spiegel' ? 'spiegel' : 'godGundam'
+  const atlas = getMechActionAtlas(model, visualShipKey === 'godGundamBurning')
+  getMechDockAtlas(model)
+  void atlas.ready.then(() => {
+    const columns = model === 'godGundam' ? 3 : 2
+    for (let frame = 0; frame < columns * 2; frame++) warmShipProtection({
+      sprite: atlas, contain: true, rotation: -Math.PI / 2, columns, rows: 2, frame,
+    })
+  })
+  const side = getRaidSideShipCanvasSprite(visualShipKey)
+  if (side) void side.ready.then(() => {
+    warmShipProtection({ sprite: side, contain: true, rotation: -Math.PI / 2 })
+    if (aura) getSideAuraSprite(side)
   })
 }
 
@@ -1661,9 +1525,20 @@ function drawSideBurningWake(ctx: CanvasRenderingContext2D, x: number, y: number
   ctx.restore()
 }
 
-export function drawMasteryAura(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, time: number, shipKey: string, color: string, visualShipKey = shipKey, landscape = false) {
+export function drawMasteryAura(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, time: number, shipKey: string, color: string, visualShipKey = shipKey, landscape = false,bank=0,attack=0,crouch=0) {
   const style = getMasteryVisualStyle(shipKey, color)
   const pulse = 0.95 + Math.sin(time / 260) * 0.12
+  const contours=!isRaid2DMech(visualShipKey)&&liveHullsEnabled()?sampleLiveProtection(visualShipKey,bank,landscape,attack,crouch):undefined
+  if(contours){
+    const path=contours.field.points
+    ctx.save();ctx.translate(x,y);ctx.scale(size,size);ctx.globalCompositeOperation='lighter'
+    ctx.strokeStyle=style.paint;ctx.shadowColor=style.paint;ctx.shadowBlur=size*.045
+    ctx.lineJoin='round';ctx.beginPath()
+    for(let i=0;i<path.length;i+=2){if(i===0)ctx.moveTo(path[i],path[i+1]);else ctx.lineTo(path[i],path[i+1])}
+    ctx.closePath();ctx.globalAlpha*=pulse*.26;ctx.lineWidth=.025;ctx.stroke()
+    ctx.shadowBlur=0;ctx.lineWidth=.011;ctx.stroke();ctx.restore();return
+  }
+  if(!isRaid2DMech(visualShipKey)&&liveHullsEnabled())return
   if (landscape) {
     const sprite = getRaidSideShipCanvasSprite(visualShipKey)
     const aura = sprite && getSideAuraSprite(sprite)

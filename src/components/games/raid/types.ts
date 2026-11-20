@@ -411,6 +411,8 @@ export type MultiplayerHostState = {
   nukeBlastOrigin: Vec
   godBarrage: GodGundamBarrage | null
   asteroids: AsteroidHazard[]
+  incomingAsteroids?: AsteroidHazard[]
+  asteroidApproachRemaining?: number
   asteroidWarning: number
   randomEvent: RaidRandomEvent | null
   meteors: MeteorHazard[]

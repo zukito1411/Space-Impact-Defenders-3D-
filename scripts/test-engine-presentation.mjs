@@ -2,11 +2,13 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import ts from 'typescript'
 let source=readFileSync(new URL('../src/components/games/raid/playerRender.ts',import.meta.url),'utf8')
-source=source.replace(/^import[^\r\n]*\r?\n/gm,'')
+source=source.replace(/^import[^\r\n]*\r?\n/gm,'').replaceAll('import.meta.env.DEV','false')
 const artwork=readFileSync(new URL('../src/components/games/raid/shipArtwork.ts',import.meta.url),'utf8')
 const muzzle=readFileSync(new URL('../src/components/games/raid/playerMuzzle.ts',import.meta.url),'utf8').replace(/^import[^\r\n]*\r?\n/gm,'')
 source=`
-const liveHullsEnabled=()=>false, drawLiveHull=()=>false, sampleLiveHullPoints=()=>null, loadHull=async()=>{};
+const isRaid2DMech=key=>['godGundam','godGundamBurning','spiegel'].includes(key);
+const liveHullsEnabled=()=>true,drawLiveHull=(ctx,key,x,y,size)=>{ctx.hulls.push(size);return true},
+ sampleLiveHullPoints=(key,bank,landscape)=>({nozzles:landscape?[[.10,.22,.05]]:getRaidShipNozzles(key),wing:[]}),loadHull=async()=>{};
 const CARRIER_EXIT_SECONDS=20;
 const WIDTH=100, HEIGHT=100, DEG=Math.PI/180, PLAYER_COLOR='#ef233c';
 const updateFlightPose=(pose)=>{pose.maneuverJet=globalThis.testManeuverJet??0;return 0};
@@ -15,10 +17,8 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const isCoreLanderBurning=()=>false, getCoreLanderBurningRage=()=>0;
 const getCoreLanderFireInterval=()=>.5,sampleMechAttack=()=>({frame:3,stage:'idle'}),drawMechAction=()=>false,getMechActionAtlas=()=>({});
 const getShipCanvasSprite=()=>({});
-// Exercise the existing sprite/exhaust fallback; banking atlases are tested separately.
-const getRaidBankingFrame=()=>globalThis.testBankingEnabled?{sprite:{loaded:true,cacheKey:'banking-test'},frame:3,nozzles:[[0,.22,.05]]}:null;
-const getRaidBankingAtlas=()=>globalThis.testBankingEnabled?{loaded:true}:null;
-const drawRaidBankingCell=(ctx)=>{ctx.bankedCells=(ctx.bankedCells??0)+1;};
+// Use mesh submissions and registered hardpoints while preserving the real exhaust renderer.
+const getRaidBankingFrame=()=>({nozzles:[[.10,.22,.05]]});
 const warmSpaceJetForceField=()=>{};
 const getRaidSideShipCanvasSprite=()=>({loaded:true}),getRaidSideShipNozzles=()=>[[.10,.22,.05]],drawCanvasSpriteContain=(ctx,sprite,x,y,size)=>ctx.hulls.push(size);
 const getOptionSupportStacks=()=>1,getShipSpriteSize=()=>30;
@@ -72,7 +72,7 @@ for(const key of [...hullKeys,...hullKeys.map(key=>key+'Elite'),...combatKeys]) 
 for (const landscape of [false,true]) {
  const ctx=context()
  drawRaidPlayer(ctx,player,'playing',v=>v*10,v=>v*5,420,1100,'#ef233c',regularCosmetics,'rocket',null,'rgba(255,200,150,.2)',0,1,false,landscape)
- assert.equal(ctx.glows.length,landscape?0:2,'unexpected detached environmental glow')
+ assert.equal(ctx.glows.length,0,'unexpected detached environmental glow')
 }
 // Side-view thruster roots stay attached when the configured ship size changes.
 for(const sizeScale of [1,1.2,1.5]) {
@@ -213,11 +213,11 @@ try {
  launch.canvas={dataset:null}
  drawRaidPlayer(launch,player,'playing',v=>v*10,v=>v*5,420,1100,'#ef233c',regularCosmetics,'rocket',
    null,null,0,0,false,true,{scale:1,engine:0,hideCombatFx:true})
- assert.equal(launch.bankedCells,1,'carrier ignition reverted to 2D ship art')
+ assert.equal(launch.hulls.length,1,'carrier ignition must submit one live hull')
 
  const scouts=context()
  drawRaidOptions(scouts,{...player,optionStacks:1},v=>v*10,v=>v*5,420,1100,'#ef233c','rocket',true)
- assert.equal(scouts.bankedCells,2,'Scout escorts reverted to 2D sprites')
+ assert.equal(scouts.hulls.length,2,'both Scout escorts must submit live hulls')
 } finally { delete globalThis.testBankingEnabled }
 console.log('Engine: shorter idle, heat ramp, mounted scout exhaust, aligned atlas hot core, layered signature, and bounded bitmap draws passed')
 

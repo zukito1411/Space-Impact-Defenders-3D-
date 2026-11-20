@@ -1,22 +1,21 @@
+import { isRaid2DMech } from './mechArtwork'
 import { Group, Mesh, MeshStandardMaterial, type Object3D } from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { getPublicAssetUrl } from '../sound'
+import { ENEMY_HULL_SPECS } from './enemyHulls'
 import { paintedVolume } from './paintedVolume'
+import { prepareHullDocking, type HullDocking } from './hullDocking'
 
 export type HullRegistration = {
   registration: number[]
   nozzles: number[][]
   wing: number[][]
 }
-type HullAsset = { object: Group; registration: HullRegistration; references: number; lastUse: number }
+type HullAsset = { object: Group; registration: HullRegistration; docking?: HullDocking; references: number; lastUse: number }
 const assets = new Map<string, HullAsset>()
 const pending = new Map<string, Promise<HullAsset>>()
 const loader = new GLTFLoader()
 let manifest: Promise<Record<string, HullRegistration>> | null = null
-const mechArt: Record<string, string> = {
-  godGundam: 'god-gundam.png', godGundamBurning: 'god-gundam-burning.png', spiegel: 'spiegel.png',
-}
-
 let activeLoads = 0
 const loadQueue: Array<() => void> = []
 function admittedLoad<T>(work: () => Promise<T>): Promise<T> {
@@ -37,6 +36,7 @@ export function hullKey(key: string) { return key === 'mesiah' ? 'mesiahBlack' :
 
 export function loadHull(key: string): Promise<HullAsset> {
   key = hullKey(key)
+  if (isRaid2DMech(key)) return Promise.reject(new Error(key + ' uses authored 2D artwork'))
   const existing = assets.get(key)
   if (existing) { existing.lastUse = performance.now(); return Promise.resolve(existing) }
   const request = pending.get(key)
@@ -44,14 +44,15 @@ export function loadHull(key: string): Promise<HullAsset> {
   const operation = admittedLoad(async () => {
     const object = new Group()
     let registration: HullRegistration
-    if (mechArt[key]) {
+    const enemy = ENEMY_HULL_SPECS[key]
+    if (enemy) {
       const image = new Image()
-      image.src = getPublicAssetUrl('assets/ships/' + mechArt[key])
+      image.src = getPublicAssetUrl(enemy.assetPath)
       await image.decode()
-      const body = await paintedVolume(image, image.naturalWidth, image.naturalHeight)
+      const body = await paintedVolume(image, image.naturalWidth, image.naturalHeight, enemy.resolution, enemy.profile, enemy.filter)
       body.scale.setScalar(288)
       object.add(body)
-      registration = { registration: [1.3, 1.3, 36, 36], nozzles: [[-12, -95, 0, 12], [12, -95, 0, 12]], wing: [] }
+      registration = { registration: [448/288,448/288,0,0], nozzles: [], wing: [] }
     } else {
       manifest ??= fetch(getPublicAssetUrl('assets/ships/models/v1/manifest.json')).then(response => {
         if (!response.ok) throw new Error('Live hull manifest unavailable')
@@ -73,7 +74,8 @@ export function loadHull(key: string): Promise<HullAsset> {
         }
       })
     }
-    const asset = { object, registration, references: 0, lastUse: performance.now() }
+    const docking = enemy ? undefined : prepareHullDocking(object,key,registration)
+    const asset = { object, registration, docking, references: 0, lastUse: performance.now() }
     assets.set(key, asset)
     return asset
   }).finally(() => pending.delete(key))
@@ -96,11 +98,11 @@ export function releaseHull(key: string, object: Object3D) {
 }
 
 export function trimHullAssets() {
-  if (assets.size <= 12) return
+  if (assets.size <= 40) return
   const now = performance.now()
   let released = 0
   for (const [key, asset] of assets) {
-    if (assets.size <= 12 || released >= 2) break
+    if (assets.size <= 40 || released >= 2) break
     if (asset.references || now - asset.lastUse < 6000) continue
     asset.object.traverse(child => {
       if (!(child instanceof Mesh)) return
@@ -117,3 +119,5 @@ export function trimHullAssets() {
 }
 
 export function getHullRegistration(key: string) { return assets.get(hullKey(key))?.registration ?? null }
+
+export function getHullDocking(key: string) { return assets.get(hullKey(key))?.docking }

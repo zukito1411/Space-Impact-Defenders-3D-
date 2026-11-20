@@ -14,7 +14,7 @@ from argparse import ArgumentParser
 import numpy as np
 from PIL import Image, ImageFilter
 
-ROOT = Path("public/assets/ships")
+ROOT = Path("art/source-ships")
 CELL, COLS, ROWS = 448, 7, 2
 SOURCE_CELL = 224
 NAMES = dict(rocket="black-comet", fast="red-wraith", gatling="crimson-saw",

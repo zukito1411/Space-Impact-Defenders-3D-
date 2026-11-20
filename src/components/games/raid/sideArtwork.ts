@@ -1,33 +1,8 @@
-import { getMechFlightNozzles } from './mechFlight'
+import { MECH_SIDE_PATHS } from './mechArtwork'
 import { getPublicAssetUrl } from '../sound'
+import { getMechFlightNozzles } from './mechFlight'
+import { getRaidPicker3DPreviewUrl } from './bankingArt'
 import { getRaidShipBaseVisualKey } from './shipArtwork'
-
-// Stable v1 names with content fingerprints for the image service-worker cache.
-const SIDE_PATHS: Record<string, string> = {
-  rocket: 'black-comet-v1.png?art=b943e461c527',
-  fast: 'red-wraith-v1.png?art=b9e31eec9df7',
-  gatling: 'crimson-saw-v1.png?art=894ef200ddf0',
-  laser: 'night-lance-v1.png?art=9bd7cccb61c7',
-  dreadnought: 'obsidian-ark-v1.png?art=1fd6c9ce3a1d',
-  xwing: 'crosswing-nova-v1.png?art=744fefdf417a',
-  spaceEt: 'space-jet-v1.png',
-  mesiah: 'mesiah-v1.png?art=1a6b99f7f1de',
-  mesiahWhite: 'mesiah-white-v1.png?art=d59a75ff125d',
-  mesiahRaptorBlack: 'mesiah-raptor-black-v1.png?art=eb641ff455b5',
-  mesiahRaptorWhite: 'mesiah-raptor-white-v1.png?art=8dae3f321d42',
-  godGundam: 'god-gundam-flight-v4.webp',
-  godGundamBurning: 'god-gundam-burning-flight-v5.webp',
-  spiegel: 'spiegel-flight-v2.webp',
-  rocketElite: 'black-comet-elite-v1.png?art=ef5def01b05d',
-  fastElite: 'red-wraith-elite-v1.png?art=59dd2a6cb3a7',
-  gatlingElite: 'crimson-saw-elite-v1.png?art=012984b9c016',
-  laserElite: 'night-lance-elite-v1.png?art=5e25da05d1b2',
-  dreadnoughtElite: 'obsidian-ark-elite-v1.png?art=a4bf9fc7ffb7',
-  xwingElite: 'crosswing-nova-elite-v1.png?art=1e0e076189a9',
-  spaceEtElite: 'space-jet-elite-v1.png?art=8d2d1702f93e',
-  mesiahBlackElite: 'mesiah-elite-v1.png?art=eeb846760888',
-  mesiahWhiteElite: 'mesiah-white-elite-v1.png?art=256938ba06ea',
-}
 
 function sideKey(shipKey: string) {
   const key = getRaidShipBaseVisualKey(shipKey)
@@ -35,8 +10,8 @@ function sideKey(shipKey: string) {
 }
 
 export function getRaidSideShipSpriteUrl(shipKey: string) {
-  const path = SIDE_PATHS[shipKey] ?? SIDE_PATHS[sideKey(shipKey)]
-  return path ? getPublicAssetUrl(`assets/ships/sideview/${path}`) : null
+  if (MECH_SIDE_PATHS[shipKey]) return getPublicAssetUrl(MECH_SIDE_PATHS[shipKey])
+  return getRaidPicker3DPreviewUrl(shipKey,true)
 }
 
 // Convert outlets measured in the right-facing artwork to logical flight space.

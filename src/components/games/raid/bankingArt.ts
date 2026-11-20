@@ -1,135 +1,39 @@
+import { isRaid2DMech } from './mechArtwork'
 import { liveHullsEnabled, sampleLiveHullPoints } from './liveHullBridge'
 import { getPublicAssetUrl } from '../sound'
-import { getCanvasSpriteSource, getShipCanvasSprite, makeImageCanvasSprite, releaseCanvasSprite } from './assets'
-import type { CanvasSpriteEntry } from './assets'
-import type { ProtectionHull } from './shipProtection'
 import anchors from './bankingAnchors.json'
 
-export const BANKING_COLUMNS = 7
-export const BANKING_ROWS = 6
-export const BANKING_CELL = 448
-// The source atlas is oriented nose-up for both flight-camera modes. UI previews
-// must apply the flight camera's quarter turn when shown on a landscape screen.
-export function raidBankingPreviewAngle(landscape: boolean) { return landscape ? 90 : 0 }
-export function raidBankingPreviewNozzle(x: number, y: number, landscape: boolean) {
-  return landscape ? { x: -y, y: x } : { x, y }
+export type BankingPoint = readonly [number,number]
+type Outlet = readonly [number,number,number]
+type Registration = {nozzles:Outlet[][];wing?:BankingPoint[][]}
+const registrations=anchors as unknown as Readonly<Record<string,Registration>>
+const keyFor=(key:string)=>key==='mesiah'?'mesiahBlack':key
+export const PLAYER_HULL_KEYS=Object.keys(registrations)
+export function raidBankingPreviewAngle(landscape:boolean){return landscape?90:0}
+export function raidBankingPreviewNozzle(x:number,y:number,landscape:boolean){return landscape?{x:-y,y:x}:{x,y}}
+/** UI-only renders of the actual models; never a gameplay-body fallback. */
+export function getRaidPicker3DPreviewPath(shipKey:string,landscape:boolean){
+  const key=keyFor(shipKey)
+  if(isRaid2DMech(key)||!registrations[key])return null
+  const version=landscape?7:5
+  return `assets/ships/previews/${key}-${landscape?'landscape':'portrait'}-v${version}.webp`
 }
-const BANKING_POSES = 21
-// Preserve the metal's original paint instead of flattening it to dim gray.
-export const RAID_BANKING_HULL_FILTER = 'none'
-const BANKING_CACHE_LIMIT = 6
-const atlases = new Map<string, CanvasSpriteEntry>()
-
-type ExhaustOutlet = readonly [x: number, y: number, width: number]
-export type BankingPoint = readonly [x: number, y: number]
-type BankingRegistration = { nozzles: ExhaustOutlet[][]; wing?: BankingPoint[][] }
-
-const registrations = anchors as unknown as Readonly<Record<string, BankingRegistration>>
-
-export type RaidBankingFrame = {
-  key: string
-  bank: number
-  landscape: boolean
-  sprite: CanvasSpriteEntry
-  frame: number
-  nozzles: readonly ExhaustOutlet[]
-  wing?: readonly BankingPoint[]
+export function getRaidPicker3DPreviewUrl(shipKey:string,landscape:boolean){
+  const path=getRaidPicker3DPreviewPath(shipKey,landscape)
+  return path?getPublicAssetUrl(path):null
 }
-
-// Gundam models retain their detailed hand-painted 2D combat poses in
-// landscape. In gameplay these remain 2D; the selector now has 3D preview-only art.
-export function isRaidGundamArt(shipKey: string) {
-  return shipKey === 'godGundam' || shipKey === 'godGundamBurning' ||
-    shipKey === 'spiegel' || shipKey === 'coreLander' ||
-    shipKey === 'coreLanderBurning' || shipKey === 'coreLanderElite' ||
-    shipKey === 'coreLanderBurningElite'
+export function raidBankingFrameIndex(bank:number,landscape:boolean,reduced:boolean,poses=21){
+  const amount=reduced?0:Math.max(-1,Math.min(1,bank/.14))
+  return (landscape?poses:0)+Math.round((poses-1)*.5*(1+amount))
 }
-
-export function shouldUseRaidBankingArt(shipKey: string, landscape: boolean) {
-  return !(landscape && isRaidGundamArt(shipKey))
+export function getRaidBankingNozzles(shipKey:string,landscape:boolean){
+  const data=registrations[keyFor(shipKey)]
+  return data?.nozzles[raidBankingFrameIndex(0,landscape,false,data.nozzles.length/2)]??null
 }
-
-function bankingKey(shipKey: string) {
-  return shipKey === 'mesiah' ? 'mesiahBlack' : shipKey
-}
-
-const legacyMechAtlases = new Set(['godGundam', 'godGundamBurning', 'spiegel'])
-
-export function getRaidBankingAtlasUrl(shipKey: string) {
-  const key = bankingKey(shipKey)
-  if (!Object.prototype.hasOwnProperty.call(registrations, key)) return null
-  const version = legacyMechAtlases.has(key) ? 7 : 15
-  return getPublicAssetUrl(`assets/ships/banking/${key}-v${version}.webp`)
-}
-
-export function getRaidPicker3DPreviewUrl(shipKey: string, landscape: boolean) {
-  const key = bankingKey(shipKey)
-  if (!Object.prototype.hasOwnProperty.call(registrations, key)) return null
-  const version = legacyMechAtlases.has(key) ? 1 : landscape ? 7 : 5
-  return getPublicAssetUrl(`assets/ships/previews/${key}-${landscape ? 'landscape' : 'portrait'}-v${version}.webp`)
-}
-
-// Hangar UI uses the same registered exhaust roots as the flight atlas.
-export function getRaidBankingNozzles(shipKey: string, landscape: boolean) {
-  const key = bankingKey(shipKey)
-  return Object.prototype.hasOwnProperty.call(registrations, key)
-    ? registrations[key].nozzles[raidBankingFrameIndex(0, landscape, false, registrations[key].nozzles.length / 2)]
-    : null
-}
-
-export function getRaidBankingAtlas(shipKey: string) {
-  const url = getRaidBankingAtlasUrl(shipKey)
-  if (!url) return null
-  const cached = atlases.get(url)
-  if (cached) return cached
-  if (atlases.size >= BANKING_CACHE_LIMIT) {
-    const [oldUrl, oldAtlas] = atlases.entries().next().value!
-    atlases.delete(oldUrl)
-    releaseCanvasSprite(oldAtlas)
-  }
-  // Each frame is a 448 px, detail-preserved 2D-palette-matched WebP baked offline.
-  // Draw its exact colors directly: a second color filter softens panel edges,
-  // desaturates metallic trim and doubles memory via a processed canvas copy.
-  const sprite = makeImageCanvasSprite(`ship-banking:${url}`, url)
-  atlases.set(url, sprite)
-  return sprite
-}
-
-export function raidBankingFrameIndex(bank: number, landscape: boolean, reducedMotion: boolean, poses = BANKING_POSES) {
-  const amount = reducedMotion ? 0 : Math.max(-1, Math.min(1, bank / .14))
-  return (landscape ? poses : 0) + Math.round((poses - 1) * .5 * (1 + amount))
-}
-
-export function getRaidBankingFrame(shipKey: string, bank: number, landscape: boolean, reducedMotion: boolean): RaidBankingFrame | null {
-  if (liveHullsEnabled()) {
-    const key = bankingKey(shipKey)
-    const actualBank = reducedMotion ? 0 : bank
-    const points = sampleLiveHullPoints(key, actualBank, landscape)
-    if (points) return { key, bank: actualBank, landscape, sprite: getShipCanvasSprite(key), frame: 0, ...points }
-  }
-  if (!shouldUseRaidBankingArt(shipKey, landscape)) return null
-  const sprite = getRaidBankingAtlas(shipKey)
-  if (!sprite?.loaded) return null
-  const { nozzles, wing } = registrations[bankingKey(shipKey)]
-  const frame = raidBankingFrameIndex(bank, landscape, reducedMotion, nozzles.length / 2)
-  return { key: bankingKey(shipKey), bank, landscape, sprite, frame, nozzles: nozzles[frame], wing: wing?.[frame] }
-}
-
-export function getBankingProtectionHull(sprite: CanvasSpriteEntry, landscape: boolean): ProtectionHull {
-  // Keep the energy shield stable during shallow banks. Computing a fresh
-  // distance field every time the hull changes frame would stall flight.
-  const poses = sprite.cacheKey.includes('-v15.webp') ? BANKING_POSES : 7
-  return { sprite, columns: BANKING_COLUMNS, rows: poses * 2 / BANKING_COLUMNS,
-    frame: raidBankingFrameIndex(0, landscape, false, poses) }
-}
-
-export function drawRaidBankingCell(ctx: CanvasRenderingContext2D, sprite: CanvasSpriteEntry, frame: number,
-  x: number, y: number, size: number) {
-  ctx.save()
-  ctx.imageSmoothingEnabled = true
-  ctx.imageSmoothingQuality = 'high'
-  ctx.drawImage(getCanvasSpriteSource(sprite),
-    frame % BANKING_COLUMNS * BANKING_CELL, Math.floor(frame / BANKING_COLUMNS) * BANKING_CELL,
-    BANKING_CELL, BANKING_CELL, x - size / 2, y - size / 2, size, size)
-  ctx.restore()
+export type RaidBankingFrame={key:string;bank:number;landscape:boolean;nozzles:readonly Outlet[];wing?:readonly BankingPoint[]}
+/** Registered mesh hardpoints only. There is no ship sprite or banking atlas. */
+export function getRaidBankingFrame(shipKey:string,bank:number,landscape:boolean,reduced:boolean):RaidBankingFrame|null{
+  if(!liveHullsEnabled())return null
+  const key=keyFor(shipKey),actualBank=reduced?0:bank,points=sampleLiveHullPoints(key,actualBank,landscape)
+  return points?{key,bank:actualBank,landscape,...points}:null
 }

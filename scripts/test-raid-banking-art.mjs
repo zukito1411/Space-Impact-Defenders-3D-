@@ -1,153 +1,63 @@
 import assert from 'node:assert/strict'
-import { readFileSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import ts from 'typescript'
 
-const path = 'src/components/games/raid/'
-const registrations = JSON.parse(readFileSync(path + 'bankingAnchors.json', 'utf8'))
-const assets = readFileSync('src/components/games/RaidShipSprite.tsx', 'utf8') +
-  readFileSync(path + 'shipArtwork.ts', 'utf8')
-const expectedKeys = [...assets.matchAll(/^  (\w+): 'assets\/ships\//gm)].map(match => match[1]).filter(key => key !== 'mesiah')
-assert.deepEqual(Object.keys(registrations).sort(), [...new Set(expectedKeys)].sort())
-
-// Generated textures must be committed together with any renderer version bump.
-// Otherwise CI fails late with ENOENT and the APK can contain missing ships.
-const bankingDir = 'public/assets/ships/banking/'
-const expectedV4Files = Object.keys(registrations).map(key => key + '-v7.webp').sort()
-const committedV4Files = readdirSync(bankingDir).filter(name => name.endsWith('-v7.webp')).sort()
-assert.deepEqual(committedV4Files, expectedV4Files,
-  'Every registered 3D banking ship needs its committed -v7.webp atlas before verification and release')
-
-
-function compile(source) {
-  const { outputText } = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } })
-  return import('data:text/javascript;base64,' + Buffer.from(outputText).toString('base64'))
-}
-
-const source = readFileSync(path + 'bankingArt.ts', 'utf8')
-const art = await compile(`
-  const liveHullsEnabled = () => false, sampleLiveHullPoints = () => null, getShipCanvasSprite = () => null
-  const anchors = ${JSON.stringify(registrations)}
-  const getPublicAssetUrl = path => '/base/' + path
-  const releaseCanvasSprite = () => {}
-  const getCanvasSpriteSource = sprite => sprite
-  const makeImageCanvasSprite = (cacheKey, url) => ({ cacheKey, url, loaded: !cacheKey.includes('rocket-v15') })
-` + source.replace(/^import .*\n/gm, ''))
-// Preserve textured ship paint and reflections; a one-time tint is cheaper
-// than filters on every animated frame and should not wash out the hull.
-assert.equal(art.RAID_BANKING_HULL_FILTER, 'none')
-assert.equal(art.BANKING_CELL, 448, 'banking poses must be high-DPI source resolution')
-assert.match(source, /makeImageCanvasSprite\(`ship-banking:/)
-assert.doesNotMatch(source, /globalCompositeOperation = 'source-atop'/)
-// Use the in-game indexing logic to exercise extremes, the portrait/landscape split and reduced motion.
-for (const [landscape, offset] of [[false, 0], [true, 21]]) {
-  assert.deepEqual([-.3, -.14, 0, .14, .3].map(bank => art.raidBankingFrameIndex(bank, landscape, false)),
-    [0, 0, 10, 20, 20].map(i => i + offset))
-  assert.equal(art.raidBankingFrameIndex(.14, landscape, true), 10 + offset)
-}
-// Flight atlases are always nose-up before the game's rotating landscape
-// camera. Preview cards must apply that same quarter-turn to the hull and
-// nozzle roots, without changing the portrait view.
-assert.equal(art.raidBankingPreviewAngle(false), 0)
-assert.equal(art.raidBankingPreviewAngle(true), 90)
-assert.deepEqual(art.raidBankingPreviewNozzle(.09, .42, false), {x:.09, y:.42})
-assert.deepEqual(art.raidBankingPreviewNozzle(.09, .42, true), {x:-.42, y:.09})
-for (const landscape of [false, true]) {
-  const offset = landscape ? 21 : 0
-  for (let i=0;i<21;i++) {
-    const pose = art.getRaidBankingFrame('xwing', (i-10)*.014, landscape, false)
-    assert.equal(pose.frame, offset+i)
-    assert.deepEqual(pose.wing, registrations.xwing.wing[offset+i])
-  }
-  const calls = []
-  const ctx = {save(){},restore(){},drawImage(...args){calls.push(args)}}
-  const source = {cacheKey:'test'}
-  art.drawRaidBankingCell(ctx,source,offset+10,10,10,80)
-  assert.equal(calls.length,1,'each bank must draw one solid pose')
-}
-// New atlases must originate from the unsharpened v1 source, never v2/v3.
-const baker = readFileSync('scripts/match-3d-to-2d-palette.py', 'utf8')
-assert.match(baker, /source=directory\/\(key\+"-v1.webp"\)/)
-assert.match(baker, /ImageFilter.MedianFilter\(size=3\)/)
-assert.doesNotMatch(baker, /ImageFilter\.UnsharpMask\(/)
-assert.match(baker, /"-v7.webp"/)
-const preview = readFileSync('src/components/games/RaidShipSprite.tsx', 'utf8')
-assert.match(preview, /return <img src=\{getRaidMenuShipSpriteUrl/)
-assert.doesNotMatch(preview, /ThreeHullPreview/)
-assert.match(preview, /return getRaidPicker3DPreviewUrl\(shipKey, landscape\)/)
-// Gundam/Spiegel stay 2D in landscape gameplay; selector previews are 3D.
-for (const key of ['godGundam', 'godGundamBurning', 'spiegel', 'coreLander',
-                   'coreLanderBurning', 'coreLanderElite', 'coreLanderBurningElite']) {
-  assert.equal(art.isRaidGundamArt(key), true, key)
-  assert.equal(art.shouldUseRaidBankingArt(key, true), false, key)
-  assert.equal(art.getRaidBankingFrame(key, .12, true, false), null, key)
-  assert.equal(art.shouldUseRaidBankingArt(key, false), true, key)
-}
-assert.equal(art.isRaidGundamArt('rocket'), false)
-assert.equal(art.shouldUseRaidBankingArt('rocket', true), true)
-assert.ok(preview.includes('getRaidPicker3DPreviewUrl'), 'ship-picker must use HD 3D previews')
-assert.ok(preview.includes('RaidShipPickerPreview'), '3D selection component must exist')
-const picker = readFileSync('src/components/games/raid/GradiusRaidRuntime.tsx', 'utf8')
-assert.ok(picker.includes('<RaidShipPickerPreview shipKey={shipSpriteKey} landscape={landscape} />'))
-assert.ok(!picker.includes('<small>{locked ? lockedCopy : shipCopy.role}</small>'), 'ship cards show names only')
-const models = readdirSync('art/3d/flight-hulls').filter(name => name.endsWith('.blend'))
-const mechKeys = ['godGundam', 'godGundamBurning', 'spiegel']
-const modelKeys = Object.keys(registrations).filter(key => !mechKeys.includes(key))
-assert.deepEqual(models.sort(), modelKeys.map(key => key + '.blend').sort())
-for (const key of Object.keys(registrations)) {
-  const reconstructed = modelKeys.includes(key)
-  assert.equal(art.getRaidBankingAtlasUrl(key), `/base/assets/ships/banking/${key}-v${reconstructed ? 15 : 7}.webp`)
-  for (const landscape of [false, true]) {
-    const path = art.getRaidPicker3DPreviewUrl(key, landscape)
-    assert.equal(path, `/base/assets/ships/previews/${key}-${landscape ? 'landscape' : 'portrait'}-v${reconstructed ? (landscape ? 7 : 5) : 1}.webp`)
-    const image = readFileSync(path.replace('/base/', 'public/'))
-    assert.equal(image.toString('ascii', 8, 12), 'WEBP', key)
-    assert.equal(image.readUIntLE(24, 3) + 1, 640, key)
-    assert.equal(image.readUIntLE(27, 3) + 1, 640, key)
-  }
-}
-
-assert.equal(art.getRaidBankingAtlasUrl('mesiah'), art.getRaidBankingAtlasUrl('mesiahBlack'))
-assert.equal(art.getRaidBankingFrame('toString', 0, false, false), null)
-assert.equal(art.getRaidBankingFrame('rocket', 0, false, false), null, 'keep the original sprite until the atlas loads')
-assert.equal(art.getBankingProtectionHull(art.getRaidBankingAtlas('laser'), true).frame, 31)
-for (const [key, entry] of Object.entries(registrations)) {
-  const sourceImage = readFileSync('public/assets/ships/banking/' + key + '-v1.webp')
-  const image = readFileSync(art.getRaidBankingAtlasUrl(key).replace('/base/', 'public/'))
-  assert.equal(image.toString('ascii', 0, 4), 'RIFF', key)
-  assert.equal(image.toString('ascii', 8, 16), 'WEBPVP8X', key)
-  assert.equal(sourceImage.readUIntLE(24, 3) + 1, 224 * art.BANKING_COLUMNS, key)
-  assert.equal(sourceImage.readUIntLE(27, 3) + 1, 224 * 2, key)
-  assert.equal(image.readUIntLE(24, 3) + 1, art.BANKING_CELL * art.BANKING_COLUMNS, key)
-  assert.equal(image.readUIntLE(27, 3) + 1, art.BANKING_CELL * (modelKeys.includes(key) ? 6 : 2), key)
-  assert.ok(image.byteLength > 10000, key + ': enhanced atlas must be a nonempty WebP image')
-  assert.equal(entry.nozzles.length, modelKeys.includes(key) ? 42 : 14, key)
-  for (const outlets of entry.nozzles) {
-    if (key === 'xwing' || key === 'xwingElite') {
-      assert.equal(outlets.length, 4, key + ': every split drive needs a registered exhaust')
+const root='src/components/games/raid/'
+const read=file=>readFileSync(file,'utf8')
+const registrations=JSON.parse(read('public/assets/ships/models/v1/manifest.json'))
+const anchors=JSON.parse(read(root+'bankingAnchors.json'))
+const mechs=new Set(['godGundam','godGundamBurning','spiegel'])
+const code=ts.transpileModule(`
+  const isRaid2DMech=key=>['godGundam','godGundamBurning','spiegel'].includes(key);
+  const getHullRegistration=key=>registrations[key==='mesiah'?'mesiahBlack':key]??null;
+  const registrations=${JSON.stringify(registrations)};
+`+read(root+'liveHullBridge.ts').replace(/^import .*\n/gm,''),{
+  compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022},
+}).outputText
+const bridge=await import('data:text/javascript;base64,'+Buffer.from(code).toString('base64'))
+const draws=[]
+bridge.bindLiveHulls({submitHull(draw){draws.push(draw);return true}})
+globalThis.window={devicePixelRatio:3}
+const near=(a,b)=>assert.ok(Math.abs(a-b)<1e-9,`${a} != ${b}`)
+for(const [key,data] of Object.entries(registrations)){
+  const model=readFileSync('public/assets/ships/models/v1/'+key+'.glb')
+  assert.equal(model.toString('ascii',0,4),'glTF',key)
+  assert.equal(model.readUInt32LE(4),2,key)
+  for(const landscape of [false,true])for(const bank of [-.14,0,.14]){
+    const sampled=bridge.sampleLiveHullPoints(key,bank,landscape)
+    const yaw=(landscape?-56:0)*Math.PI/180+bank*150*Math.PI/180
+    const [sx,sy,ox,oy]=data.registration
+    for(const [index,[x,y,z,aperture]] of data.nozzles.entries()){
+      const point=sampled.nozzles[index]
+      near(point[0],(sx*(Math.cos(yaw)*x+Math.sin(yaw)*z)+144*sx+ox-224)/448)
+      near(point[1],-(sy*y+224-144*sy-oy)/448)
+      near(point[2],aperture*sx/448)
     }
-    assert.ok(outlets.length > 0, key)
-    for (const [x, y, aperture] of outlets) {
-      assert.ok(Math.abs(x) < .5 && y >= 0 && y < .5 && aperture > 0 && aperture < .18, key)
-    }
-  }
-  if (entry.wing) {
-    assert.equal(entry.wing.length, 42, key)
-    for (const tips of entry.wing) {
-      assert.equal(tips.length, 4, key)
-      assert.ok(tips.every(([x, y]) => Math.abs(x) < .5 && y < 0 && y > -.5), key)
-    }
+    assert.equal(sampled.wing.length,data.wing.length)
   }
 }
-const { createRaidMainShotEmitter, getRaidPlayerHullSize } = await compile(
-  readFileSync(path + 'playerMuzzle.ts', 'utf8').replace(/^import .*\n/gm, '') + '\nconst WIDTH = 100, HEIGHT = 100;\n',
-)
-const tips = art.getRaidBankingFrame('xwingElite', .12, true, false).wing
-const ship = { x: 45, y: 63 }, shots = [], bank = .12
-const emit = createRaidMainShotEmitter(shot => shots.push(shot), ship, 'xwing', false, 400, 800, bank, true, 1, null, tips)
-emit({ x: 50, y: 60, vx: 2, vy: -80 }, 'inner')
-const size = getRaidPlayerHullSize('xwing', 400, true)
-const [x, y] = tips[3]
-assert.equal(shots[0].x, ship.x + (Math.cos(bank) * x - Math.sin(bank) * y) * (size * 100 / 400))
-assert.equal(shots[0].y, ship.y + (Math.sin(bank) * x + Math.cos(bank) * y) * (size * 100 / 800))
-assert.equal(shots[0].vy, -80)
-console.log('Dense solid bank poses, both camera views, legacy assets and hardpoint registration verified')
+for(const key of Object.keys(anchors)){
+  assert.ok(mechs.has(key)||registrations[key],'every selectable key requires a model')
+  if (mechs.has(key)) continue
+  for(const landscape of [false,true])assert.ok(existsSync(`public/assets/ships/previews/${key}-${landscape?'landscape':'portrait'}-v${mechs.has(key)?1:landscape?7:5}.webp`))
+}
+for(const file of ['god-gundam.png','god-gundam-burning.png','spiegel.png'])assert.ok(existsSync('public/assets/ships/'+file))
+assert.equal(existsSync('public/assets/ships/sideview'),true)
+assert.equal(existsSync('public/assets/ships/banking'),false)
+const ctx={canvas:{dataset:{raidDpr:'2'}},globalAlpha:.5,getTransform(){return {a:0,b:2,c:-2,d:0,e:400,f:200}}}
+bridge.drawLiveHull(ctx,'xwing',30,50,80,.1,.6,true,'pilot')
+assert.deepEqual(draws.at(-1),{id:'pilot',key:'xwing',x:150,y:130,size:80,bank:.1,alpha:.3,landscape:true,angle:-Math.PI/2})
+for (const key of mechs) for (const landscape of [false,true]) {
+  assert.equal(bridge.drawLiveHull(ctx,key,0,0,100,0,1,landscape),false)
+  assert.equal(bridge.sampleLiveHullPoints(key,0,landscape),null)
+  assert.equal(bridge.submitLiveHull({key}),false)
+}
+bridge.bindLiveHulls(null)
+assert.equal(bridge.drawLiveHull(ctx,'rocket',0,0,100,0,1,false),false)
+const runtime=read(root+'playerRender.ts')
+assert.doesNotMatch(runtime,/drawBankedHull|drawRaidBankingCell/)
+assert.doesNotMatch(read(root+'effectsRender.tsx'),/drawLiveHull/)
+assert.match(read(root+'effectsRender.tsx'),/getGodGundamBarrageCanvasSprite/)
+assert.match(runtime,/!coreLanderCombatModel && drawLiveHull/)
+assert.doesNotMatch(read(root+'background.ts'),/getRaidShipSpriteUrl/)
+console.log('Live GLB coverage, registered hardpoints, view/DPR transforms, model thumbnails and 2D mech exceptions verified')

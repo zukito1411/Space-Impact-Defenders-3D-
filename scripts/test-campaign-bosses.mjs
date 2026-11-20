@@ -71,21 +71,35 @@ await Promise.all(entries.map(e=>e.ready))
 for(let t=0;t<100;t++)for(const a of CAMPAIGN_BOSS_ART)assert.equal(images.getGenericBossCanvasSprite(a.kind,a.stage),entries[stages.indexOf(a.stage)])
 assert.equal(images.made,12);assert.ok(entries.every(e=>e.loaded&&!e.processedImage))
 assert.equal(new Set(entries.map(e=>e.cacheKey)).size,12)
-// Production boss draw: stable one-image body, no runtime recoloring/filter or old swarm model.
-const renderer=await load(`
+// Production bodies use the registered 3D hull; special bosses never submit a mesh.
+const hullSources = catalogSource +
+  read('src/components/games/raid/stageEncounters.ts').replace(/^import .*\n/gm,'') +
+  read('src/components/games/raid/fighterHulls.ts').replace(/^import .*\n/gm,'') +
+  read('src/components/games/raid/enemyHulls.ts').replace(/^import .*\n/gm,'')
+const renderer=await load(hullSources+`
 export const calls=[];
-const getGenericBossCanvasSprite=(kind,stage)=>({loaded:!globalThis.__bossMissing,image:{complete:true},kind,stage});
-const drawCanvasSpriteContain=(...args)=>calls.push(args.slice(1));
+const drawLiveHull=(...args)=>{calls.push(args.slice(1));return true};
 `+read('src/components/games/raid/genericBossRender.ts').replace(/^import .*\n/gm,''))
 const ctx={globalAlpha:1,save(){},restore(){},translate(){},rotate(){},scale(){},beginPath(){},arc(){},moveTo(){},lineTo(){},closePath(){},fill(){},stroke(){},fillRect(){},set filter(v){assert.fail('live boss filter')},set shadowBlur(v){assert.fail('live boss blur')}}
-for(const a of CAMPAIGN_BOSS_ART)renderer.drawGenericBossShip(ctx,{bossKind:a.kind,bossArtStage:a.stage,color:'#123456'},0,0,250,.01,1,1)
-assert.equal(renderer.calls.length,12)
-assert.ok(renderer.calls.every(args=>args[4]==='none'&&args[5]===1))
-globalThis.__bossMissing=true
-for(const kind of GENERIC_BOSS_KINDS)renderer.drawGenericBossShip(ctx,{bossKind:kind},0,0,250,0,1,1)
-assert.equal(renderer.calls.length,12,'missing source tried to draw an undecoded image')
-delete globalThis.__bossMissing
-console.log('Campaign bosses: 12 stable stage identities, original attack cycle, Boss Rush specials, Endless mapping, cached decodes, opaque single-image draw and missing-art fallback passed')
+for(const landscape of [false,true])for(const a of CAMPAIGN_BOSS_ART){
+ renderer.drawGenericBossShip(ctx,{id:a.stage,isBoss:true,bossKind:a.kind,bossArtStage:a.stage,color:'#123456'},0,0,250,.01,1,1,landscape)
+ const [key,x,y,size,bank,alpha,view,id]=renderer.calls.at(-1)
+ assert.equal(key,'commandHull'+a.stage)
+ assert.equal(renderer.ENEMY_HULL_SPECS[key].assetPath,a.assetPath)
+ assert.equal(size,260);assert.equal(alpha,1);assert.equal(view,landscape);assert.equal(id,'enemy:'+a.stage)
+}
+assert.equal(renderer.calls.length,24)
+for(const kind of ['squid','snake','final','devil']){
+ renderer.drawGenericBossShip(ctx,{isBoss:true,bossKind:kind},0,0,250,0,1,1)
+ assert.equal(renderer.enemyHullKey({isBoss:true,bossKind:kind}),null)
+}
+assert.equal(renderer.calls.length,24,'special boss was converted to 3D')
+for(let variant=0;variant<14;variant++)assert.ok(renderer.ENEMY_HULL_SPECS[renderer.normalEnemyHullKey(variant)])
+for(let variant=0;variant<5;variant++){
+ const key=renderer.enemyHullKey({isMiniBoss:true,variant})
+ assert.equal(renderer.ENEMY_HULL_SPECS[key].assetPath,'assets/aliens/elite_'+variant+'.png')
+}
+console.log('Campaign boss identities, registered 3D bodies, regular/elite coverage and special-boss exclusions passed')
 // Verify drawRaidEnemy routes all ordinary bosses to the new body and preserves special render paths.
 const enemyRender=await load(`
 export const paths=[];

@@ -1,4 +1,11 @@
-import { OrbitalCamera, OrbitalGlobe, OrbitalStars, CosmicGasVolume, globeStyles } from './orbitalSpace'
+// Register Pixi's optional upload system before creating either renderer consumer.
+import 'pixi.js/prepare'
+import { createShipLightingFrame, sampleShipLighting } from './shipLighting'
+import { SceneryHulls } from './sceneryHulls'
+import { createSpacePlacement, SPACE_DISTANCES } from './spaceWorld'
+import type { SpacePlacement, SpacePlacementMode } from './spaceWorld'
+import { OrbitalCombatRocks, OrbitalSceneryRock, warmOrbitalBodies } from './orbitalBodies'
+import { OrbitalCamera, OrbitalGlobe, OrbitalStars, CosmicGasVolume, globeStyles, warmOrbitalSky } from './orbitalSpace'
 import { orbitalShadowCoverage, sampleCapitalFlyby, sampleOrbitalShadow, type OrbitalShadow } from './flightEffects'
 import { LandscapePlanetAtmosphere } from './landscapeAtmosphere'
 import { CelestialScenery } from './celestialScenery'
@@ -12,15 +19,15 @@ import { getSurfaceTerrain, preloadSurfaceArt } from './surfaceArt'
 import { createRaidJourneyView, sampleRaidJourney } from './journey'
 import type { RaidJourneyInput } from './journey'
 import { sceneryTint, PLANET_DEPTH } from './sceneryMaterial'
-import { cosmicRegionIndex, COSMIC_REGIONS, edgeFlyby } from './cosmos'
+import { cosmicRegionIndex, COSMIC_REGIONS } from './cosmos'
 import { getCosmosBackdrop, getCosmosLandmark, getCosmosBloom, getJourneyPlanet, getJourneySurface, getJourneyBloom, preloadCosmosArt } from './cosmosArt'
 import { projectDepthStar, type DepthStar } from './depthProjection'
 import { RaidTravelMotion } from './travelMotion'
 import { getPublicAssetUrl } from '../sound'
 import type { GraphicsQuality } from '../sound'
-import { getRaidAlienSpriteUrl, getRaidEliteSpriteUrl, getRaidShipSpriteUrl } from '../RaidShipSprite'
+import { getRaidAlienSpriteUrl, getRaidEliteSpriteUrl } from '../RaidShipSprite'
 import { Application, Assets, Container, FillGradient, Graphics, Sprite, Texture, TilingSprite, WebGLRenderer } from 'pixi.js'
-import { RAID_OTHER_ASSET_PATHS, drawCanvasImageContain, getRaidOtherCanvasSprite, getRaidSideShipCanvasSprite } from './assets'
+import { RAID_OTHER_ASSET_PATHS, drawCanvasImageContain, getRaidOtherCanvasSprite } from './assets'
 import type { RaidOtherAssetKey } from './assets'
 import { COMET_ASSET_HEAD_ANGLE, DEG } from './constants'
 import type { CameraShakeState } from './types'
@@ -129,7 +136,6 @@ function getFinalBattleTextureKey(fighter: typeof FINAL_BATTLE_FIGHTERS[number])
 }
 
 function getFinalBattleTextureUrl(fighter: typeof FINAL_BATTLE_FIGHTERS[number]) {
-  if (fighter.assetKind === 'ship') return getRaidShipSpriteUrl(fighter.asset)
   const variant = Number(fighter.asset) || 0
   return fighter.assetKind === 'elite' ? getRaidEliteSpriteUrl(variant) : getRaidAlienSpriteUrl(variant)
 }
@@ -857,8 +863,17 @@ export class PixiRaidBackground {
   private orbitalCamera: OrbitalCamera | null = null
   private orbitalStars: OrbitalStars | null = null
   private readonly globes: OrbitalGlobe[] = []
+  private readonly sceneryRocks: OrbitalSceneryRock[] = []
+  private readonly combatRocks = new OrbitalCombatRocks()
+  private orbitalBodiesReady = false
+  private orbitalSkyReady = false
+  private readonly sceneryHulls = new SceneryHulls()
+  private readonly shipLighting = createShipLightingFrame()
+  private readonly sceneryShipKeys = new Map<Sprite, string>()
+  private readonly sceneryShipKey = (sprite: Sprite) => this.sceneryShipKeys.get(sprite)
+  private readonly sceneryShipDistance = (sprite: Sprite) => this.projected.get(sprite)?.world.distanceKm ?? 6
   private readonly gasVolumes: CosmicGasVolume[] = []
-  private readonly projected = new Map<Sprite, { depth: number; x: number; y: number; sx: number; sy: number; active: boolean }>()
+  private readonly projected = new Map<Sprite, { world: SpacePlacement; x: number; y: number; sx: number; sy: number; active: boolean }>()
 
   private readonly worldScene = new Container()
   private readonly journeySurfaceSprite = new TilingSprite({ texture: Texture.WHITE, width: 1, height: 1 })
@@ -921,8 +936,6 @@ export class PixiRaidBackground {
   private readonly explosionGraphics = new Graphics()
   private readonly assetTextures = new Map<PixiRaidAssetKey, Texture>()
   private readonly finalBattleTextures = new Map<string, Texture>()
-  private readonly backgroundSideShipTextures = new Map<string, Texture>()
-  private backgroundSideShipsRequested = false
   private readonly gradientCache = new Map<string, FillGradient>()
   private baseKey = ''
   private readonly travel = new RaidTravelMotion()
@@ -946,7 +959,7 @@ export class PixiRaidBackground {
     return app.renderer instanceof WebGLRenderer && app.renderer.context.isLost
   }
 
-  async init(host: HTMLDivElement) {
+  async init(host: HTMLDivElement, reportError?: (message: string) => void) {
     try {
       const app = new Application()
       await app.init({
@@ -970,6 +983,7 @@ export class PixiRaidBackground {
       this.reducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
       app.stage.addChild(this.scene)
       app.stage.addChild(this.gpuForeground.root)
+      app.stage.addChild(this.combatRocks.root)
       this.scene.addChild(this.skyScene)
       this.skyScene.addChild(this.baseGraphics)
       // Only nebula art inherits this gain; the original galaxies remain above it.
@@ -1043,22 +1057,40 @@ export class PixiRaidBackground {
       }
       this.scene.addChild(this.explosionGraphics)
 
+      for (const [index, fighter] of FINAL_BATTLE_FIGHTERS.entries()) {
+        if (fighter.assetKind === 'ship') this.sceneryHulls.add(this.finalBattleSprites[index], fighter.asset)
+      }
+      for (const [index, cruiser] of FINAL_BATTLE_CRUISERS.entries()) {
+        this.sceneryHulls.add(this.finalBattleCruiserSprites[index], cruiser.asset)
+      }
+      this.sceneryHulls.add(this.capitalFlyby, FINAL_BATTLE_CRUISERS[0].asset, true)
+      this.sceneryHulls.add(this.capitalFlyby, FINAL_BATTLE_CRUISERS[1].asset, true)
+      // Intact edge passes use live capital hulls; broken stations/wrecks retain art.
+      for (const sprite of this.asteroidSprites) {
+        this.sceneryHulls.add(sprite, FINAL_BATTLE_CRUISERS[0].asset, true)
+        this.sceneryHulls.add(sprite, FINAL_BATTLE_CRUISERS[1].asset, true)
+      }
       this.orbitalCamera = new OrbitalCamera()
       this.orbitalStars = new OrbitalStars()
       this.skyScene.addChild(this.orbitalStars.mesh)
       for (const anchor of this.nebulaSprites) this.gasVolumes.push(new CosmicGasVolume(anchor))
       for (const anchor of this.galaxySprites) this.gasVolumes.push(new CosmicGasVolume(anchor, true))
       for (const anchor of [...this.planetSprites, ...this.atmosphereMoons]) this.globes.push(new OrbitalGlobe(anchor))
-      this.registerDepth(this.galaxySprites, 46)
-      this.registerDepth(this.celestialScenery.nebulaRoot.children as Sprite[], 20)
-      this.registerDepth(this.celestialScenery.root.children as Sprite[], 16)
-      this.registerDepth(this.planetSprites, 8)
-      this.registerDepth(this.scenicSprites, 6)
+      for (const [index, anchor] of [...this.asteroidSprites, ...this.debrisSprites].entries()) {
+        this.sceneryRocks.push(new OrbitalSceneryRock(anchor, index))
+      }
+      this.registerDepth(this.galaxySprites, SPACE_DISTANCES.galaxyKm, 'fixed')
+      this.registerDepth(this.celestialScenery.nebulaRoot.children as Sprite[], SPACE_DISTANCES.nebulaKm, 'fixed')
+      this.registerDepth(this.celestialScenery.distantStars, SPACE_DISTANCES.starUnitKm, 'fixed')
+      this.registerDepth(this.celestialScenery.localDust, 10, 'stream')
+      this.registerDepth(this.planetSprites, 120000, 'planet')
+      this.registerDepth(this.atmosphereMoons, 220000, 'planet')
+      this.registerDepth(this.scenicSprites, 20, 'stream')
       this.registerDepth(this.finalBattleSprites, 6)
       this.registerDepth(this.finalBattleCruiserSprites, 5)
-      this.registerDepth(this.wreckSprites, 5)
-      this.registerDepth(this.asteroidSprites, 3.4)
-      this.registerDepth(this.debrisSprites, 2.8)
+      this.registerDepth(this.wreckSprites, 10, 'stream')
+      this.registerDepth(this.asteroidSprites, 12, 'stream')
+      this.registerDepth(this.debrisSprites, 8, 'stream')
       this.registerDepth([this.cometFlybySprite, this.capitalFlyby, ...this.dustFlybys], 2.4)
 
       const canvas = app.canvas as HTMLCanvasElement
@@ -1066,6 +1098,26 @@ export class PixiRaidBackground {
       host.textContent = ''
       host.appendChild(canvas)
       await this.loadAssets()
+      if (this.destroyed || this.app !== app) return false
+      try { await this.sceneryHulls.prepare(app.renderer) }
+      catch (error) {
+        this.sceneryHulls.destroy()
+        throw error
+      }
+      if (this.destroyed) return false
+      try {
+        warmOrbitalBodies(app.renderer, this.assetTextures.get('planet1'), this.assetTextures.get('asteroid'), this.assetTextures.get('clouds'))
+        this.orbitalBodiesReady = true
+      } catch (error) {
+        console.warn('Raid 3D natural scenery unavailable; retaining painted scenery:', error)
+      }
+      try {
+        warmOrbitalSky(app.renderer, this.orbitalStars!, this.gasVolumes,
+          getCosmosBackdrop(0) ?? this.assetTextures.get('planet1') ?? Texture.WHITE)
+        this.orbitalSkyReady = true
+      } catch (error) {
+        console.warn('Raid volumetric sky unavailable; retaining painted sky:', error)
+      }
       if (this.app !== app) return false
       this.landscapeAtmosphere.warm()
       const cancelled = new Promise<boolean>((resolve) => {
@@ -1084,7 +1136,10 @@ export class PixiRaidBackground {
       if (!prepared) this.gpuForeground.root.visible = false
       return true
     } catch (error) {
-      if (!this.destroyed) console.warn('Raid WebGL renderer initialization failed:', error)
+      if (!this.destroyed) {
+        console.warn('Raid WebGL renderer initialization failed:', error)
+        reportError?.('The 3D scenery could not start: ' + (error instanceof Error ? error.message : String(error)))
+      }
       this.destroy()
       return false
     }
@@ -1102,15 +1157,16 @@ export class PixiRaidBackground {
     }
     this.gradientCache.forEach((gradient) => gradient.destroy())
     this.gradientCache.clear()
-    for (const object of [...this.gasVolumes, ...this.globes]) object.destroy()
+    for (const object of [...this.gasVolumes, ...this.globes, ...this.sceneryRocks]) object.destroy()
+    this.combatRocks.destroy()
+    this.sceneryHulls.destroy()
+    this.sceneryShipKeys.clear()
     this.orbitalStars?.destroy()
     this.projected.clear()
     this.gpuForeground.destroy()
     this.landscapeAtmosphere.destroy()
     this.celestialScenery.destroy()
     this.app?.destroy({ removeView: true }, { children: true })
-    for (const texture of this.backgroundSideShipTextures.values()) texture.destroy(true)
-    this.backgroundSideShipTextures.clear()
     this.eclipseTexture?.destroy(true)
     this.eclipseTexture = null
     this.depthStarTexture?.destroy(true)
@@ -1124,6 +1180,7 @@ export class PixiRaidBackground {
 
     try {
       const { width, height, dpr, palette, quality, time, stageRush, bossIntensity, devilCorruption, finalBattleIntensity = 0 } = frame
+      this.sceneryHulls.restoreAnchors()
       const seconds = time / 1000
       const celestialSeconds = this.celestialClock.advance(time, Boolean(frame.paused), this.reducedMotion)
       // Restore the authored transforms before cached and per-frame layers update.
@@ -1134,7 +1191,6 @@ export class PixiRaidBackground {
         pose.active = false
       }
 
-      if (frame.landscape && !this.backgroundSideShipsRequested) this.preloadBackgroundSideShips()
       if (this.journeyRun !== (frame.runToken ?? 0)) {
         this.wreckSeed = wreckRunSeed(frame.runToken ?? 0)
         this.journeyRun = frame.runToken ?? 0
@@ -1222,21 +1278,23 @@ export class PixiRaidBackground {
         this.updateAmbientGlows(width, height, isLow, isMedium, palette, stageTheme)
         this.updateSurface(width, height, seconds, palette, quality, groundTheme, Boolean(frame.landscape))
         this.updateFinalBattleBackdrop(width, height, seconds, stageTheme, quality, finalBattleIntensity)
-        this.updateFinalBattleLayer(width, height, seconds, stageTheme, quality, finalBattleIntensity, frame.landscape)
+        this.updateFinalBattleLayer(width, height, seconds, stageTheme, quality, finalBattleIntensity)
         this.updateAmbientExplosions(width, height, seconds, isLow, isMedium, stageTheme)
       }
 
       // Cheap GPU-backed movements continue on every frame, so the animated
       // starfield, scrolling scenery and background ships remain smooth.
       this.updateGalaxies(width, height, seconds, stageTheme, isLow, isMedium)
-      if (this.orbitalCamera && this.orbitalStars) {
-        this.orbitalCamera.setView(width, height, celestialSeconds, this.travel.rush, this.reducedMotion)
+      this.orbitalCamera?.setView(width, height, celestialSeconds, this.travel.rush, this.reducedMotion,
+        this.travel.x, this.travel.y, frame.runToken ?? 0, Boolean(frame.landscape))
+      if (this.orbitalSkyReady && this.orbitalCamera && this.orbitalStars) {
         this.orbitalStars.mesh.visible = shouldDrawRaidStars(stageTheme)
         if (this.orbitalStars.mesh.visible) {
           this.orbitalStars.update(width, height, this.orbitalCamera,
             celestialSeconds, isLow ? .4 : isMedium ? .7 : 1)
         }
       } else {
+        if (this.orbitalStars) this.orbitalStars.mesh.visible = false
         this.updateStarfield(width, height, quality, dpr, palette.starTint, palette.streak, stageTheme)
       }
       if (shouldDrawRaidStars(stageTheme)) this.celestialScenery.update(width, height, celestialSeconds, this.cosmosRegion,
@@ -1275,23 +1333,36 @@ export class PixiRaidBackground {
       // Water and volcanic clouds keep their time-based drift, but do not
       // follow the player's steering. Island/terrain parallax remains intact.
       this.updateJourneyWorld(width, height, groundTheme, Boolean(frame.landscape), seconds, quality, frame.paused)
-      if (this.orbitalCamera && this.solidScenery.visible) {
+      if (this.orbitalCamera) {
         for (const sprite of this.projected.keys()) {
           if (!sprite.visible || sprite === this.capitalFlyby || this.dustFlybys.includes(sprite)) continue
           this.projectScenery(sprite, width, height)
         }
       }
       if (this.orbitalCamera) {
-        for (const volume of this.gasVolumes) volume.update(width, height, this.orbitalCamera)
+        // Light uses the same projected sun position as the rest of the scenery.
+        let sun: Sprite | undefined
+        for (const sprite of this.scenicSprites) {
+          if (sprite.visible && sprite.texture === this.assetTextures.get('sun')) { sun = sprite; break }
+        }
+        this.orbitalCamera.setSunPosition(sun?.x, sun?.y)
+        const surface = isWateryWorldTheme(groundTheme) ? 1 : isVolcanicWorldTheme(groundTheme) ? 2 : 0
+        sampleShipLighting(this.shipLighting, this.orbitalCamera.sunDirection, this.cosmosRegion,
+          surface, this.journey.enabled ? this.journey.worldAlpha : surface ? 1 : 0, celestialSeconds)
+        for (const volume of this.gasVolumes) volume.update(width, height, this.orbitalCamera, this.orbitalSkyReady)
       }
       this.updateSceneryBloom(stageTheme, isLow, isMedium)
-      for (const globe of this.globes) globe.update(celestialSeconds, this.globeStyle)
+      for (const globe of this.globes) globe.update(celestialSeconds, this.globeStyle, this.orbitalBodiesReady,
+        this.projected.get(globe.anchor)?.world.distanceKm ?? 0, this.orbitalCamera ?? undefined, this.assetTextures.get('clouds'))
+      for (const rock of this.sceneryRocks) rock.update(this.orbitalBodiesReady ? this.assetTextures.get('asteroid') : undefined, celestialSeconds, this.orbitalCamera?.focal ?? 1, width, height, this.orbitalCamera?.sunDirection)
       this.updateOrbitalEffects(width, height, frame.stageNumber ?? 1, frame.stageAge ?? 0, frame.stageRush,
-        bossIntensity, isLow, isMedium, !space, frame.landscape)
+        bossIntensity, isLow, isMedium, !space)
       if (space && this.orbitalCamera) {
         this.projectScenery(this.capitalFlyby, width, height)
         for (const dust of this.dustFlybys) this.projectScenery(dust, width, height)
       }
+      if (this.orbitalCamera) this.sceneryHulls.update(width, height, this.orbitalCamera.focal,
+        Boolean(frame.landscape), this.sceneryShipDistance, this.sceneryShipKey, this.shipLighting)
       // Present with the foreground once per rAF, not twice. Geometry,
       // scenery and textures are updated here on their existing cadence.
       return true
@@ -1365,14 +1436,21 @@ export class PixiRaidBackground {
     }
   }
 
+  isAsteroidGpuRendered(id: number) { return this.combatRocks.has(id) }
+
   renderForeground(frame: RaidGpuForegroundFrame) {
+    this.combatRocks.presented = false
     const app = this.app
     if (!app || this.hasLostContext(app)) return false
     try {
       const foregroundReady = this.foregroundPrepared && this.gpuForeground.update(frame)
+      this.combatRocks.update(this.orbitalBodiesReady ? this.assetTextures.get('asteroid') : undefined, frame.asteroids ?? [], frame.width, frame.height,
+        this.reducedMotion ? 0 : this.celestialClock.seconds, frame.bounds, frame.incomingAsteroids,
+        this.reducedMotion ? 1 : frame.asteroidApproachProgress, this.orbitalCamera?.sunDirection)
       // Present scenery even if the GPU actor layer fails; Canvas will draw
       // those actors itself, avoiding a black screen on unsupported devices.
       this.renderWithGpuTimer(app, frame.measureGpu, frame.time)
+      this.combatRocks.presented = true
       return foregroundReady
     } catch (error) {
       if (!this.renderErrorReported) {
@@ -1380,6 +1458,7 @@ export class PixiRaidBackground {
         console.warn('Raid WebGL rendering failed:', error)
       }
       this.gpuForeground.root.visible = false
+      this.combatRocks.presented = false
       return false
     }
   }
@@ -1406,6 +1485,10 @@ export class PixiRaidBackground {
     await Promise.all(FINAL_BATTLE_FIGHTERS.map(async (fighter) => {
       const key = getFinalBattleTextureKey(fighter)
       if (this.finalBattleTextures.has(key)) return
+      if(fighter.assetKind==='ship'){
+        this.finalBattleTextures.set(key,Texture.WHITE)
+        return
+      }
       try {
         const texture = await Assets.load(getFinalBattleTextureUrl(fighter))
         this.finalBattleTextures.set(key, texture as Texture)
@@ -1413,44 +1496,8 @@ export class PixiRaidBackground {
         this.finalBattleTextures.delete(key)
       }
     }))
-    await Promise.all(FINAL_BATTLE_CRUISERS.map(async (cruiser) => {
-      const key = getFinalBattleCruiserTextureKey(cruiser)
-      if (this.finalBattleTextures.has(key)) return
-      try {
-        const texture = await Assets.load(getRaidShipSpriteUrl(cruiser.asset))
-        this.finalBattleTextures.set(key, texture as Texture)
-      } catch {
-        this.finalBattleTextures.delete(key)
-      }
-    }))
-  }
-
-  private preloadBackgroundSideShips() {
-    this.backgroundSideShipsRequested = true
-    const keys = new Set<string>(FINAL_BATTLE_CRUISERS.map(({ asset }) => asset))
-    for (const fighter of FINAL_BATTLE_FIGHTERS) {
-      if (fighter.assetKind === 'ship') keys.add(fighter.asset)
-    }
-    for (const key of keys) {
-      const sprite = getRaidSideShipCanvasSprite(key)
-      if (!sprite) continue
-      void sprite.ready.then(() => {
-        if (this.destroyed || !sprite.loaded || !sprite.image.naturalWidth) return
-        // Share the decoded player artwork, but keep the scenery GPU copy small.
-        const image = sprite.image
-        const scale = Math.min(1, 384 / Math.max(image.naturalWidth, image.naturalHeight))
-        const canvas = document.createElement('canvas')
-        canvas.width = Math.max(1, Math.round(image.naturalWidth * scale))
-        canvas.height = Math.max(1, Math.round(image.naturalHeight * scale))
-        const ctx = canvas.getContext('2d')
-        if (!ctx) return
-        ctx.imageSmoothingQuality = 'high'
-        ctx.drawImage(image, 0, 0, canvas.width, canvas.height)
-        this.backgroundSideShipTextures.set(key, Texture.from(canvas))
-      }).catch(() => {
-        // The existing portrait texture remains available if side art fails to load.
-      })
-    }
+    // These anchors carry placement only. Friendly hulls have no painted-body fallback.
+    for(const cruiser of FINAL_BATTLE_CRUISERS)this.finalBattleTextures.set(getFinalBattleCruiserTextureKey(cruiser),Texture.WHITE)
   }
 
   private getGradient(key: string, options: object) {
@@ -2252,21 +2299,34 @@ export class PixiRaidBackground {
     this.fillRadial(graphics, width * 0.5, height * 0.46, Math.max(width, height) * 0.62 * pulse, Math.max(width, height) * 0.62, surfaceA, 'rgba(0,0,0,0)', 0.16)
   }
 
-  private registerDepth(sprites: Sprite[], depth: number) {
+  private registerDepth(sprites: Sprite[], distanceKm: number, mode: SpacePlacementMode = 'scripted') {
     sprites.forEach((sprite, i) => this.projected.set(sprite, {
-      depth: depth * (1 + (i * .618 % 1) * .7), x: 0, y: 0, sx: 1, sy: 1, active: false,
+      world: createSpacePlacement(distanceKm * (1 + (i * .618 % 1) * .7), mode),
+      x: 0, y: 0, sx: 1, sy: 1, active: false,
     }))
   }
 
   private projectScenery(sprite: Sprite, width: number, height: number) {
-    const pose = this.projected.get(sprite)
-    if (!pose || !sprite.visible || !this.orbitalCamera) return
-    pose.x = sprite.x
-    pose.y = sprite.y
-    pose.sx = sprite.scale.x
-    pose.sy = sprite.scale.y
-    pose.active = true
-    this.orbitalCamera.project(sprite, pose.depth, width, height)
+    const pose = this.projected.get(sprite), camera = this.orbitalCamera
+    if (!pose || !sprite.visible || !camera) return
+    pose.x = sprite.x; pose.y = sprite.y
+    pose.sx = sprite.scale.x; pose.sy = sprite.scale.y; pose.active = true
+    let physicalWidthKm = 0, radiusKm = 0, scripted = false
+    const fixed = sprite.texture === this.assetTextures.get('sun')
+    if (pose.world.mode === 'planet') {
+      const style = this.globeStyle(sprite.texture)
+      radiusKm = style.radiusKm
+      physicalWidthKm = radiusKm / style.radius
+      // The campaign's compressed approach is a 3D trajectory with a fixed
+      // planet radius; the sampled composition specifies distance keyframes.
+      scripted = this.journey.enabled && (sprite === this.planetSprites[0] || sprite === this.planetSprites[1])
+    } else if (fixed) {
+      physicalWidthKm = 1400000
+    }
+    camera.project(sprite, pose.world, width, height, this.journeyRun * 16 + this.cosmosRegion,
+      physicalWidthKm, radiusKm, scripted, fixed)
+    // Billboards and meshes share distance ordering without a depth-buffer pass.
+    if (sprite.parent === this.solidScenery) sprite.zIndex = -pose.world.zKm
   }
 
   private readonly globeStyle = (texture: Texture) => {
@@ -2340,6 +2400,8 @@ export class PixiRaidBackground {
     return orbitalShadowCoverage(this.orbitalShadow, x, y)
   }
 
+  getShipLighting() { return this.shipLighting }
+
   getOrbitalSunlight() {
     return this.orbitalShadow.sunSide * Math.min(1, this.orbitalShadow.strength * 4)
   }
@@ -2359,7 +2421,7 @@ export class PixiRaidBackground {
   }
 
   private updateOrbitalEffects(width: number, height: number, stage: number, age: number, rush: number, boss: number,
-    low: boolean, medium: boolean, surface: boolean, landscape = false) {
+    low: boolean, medium: boolean, surface: boolean) {
     const planet = this.planetSprites[0]
     const shadow = this.orbitalShadow
     shadow.strength = 0
@@ -2379,17 +2441,14 @@ export class PixiRaidBackground {
 
     const pass = sampleCapitalFlyby(age, stage)
     const cruiser = FINAL_BATTLE_CRUISERS[stage % 2]
-    const sideHull = landscape ? this.backgroundSideShipTextures.get(cruiser.asset) : undefined
-    const hull = sideHull ?? this.finalBattleTextures.get(getFinalBattleCruiserTextureKey(cruiser))
+    this.sceneryShipKeys.set(this.capitalFlyby, cruiser.asset)
+    const hull = this.finalBattleTextures.get(getFinalBattleCruiserTextureKey(cruiser))
     this.capitalFlyby.visible = Boolean(hull && pass >= 0 && !surface && !low && !this.reducedMotion && boss < .35)
     if (this.capitalFlyby.visible && hull) {
       const side = stage % 2 === 0 ? -1 : 1
       const edge = Math.min(width, height) * (.22 + pass * .28)
       setPixiSpriteContain(this.capitalFlyby, hull, width * (.5 + side * (.54 - pass * .11)),
-        height * (-.26 + pass * 1.5), edge, edge, Math.min(1, pass * 8, (1 - pass) * 8) * .92, side * .28 + (sideHull ? -Math.PI / 2 : Math.PI))
-      // Landscape turns the field clockwise. Mirror the side art to face
-      // left along this pass while keeping the deck above the engines.
-      if (sideHull) this.capitalFlyby.scale.x *= -1
+        height * (-.26 + pass * 1.5), edge, edge, Math.min(1, pass * 8, (1 - pass) * 8) * .92, 0)
       this.capitalFlyby.tint = stage <= 5 ? 0xb7d4f0 : 0xc5bbc9
     }
 
@@ -2517,7 +2576,7 @@ export class PixiRaidBackground {
     }
   }
 
-  private updateFinalBattleLayer(width: number, height: number, seconds: number, stageTheme: number, quality: GraphicsQuality, intensity: number, landscape = false) {
+  private updateFinalBattleLayer(width: number, height: number, seconds: number, stageTheme: number, quality: GraphicsQuality, intensity: number) {
     const graphics = this.finalBattleGraphics
     graphics.clear()
     const isFinalTheme = Math.floor(stageTheme) === RAID_BOSS_BACKGROUND_THEME_FINAL
@@ -2553,8 +2612,7 @@ export class PixiRaidBackground {
     for (let index = 0; index < fighterLimit; index += 1) {
       const fighter = FINAL_BATTLE_FIGHTERS[index]
       const sprite = this.finalBattleSprites[index]
-      const sideHull = landscape && fighter.assetKind === 'ship' ? this.backgroundSideShipTextures.get(fighter.asset) : undefined
-      const texture = sideHull ?? this.finalBattleTextures.get(getFinalBattleTextureKey(fighter))
+      const texture = this.finalBattleTextures.get(getFinalBattleTextureKey(fighter))
       const progress = (seconds * fighter.speed + fighter.ySeed) % 1
       const laneDrift = Math.sin(fighter.phase) * fighter.drift * 0.52
       const y = fighter.side === 'ally'
@@ -2567,7 +2625,7 @@ export class PixiRaidBackground {
       const shipTint = sceneryTint(0xffffff, 0.42 + alpha * 0.18)
       if (texture) {
         const drawSize = fighter.assetKind === 'ship' ? size : size * 1.08
-        const rotation = angle - (sideHull ? Math.PI / 2 : fighter.side === 'enemy' ? Math.PI : 0)
+        const rotation = angle - (fighter.side === 'enemy' ? Math.PI : 0)
         setPixiSpriteContain(sprite, texture, x, y, drawSize, drawSize, 1, rotation)
         sprite.tint = shipTint
       } else {
@@ -2587,8 +2645,7 @@ export class PixiRaidBackground {
     for (let index = 0; index < cruiserLimit; index += 1) {
       const cruiser = FINAL_BATTLE_CRUISERS[index]
       const sprite = this.finalBattleCruiserSprites[index]
-      const sideHull = landscape ? this.backgroundSideShipTextures.get(cruiser.asset) : undefined
-      const texture = sideHull ?? this.finalBattleTextures.get(getFinalBattleCruiserTextureKey(cruiser))
+      const texture = this.finalBattleTextures.get(getFinalBattleCruiserTextureKey(cruiser))
       const progress = (seconds * cruiser.speed + cruiser.ySeed) % 1
       const y = height * (1.16 - progress * 1.34)
       const laneDrift = cruiser.drift * (0.65 + Math.sin(cruiser.phase) * 0.18)
@@ -2599,7 +2656,7 @@ export class PixiRaidBackground {
       const cruiserAlpha = alpha * cruiser.alpha * edgeFade
       if (texture) {
         this.drawFinalBattleCruiserTrail(graphics, x, y, size, angle, cruiserAlpha)
-        setPixiSpriteContain(sprite, texture, x, y, size, size, 1, angle - (sideHull ? Math.PI / 2 : 0))
+        setPixiSpriteContain(sprite, texture, x, y, size, size, 1, angle)
         sprite.tint = sceneryTint(0xffffff, 0.42 + cruiser.alpha * 0.25)
       } else {
         sprite.visible = false
@@ -2824,23 +2881,21 @@ export class PixiRaidBackground {
     const debrisLimit = !asteroidTexture || isLow ? 0 : Math.max(0, Math.min(debrisCap, Math.round(debrisCap * density)))
     for (let index = 0; index < this.asteroidSprites.length; index += 1) {
       const sprite = this.asteroidSprites[index]
+      this.sceneryShipKeys.delete(sprite)
       sprite.visible = index < asteroidLimit
       if (!asteroidTexture || index >= asteroidLimit) continue
       sprite.tint = sceneryTint(COSMIC_REGIONS[this.cosmosRegion < 0 ? 0 : this.cosmosRegion].tint, 0.76)
       const edgeSlot = index - Math.max(0, asteroidLimit - (isMedium ? 1 : 2))
       sprite.zIndex = edgeSlot >= 0 ? 80 + edgeSlot : 60 + index * 0.01
       if (edgeSlot >= 0) {
-        const pass = edgeFlyby(seconds - this.cosmosEntered, edgeSlot)
-        sprite.visible = pass >= 0
-        if (pass < 0) continue
-        const passingWreck = !this.reducedMotion && !isMedium && edgeSlot === 0
-          ? getWreckTexture(sceneryWreckDesign(this.wreckSeed, 9, Math.floor((seconds - this.cosmosEntered) / 26), 'ship'))
-          : undefined
-        const size = Math.min(width, height) * (passingWreck ? .37 : .23)
-        const x = width * (edgeSlot === 0 ? .015 : .985)
-        const y = -size + pass * (height + size * 2)
-        setPixiSpriteContain(sprite, passingWreck ?? asteroidTexture, x, y, size, size, 1,
-          passingWreck ? -.24 + pass * .4 : seconds * .08)
+        const cycle = this.projected.get(sprite)?.world.recycle ?? 0
+        const cruiser = FINAL_BATTLE_CRUISERS[Math.floor(cycle/2) % 2]
+        const passingHull = !this.reducedMotion && !isMedium && edgeSlot === 0 && cycle % 2 === 0
+          ? this.finalBattleTextures.get(getFinalBattleCruiserTextureKey(cruiser)) : undefined
+        if (passingHull) this.sceneryShipKeys.set(sprite,cruiser.asset)
+        const size = Math.min(width, height) * (passingHull ? .37 : .23)
+        setPixiSpriteContain(sprite, passingHull ?? asteroidTexture, width * (edgeSlot === 0 ? .015 : .985),
+          height * .45, size, size, 1, 0)
         continue
       }
       const asteroid = BACKGROUND_ASTEROIDS[index]

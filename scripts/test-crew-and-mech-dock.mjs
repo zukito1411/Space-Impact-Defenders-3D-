@@ -22,7 +22,7 @@ for(const [file,height] of [
  ['god-gundam-flight-v4.webp',1024], ['god-gundam-actions-v3.webp',1024],
  ['god-gundam-burning-flight-v5.webp',1024], ['god-gundam-burning-actions-v4.webp',1024],
 ]){
- const b=readFileSync(new URL('../public/assets/ships/sideview/'+file,import.meta.url))
+ const b=readFileSync(new URL('../art/source-ships/sideview/'+file,import.meta.url))
  assert.equal(b.toString('ascii',12,16),'VP8X');assert.ok(b[20]&16,file+' must retain its silhouette alpha')
  assert.equal(b.readUIntLE(24,3)+1,1536);assert.equal(b.readUIntLE(27,3)+1,height)
 }

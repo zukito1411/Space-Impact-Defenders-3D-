@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import {readFileSync}from'node:fs'
 import ts from'typescript'
-const read=p=>readFileSync(new URL('../src/components/games/raid/'+p,import.meta.url),'utf8')
+const read=p=>readFileSync(new URL('../src/components/games/raid/'+p,import.meta.url),'utf8').replace(/\r\n/g,'\n')
 const mod=async s=>import('data:text/javascript;base64,'+Buffer.from(ts.transpileModule(s,{compilerOptions:{module:ts.ModuleKind.ESNext}}).outputText).toString('base64'))
 const launch=await mod(read('carrierLaunch.ts'))
 const deck=await mod(`const CARRIER_BOARDING_SECONDS=${launch.CARRIER_BOARDING_SECONDS},CARRIER_CLEAR_SECONDS=${launch.CARRIER_CLEAR_SECONDS},CARRIER_IGNITION_START=${launch.CARRIER_IGNITION_START};\n`+['crewMotion.ts','carrierDeckLayout.ts','deckServiceArt.ts','carrierCanopyProfiles.ts','carrierBoarding.ts'].map(p=>read(p).replace(/^import .*\n/gm,'')).join('\n')+'\n'+read('carrierDeck.ts').replace(/^import .*\n/gm,''))

@@ -1,3 +1,4 @@
+import { getCoreLanderBarrageFilter } from './state'
 import { getRaidFighter, LEGACY_FIGHTER_COUNT } from './stageEncounters'
 import { getRaidSideShipSpriteUrl } from './sideArtwork'
 import { getGenericBossArt } from './bossCatalog'
@@ -5,9 +6,8 @@ import { getWreckCanvasSprite } from './wreckArt'
 import { getRaidAlienSpriteUrl, getRaidEliteSpriteUrl, getRaidShipSpriteUrl, RAID_ALIEN_SPRITE_COUNT, RAID_ELITE_SPRITE_COUNT } from '../RaidShipSprite'
 import { getPublicAssetUrl } from '../sound'
 import { getCobraBossBodyTextureCanvas, getSquidBossTentacleTextureCanvas } from './bossRender'
-import { PLAYER_COLOR, SHIP_OPTIONS } from './constants'
+import { PLAYER_COLOR } from './constants'
 import { DEG } from './constants'
-import { getCoreLanderBarrageFilter } from './state'
 import type { BossKind, CoreLanderCombatModel, DevilBossPose, Enemy } from './types'
 import { clamp, drawRadialEllipse, getCachedSpriteGlow } from './utils'
 
@@ -84,9 +84,6 @@ export const RAID_OTHER_ASSET_PATHS = {
   volcano2: 'assets/others/volcano_2.png',
   volcano3: 'assets/others/volcano_3.png',
   snakeVolcano: 'assets/others/snake_volcano.png',
-  bgShipMesiahBlack: 'assets/ships/mesiah-black.png',
-  bgShipMesiahWhite: 'assets/ships/mesiah-white.png',
-  bgShipRaptorWhite: 'assets/ships/mesiah-raptor-white.png',
   bgEnemyScout: 'assets/aliens/alien_v2.png',
   bgEnemySwarm: 'assets/aliens/alien_v5.png',
   bgEnemyElite: 'assets/aliens/elite_2.png',
@@ -1114,16 +1111,6 @@ export function warmRaidCanvasFilterVariants() {
     if (sprite.loaded && sprite.image.complete && shouldCacheCanvasFilter(filter)) jobs.push({ sprite, filter })
   }
 
-  for (const ship of SHIP_OPTIONS) {
-    if (ship.key === 'coreLander') continue
-    const sprite = getShipCanvasSprite(ship.key)
-    for (const filter of RAID_SHIP_STATIC_FILTERS) enqueue(sprite, filter)
-  }
-  for (const spriteKey of ['mesiahBlack', 'mesiahWhite', 'mesiahRaptorBlack', 'mesiahRaptorWhite', 'godGundam', 'godGundamBurning', 'spiegel']) {
-    const sprite = getShipCanvasSprite(spriteKey)
-    for (const filter of RAID_SHIP_STATIC_FILTERS) enqueue(sprite, filter)
-  }
-
   RAID_DEVIL_BOSS_POSES.forEach((pose) => {
     const sprite = getDevilBossCanvasSprite(pose)
     for (const filter of RAID_DEVIL_BOSS_STATIC_FILTERS) enqueue(sprite, filter)
@@ -1143,7 +1130,7 @@ export function warmRaidCanvasFilterVariants() {
   for (const filter of RAID_COBRA_BOSS_STATIC_FILTERS) enqueue(getCobraBossCanvasSprite(), filter)
   enqueue(getDevilMasterProjectileCanvasSprite(), RAID_DEVIL_MASTER_PROJECTILE_FILTER)
   for (const model of RAID_CORE_LANDER_COMBAT_MODELS) {
-    for (const pose of Object.keys(RAID_CORE_LANDER_BARRAGE_ASSET_PATHS[model]) as GodGundamBarragePose[]) {
+    for (const pose of Object.keys(RAID_CORE_LANDER_BARRAGE_ASSET_PATHS[model])) {
       enqueue(getGodGundamBarrageCanvasSprite(model, pose), getCoreLanderBarrageFilter(model, false))
       enqueue(getGodGundamBarrageCanvasSprite(model, pose), getCoreLanderBarrageFilter(model, true))
     }
@@ -1214,20 +1201,12 @@ export function getDerelictWreckCanvasSprite(variant: number) {
   return makeImageCanvasSprite(cacheKey, getPublicAssetUrl(RAID_DERELICT_WRECK_ASSET_PATH), processDerelictWreckAsset)
 }
 
-function processWhiteRaptorExhaust(image: HTMLImageElement) {
-  const canvas = makeSpriteProcessingCanvas(image, 620)
-  if (!canvas) return null
-  // Hide the old baked flame below the nozzle. The adjacent fins remain visible.
-  const top = Math.round(canvas.height * .925)
-  canvas.getContext('2d')?.clearRect(canvas.width * .44, top, canvas.width * .12, canvas.height - top)
-  return canvas
-}
-
+/** Original 2D mech bodies; ordinary ships use these renders only for UI/masks. */
 export function getShipCanvasSprite(shipKey: string) {
   const key = `ship-image:${shipKey}`
   const existing = canvasSpriteCache.get(key)
   if (existing) return existing
-  return makeImageCanvasSprite(key, getRaidShipSpriteUrl(shipKey), shipKey === 'mesiahRaptorWhite' ? processWhiteRaptorExhaust : undefined)
+  return makeImageCanvasSprite(key, getRaidShipSpriteUrl(shipKey))
 }
 
 export function getRaidSideShipCanvasSprite(shipKey: string) {

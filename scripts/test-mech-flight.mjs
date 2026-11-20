@@ -37,7 +37,7 @@ for(const landscape of [true,false])for(const burning of [true,false]){
  near((shot.y-ship.y)*h/100,hull*(landscape?-x:-.04))
 }
 for(const name of ['god-gundam-flight-v4.webp','god-gundam-burning-flight-v5.webp','spiegel-flight-v2.webp']){
- const b=readFileSync(new URL('../public/assets/ships/sideview/'+name,import.meta.url))
+ const b=readFileSync(new URL('../art/source-ships/sideview/'+name,import.meta.url))
  assert.equal(b.toString('ascii',12,16),'VP8X');assert.ok(b[20]&16,'sprite must retain transparency')
  assert.equal(b.readUIntLE(24,3)+1,1536);assert.equal(b.readUIntLE(27,3)+1,1024)
 }

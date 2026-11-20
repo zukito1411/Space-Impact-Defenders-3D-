@@ -1,7 +1,7 @@
 {
   "xwing": {
     "model": "crosswing-nova-open-x.blend",
-    "reference": "public/assets/ships/crosswing-nova-remaster-v1.webp",
+    "reference": "art/source-ships/crosswing-nova-remaster-v1.webp",
     "sha256": "a42ff60597b6f1b207a5cc4eaa42d6d3dc237bd44ea6c3a6306c31c32c23375f",
     "orient_xyz_degrees": [
       0,
@@ -11,7 +11,7 @@
   },
   "spaceEt": {
     "model": "space-jet-3d-tail-fin.blend",
-    "reference": "public/assets/ships/space-jet-remaster-v1.webp",
+    "reference": "art/source-ships/space-jet-remaster-v1.webp",
     "sha256": "16773487a63e815c26cb1798be8f4d8703328b2b55ec323b27512dcba0eebb9e",
     "orient_xyz_degrees": [
       0,

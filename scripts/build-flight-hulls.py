@@ -6,6 +6,7 @@ The separate bake script reads the saved .blend, including subsequent hand edits
 """
 
 import math
+import json
 import re
 import sys
 import tempfile
@@ -17,7 +18,7 @@ from PIL import Image
 from scipy.ndimage import distance_transform_edt, gaussian_filter, map_coordinates
 
 ROOT = Path(__file__).resolve().parents[1]
-ART = ROOT / "public/assets/ships"
+ART = ROOT / "art/source-ships"
 MODELS = ROOT / "art/3d/flight-hulls"
 # Centerline cockpit (center y, half-width, half-length), wing root half-width.
 PROFILES = {
@@ -686,13 +687,6 @@ def build(key, file):
 
 
 if __name__ == "__main__":
-    paths = (ROOT / "src/components/games/RaidShipSprite.tsx").read_text() + (
-        ROOT / "src/components/games/raid/shipArtwork.ts"
-    ).read_text()
-    files = {
-        k: ROOT / "public" / p
-        for k, p in re.findall(r"^  (\w+): '(assets/ships/[^']+)'", paths, re.MULTILINE)
-        if k.removesuffix("Elite") in PROFILES
-    }
+    files = {key: ART / filename for key, filename in json.loads((ART / "manifest.json").read_text()).items()}
     for ship in sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else sorted(files):
         build(ship, files[ship])

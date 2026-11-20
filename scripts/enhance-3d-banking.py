@@ -61,7 +61,7 @@ def enhance_atlas(source: Path, target: Path) -> None:
 def main() -> None:
     parser = ArgumentParser()
     parser.add_argument(
-        "--folder", type=Path, default=Path("public/assets/ships/banking")
+        "--folder", type=Path, default=Path("art/source-ships/banking")
     )
     parser.add_argument("--only", action="append", help="Ship key to process")
     options = parser.parse_args()

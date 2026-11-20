@@ -39,7 +39,7 @@ jobs:
           from pathlib import Path
           from PIL import Image
           from statistics import median
-          folder=Path("public/assets/ships/banking")
+          folder=Path("art/source-ships/banking")
           sources=sorted(folder.glob("*-v1.webp"))
           assert len(sources)==27, f"expected 27 original atlases, got {len(sources)}"
           for src in sources:
@@ -58,7 +58,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f public/assets/ships/banking/*-v4.webp
+          git add -f art/source-ships/banking/*-v4.webp
           if ! git diff --cached --quiet; then
             git commit -m "art(3d): add 27 clean original-derived banking atlases"
             git push origin HEAD:fix/3d-clean-2d-fidelity

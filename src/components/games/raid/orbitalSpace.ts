@@ -1,29 +1,45 @@
-import { Geometry, GlProgram, Mesh, MeshGeometry, Shader, Sprite, Texture, UniformGroup } from 'pixi.js'
+import { Geometry, GlProgram, Mesh, MeshGeometry, RenderTexture, Shader, Sprite, Texture, UniformGroup } from 'pixi.js'
+import { OrbitalAtmosphere, OrbitalSurface } from './orbitalBodies'
+import { SpaceCamera, SPACE_DISTANCES } from './spaceWorld'
+import type { Renderer } from 'pixi.js'
+import type { SpacePlacement } from './spaceWorld'
 
-// Optical coordinates are in units of the focal length. The same camera drives
-// the planets, the star catalogue, and the rays through the nebula.
-export class OrbitalCamera {
-  readonly eye = new Float32Array(3)
-  focal = 1
-  travel = 0
-  speed = .09
-  private previousSeconds: number | null = null
-  setView(width: number, height: number, seconds: number, rush: number, reduced: boolean) {
-    const dt = this.previousSeconds === null ? 0 : Math.max(0, Math.min(.05, seconds - this.previousSeconds))
-    this.previousSeconds = seconds
-    this.speed = reduced ? 0 : .09 + .20 * rush
-    this.travel = (this.travel + dt * this.speed) % 15
-    this.focal = Math.max(width, height) * .93
-    this.eye[0] = reduced ? 0 : .18 * Math.sin(seconds * .054)
-    this.eye[1] = reduced ? 0 : .11 * Math.sin(seconds * .039)
-    this.eye[2] = reduced ? 0 : .08 * Math.sin(seconds * .044) + rush * .16
-  }
-  project(node: Sprite, depth: number, width: number, height: number) {
-    const z = depth - this.eye[2]
-    const magnification = depth / z
-    node.position.set(width * .5 + ((node.x - width * .5) * depth - this.eye[0] * this.focal) / z,
-      height * .5 + ((node.y - height * .5) * depth - this.eye[1] * this.focal) / z)
-    node.scale.set(node.scale.x * magnification, node.scale.y * magnification)
+// Author the initial composition once, then project persistent kilometre positions.
+export class OrbitalCamera extends SpaceCamera {
+  project(node: Sprite, out: SpacePlacement, width: number, height: number, epoch: number,
+    physicalWidthKm = 0, radiusKm = 0, scripted = false, fixed = false) {
+    const refresh = !out.admitted || out.texture !== node.texture.uid || out.epoch !== epoch
+    if (refresh || scripted || out.mode === 'scripted' && !fixed) {
+      this.admit(out, node.x, node.y, node.width, node.height, width, height,
+        node.texture.uid, epoch, physicalWidthKm, radiusKm, node.rotation)
+    }
+    this.advance(out)
+    let distance = this.relativeDistance(out)
+    // Nearby scenery exits behind the ship, then returns beyond the leading
+    // edge. It never reappears at the centre or accelerates toward the camera.
+    const marginKm = Math.hypot(out.widthKm,out.heightKm)*.6 + 96*distance/this.focal
+    const behind = out.yKm-this.positionKm[1]-marginKm > height*.5*distance/this.focal
+    if (out.mode === 'stream' && !scripted && !fixed && (distance <= SPACE_DISTANCES.nearClipKm || behind)) {
+      this.recycle(out, width, height)
+      distance = this.relativeDistance(out)
+    }
+    if (distance <= SPACE_DISTANCES.nearClipKm) { node.visible = false; return }
+    const pixelsPerKm = this.focal / distance
+    node.position.set(width * .5 + (out.xKm - this.positionKm[0]) * pixelsPerKm,
+      height * .5 + (out.yKm - this.positionKm[1]) * pixelsPerKm)
+    // Respect any authored reflection, while deriving scale from physical span.
+    node.scale.set(Math.sign(node.scale.x || 1) * out.widthKm * pixelsPerKm / node.texture.width,
+      Math.sign(node.scale.y || 1) * out.heightKm * pixelsPerKm / node.texture.height)
+    node.rotation = out.roll
+    if (out.mode === 'stream' && !scripted && !fixed && !this.reducedMotion) {
+      const fade = Math.min(1, out.ageSeconds / .6)
+      node.alpha *= fade * fade * (3 - 2 * fade)
+    }
+    // Conservative frustum culling: keep close/off-axis surfaces and their rims.
+    const ratio = Math.min(.975, (radiusKm || out.widthKm * .5) / distance)
+    const extentX = node.width * .6 / (1 - ratio), extentY = node.height * .6 / (1 - ratio)
+    if (node.x + extentX < -64 || node.x - extentX > width + 64 ||
+      node.y + extentY < -64 || node.y - extentY > height + 64) node.visible = false
   }
 }
 
@@ -40,61 +56,33 @@ void main() {
   gl_Position = vec4((uProjectionMatrix * uWorldTransformMatrix * uTransformMatrix * vec3(aPosition,1.)).xy,0.,1.);
 }`
 
-// Orthographic ray/sphere intersection. The source images are painted discs,
-// so project the rotated normal back into their original camera instead of
-// treating the cutout (including its black corners) as a longitude map.
-const planetFragment = `
+// Retain the authored rings outside the globe. The globe itself is a lit,
+// rotating three-dimensional surface, sharing this atlas and renderer.
+const ringFragment = `
 precision highp float;
 varying vec2 uv;
 varying vec4 tint;
 uniform sampler2D uArt;
 uniform vec4 uFrame;
-uniform vec3 uAir;
 uniform vec2 uDisc;
-uniform vec2 uSpin;
-uniform float uLava;
-vec4 art(vec2 p) { return texture2D(uArt, uFrame.xy + clamp(p, .001, .999) * uFrame.zw); }
 void main() {
-  vec4 plate = art(uv);
-  if (plate.a < .001) discard;
-  vec2 p = (uv - .5) / uDisc;
-  float r = length(p);
-  if (r >= 1.) { gl_FragColor = plate * tint; return; }
-  vec3 n = vec3(p,sqrt(max(0.,1.-dot(p,p))));
-  vec2 surface = vec2(uSpin.x*n.x+uSpin.y*n.z,n.y);
-  vec4 sampleColor = art(.5 + surface * uDisc * .985);
-  vec3 pigment = sampleColor.rgb / max(.025,sampleColor.a);
-  float luma = dot(pigment,vec3(.2126,.7152,.0722));
-  pigment = max(vec3(0.),mix(vec3(luma),pigment,1.17));
-  vec3 sun = vec3(-.609187,-.495610,.619512);
-  float incidence = dot(n,sun);
-  float day = smoothstep(-.32,.88,incidence);
-  vec3 surfaceLight = mix(vec3(.45,.48,.62),vec3(1.23,1.18,1.15),day);
-  vec3 color = pigment * surfaceLight;
-  float grazing = pow(1.-n.z,2.9) * (.22 + .78*smoothstep(-.48,.52,incidence));
-  color += uAir * grazing * .60;
-  // Atmospheric scattering follows the terminator as the painted globe turns.
-  float twilight = 1.-smoothstep(.02,.30,abs(incidence));
-  color += uAir * twilight * grazing * .24;
-  float fissure = smoothstep(.05,.40,pigment.r-pigment.b) * uLava;
-  color += pigment * fissure * (.24+.28*(1.-day));
-  float blend = (1.-smoothstep(.976,1.,r))*plate.a;
-  gl_FragColor = vec4(mix(plate.rgb,color*plate.a,blend),plate.a) * tint;
+  if (length((uv-.5)/uDisc) < .998) discard;
+  gl_FragColor = texture2D(uArt,uFrame.xy+uv*uFrame.zw)*tint;
 }`
 
-type GlobeStyle = { radius: number; air: number[]; swing: number; lava?: boolean }
+type GlobeStyle = { radiusKm: number; radius: number; air: number[]; swing: number; weather?: number; lava?: boolean }
 export const globeStyles = {
-  ocean: { radius: .481, air: [.42,.40,1.], swing: .42 },
-  volcanic: { radius: .482, air: [1.,.31,.10], swing: .36, lava: true },
-  earth: { radius: .447, air: [.25,.66,1.], swing: .32 },
-  blue: { radius: .446, air: [.18,.63,1.], swing: .34 },
+  ocean: { radiusKm: 6400, radius: .481, air: [.42,.40,1.], swing: .42, weather: .72 },
+  volcanic: { radiusKm: 5100, radius: .482, air: [1.,.31,.10], swing: .36, lava: true },
+  earth: { radiusKm: 6400, radius: .447, air: [.25,.66,1.], swing: .32, weather: .64 },
+  blue: { radiusKm: 7200, radius: .446, air: [.18,.63,1.], swing: .34, weather: .48 },
   // The source rings cross the near hemisphere. Keep that texture registration fixed.
-  ring: { radius: .29, air: [.94,.67,.33], swing: 0 },
-  ringLandmark: { radius: .239, air: [1.,.63,.25], swing: 0 },
-  violet: { radius: .478, air: [.72,.39,1.], swing: .33 },
-  green: { radius: .488, air: [.38,.78,.95], swing: .32 },
-  gold: { radius: .492, air: [1.,.53,.12], swing: .28, lava: true },
-  nebula: { radius: .476, air: [.34,.62,1.], swing: .30 },
+  ring: { radiusKm: 58000, radius: .29, air: [.94,.67,.33], swing: 0 },
+  ringLandmark: { radiusKm: 58000, radius: .239, air: [1.,.63,.25], swing: 0 },
+  violet: { radiusKm: 4600, radius: .478, air: [.72,.39,1.], swing: .33 },
+  green: { radiusKm: 8800, radius: .488, air: [.38,.78,.95], swing: .32, weather: .42 },
+  gold: { radiusKm: 7200, radius: .492, air: [1.,.53,.12], swing: .28, lava: true },
+  nebula: { radiusKm: 6100, radius: .476, air: [.34,.62,1.], swing: .30 },
 } satisfies Record<string, GlobeStyle>
 
 function writeFrame(out: Float32Array, texture: Texture) {
@@ -103,51 +91,80 @@ function writeFrame(out: Float32Array, texture: Texture) {
 }
 
 export class OrbitalGlobe {
+  private readonly surface = new OrbitalSurface()
+  private readonly atmosphere = new OrbitalAtmosphere()
+  readonly mesh = this.surface.mesh
   private readonly params = new UniformGroup({
     uFrame: { value: new Float32Array(4), type: 'vec4<f32>' },
-    uAir: { value: new Float32Array(3), type: 'vec3<f32>' },
     uDisc: { value: new Float32Array(2), type: 'vec2<f32>' },
-    uSpin: { value: new Float32Array([1, 0]), type: 'vec2<f32>' }, uLava: { value: 0, type: 'f32' },
   })
-  private readonly shader = new Shader({ glProgram: GlProgram.from({ vertex: quadVertex, fragment: planetFragment }),
-    resources: { globe: this.params, uArt: Texture.WHITE.source } })
-  readonly mesh = new Mesh({ geometry: new MeshGeometry({}), shader: this.shader })
+  private readonly shader = new Shader({ glProgram: GlProgram.from({ vertex: quadVertex, fragment: ringFragment }),
+    resources: { rings: this.params, uArt: Texture.WHITE.source } })
+  private readonly rings = new Mesh({ geometry: new MeshGeometry({}), shader: this.shader })
   private style: GlobeStyle = globeStyles.ocean
 
   constructor(readonly anchor: Sprite) {
-    this.mesh.pivot.set(.5)
-    this.mesh.visible = false
-    anchor.parent!.addChildAt(this.mesh, anchor.parent!.getChildIndex(anchor))
+    this.rings.pivot.set(.5)
+    this.rings.visible = false
+    const parent = anchor.parent!, index = parent.getChildIndex(anchor)
+    parent.addChildAt(this.mesh, index)
+    parent.addChildAt(this.atmosphere.mesh, index + 1)
+    parent.addChildAt(this.rings, index + 2)
   }
-  update(seconds: number, styleFor: (texture: Texture) => GlobeStyle) {
+  update(seconds: number, styleFor: (texture: Texture) => GlobeStyle, enabled = true, distanceKm = 0, camera?: OrbitalCamera, weather?: Texture) {
     const sprite = this.anchor, mesh = this.mesh
-    mesh.visible = sprite.visible
-    sprite.renderable = false
+    mesh.visible = enabled && sprite.visible
+    sprite.renderable = !enabled
+    this.rings.visible = false
+    this.atmosphere.mesh.visible = mesh.visible
     if (!mesh.visible) return
-    const texture = sprite.texture, u = this.params.uniforms
+    const texture = sprite.texture
     if (mesh.texture !== texture) {
-      mesh.texture = texture
+      this.surface.setTexture(texture)
+      this.rings.texture = texture
       this.shader.resources.uArt = texture.source
-      writeFrame(u.uFrame, texture)
+      writeFrame(this.params.uniforms.uFrame, texture)
       this.style = styleFor(texture)
-      u.uAir.set(this.style.air)
-      u.uDisc[0] = this.style.radius
-      u.uDisc[1] = this.style.radius * texture.width / texture.height
-      u.uLava = this.style.lava ? 1 : 0
     }
-    const yaw = this.style.swing * Math.sin(seconds * .065)
-    u.uSpin[0] = Math.cos(yaw)
-    u.uSpin[1] = Math.sin(yaw)
+    const rx = this.style.radius, ry = rx * texture.width / texture.height
+    this.surface.setWeather(weather, seconds, this.style.weather ?? 0)
+    if (camera) this.surface.setLight(camera.sunDirection)
+    this.surface.setPerspective(distanceKm > 0 ? Math.min(.975, this.style.radiusKm / distanceKm) : 0,
+      camera ? (sprite.x - camera.width * .5) / camera.focal : 0,
+      camera ? (sprite.y - camera.height * .5) / camera.focal : 0, sprite.rotation)
+    this.surface.pose(this.style.swing === 0 ? 0 : seconds*.008+this.style.swing,
+      this.style.swing*.12, rx, ry, this.style.air, this.style.lava)
     mesh.position.copyFrom(sprite.position)
-    mesh.scale.set(sprite.width,sprite.height)
+    mesh.scale.set(sprite.width, sprite.height)
     mesh.rotation = sprite.rotation
     mesh.alpha = sprite.alpha
+    mesh.tint = sprite.tint
     mesh.zIndex = sprite.zIndex
+    const halo = this.atmosphere.mesh
+    this.atmosphere.pose(rx, ry, distanceKm > 0 ? this.style.radiusKm / distanceKm : 0,
+      camera ? (sprite.x-camera.width*.5)/camera.focal : 0,
+      camera ? (sprite.y-camera.height*.5)/camera.focal : 0, sprite.rotation, this.style.air, camera?.sunDirection)
+    halo.position.copyFrom(sprite.position); halo.scale.set(sprite.width, sprite.height)
+    halo.rotation = sprite.rotation; halo.alpha = sprite.alpha; halo.tint = sprite.tint
+    halo.zIndex = sprite.zIndex + .0005
+    if (this.style === globeStyles.ring || this.style === globeStyles.ringLandmark) {
+      this.rings.visible = true
+      this.params.uniforms.uDisc[0] = rx
+      this.params.uniforms.uDisc[1] = ry
+      this.rings.position.copyFrom(sprite.position)
+      this.rings.scale.set(sprite.width, sprite.height)
+      this.rings.rotation = sprite.rotation
+      this.rings.alpha = sprite.alpha
+      this.rings.tint = sprite.tint
+      this.rings.zIndex = sprite.zIndex + .001
+    }
   }
   destroy() {
-    this.mesh.geometry.destroy(true)
+    this.surface.destroy()
+    this.atmosphere.destroy()
+    this.rings.geometry.destroy(true)
     this.shader.destroy()
-    this.mesh.destroy()
+    this.rings.destroy()
   }
 }
 
@@ -199,18 +216,35 @@ vec3 nebula(vec2 p) {
 }
 void main() {
   if (uGalaxy > .5) {
-    // Intersect a shallow stellar disc. Integrate emissive dust through its
-    // thickness; the nucleus has a longer optical path than the tapered rim.
+    // Integrate through an inclined stellar disc in local XYZ. Camera offsets
+    // change the line of sight through the nucleus and its separate dust layers.
     vec2 p = (uv-.5)*2.;
-    float chord = sqrt(max(0.,1.-dot(p,p)));
-    vec2 shear = (uView + uEye.xy*.17) * .038;
+    vec3 ray = normalize(vec3((p-uView)*.16,-1.));
+    vec3 origin = vec3(p+uEye.xy*.012,2.);
+    float tilt = .25 + clamp(uView.y,-.5,.5)*.18;
+    float c = cos(tilt), s = sin(tilt);
+    ray.yz = mat2(c,-s,s,c)*ray.yz;
+    origin.yz = mat2(c,-s,s,c)*origin.yz;
+    float middle = -origin.z/min(-.001,ray.z);
     vec4 sum = vec4(0.);
-    for (int i=0; i<5; i++) {
-      float z = (float(i)*.5-1.)*chord;
-      vec2 st = clamp(.5 + (p*.5 + z*shear)/(1.+z*.023),.001,.999);
-      sum += texture2D(uArt,uFrame.xy + st*uFrame.zw)*.2;
+    float transmission = 1.;
+    for (int i=0; i<8; i++) {
+      float depth = (float(i)/7.-.5)*.18;
+      vec3 point = origin+ray*(middle+depth);
+      vec2 st = clamp(.5+point.xy*.5,.002,.998);
+      vec4 layer = texture2D(uArt,uFrame.xy+st*uFrame.zw);
+      float edge = 1.-smoothstep(.7,1.25,length(point.xy));
+      float density = exp(-abs(point.z)*18.)*edge;
+      // Front-to-back extinction separates the luminous stellar disc from
+      // the dark dust lanes, using the same eight authored-art samples.
+      float luminance = dot(layer.rgb,vec3(.2126,.7152,.0722));
+      float dust = (1.-smoothstep(.035,.32,luminance))*layer.a;
+      float opacity = density*(.15+dust*.32);
+      sum += layer*(density*.23*transmission);
+      transmission *= 1.-clamp(opacity,0.,.8);
     }
-    sum.rgb *= 1.+.44*chord*chord;
+    sum.rgb *= 1.25+.28*exp(-dot(p,p)*5.);
+    sum.a = clamp(sum.a,0.,1.);
     gl_FragColor = sum*tint;
     return;
   }
@@ -218,7 +252,11 @@ void main() {
   vec3 gas = nebula(midUV);
   vec3 veil = nebula(nearUV);
   float density = smoothstep(.12,.72,max(max(gas.r,gas.g),gas.b));
-  vec3 color = mix(distant,gas,.33*density) + veil * (.09+.12*density);
+  float nearDensity = smoothstep(.09,.64,max(veil.r,max(veil.g,veil.b)));
+  // The near veil absorbs background light before scattering its own color.
+  // Clear pockets retain the original authored nebula rather than a flat wash.
+  vec3 color = distant*(1.-density*.2)*(1.-nearDensity*.16);
+  color += gas*(.25+.18*density) + veil*(.07+.14*nearDensity);
   float luma = dot(color,vec3(.2126,.7152,.0722));
   color = max(vec3(0.),mix(vec3(luma),color,1.16));
   gl_FragColor = vec4(color,1.) * tint;
@@ -244,10 +282,10 @@ export class CosmicGasVolume {
     this.mesh.visible = false
     anchor.parent!.addChildAt(this.mesh,anchor.parent!.getChildIndex(anchor))
   }
-  update(width: number, height: number, camera: OrbitalCamera) {
+  update(width: number, height: number, camera: OrbitalCamera, enabled = true) {
     const {mesh,anchor} = this
-    mesh.visible = anchor.visible
-    anchor.renderable = false
+    mesh.visible = enabled && anchor.visible
+    anchor.renderable = !enabled
     if (!mesh.visible) return
     if (mesh.texture !== anchor.texture) {
       mesh.texture = anchor.texture
@@ -267,6 +305,17 @@ export class CosmicGasVolume {
       mesh.scale.set(width, height)
     }
     mesh.alpha = anchor.alpha
+    mesh.tint = anchor.tint
+    mesh.zIndex = anchor.zIndex
+  }
+  warm(renderer: Renderer, target: RenderTexture, texture: Texture) {
+    this.shader.resources.uArt = texture.source
+    writeFrame(this.params.uniforms.uFrame,texture)
+    const mesh = this.mesh, x = mesh.x, y = mesh.y, sx = mesh.scale.x, sy = mesh.scale.y, visible = mesh.visible
+    mesh.visible = true; mesh.scale.set(8); mesh.position.set(this.galaxy ? 4 : 0)
+    try { renderer.render({ container: mesh, target, clear: true }) }
+    finally { mesh.visible = visible; mesh.position.set(x,y); mesh.scale.set(sx,sy) }
+    // Normal update will bind the anchor's actual texture on first visibility.
   }
   destroy() {
     this.mesh.geometry.destroy(true)
@@ -280,9 +329,9 @@ precision highp float;
 attribute vec2 aPosition;
 attribute vec4 aStar;
 uniform mat3 uProjectionMatrix, uWorldTransformMatrix, uTransformMatrix;
-uniform vec3 uEye;
+uniform vec3 uStarEye, uDustEye;
 uniform vec2 uViewport;
-uniform float uFocal, uTravel, uTime, uDensity, uSpeed;
+uniform float uFocal, uTime, uDensity, uSpeed;
 varying vec2 corner;
 varying vec3 spectrum;
 varying float gain;
@@ -295,9 +344,18 @@ void main() {
     gl_Position = vec4(2.,2.,0.,1.);
     return;
   }
-  float z = .7 + mod(aStar.z-uTravel,15.);
-  float distance = max(.4,z-uEye.z);
-  vec2 pos = .5*uViewport + (aStar.xy-uEye.xy)*uFocal/distance;
+  // Stars inhabit a fixed, distant catalogue. Only local dust recycles as
+  // the camera crosses cells; stars never rush past the cockpit like debris.
+  float z = dust ? aStar.z : aStar.z-uStarEye.z;
+  if (z <= .08) {
+    gain = 0.; spectrum = vec3(0.); gl_Position = vec4(2.,2.,0.,1.); return;
+  }
+  float distance = max(.08,z);
+  // Depth-scaled cells wrap outside the viewport rather than in its middle.
+  vec2 span = (uViewport+vec2(112.))*distance/uFocal;
+  vec2 relative = dust ? mod(aStar.xy*span/17.-uDustEye.xy+span*.5,span)-span*.5
+    : aStar.xy-uStarEye.xy;
+  vec2 pos = .5*uViewport + relative*uFocal/distance;
   // Reject offscreen catalogue points before computing their radiance.
   if (pos.x < -48. || pos.y < -48. || pos.x > uViewport.x+48. || pos.y > uViewport.y+48.) {
     gain = 0.; spectrum = vec3(0.);
@@ -307,14 +365,13 @@ void main() {
   float magnitude = fract(seed*37.91);
   float size = clamp((.69 + 2.9*pow(magnitude,8.))*sqrt(6./distance),.70,5.5);
   if (dust) size = clamp(2.6/distance, .35, 2.6);
-  vec3 cool = vec3(.54,.76,1.);
-  spectrum = mix(cool,vec3(1.,.78,.53),smoothstep(.55,.94,fract(seed*13.17)));
-  gain = (.52+.48*magnitude) * (.94+.06*sin(uTime*.8+seed*80.))
-    * smoothstep(.75,2.,z) * (1.-smoothstep(14.,15.7,z));
-  if (dust) gain *= .30 * (1.-smoothstep(3.,8.,distance));
-  vec2 radial = pos - .5*uViewport;
-  vec2 direction = radial / max(1.,length(radial));
-  float streak = min(7.,length(radial)*uSpeed*.035/distance);
+  float temperature = fract(seed*13.17);
+  vec3 warm = mix(vec3(1.,.48,.24),vec3(1.,.91,.76),smoothstep(0.,.48,temperature));
+  spectrum = mix(warm,vec3(.53,.74,1.),smoothstep(.48,1.,temperature));
+  gain = (.52+.48*magnitude) * (.94+.06*sin(uTime*.8+seed*80.));
+  if (dust) gain *= .30*smoothstep(.75,2.,z)*(1.-smoothstep(12.,15.7,z));
+  vec2 direction = vec2(0.,1.);
+  float streak = dust ? min(7.,uFocal*uSpeed*.025/distance) : 0.;
   vec2 offset = aPosition*size*2.4;
   offset += direction*dot(aPosition,direction)*streak;
   gl_Position = vec4((uProjectionMatrix*uWorldTransformMatrix*uTransformMatrix*vec3(pos+offset,1.)).xy,0.,1.);
@@ -333,9 +390,10 @@ void main() {
 
 export class OrbitalStars {
   private readonly params = new UniformGroup({
-    uEye: {value:new Float32Array(3),type:'vec3<f32>'},
+    uStarEye: {value:new Float32Array(3),type:'vec3<f32>'},
+    uDustEye: {value:new Float32Array(3),type:'vec3<f32>'},
     uViewport: {value:new Float32Array(2),type:'vec2<f32>'},
-    uFocal: {value:1,type:'f32'}, uTravel: {value:0,type:'f32'},
+    uFocal: {value:1,type:'f32'},
     uSpeed: {value:0,type:'f32'},
     uTime: {value:0,type:'f32'}, uDensity: {value:1,type:'f32'},
   })
@@ -348,7 +406,11 @@ export class OrbitalStars {
     let state = 84717
     const random = () => { state = (Math.imul(state,1664525)+1013904223) >>> 0; return state/4294967296 }
     for (let i=0;i<count;i++) {
-      const x=(random()-.5)*17, y=(random()-.5)*17, z=random()*15
+      const x=(random()-.5)*17, uniformY=(random()-.5)*17, z=.7+random()*15
+      // A broad inclined galactic band sits inside the same fixed-size catalogue.
+      // Remaining points preserve open space across portrait and landscape views.
+      const bandY = x*.38+(random()+random()+random()-1.5)*2.7
+      const y = i < starCount && i%5 < 2 ? bandY : uniformY
       const seed = i < starCount ? random() : -Math.max(.0001, random())
       for (let j=0;j<4;j++) stars.set([x,y,z,seed],i*16+j*4)
       corners.set([-1,-1,1,-1,1,1,-1,1],i*8)
@@ -361,14 +423,22 @@ export class OrbitalStars {
     this.mesh = new Mesh({geometry,shader:this.shader})
     this.mesh.blendMode = 'add'
   }
+  warm(renderer: Renderer, target: RenderTexture) {
+    const camera = new OrbitalCamera()
+    camera.setView(8,8,0,0,false)
+    this.update(8,8,camera,0,1)
+    this.mesh.visible = true
+    try { renderer.render({ container: this.mesh, target, clear: true }) }
+    finally { this.mesh.visible = false }
+  }
   update(width: number, height: number, camera: OrbitalCamera, seconds: number, density: number) {
     const u = this.params.uniforms
     u.uViewport[0] = width
     u.uViewport[1] = height
-    u.uEye.set(camera.eye)
+    u.uStarEye.set(camera.starEye)
+    u.uDustEye.set(camera.dustEye)
     u.uFocal = camera.focal
     u.uTime = seconds
-    u.uTravel = camera.travel
     u.uDensity = density
     u.uSpeed = camera.speed
   }
@@ -377,4 +447,13 @@ export class OrbitalStars {
     this.shader.destroy()
     this.mesh.destroy()
   }
+}
+
+/** Compile both specialized gas programs and the actual catalogue before flight. */
+export function warmOrbitalSky(renderer: Renderer, stars: OrbitalStars, volumes: readonly CosmicGasVolume[], texture: Texture) {
+  const target = RenderTexture.create({ width: 8, height: 8 })
+  try {
+    stars.warm(renderer,target)
+    for (const volume of volumes) volume.warm(renderer,target,texture)
+  } finally { target.destroy(true) }
 }

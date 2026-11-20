@@ -1,3 +1,4 @@
+import { LANDSCAPE_VIEW_YAW } from './raidView'
 import { projectProtection, PROTECTION_BANKS, PROTECTION_STRIDE } from './liveProtectionGeometry'
 
 export {}
@@ -11,7 +12,7 @@ self.onmessage = event => {
   const frames = new Float32Array(2*variants.length*PROTECTION_BANKS*PROTECTION_STRIDE)
   for (let view = 0; view < 2; view++) for (let pose = 0; pose < variants.length; pose++) {
     for (let bank = 0; bank < PROTECTION_BANKS; bank++) {
-      const angle = ((view ? -56 : 0)+bank-21)*Math.PI/180
+      const angle = (view ? LANDSCAPE_VIEW_YAW : 0)+(bank-21)*Math.PI/180
       frames.set(projectProtection(variants[pose],indices,registration,angle),
         ((view*variants.length+pose)*PROTECTION_BANKS+bank)*PROTECTION_STRIDE)
     }

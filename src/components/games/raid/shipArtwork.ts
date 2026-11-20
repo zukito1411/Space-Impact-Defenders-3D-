@@ -1,16 +1,16 @@
 // Cosmetic art keys retain the original gameplay ship key in saves and co-op.
 export const RAID_ELITE_FRAME_PATHS = {
-  rocketElite: 'assets/ships/black-comet-elite-remaster-v1.webp',
-  fastElite: 'assets/ships/red-wraith-elite-remaster-v1.webp',
-  gatlingElite: 'assets/ships/crimson-saw-elite-remaster-v1.webp',
-  laserElite: 'assets/ships/night-lance-elite-remaster-v1.webp',
-  dreadnoughtElite: 'assets/ships/obsidian-ark-elite-remaster-v1.webp',
-  xwingElite: 'assets/ships/crosswing-nova-elite-remaster-v1.webp',
-  spaceEtElite: 'assets/ships/space-jet-elite-remaster-v1.webp',
-  mesiahBlackElite: 'assets/ships/mesiah-black-elite-remaster-v1.webp',
-  mesiahWhiteElite: 'assets/ships/mesiah-white-elite-remaster-v1.webp',
-  coreLanderElite: 'assets/ships/core-lander-elite.webp',
-  coreLanderBurningElite: 'assets/ships/core-lander-burning-elite.webp',
+  rocketElite: 'assets/ships/previews/rocketElite-portrait-v5.webp',
+  fastElite: 'assets/ships/previews/fastElite-portrait-v5.webp',
+  gatlingElite: 'assets/ships/previews/gatlingElite-portrait-v5.webp',
+  laserElite: 'assets/ships/previews/laserElite-portrait-v5.webp',
+  dreadnoughtElite: 'assets/ships/previews/dreadnoughtElite-portrait-v5.webp',
+  xwingElite: 'assets/ships/previews/xwingElite-portrait-v5.webp',
+  spaceEtElite: 'assets/ships/previews/spaceEtElite-portrait-v5.webp',
+  mesiahBlackElite: 'assets/ships/previews/mesiahBlackElite-portrait-v5.webp',
+  mesiahWhiteElite: 'assets/ships/previews/mesiahWhiteElite-portrait-v5.webp',
+  coreLanderElite: 'assets/ships/previews/coreLanderElite-portrait-v5.webp',
+  coreLanderBurningElite: 'assets/ships/previews/coreLanderBurningElite-portrait-v5.webp',
 } as const
 
 export const RAID_ELITE_FRAME_KEYS = Object.keys(RAID_ELITE_FRAME_PATHS)

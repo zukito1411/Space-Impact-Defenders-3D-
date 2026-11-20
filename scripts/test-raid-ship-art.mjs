@@ -11,6 +11,9 @@ const progression = read('src/progression.ts')
 const relay = read('server/raid-relay.mjs')
 const code = ts.transpileModule([
   withoutImports(read(raid + 'shipArtwork.ts')),
+  withoutImports(read(raid + 'mechArtwork.ts')),
+  'const PLAYER_HULL_KEYS='+JSON.stringify(Object.keys(JSON.parse(read(raid+'bankingAnchors.json'))))+';',
+  `const getRaidPicker3DPreviewPath=(key,landscape)=>'assets/ships/previews/'+(key==='mesiah'?'mesiahBlack':key)+'-'+(landscape?'landscape':'portrait')+'-v'+(['godGundam','godGundamBurning','spiegel'].includes(key)?1:landscape?7:5)+'.webp';const getRaidPicker3DPreviewUrl=getRaidPicker3DPreviewPath;`,
   'const LEGACY_FIGHTER_COUNT = 8, RAID_FIGHTER_ASSETS = [], getPublicAssetUrl = path => path;',
   section(withoutImports(read('src/components/games/RaidShipSprite.tsx')), 'export const RAID_SHIP_SPRITE_PATHS', 'export function RaidShipPickerPreview'),
   'const getMesiahShipColor = progress => progress.color;',
@@ -34,7 +37,7 @@ for (const shipKey of shipKeys.filter(key => key !== 'coreLander')) {
   assert.notEqual(base, elite)
   if (shipKey !== 'coreLander') {
     for (const key of [base, elite]) {
-      assert.match(art.getRaidShipSpriteUrl(key), /-remaster-v1\.webp$/)
+      assert.match(art.getRaidShipSpriteUrl(key), /-portrait-v5\.webp$/)
       for (const [x, y, aperture] of art.getRaidShipNozzles(key)) {
         assert.ok(Math.abs(x) < .25 && y > .33 && y < .47 && aperture > 0 && aperture < .12)
       }
@@ -72,7 +75,7 @@ for (const key of [...art.RAID_ELITE_FRAME_KEYS, ...shipKeys.filter(key => key !
   const url = art.getRaidShipSpriteUrl(key)
   const file = readFileSync(new URL('../public/' + url, import.meta.url))
   assert.equal(file.toString('ascii', 8, 12), 'WEBP')
-  assert.ok(file.length < 38_000)
+  assert.ok(file.length < 220_000)
   assert.equal(file.toString('ascii', 12, 16), 'VP8X')
   assert.ok(file[20] & 0x10, url + ' requires an alpha channel')
   assert.ok(art.getRaidShipNozzles(key)?.every(([x, y, aperture]) => Math.abs(x) < .5 && Math.abs(y) < .5 && aperture > 0))

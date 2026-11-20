@@ -37,7 +37,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           from PIL import Image
-          folder=Path('public/assets/ships/banking')
+          folder=Path('art/source-ships/banking')
           sources=sorted(folder.glob('*-v1.webp'))
           assert len(sources)==27, f'Expected 27 3D source atlases, found {len(sources)}'
           for source in sources:
@@ -79,7 +79,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f public/assets/ships/banking/*-v7.webp
+          git add -f art/source-ships/banking/*-v7.webp
           git add src/components/games/raid/bankingArt.ts scripts/test-raid-banking-art.mjs
           test "$(git diff --cached --name-only | grep -c -- '-v7.webp$')" -eq 27
           if ! git diff --cached --quiet; then

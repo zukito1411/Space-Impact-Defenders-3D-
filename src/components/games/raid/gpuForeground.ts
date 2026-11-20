@@ -1,17 +1,17 @@
-import { RAID_ALIEN_SPRITE_COUNT } from '../RaidShipSprite'
+import { normalEnemyHullKey } from './enemyHulls'
+import { fighterHullHeading } from './fighterHulls'
+import { submitLiveHull } from './liveHullBridge'
 import { getRaidFighter, getRaidFighterCharge } from './stageEncounters'
 import { impactFrameProgress, explosionDiameter, impactAlpha } from './combatFeel'
 import { Color, Container, Sprite, Texture } from 'pixi.js'
 import type { Renderer } from 'pixi.js'
 import {
-  getCanvasSpriteDimensions,
   getEnemyCanvasSize,
-  getNormalAlienCanvasSprite,
 } from './assets'
 import type { CachedCanvasDrawSource } from './assets'
-import { getCachedProjectileOrbSprite, getCachedProjectileTrailSprite, getCachedSpriteGlow } from './utils'
+import { getCachedProjectileOrbSprite, getCachedProjectileTrailSprite } from './utils'
 import { getHomingMissileSprite } from './effectsRender'
-import type { Enemy, Ripple, Shot, Spark } from './types'
+import type { AsteroidHazard, Enemy, Ripple, Shot, Spark } from './types'
 import { raidObjectInView } from './visibility'
 import { createGpuBossProjectileCanvas, getGpuBossProjectileSpec } from './gpuBossProjectiles'
 import type { GpuBossProjectileSpec } from './gpuBossProjectiles'
@@ -33,6 +33,9 @@ export type RaidGpuForegroundFrame = {
   drawRipples: boolean
   maxSparks: number
   maxRipples: number
+  asteroids?: readonly AsteroidHazard[]
+  incomingAsteroids?: readonly AsteroidHazard[]
+  asteroidApproachProgress?: number
   enemies: readonly Enemy[]
   shots: readonly Shot[]
   guestShots: readonly Shot[]
@@ -97,7 +100,6 @@ function enemyStyle(shot: Shot, advanced: boolean, scale: number): ShotStyle | n
 type OwnedTexture = { texture: Texture; canvas: HTMLCanvasElement; owned: boolean }
 type EnemyPair = { ship: Sprite; glow: Sprite }
 type ProjectileSprite = Sprite & { bornAt: number; originX: number; originY: number }
-const HUES = [-18, 24, -8, 36, -30, 12, 44, -40]
 
 /**
  * A single shared Pixi/WebGL renderer draws both the background and pooled
@@ -132,7 +134,6 @@ export class RaidGpuForeground {
   private readonly usedTextures = new Set<Texture>()
   private readonly bossSpec: GpuBossProjectileSpec = { kind: 'beam', width: 0, height: 0, rotation: 0, alpha: 1, x: 0, y: 0 }
   private lastTexturePrune = 0
-  private alienGlowTexture: Texture | null = null
   private broken = false
   private destroyed = false
 
@@ -158,9 +159,6 @@ export class RaidGpuForeground {
     await preloadRaidCombatArt()
     if (this.destroyed) return
     this.ensureParticleTextures()
-    const glow = getCachedSpriteGlow('rgba(239,35,60,0.34)', 128)
-    if (glow) this.alienGlowTexture = this.cachedTexture('alien-glow', glow.canvas, false)
-    for (let variant = 0; variant < RAID_ALIEN_SPRITE_COUNT; variant += 1) this.alienTexture(variant)
     for (let index = 0; index < 48; index += 1) {
       const ship = new Sprite(Texture.WHITE)
       const glowSprite = new Sprite(Texture.WHITE)
@@ -261,42 +259,14 @@ export class RaidGpuForeground {
     return texture
   }
 
-  private alienTexture(variant: number) {
-    const asset = getNormalAlienCanvasSprite(variant)
-    if (!asset.loaded || !asset.image.complete) return null
-    const source = getCanvasSpriteDimensions(asset)
-    if (!source.width || !source.height) return null
-    // One full-detail raster per variant; resizing never creates new textures.
-    const fighter = getRaidFighter(variant)
-    const edge = fighter ? 192 : 320
-    const key = 'alien:' + asset.cacheKey + ':' + edge
-    const existing = this.textures.get(key)
-    if (existing) return existing.texture
-    const aspect = source.width / source.height
-    const canvas = document.createElement('canvas')
-    canvas.width = Math.max(1, Math.round(aspect >= 1 ? edge : edge * aspect))
-    canvas.height = Math.max(1, Math.round(aspect >= 1 ? edge / aspect : edge))
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return null
-    ctx.imageSmoothingEnabled = true
-    ctx.imageSmoothingQuality = 'high'
-    ctx.filter = fighter ? 'none' : 'brightness(1.19) contrast(1.12) saturate(1.38) hue-rotate(' + HUES[Math.abs(Math.trunc(variant)) % HUES.length] + 'deg)'
-    ctx.drawImage(source.source, 0, 0, canvas.width, canvas.height)
-    ctx.filter = 'none'
-    return this.cachedTexture(key, canvas, true)
-  }
-
   private updateAliens(frame: RaidGpuForegroundFrame) {
     this.visibleEnemies.clear()
     const sx = frame.width / 100
     const sy = frame.height / 100
-    const pulse = 0.94 + (Math.sin(frame.time / 700) + 1) * 0.03
     for (const alien of frame.enemies) {
       if (alien.isBoss || alien.isMiniBoss) continue
       if (!raidObjectInView(frame.bounds, alien.x, alien.y, alien.radius + (frame.landscape ? 8 : 5))) continue
       const size = getEnemyCanvasSize(alien, frame.width, frame.landscape) * (frame.width > 1100 ? 0.96 : 1)
-      const texture = this.alienTexture(alien.variant) ?? this.alienTexture(0)
-      if (!texture) continue
       this.visibleEnemies.add(alien.id)
       let pair = this.enemyNodes.get(alien.id)
       if (!pair) {
@@ -305,7 +275,7 @@ export class RaidGpuForeground {
           pair.ship.visible = true
           pair.glow.visible = true
         } else {
-          const ship = new Sprite(texture)
+          const ship = new Sprite(Texture.WHITE)
           const glow = new Sprite(Texture.WHITE)
           ship.anchor.set(0.5)
           glow.anchor.set(0.5)
@@ -315,16 +285,15 @@ export class RaidGpuForeground {
         }
         this.enemyNodes.set(alien.id, pair)
       }
-      const aspect = texture.width / Math.max(1, texture.height)
-      pair.ship.texture = texture
-      pair.ship.width = aspect >= 1 ? size : size * aspect
-      pair.ship.height = aspect >= 1 ? size / aspect : size
-      pair.ship.position.set(alien.x * sx, alien.y * sy)
-      pair.ship.alpha = pulse
-      pair.ship.tint = (alien.hitFlash ?? 0) > 0.03 ? 0xffe8e8 : 0xffffff
-      if (getRaidFighter(alien.variant)) {
+      const key = normalEnemyHullKey(alien.variant)
+      const heading = fighterHullHeading(alien.vx, alien.vy, frame.width, frame.height)
+      submitLiveHull({ id: 'enemy:' + alien.id, key,
+        x: alien.x*sx, y: alien.y*sy, size, bank: 0, angle: heading, alpha: 1,
+        landscape: Boolean(frame.landscape), hit: Math.min(1, (alien.hitFlash ?? 0) / .16) })
+      pair.ship.visible = false
+      {
         const hit = Math.min(1, (alien.hitFlash ?? 0) / .16)
-        const charge = getRaidFighterCharge(alien)
+        const charge = getRaidFighter(alien.variant) ? getRaidFighterCharge(alien) : 0
         const effect = hit ? getRaidCombatFrame(COMBAT_TILE.ionImpact) : charge ? getRaidCombatFrame(COMBAT_TILE.charge) : undefined
         if (pair.glow.parent !== this.impacts) this.impacts.addChild(pair.glow)
         pair.glow.visible = Boolean(effect)
@@ -334,19 +303,11 @@ export class RaidGpuForeground {
           pair.glow.blendMode = 'add'
           pair.glow.width = edge
           pair.glow.height = edge
-          pair.glow.position.set(alien.x * sx, alien.y * sy + size * (hit ? .02 : .34))
+          pair.glow.position.set(alien.x*sx+Math.sin(heading)*size*(hit ? .02 : .34),
+            alien.y*sy+Math.cos(heading)*size*(hit ? .02 : .34))
           pair.glow.alpha = hit || charge
         }
-      } else if (this.alienGlowTexture) {
-        if (pair.glow.parent !== this.glowLayer) this.glowLayer.addChild(pair.glow)
-        pair.glow.blendMode = 'normal'
-        pair.glow.texture = this.alienGlowTexture
-        pair.glow.width = size * 1.2
-        pair.glow.height = size * 1.04
-        pair.glow.position.set(alien.x * sx, alien.y * sy)
-        pair.glow.alpha = (alien.hitFlash ?? 0) > 0.03 ? 1 : 0.7
-        pair.glow.visible = true
-      } else pair.glow.visible = false
+      }
     }
     for (const [id, pair] of this.enemyNodes) {
       if (this.visibleEnemies.has(id)) continue
@@ -607,7 +568,6 @@ export class RaidGpuForeground {
     for (const shot of this.shotNodes.values()) used.add(shot.texture)
     if (this.particleCircleTexture) used.add(this.particleCircleTexture)
     if (this.particleRingTexture) used.add(this.particleRingTexture)
-    if (this.alienGlowTexture) used.add(this.alienGlowTexture)
     for (const [key, record] of this.textures) {
       if (this.textures.size <= 96) break
       if (used.has(record.texture)) continue
@@ -665,7 +625,6 @@ export class RaidGpuForeground {
     this.impactNodes.length = 0
     this.tintCache.clear()
     this.usedTextures.clear()
-    this.alienGlowTexture = null
     this.particleCircleTexture = null
     this.particleRingTexture = null
     for (const record of this.textures.values()) {

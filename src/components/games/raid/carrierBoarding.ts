@@ -1,6 +1,7 @@
+import { getMechDockAtlas } from './mechDock'
+import type { DockMatrix } from './hullDocking'
 import { getCarrierCanopyProfile } from './carrierCanopyProfiles'
 import { getCanvasSpriteDimensions, getRaidSideShipCanvasSprite, getShipCanvasSprite } from './assets'
-import { getMechDockAtlas } from './mechDock'
 import { drawDeckCockpitInterior, drawDeckCrew } from './deckServiceArt'
 import { CARRIER_BOARDING_SECONDS, CARRIER_IGNITION_START } from './carrierLaunch'
 import { LANDSCAPE_BOARDING_FLOOR_Y, PORTRAIT_BOARDING_WALK_START_X } from './carrierDeckLayout'
@@ -61,7 +62,7 @@ export function drawBoardingLadder(ctx: CanvasRenderingContext2D, footX: number,
 }
 
 /** Reveal the seat well and lift a cutout of the original glass on its hinge. */
-export function drawCarrierCockpit(ctx: CanvasRenderingContext2D, x: number, y: number, hull: number, key: string, landscape: boolean, open: number, groundedMech = false, seated = 0) {
+export function drawCarrierCockpit(ctx: CanvasRenderingContext2D, x: number, y: number, hull: number, key: string, landscape: boolean, open: number, groundedMech = false, seated = 0, projection?: { closed: DockMatrix; open: DockMatrix }) {
   if (open <= .001) return
   const profile = getCarrierCanopyProfile(key, landscape, groundedMech)
   if (!profile) return
@@ -90,6 +91,7 @@ export function drawCarrierCockpit(ctx: CanvasRenderingContext2D, x: number, y: 
   ctx.save()
   ctx.translate(x, y)
   ctx.save()
+  if(projection)ctx.transform(...projection.closed)
   outline()
   ctx.clip()
   ctx.fillStyle = '#0a141d'
@@ -106,10 +108,13 @@ export function drawCarrierCockpit(ctx: CanvasRenderingContext2D, x: number, y: 
 
   const hx = (profile.hinge[0] / 240 - .5) * hull, hy = (profile.hinge[1] / 240 - .5) * hull
   const { shiftX, shiftY, rotation, scaleY } = sampleCanopyHinge(open, openingWidth, openingHeight, side)
-  ctx.translate(hx + shiftX, hy + shiftY)
-  ctx.rotate(rotation)
-  ctx.scale(1, scaleY)
-  ctx.translate(-hx, -hy)
+  if(projection)ctx.transform(...projection.open)
+  else {
+    ctx.translate(hx + shiftX, hy + shiftY)
+    ctx.rotate(rotation)
+    ctx.scale(1, scaleY)
+    ctx.translate(-hx, -hy)
+  }
   outline()
   ctx.clip()
 

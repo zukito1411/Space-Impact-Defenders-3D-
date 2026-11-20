@@ -14,6 +14,8 @@ export class CelestialScenery {
   private readonly sample: CelestialSample = { x: 0, y: 0, size: 0, alpha: 0 }
   private region = -1
   private entered = 0
+  get distantStars() { return this.stars }
+  get localDust() { return this.dust }
   constructor() {
     this.root.eventMode = 'none'; this.root.visible = false
     this.nebulaRoot.eventMode = 'none'; this.nebulaRoot.visible = false

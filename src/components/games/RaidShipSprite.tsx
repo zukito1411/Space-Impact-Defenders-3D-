@@ -1,32 +1,14 @@
+import { MECH_PORTRAIT_PATHS, MECH_SIDE_PATHS } from './raid/mechArtwork'
 import { useSyncExternalStore } from 'react'
-import { RAID_ELITE_FRAME_PATHS } from './raid/shipArtwork'
-import { getRaidPicker3DPreviewUrl } from './raid/bankingArt'
-import { getRaidSideShipSpriteUrl } from './raid/sideArtwork'
+import { getRaidPicker3DPreviewUrl, getRaidPicker3DPreviewPath, PLAYER_HULL_KEYS } from './raid/bankingArt'
 import { getPublicAssetUrl } from './sound'
 import { LEGACY_FIGHTER_COUNT, RAID_FIGHTER_ASSETS } from './raid/stageEncounters'
 
 export { getRaidPicker3DPreviewUrl }
 
-export const RAID_SHIP_SPRITE_PATHS: Record<string, string> = {
-  rocket: 'assets/ships/black-comet-remaster-v1.webp',
-  fast: 'assets/ships/red-wraith-remaster-v1.webp',
-  gatling: 'assets/ships/crimson-saw-remaster-v1.webp',
-  laser: 'assets/ships/night-lance-remaster-v1.webp',
-  dreadnought: 'assets/ships/obsidian-ark-remaster-v1.webp',
-  xwing: 'assets/ships/crosswing-nova-remaster-v1.webp',
-  spaceEt: 'assets/ships/space-jet-remaster-v1.webp',
-  mesiah: 'assets/ships/mesiah-black-remaster-v1.webp',
-  mesiahBlack: 'assets/ships/mesiah-black-remaster-v1.webp',
-  mesiahWhite: 'assets/ships/mesiah-white-remaster-v1.webp',
-  mesiahRaptorBlack: 'assets/ships/mesiah-raptor-black.png',
-  mesiahRaptorWhite: 'assets/ships/mesiah-raptor-white.png',
-  coreLander: 'assets/ships/core-lander.png',
-  coreLanderBurning: 'assets/ships/core-lander-burning.png',
-  godGundam: 'assets/ships/god-gundam.png',
-  godGundamBurning: 'assets/ships/god-gundam-burning.png',
-  spiegel: 'assets/ships/spiegel.png',
-  ...RAID_ELITE_FRAME_PATHS,
-}
+// Ship previews use model renders; Gundams keep their original 2D artwork.
+export const RAID_SHIP_SPRITE_PATHS:Record<string,string>=Object.fromEntries(
+  [...PLAYER_HULL_KEYS,'mesiah'].map(key=>[key,MECH_PORTRAIT_PATHS[key] ?? getRaidPicker3DPreviewPath(key,false)!]))
 
 const RAID_ALIEN_SPRITE_PATHS = [
   ...Array.from({ length: LEGACY_FIGHTER_COUNT }, (_, index) => `assets/aliens/alien_v${index}.png`),
@@ -43,7 +25,8 @@ const RAID_ELITE_ASSET_PATHS = [
 export const RAID_ELITE_SPRITE_COUNT = RAID_ELITE_ASSET_PATHS.length
 
 export function getRaidShipSpriteUrl(shipKey: string) {
-  return getPublicAssetUrl(RAID_SHIP_SPRITE_PATHS[shipKey] ?? RAID_SHIP_SPRITE_PATHS.rocket)
+  if (MECH_PORTRAIT_PATHS[shipKey]) return getPublicAssetUrl(MECH_PORTRAIT_PATHS[shipKey])
+  return getRaidPicker3DPreviewUrl(shipKey,false) ?? getRaidPicker3DPreviewUrl('rocket',false)!
 }
 
 // The menu artwork follows the actual display orientation, including rotation while open.
@@ -58,7 +41,9 @@ export function useLandscapeScreen() {
   return useSyncExternalStore(subscribeOrientation, getLandscapeSnapshot, () => false)
 }
 export function getRaidMenuShipSpriteUrl(shipKey: string, landscape: boolean) {
-  return getRaidPicker3DPreviewUrl(shipKey, landscape) || (landscape && getRaidSideShipSpriteUrl(shipKey)) || getRaidShipSpriteUrl(shipKey)
+  const mechPath = (landscape ? MECH_SIDE_PATHS : MECH_PORTRAIT_PATHS)[shipKey]
+  if (mechPath) return getPublicAssetUrl(mechPath)
+  return getRaidPicker3DPreviewUrl(shipKey,landscape) ?? getRaidPicker3DPreviewUrl('rocket',landscape)!
 }
 
 export function getRaidAlienSpriteUrl(variant: number) {
@@ -73,11 +58,11 @@ export function getRaidEliteSpriteUrl(variant: number) {
   return getPublicAssetUrl(RAID_ELITE_ASSET_PATHS[index])
 }
 
-// Small pre-rendered views retain the mesh's paint and load without WebGL.
+// Static menu artwork loads without a WebGL context.
 export function RaidShipPickerPreview({ shipKey, landscape }: { shipKey: string; landscape: boolean }) {
   const wideScreen = useLandscapeScreen()
   return <span className="raid__ship-preview"><img
-    src={getRaidMenuShipSpriteUrl(shipKey, landscape || wideScreen)}
+    src={getRaidMenuShipSpriteUrl(shipKey, landscape && wideScreen)}
     alt="" aria-hidden="true" loading="eager" decoding="async" draggable={false} /></span>
 }
 

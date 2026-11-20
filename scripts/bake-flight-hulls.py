@@ -16,7 +16,7 @@ from mathutils import Matrix, Vector
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
-ART = ROOT / "public/assets/ships"
+ART = ROOT / "art/source-ships"
 MODELS = ROOT / "art/3d/flight-hulls"
 ANCHORS = ROOT / "src/components/games/raid/bankingAnchors.json"
 spec = importlib.util.spec_from_file_location(

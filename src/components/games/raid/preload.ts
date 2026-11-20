@@ -1,4 +1,8 @@
-import { RAID_ELITE_FRAME_KEYS } from './shipArtwork'
+import { isRaid2DMech, MECH_PORTRAIT_PATHS, MECH_SIDE_PATHS } from './mechArtwork'
+import { MECH_ACTION_PATHS, getMechActionAtlas } from './mechAttack'
+import { MECH_DOCK_PATHS, getMechDockAtlas } from './mechDock'
+import { RAID_CORE_LANDER_BARRAGE_ASSET_PATHS, getGodGundamBarrageCanvasSprite, getShipCanvasSprite, getRaidSideShipCanvasSprite } from './assets'
+import { PLAYER_HULL_KEYS, getRaidPicker3DPreviewUrl } from './bankingArt'
 import { IMMERSION_AUDIO_URLS } from '../presentationAssets'
 import { CELESTIAL_ART_URLS, preloadCelestialArt } from './celestialArt'
 import { CAMPAIGN_BOSS_ART } from './bossCatalog'
@@ -6,14 +10,13 @@ import { WRECK_ART_URLS, preloadWreckArt } from './wreckArt'
 import { SURFACE_ART_URLS, preloadSurfaceArt } from './surfaceArt'
 import { COSMOS_ART_URLS, COSMOS_FALLBACK_ART_URLS, preloadCosmosArt } from './cosmosArt'
 import { COSMOS_AMBIENCE_URL } from './CosmosPresentation'
-import { getRaidAlienSpriteUrl, getRaidEliteSpriteUrl, getRaidShipSpriteUrl, RAID_ALIEN_SPRITE_COUNT, RAID_ELITE_SPRITE_COUNT } from '../RaidShipSprite'
+import { getRaidAlienSpriteUrl, getRaidEliteSpriteUrl, RAID_ALIEN_SPRITE_COUNT, RAID_ELITE_SPRITE_COUNT } from '../RaidShipSprite'
 import { getPublicAssetUrl } from '../sound'
 import { Assets } from 'pixi.js'
 import { RAID_COMBAT_ART_URLS, preloadRaidCombatArt } from './combatArt'
-import { SPACE_JET_FORCE_FIELD_ASSET_PATH, getSpaceJetForceFieldSprite, RAID_COBRA_BOSS_ASSET_PATH, RAID_CORE_LANDER_BARRAGE_ASSET_PATHS, RAID_CORE_LANDER_COMBAT_MODELS, RAID_DERELICT_WRECK_ASSET_PATH, RAID_DERELICT_WRECK_VARIANTS, RAID_DEVIL_BOSS_ASSET_PATHS, RAID_DEVIL_BOSS_POSES, RAID_DEVIL_MASTER_PROJECTILE_ASSET_PATH, RAID_FINAL_BOSS_ASSET_PATH, RAID_OTHER_ASSET_PATHS, RAID_SQUID_BOSS_ASSET_PATH, getCobraBossCanvasSprite, getGenericBossCanvasSprite, getDerelictWreckCanvasSprite, getDevilBossCanvasSprite, getDevilMasterProjectileCanvasSprite, getEliteAlienCanvasSprite, getFinalBossCanvasSprite, getGodGundamBarrageCanvasSprite, getNormalAlienCanvasSprite, getRaidOtherCanvasSprite, getShipCanvasSprite, getSquidBossCanvasSprite, warmRaidCanvasFilterVariants } from './assets'
-import type { CanvasSpriteEntry, GodGundamBarragePose, RaidOtherAssetKey } from './assets'
+import { SPACE_JET_FORCE_FIELD_ASSET_PATH, getSpaceJetForceFieldSprite, RAID_COBRA_BOSS_ASSET_PATH, RAID_DERELICT_WRECK_ASSET_PATH, RAID_DERELICT_WRECK_VARIANTS, RAID_DEVIL_BOSS_ASSET_PATHS, RAID_DEVIL_BOSS_POSES, RAID_DEVIL_MASTER_PROJECTILE_ASSET_PATH, RAID_FINAL_BOSS_ASSET_PATH, RAID_OTHER_ASSET_PATHS, RAID_SQUID_BOSS_ASSET_PATH, getCobraBossCanvasSprite, getGenericBossCanvasSprite, getDerelictWreckCanvasSprite, getDevilBossCanvasSprite, getDevilMasterProjectileCanvasSprite, getEliteAlienCanvasSprite, getFinalBossCanvasSprite, getNormalAlienCanvasSprite, getRaidOtherCanvasSprite, getSquidBossCanvasSprite, warmRaidCanvasFilterVariants } from './assets'
+import type { CanvasSpriteEntry, RaidOtherAssetKey } from './assets'
 import { DEFAULT_PICKUP_VOICE_SAMPLE_URL, PICKUP_VOICE_SAMPLE_URLS } from './audio'
-import { SHIP_OPTIONS } from './constants'
 import { RAID_SOUNDTRACK_URLS } from './raidSoundtrack'
 import { BOSS_AUDIO_URLS } from './bossAudio'
 import { COMMANDER_HOLOGRAM_URL, GENERAL_HOLOGRAM_URL, HOSTILE_HOLOGRAM_URL, PILOT_HOLOGRAM_URL } from './hostileBriefing'
@@ -26,7 +29,7 @@ export const RAID_IMAGE_CACHE_NAME = 'space-defender-raid-images-v1'
 
 export const RAID_AUDIO_CACHE_NAME = 'space-defender-audio-v1'
 
-export const RAID_PERSISTENT_CACHE_VERSION = 'gradius-raid-assets-v19'
+export const RAID_PERSISTENT_CACHE_VERSION = 'gradius-raid-assets-v21'
 
 export const RAID_PERSISTENT_CACHE_STORAGE_KEY = 'gradiusRaidPersistentAssetCache'
 
@@ -44,6 +47,16 @@ export let raidPixiAssetWarmComplete = false
 
 export function warmRaidCanvasAssets() {
   const entries: CanvasSpriteEntry[] = []
+  for (const key of Object.keys(MECH_PORTRAIT_PATHS)) {
+    entries.push(getShipCanvasSprite(key))
+    const side = getRaidSideShipCanvasSprite(key)
+    if (side) entries.push(side)
+  }
+  for (const model of ['godGundam', 'spiegel'] as const) {
+    entries.push(getMechDockAtlas(model), getMechActionAtlas(model))
+    for (const pose of Object.keys(RAID_CORE_LANDER_BARRAGE_ASSET_PATHS[model])) entries.push(getGodGundamBarrageCanvasSprite(model, pose))
+  }
+  entries.push(getMechActionAtlas('godGundam', true))
   entries.push(getSpaceJetForceFieldSprite())
   for (const art of CAMPAIGN_BOSS_ART) {
     const sprite = getGenericBossCanvasSprite(art.kind, art.stage)
@@ -54,18 +67,6 @@ export function warmRaidCanvasAssets() {
   entries.push(getCobraBossCanvasSprite())
   RAID_DEVIL_BOSS_POSES.forEach((pose) => entries.push(getDevilBossCanvasSprite(pose)))
   entries.push(getDevilMasterProjectileCanvasSprite())
-  for (const model of RAID_CORE_LANDER_COMBAT_MODELS) {
-    for (const pose of Object.keys(RAID_CORE_LANDER_BARRAGE_ASSET_PATHS[model]) as GodGundamBarragePose[]) entries.push(getGodGundamBarrageCanvasSprite(model, pose))
-  }
-  for (const ship of SHIP_OPTIONS) if (ship.key !== 'coreLander') entries.push(getShipCanvasSprite(ship.key))
-  for (const key of RAID_ELITE_FRAME_KEYS) if (!key.startsWith('coreLander')) entries.push(getShipCanvasSprite(key))
-  entries.push(getShipCanvasSprite('mesiahBlack'))
-  entries.push(getShipCanvasSprite('mesiahWhite'))
-  entries.push(getShipCanvasSprite('mesiahRaptorBlack'))
-  entries.push(getShipCanvasSprite('mesiahRaptorWhite'))
-  entries.push(getShipCanvasSprite('godGundam'))
-  entries.push(getShipCanvasSprite('godGundamBurning'))
-  entries.push(getShipCanvasSprite('spiegel'))
   for (let variant = 0; variant < RAID_ALIEN_SPRITE_COUNT; variant += 1) entries.push(getNormalAlienCanvasSprite(variant))
   for (let variant = 0; variant < RAID_ELITE_SPRITE_COUNT; variant += 1) entries.push(getEliteAlienCanvasSprite(variant))
   for (const key of Object.keys(RAID_OTHER_ASSET_PATHS) as RaidOtherAssetKey[]) entries.push(getRaidOtherCanvasSprite(key))
@@ -75,6 +76,9 @@ export function warmRaidCanvasAssets() {
 
 export function getRaidPersistentImageUrls() {
   const urls = new Set<string>()
+  for (const path of [...Object.values(MECH_PORTRAIT_PATHS), ...Object.values(MECH_SIDE_PATHS),
+    ...Object.values(MECH_ACTION_PATHS), ...Object.values(MECH_DOCK_PATHS),
+    ...Object.values(RAID_CORE_LANDER_BARRAGE_ASSET_PATHS).flatMap(paths => Object.values(paths))]) urls.add(getPublicAssetUrl(path))
   urls.add(HOSTILE_HOLOGRAM_URL)
   urls.add(COMMANDER_HOLOGRAM_URL)
   urls.add(GENERAL_HOLOGRAM_URL)
@@ -88,22 +92,24 @@ export function getRaidPersistentImageUrls() {
   urls.add(getPublicAssetUrl(RAID_COBRA_BOSS_ASSET_PATH))
   RAID_DEVIL_BOSS_POSES.forEach((pose) => urls.add(getPublicAssetUrl(RAID_DEVIL_BOSS_ASSET_PATHS[pose])))
   urls.add(getPublicAssetUrl(RAID_DEVIL_MASTER_PROJECTILE_ASSET_PATH))
-  for (const model of RAID_CORE_LANDER_COMBAT_MODELS) {
-    for (const pose of Object.keys(RAID_CORE_LANDER_BARRAGE_ASSET_PATHS[model]) as GodGundamBarragePose[]) urls.add(getPublicAssetUrl(RAID_CORE_LANDER_BARRAGE_ASSET_PATHS[model][pose]))
-  }
-  for (const ship of SHIP_OPTIONS) if (ship.key !== 'coreLander') urls.add(getRaidShipSpriteUrl(ship.key))
-  for (const key of RAID_ELITE_FRAME_KEYS) if (!key.startsWith('coreLander')) urls.add(getRaidShipSpriteUrl(key))
-  urls.add(getRaidShipSpriteUrl('mesiahBlack'))
-  urls.add(getRaidShipSpriteUrl('mesiahWhite'))
-  urls.add(getRaidShipSpriteUrl('mesiahRaptorBlack'))
-  urls.add(getRaidShipSpriteUrl('mesiahRaptorWhite'))
-  urls.add(getRaidShipSpriteUrl('godGundam'))
-  urls.add(getRaidShipSpriteUrl('godGundamBurning'))
-  urls.add(getRaidShipSpriteUrl('spiegel'))
   for (let variant = 0; variant < RAID_ALIEN_SPRITE_COUNT; variant += 1) urls.add(getRaidAlienSpriteUrl(variant))
   for (let variant = 0; variant < RAID_ELITE_SPRITE_COUNT; variant += 1) urls.add(getRaidEliteSpriteUrl(variant))
   for (const key of Object.keys(RAID_OTHER_ASSET_PATHS) as RaidOtherAssetKey[]) urls.add(getPublicAssetUrl(RAID_OTHER_ASSET_PATHS[key]))
   urls.add(getPublicAssetUrl(RAID_DERELICT_WRECK_ASSET_PATH))
+  for(const key of PLAYER_HULL_KEYS)for(const landscape of [false,true]){
+    if (isRaid2DMech(key)) continue
+    const url=getRaidPicker3DPreviewUrl(key,landscape);if(url)urls.add(url)
+  }
+  return [...urls]
+}
+
+export function getRaidPersistentModelUrls(){
+  const urls=new Set<string>()
+  urls.add(getPublicAssetUrl('assets/ships/models/v1/manifest.json'))
+  for(const key of PLAYER_HULL_KEYS){
+    if(['godGundam','godGundamBurning','spiegel'].includes(key))continue
+    urls.add(getPublicAssetUrl('assets/ships/models/v1/'+key+'.glb'))
+  }
   return [...urls]
 }
 
@@ -210,6 +216,7 @@ export async function cacheRaidPersistentGroup(cacheName: string, urls: string[]
 export function getRaidPersistentAssetGroups() {
   return [
     { cacheName: RAID_IMAGE_CACHE_NAME, urls: getRaidPersistentImageUrls() },
+    { cacheName: 'space-defender-raid-models-v1',urls:getRaidPersistentModelUrls() },
     { cacheName: RAID_AUDIO_CACHE_NAME, urls: getRaidPersistentAudioUrls() },
   ]
 }
@@ -292,12 +299,6 @@ export function getRaidPixiBackgroundAssetUrls() {
     ...CELESTIAL_ART_URLS,
     ...WRECK_ART_URLS,
     ...Object.values(RAID_OTHER_ASSET_PATHS).map((path) => getPublicAssetUrl(path)),
-    getRaidShipSpriteUrl('rocket'),
-    getRaidShipSpriteUrl('laser'),
-    getRaidShipSpriteUrl('xwing'),
-    getRaidShipSpriteUrl('spaceEt'),
-    getRaidShipSpriteUrl('dreadnought'),
-    getRaidShipSpriteUrl('mesiah'),
     getRaidAlienSpriteUrl(0),
     getRaidAlienSpriteUrl(2),
     getRaidEliteSpriteUrl(1),

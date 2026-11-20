@@ -49,6 +49,11 @@ export default defineConfig({
         skipWaiting: true,
         runtimeCaching: [
           {
+            urlPattern: ({url})=>url.pathname.includes('/assets/ships/models/'),
+            handler:'CacheFirst',
+            options:{cacheName:'space-defender-raid-models-v1',expiration:{maxEntries:40},cacheableResponse:{statuses:[0,200]}},
+          },
+          {
             urlPattern: ({ request, url }) =>
               request.destination === 'image' ||
               url.pathname.includes('/assets/ships/') ||

@@ -5,6 +5,7 @@ import { drawDeckCrew, drawDeckServices, drawDeckPatroller, getDeckAtlas } from 
 import { CARRIER_BOARDING_SECONDS, CARRIER_CLEAR_SECONDS } from './carrierLaunch'
 import { drawBoardingLadder, drawCarrierCockpit, getCarrierBoardingGeometry, sampleCarrierBoarding } from './carrierBoarding'
 import { CARRIER_DECK_LAYOUTS } from './carrierDeckLayout'
+import type { DockMatrix, ProjectedDock } from './hullDocking'
 
 const unit = (n: number) => Math.max(0, Math.min(1, n))
 export function carrierCover(width: number, height: number, landscape: boolean) {
@@ -86,27 +87,52 @@ export type CarrierDeckFrame = {
   width: number; height: number; dpr: number; landscape: boolean; ambientAge: number
   launchAge: number; briefing: boolean; reducedMotion: boolean; decorative: boolean
   /** Physical-screen pilot/cockpit position, using the very same hull renderer scale. */
-  shipX: number; shipY: number; hullSize: number; visualKey: string; groundedMech?: boolean; landingRelease?: number
+  shipX: number; shipY: number; hullSize: number; visualKey: string; groundedMech?: boolean; landingRelease?: number; liveDock?: ProjectedDock
+  deckShiftX?: number; deckShiftY?: number; deckOpacity?: number
+  mountX?: number; mountY?: number; mountHull?: number
 }
 
 /** Shared ladder/pilot/cockpit mount; source coordinates retain cover/crop alignment. */
 function boardingGeometry(frame: CarrierDeckFrame) {
   const cover=carrierCover(frame.width,frame.height,frame.landscape)
   const shipX=(frame.shipX-cover.x)/cover.scale,shipY=(frame.shipY-cover.y)/cover.scale,hull=frame.hullSize/cover.scale
-  return {cover,shipX,shipY,hull,...getCarrierBoardingGeometry(shipX,shipY,hull,frame.visualKey,frame.landscape,1,frame.groundedMech)}
+  const geometry=getCarrierBoardingGeometry(shipX,shipY,hull,frame.visualKey,frame.landscape,1,frame.groundedMech)
+  if(frame.liveDock){
+    geometry.cockpitX=(frame.liveDock.cockpitX-cover.x)/cover.scale
+    geometry.cockpitY=(frame.liveDock.cockpitY-cover.y)/cover.scale
+    geometry.topX=geometry.cockpitX;geometry.topY=geometry.cockpitY+3
+    if(!frame.landscape)geometry.floorY=geometry.topY+95
+    geometry.footX=geometry.topX-Math.min(36,Math.max(12,(geometry.floorY-geometry.topY)*.25))
+    geometry.startX=geometry.footX-130
+  }
+  return {cover,shipX,shipY,hull,...geometry}
 }
 
 /** Foreground pass after the one gameplay hull: pilot climbs visible rungs into the well. */
-export function drawCarrierBoardingForeground(ctx: CanvasRenderingContext2D, frame: CarrierDeckFrame) {
+export function drawCarrierBoardingForeground(ctx: CanvasRenderingContext2D, frame: CarrierDeckFrame, boarding=true) {
   const g=boardingGeometry(frame),crew=sampleCarrierCrew(frame.launchAge,frame.briefing,frame.reducedMotion)
   const kit = sampleCarrierBoarding(frame.launchAge, frame.briefing, frame.reducedMotion,
     frame.ambientAge - (frame.briefing ? 0 : frame.launchAge))
   ctx.save();ctx.translate(g.cover.x,g.cover.y);ctx.scale(g.cover.scale,g.cover.scale)
+  const mount=frameDockMounts.get(frame)
+  const release=frame.landingRelease ?? (frame.briefing?0:unit((frame.launchAge-CARRIER_IGNITION_START-.8)/.8))
+  if(mount?.contacts){
+    ctx.save();ctx.translate((frame.deckShiftX??0)/g.cover.scale,(frame.deckShiftY??0)/g.cover.scale)
+    ctx.globalAlpha*=frame.deckOpacity??1
+    drawDockClamps(ctx,mount,frame.reducedMotion?Number(release>.5):release,undefined,'front')
+    ctx.restore()
+  }
+  if(!boarding){ctx.restore();return}
   drawBoardingLadder(ctx,g.footX,g.floorY,g.topX,g.topY,kit.ladder)
   const climb = Math.min(1, crew.climb / .76)
   const stepIn = Math.max(0, (crew.climb - .76) / .24)
   const seated = crew.pilotVisible ? stepIn : 1
-  drawCarrierCockpit(ctx,g.shipX,g.shipY,g.hull,frame.visualKey,frame.landscape,kit.canopy,frame.groundedMech,seated)
+  if(frame.liveDock?.canopy){
+    const local=(m:DockMatrix):DockMatrix=>[m[0]/g.cover.scale,m[1]/g.cover.scale,m[2]/g.cover.scale,m[3]/g.cover.scale,
+      (m[4]-g.cover.x)/g.cover.scale,(m[5]-g.cover.y)/g.cover.scale]
+    drawCarrierCockpit(ctx,0,0,1,frame.visualKey,false,kit.canopy,false,seated,
+      {closed:local(frame.liveDock.canopy.closed),open:local(frame.liveDock.canopy.open)})
+  } else if(!frame.liveDock)drawCarrierCockpit(ctx,g.shipX,g.shipY,g.hull,frame.visualKey,frame.landscape,kit.canopy,frame.groundedMech,seated)
   if(crew.pilotVisible){
     const x = g.startX + (g.footX - g.startX) * crew.walk + (g.topX - g.footX) * climb + (g.cockpitX - g.topX) * stepIn
     const y = g.floorY + (g.topY - g.floorY) * climb + (g.cockpitY - g.topY) * stepIn
@@ -121,6 +147,7 @@ export function drawCarrierBoardingForeground(ctx: CanvasRenderingContext2D, fra
 }
 
 const dockMounts = new WeakMap<HTMLCanvasElement, DockMount & { viewport: string }>()
+const frameDockMounts = new WeakMap<CarrierDeckFrame, DockMount>()
 const staticDeckFrames = new WeakMap<HTMLCanvasElement, string>()
 export function drawCarrierDeck(canvas: HTMLCanvasElement, frame: CarrierDeckFrame) {
   const {width,height,landscape,launchAge,briefing,reducedMotion,ambientAge,decorative}=frame
@@ -136,19 +163,36 @@ export function drawCarrierDeck(canvas: HTMLCanvasElement, frame: CarrierDeckFra
   const crewLoaded=getDeckAtlas('crew').loaded
   // Static accessibility frames only change on a boarding/clearance cut or resize.
   // Avoid repeatedly rasterizing and uploading a full-screen unchanged canvas.
-  const staticKey=reducedMotion?[width,height,dpr,landscape,decorative,frame.shipX,frame.shipY,frame.hullSize,frame.visualKey,crew.pilotState,crew.marshalState,crew.retreat,kit.ladder,kit.canopy,clampRelease,clampLoaded,servicesLoaded,crewLoaded].join(':'):null
-  if(staticKey&&staticDeckFrames.get(canvas)===staticKey)return
+  const staticKey=reducedMotion?[width,height,dpr,landscape,decorative,frame.shipX,frame.shipY,frame.hullSize,frame.visualKey,Boolean(frame.liveDock),frame.mountX,frame.mountY,frame.mountHull,crew.pilotState,crew.marshalState,crew.retreat,kit.ladder,kit.canopy,clampRelease,clampLoaded,servicesLoaded,crewLoaded].join(':'):null
+  if(staticKey&&staticDeckFrames.get(canvas)===staticKey){
+    const mount=dockMounts.get(canvas);if(mount)frameDockMounts.set(frame,mount)
+    return
+  }
   const ctx=canvas.getContext('2d');if(!ctx)return
   if(staticKey)staticDeckFrames.set(canvas,staticKey);else staticDeckFrames.delete(canvas)
   ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,width,height)
   ctx.translate(cover.x,cover.y);ctx.scale(cover.scale,cover.scale)
   let dock=dockMounts.get(canvas)
-  if(!dock||dock.viewport!==`${width}:${height}:${landscape}`||briefing||launchAge<CARRIER_IGNITION_START){
-    dock={viewport:`${width}:${height}:${landscape}`,x:(frame.shipX-cover.x)/cover.scale,y:(frame.shipY-cover.y)/cover.scale,hull:frame.hullSize/cover.scale,
-      floor:landscape?608:1126,ceiling:landscape?270:808,mech:frame.groundedMech??false}
+  const viewport=`${width}:${height}:${landscape}`
+  const mountX=((frame.mountX??frame.shipX)-cover.x)/cover.scale
+  const mountY=((frame.mountY??frame.shipY)-cover.y)/cover.scale
+  const mountHull=(frame.mountHull??frame.hullSize)/cover.scale
+  const liveContacts=frame.liveDock?.contacts
+  const contactsChanged=Boolean(liveContacts && (!dock?.contacts || liveContacts.length!==dock.contacts.length || liveContacts.some((contact,i) => {
+    const old=dock?.contacts?.[i]
+    return !old || Math.abs(old.x-(contact.x-cover.x)/cover.scale)>1e-6 || Math.abs(old.y-(contact.y-cover.y)/cover.scale)>1e-6
+      || old.nx!==contact.nx || old.ny!==contact.ny || old.side!==contact.side || old.level!==contact.level
+  })))
+  const canFollow=briefing||launchAge<CARRIER_IGNITION_START||Boolean(frame.liveDock&&!dock?.contacts)
+  if(!dock || dock.viewport!==viewport || canFollow && (dock.x!==mountX || dock.y!==mountY || dock.hull!==mountHull
+    || dock.mech!==(frame.groundedMech??false) || contactsChanged)){
+    dock={viewport,x:mountX,y:mountY,hull:mountHull,
+      floor:landscape?608:1126,ceiling:landscape?270:808,mech:frame.groundedMech??false,
+      contacts:liveContacts?.map(contact=>({...contact,x:(contact.x-cover.x)/cover.scale,y:(contact.y-cover.y)/cover.scale}))}
     dockMounts.set(canvas,dock)
   }
-  drawDockClamps(ctx,dock,clampRelease)
+  frameDockMounts.set(frame,dock)
+  drawDockClamps(ctx,dock,clampRelease,undefined,dock.contacts?'back':'all')
   canvas.dataset.dockClampRenderer='atlas'
   canvas.dataset.dockClampLoaded=String(clampLoaded)
   canvas.dataset.dockClampRelease=String(clampRelease)
