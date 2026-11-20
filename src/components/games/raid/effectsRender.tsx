@@ -888,6 +888,32 @@ export function drawPowerUpCanvas(
   ctx.drawImage(sprite, x - drawSize / 2, y - drawSize / 2, drawSize, drawSize)
 }
 
+/** Compact, high-contrast boss attack cue, drawn on the existing FX canvas. */
+function drawBossChargeAlert(ctx: CanvasRenderingContext2D, width: number, height: number, progress: number, label: string) {
+  const scale = Math.min(width / 420, height / 240, 1.25)
+  const barWidth = 176 * scale
+  const barHeight = Math.max(3, 5 * scale)
+  const x = width * .5 - barWidth * .5
+  const y = Math.max(14, height * .12)
+  ctx.save()
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'bottom'
+  ctx.font = `bold ${Math.max(11, Math.round(14 * scale))}px sans-serif`
+  ctx.shadowColor = '#000'
+  ctx.shadowBlur = 5
+  ctx.fillStyle = '#fff1f2'
+  ctx.fillText(label, width * .5, y - 5 * scale)
+  ctx.shadowBlur = 0
+  ctx.fillStyle = 'rgba(8, 12, 24, .85)'
+  ctx.fillRect(x - 2, y - 2, barWidth + 4, barHeight + 4)
+  ctx.fillStyle = '#f87171'
+  ctx.fillRect(x, y, barWidth * clamp(progress, 0, 1), barHeight)
+  ctx.strokeStyle = '#fecaca'
+  ctx.lineWidth = 1
+  ctx.strokeRect(x, y, barWidth, barHeight)
+  ctx.restore()
+}
+
 export function drawFinalChargeLines(
   ctx: CanvasRenderingContext2D,
   enemies: Enemy[],
@@ -904,6 +930,8 @@ export function drawFinalChargeLines(
     }
   }
   if (!hasFinalCharge) return
+  const finalCharge = enemies.find(enemy => enemy.bossKind === 'final' && enemy.chargeTimer > 0)!
+  drawBossChargeAlert(ctx, viewportWidth, viewportHeight, 1 - finalCharge.chargeTimer / FINAL_BOSS_BEAM_CHARGE_SECONDS, 'DANGER — BEAM ATTACK')
 
   const toViewportY = (value: number) => (value / HEIGHT) * viewportHeight
   const length = Math.hypot(viewportWidth, viewportHeight) * 1.48
@@ -962,6 +990,8 @@ export function drawDevilChargeWarnings(
     }
   }
   if (!hasDevilCharge) return
+  const devilCharge = enemies.find(enemy => enemy.bossKind === 'devil' && enemy.chargeTimer > 0)!
+  drawBossChargeAlert(ctx, viewportWidth, viewportHeight, 1 - devilCharge.chargeTimer / getDevilBossChargeDuration(devilCharge.chargePattern, (devilCharge.beamVolleyLeft ?? 0) > 0), 'DANGER — SPECIAL ATTACK')
 
   const length = Math.hypot(viewportWidth, viewportHeight) * 1.48
   const drawWarningBeam = (x: number, y: number, angle: number, width: number, alpha: number, pulse: number) => {
