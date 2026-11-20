@@ -7,7 +7,9 @@ import { chromium } from 'playwright'
 // Diagnostic setup stays in the browser fixture. Production simulation,
 // cameras, renderers, stage artwork and quality budgets are used unchanged.
 const base=process.env.RAID_TEST_URL ?? 'http://127.0.0.1:5200'
-const output='presentation-review/campaign-v1'
+const output=process.env.RAID_REVIEW_OUTPUT??'presentation-review/campaign-v1'
+const selectedStages=process.env.RAID_REVIEW_STAGES?.split(',').map(Number)
+const desktop=process.env.RAID_REVIEW_DESKTOP==='1'
 const profileOnly=process.argv.includes('--profile-only')
 const capturesOnly=process.argv.includes('--captures-only')||(!profileOnly&&!process.argv.includes('--profile'))
 const resume=process.argv.includes('--resume')
@@ -41,8 +43,8 @@ try {
   const specialChecks=[],mobChecks=[]
   for(const landscape of (capturesOnly&&!verifySpecial&&!verifyMobs ? [true] : [true,false])) {
     const view=landscape?'landscape':'portrait'
-    const page=await browser.newPage({viewport:landscape?{width:844,height:390}:{width:393,height:852},
-      deviceScaleFactor:1,hasTouch:true,reducedMotion:'no-preference'})
+    const page=await browser.newPage({viewport:landscape?(desktop?{width:1920,height:1080}:{width:844,height:390}):{width:393,height:852},
+      deviceScaleFactor:1,hasTouch:!desktop,reducedMotion:'no-preference'})
     page.on('pageerror',error=>errors.push(view+': '+error.message))
     page.on('console',message=>{
       if(message.type()==='error'&&/THREE\.|WebGL|shader|Air Raid frame failed/i.test(message.text())) errors.push(message.text())
@@ -191,7 +193,7 @@ try {
     },refNames)
     await page.evaluate(async()=>{await new Promise(window.reviewRAF);await new Promise(window.reviewRAF)})
     assert.equal(await page.evaluate(()=>typeof window.reviewLoop),'function')
-    if(landscape&&!profileOnly) for(const boss of catalog) {
+    if(landscape&&!profileOnly) for(const boss of catalog.filter(boss=>!selectedStages||selectedStages.includes(boss.stage))) {
       const filename='boss-'+String(boss.stage).padStart(2,'0')+'-landscape-v1.png'
       if(specialOnly&&![5,10,15].includes(boss.stage)) {
         // Reuse the unchanged bosses from the completed gallery while
@@ -214,6 +216,17 @@ try {
       await page.evaluate(()=>new Promise(window.reviewRAF))
       await page.screenshot({path:output+'/'+filename})
       captures.push({...boss,file:filename})
+      if(selectedStages) {
+        const hud=await page.evaluate(()=>{
+          const panel=document.querySelector('.raid__hud .raid__stat'),text=panel?.querySelector('b')
+          const p=getComputedStyle(panel),t=getComputedStyle(text)
+          return {background:p.backgroundColor,panelOpacity:p.opacity,textOpacity:t.opacity,textColor:t.color,blur:p.backdropFilter}
+        })
+        assert.equal(hud.textOpacity,'1','HUD text was faded')
+        assert.equal(hud.panelOpacity,'1','HUD container opacity faded its children')
+        assert.ok(hud.background.endsWith('0.28)'),'HUD skin overrode translucent background')
+        await writeFile(output+'/hud-checks.json',JSON.stringify(hud,null,2))
+      }
       console.log('Captured',boss.stage,boss.name)
     }
     if(verifySpecial)for(const stage of [5,10,15])for(const phase of stage===10?['idle','attack','bite','retract']:['idle','attack']) {
@@ -337,7 +350,7 @@ try {
       })
       await page.screenshot({path:output+'/boss-charge-clean-'+view+'-v1.png'})
     }
-    if(!capturesOnly) for(const stage of Array.from({length:15},(_,index)=>index+1)) {
+    if(!capturesOnly) for(const stage of selectedStages??Array.from({length:15},(_,index)=>index+1)) {
       for(const scenario of ['waves','boss','burst','entry','transition',...([1,5,10,15].includes(stage)?['coop']:[])]) {
         if(resume&&results.some(row=>row.view===view&&row.stage===stage&&row.scenario===scenario))continue
         const summary=await page.evaluate(async({stage,scenario,frames})=>{
@@ -363,7 +376,7 @@ try {
         results.push({view,stage,scenario,...summary})
         console.log('Profiled',view,stage,scenario,'CPU',summary.drawMs.mean.toFixed(2),'ms')
         // Keep partial evidence if a later scenario exposes a bug.
-        await writeFile(output+'/loads-v1.json',JSON.stringify({environment:'Headless Chromium / SwiftShader',quality:'max',deviceScaleFactor:1,
+        await writeFile(output+'/loads-v1.json',JSON.stringify({environment:'Headless Chromium / SwiftShader',quality:'max',deviceScaleFactor:1,selectedStages:selectedStages??null,landscapeViewport:desktop?[1920,1080]:[844,390],
           note:'CPU calls and submitted work in controlled diagnostic states. GPU timers may be unavailable. Not a device FPS benchmark.',results,errors},null,2))
       }
     }
@@ -375,7 +388,7 @@ try {
   if(captures.length)await writeFile(output+'/bosses-v1.md',captures.map(boss=>
     `${boss.stage===16?'Anomaly':'Stage '+boss.stage} — ${boss.name}\n\n![${boss.name}](${boss.file})`).join('\n\n')+'\n')
   assert.deepEqual(errors,[])
-  console.log('Review complete:',captures.length,'gameplay captures;',results.length,'whole-campaign workload cases')
+  console.log('Review complete:',captures.length,'gameplay captures;',results.length,selectedStages?'selected-stage workload cases':'whole-campaign workload cases')
 } finally {
   await browser?.close()
   server?.kill()

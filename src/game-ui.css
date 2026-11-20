@@ -479,3 +479,11 @@
   #root .start-screen__game-logo { padding-bottom: 0.30em; }
   #root .start-screen__game-logo-3d { right: 0.02em; bottom: 0; }
 }
+
+/* Reveal the cosmos through combat panels without fading their text or icons. */
+#root .raid .raid__hud :is(.raid__stat, .raid__hp, .raid__nuke, .raid__exit, .raid__pilot-heading, .raid__pilot-special, .raid__pilot-tag) {
+  background: rgba(3, 9, 17, .28);
+  border-image-source: none;
+  backdrop-filter: none;
+}
+#root .raid .raid__hud .raid__pause::before { opacity: .4; }
