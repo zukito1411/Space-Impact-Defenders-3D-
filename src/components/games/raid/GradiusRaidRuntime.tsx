@@ -583,6 +583,15 @@ export function GradiusRaid({
     return nearest
   }, [getLivingPlayers])
 
+  const syncBossRushStageLevel = useCallback((stage: number) => {
+    if (raidModeRef.current !== 'bossRush') return
+    // Boss Rush skips campaign stages; preserve earned levels, but never enter
+    // the stage-10 or stage-15 encounter at the previous boss's level.
+    applyStartingStageLevel(playerRef.current, Math.max(playerRef.current.rank, stage))
+    const guest = remotePlayerRef.current
+    if (guest) applyStartingStageLevel(guest, Math.max(guest.rank, stage))
+  }, [])
+
   const sendGamePayload = useCallback((payload: Record<string, unknown>) => {
     const session = multiplayerSessionRef.current
     if (!session || session.socket.readyState !== WebSocket.OPEN) return
@@ -3228,6 +3237,7 @@ export function GradiusRaid({
       const underway = playerRef.current.ship.key === 'mesiah' || remotePlayerRef.current?.ship.key === 'mesiah'
       const stageChanged = stageRef.current !== stop.targetStage
       stageRef.current = stop.targetStage
+      syncBossRushStageLevel(stop.targetStage)
       if (stageChanged) {
         waveRef.current = stop.targetStage
         journeyStageAgeRef.current = 0
@@ -4339,6 +4349,34 @@ export function GradiusRaid({
     powerUpsRef.current.push({ id: powerId++, type: 'levelup', x, y, vy: 8.5, radius: 4.2, spin: Math.random() * 360 })
   }, [])
 
+  const collectLevelUpReward = useCallback((powerUp: PowerUp, collector?: Player) => {
+    const session = multiplayerSessionRef.current
+    if (session && !session.isHost) return false
+    if (powerUp.type !== 'levelup' || powerUp.y >= HEIGHT + 20) return false
+    const livingPlayers = getLivingPlayers()
+    if (!livingPlayers.length) return false
+    const target = collector && collector.hp > 0 ? collector : getNearestLivingPlayer(powerUp)
+    // Mark consumed before awarding so recovery/transition fallbacks cannot
+    // grant a pickup that was already collected during this frame.
+    powerUp.y = HEIGHT + 99
+    for (const pilot of coOpRunRef.current ? livingPlayers : [target]) levelUpPlayer(pilot)
+    pickupsCollectedRef.current += 1
+    target.score += Math.round(120 * scoreMultRef.current)
+    spawnSparks(target.x, target.y, powerColor('levelup'), 24, 6)
+    addRipple(target.x, target.y, powerColor('levelup'), 11)
+    playPickupVoiceLine('levelup')
+    playGameSound('levelup')
+    return true
+  }, [getLivingPlayers, getNearestLivingPlayer, spawnSparks, addRipple])
+
+  const collectPendingLevelUpRewards = useCallback(() => {
+    compactInPlace(powerUpsRef.current, (powerUp) => {
+      if (powerUp.type !== 'levelup') return true
+      collectLevelUpReward(powerUp)
+      return powerUp.y < HEIGHT + 20
+    })
+  }, [collectLevelUpReward])
+
   const submitRaidLeaderboardScore = useCallback((score: number) => {
     const session = multiplayerSessionRef.current
     if (session && !session.isHost) return
@@ -4672,6 +4710,7 @@ export function GradiusRaid({
   }, [emitCommandBossShot])
 
   const beginCarrierRecovery = useCallback((targetStage: number, boss?: BossKind) => {
+    collectPendingLevelUpRewards()
     const player = playerRef.current
     const guest = remotePlayerRef.current
     queuedBossRef.current = boss ?? null
@@ -4717,7 +4756,7 @@ export function GradiusRaid({
     multiplayerHandledRemoteNukeRef.current = multiplayerRemoteNukeRef.current
     startRaidBgm(targetStage, 'hangar')
     syncSnapshot()
-  }, [startRaidBgm, syncSnapshot])
+  }, [collectPendingLevelUpRewards, startRaidBgm, syncSnapshot])
 
   const updateGame = useCallback((dt: number) => {
     if (phaseRef.current !== 'playing') return
@@ -4812,6 +4851,20 @@ export function GradiusRaid({
       if (devilAssistPlayer) {
         animateStageClearPlayer(devilAssistPlayer, dt, devilAssistPlayer.x < 50 ? 38 : 62)
       }
+      // The normal pickup loop is below this early-return branch. Keep boss
+      // level rewards moving and collectible while the pilots fly to the bay.
+      for (const powerUp of powerUpsRef.current) {
+        if (powerUp.type !== 'levelup' || powerUp.y >= HEIGHT + 20) continue
+        const target = getNearestLivingPlayer(powerUp)
+        if (target.hp <= 0) continue
+        const pull = Math.min(1, dt * 8)
+        powerUp.x += (target.x - powerUp.x) * pull
+        powerUp.y += (target.y - powerUp.y) * pull
+        powerUp.spin += dt * 180
+        const reach = powerUp.radius + getRaidPlayerHitRadius(target) + 4.2
+        if (distSq(powerUp, target) <= reach * reach) collectLevelUpReward(powerUp, target)
+      }
+      compactInPlace(powerUpsRef.current, powerUp => powerUp.y < HEIGHT + 20)
       updateSparksInPlace(sparksRef.current, dt)
       updateRipplesInPlace(ripplesRef.current, dt)
       for (const enemy of enemiesRef.current) {
@@ -4825,6 +4878,7 @@ export function GradiusRaid({
         }
       }
       if (before > 0 && stageClearRef.current <= 0) {
+        collectPendingLevelUpRewards()
         if (victoryPendingRef.current) {
           victoryPendingRef.current = false
           if (returningAfterVictory) {
@@ -4842,6 +4896,7 @@ export function GradiusRaid({
             return
           }
           stageRef.current = pendingNextStage
+          syncBossRushStageLevel(pendingNextStage)
           journeyStageAgeRef.current = 0
           waveRef.current = pendingNextStage
           devilAssistPlayerRef.current = null
@@ -6959,6 +7014,7 @@ export function GradiusRaid({
     }
     compactInPlace(shotsRef.current, (shot) => shot.y > -50)
     if (bossDefeatedThisFrame) {
+      collectPendingLevelUpRewards()
       const defeatedBoss = enemiesRef.current.find((enemy) => enemy.isBoss && enemy.hp <= 0)
       triggerScreenShake(defeatedBoss?.bossKind === 'devil' || defeatedBoss?.bossKind === 'final' ? 4 : 3, 520)
       const scheduleBossDefeatExplosions = (boss: Enemy, dropLevelUp: boolean) => {
@@ -7217,14 +7273,13 @@ export function GradiusRaid({
           Math.abs(powerUp.y - targetPlayer.y) <= hitRange &&
           distSq(powerUp, targetPlayer) <= hitRange * hitRange
         ) {
+          if (powerUp.type === 'levelup') {
+            collectLevelUpReward(powerUp, targetPlayer)
+            break
+          }
           powerUp.y = HEIGHT + 99
           pickupsCollectedRef.current += 1
-          if (powerUp.type === 'levelup') {
-            const levelTargets = coOpRunRef.current ? livingPlayersThisTick : [targetPlayer]
-            for (const levelTarget of levelTargets) {
-              if (levelTarget.hp > 0) levelUpPlayer(levelTarget)
-            }
-          } else if (powerUp.type === 'repair') {
+          if (powerUp.type === 'repair') {
             const previousHull = targetPlayer.hp
             targetPlayer.hp = Math.min(targetPlayer.maxHp, targetPlayer.hp + 1)
             if (targetPlayer.hp > previousHull) scenePresentation.playerEvent(targetPlayer, 'repair')
@@ -7263,7 +7318,7 @@ export function GradiusRaid({
     if (remotePlayerRef.current && remotePlayerRef.current.score > highScoreRef.current) {
       highScoreRef.current = remotePlayerRef.current.score
     }
-  }, [activateNuke, addRipple, beginCarrierRecovery, emitCommandBossShot, damagePlayer, destroyPlayerByBossCollision, detonateNuke, finishBarrage, fireEnemy, firePlayer, getLivingPlayers, getNearestLivingPlayer, showRaidVictory, spawnAsteroidCluster, planAsteroidCluster, spawnBoss, spawnEnemyAt, spawnFormation, spawnPowerUp, spawnLevelUpPowerUp, spawnSparks, startRaidBgm, startRandomRaidEvent, stopRaidBgm, submitRaidLeaderboardScore, syncSnapshot, resolveBossKind, triggerScreenShake])
+  }, [activateNuke, addRipple, beginCarrierRecovery, collectLevelUpReward, collectPendingLevelUpRewards, emitCommandBossShot, damagePlayer, destroyPlayerByBossCollision, detonateNuke, finishBarrage, fireEnemy, firePlayer, getLivingPlayers, getNearestLivingPlayer, showRaidVictory, spawnAsteroidCluster, planAsteroidCluster, spawnBoss, spawnEnemyAt, spawnFormation, spawnPowerUp, spawnLevelUpPowerUp, spawnSparks, startRaidBgm, startRandomRaidEvent, stopRaidBgm, submitRaidLeaderboardScore, syncBossRushStageLevel, syncSnapshot, resolveBossKind, triggerScreenShake])
 
   const getRaidFocusableControls = useCallback(() => {
     const root = rootRef.current
