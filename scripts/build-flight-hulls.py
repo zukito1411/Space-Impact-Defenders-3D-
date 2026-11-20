@@ -6,6 +6,7 @@ The separate bake script reads the saved .blend, including subsequent hand edits
 """
 
 import math
+import importlib.util
 import json
 import re
 import sys
@@ -684,6 +685,11 @@ def build(key, file):
             space.overlay.show_overlays = False
     bpy.context.preferences.filepaths.save_version = 0
     bpy.ops.wm.save_as_mainfile(filepath=str(MODELS / (key + ".blend")), compress=True)
+    if base in ('fast','gatling'):
+        spec = importlib.util.spec_from_file_location('assault_hull_depth', ROOT/'scripts/deepen-assault-hulls.py')
+        assault = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(assault)
+        assault.deepen(key)
 
 
 if __name__ == "__main__":

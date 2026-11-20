@@ -1,8 +1,8 @@
 // Cosmetic art keys retain the original gameplay ship key in saves and co-op.
 export const RAID_ELITE_FRAME_PATHS = {
   rocketElite: 'assets/ships/previews/rocketElite-portrait-v5.webp',
-  fastElite: 'assets/ships/previews/fastElite-portrait-v5.webp',
-  gatlingElite: 'assets/ships/previews/gatlingElite-portrait-v5.webp',
+  fastElite: 'assets/ships/previews/fastElite-portrait-v10.webp',
+  gatlingElite: 'assets/ships/previews/gatlingElite-portrait-v10.webp',
   laserElite: 'assets/ships/previews/laserElite-portrait-v5.webp',
   dreadnoughtElite: 'assets/ships/previews/dreadnoughtElite-portrait-v5.webp',
   xwingElite: 'assets/ships/previews/xwingElite-portrait-v9.webp',

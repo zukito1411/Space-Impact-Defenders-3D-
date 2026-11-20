@@ -3,6 +3,8 @@
 blender -b -t 4 --python-exit-code 1 -P scripts/render-live-ship-previews.py
 """
 import math
+import argparse
+import sys
 import tempfile
 from pathlib import Path
 
@@ -13,7 +15,12 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'public/assets/ships/previews'
 
-for key in ('xwing', 'xwingElite'):
+parser = argparse.ArgumentParser()
+parser.add_argument('keys',nargs='*')
+parser.add_argument('--review-dir',type=Path)
+args = parser.parse_args(sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else [])
+for key in args.keys or ('xwing','xwingElite'):
+    version = 10 if key in ('fast','fastElite','gatling','gatlingElite') else 9
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.gltf(filepath=str(ROOT / 'public/assets/ships/models/v1' / (key+'.glb')))
     scene = bpy.context.scene
@@ -60,8 +67,12 @@ for key in ('xwing', 'xwingElite'):
     scene.view_settings.view_transform = 'Standard'
     scene.render.image_settings.file_format = 'PNG'
     scene.render.image_settings.color_mode = 'RGBA'
-    for landscape in (False,True):
-        pivot.rotation_euler = (0,math.radians(-56 if landscape else 0),math.radians(-90 if landscape else 0))
+    views = [('portrait',0,0,OUT),('landscape',-56,-90,OUT)]
+    if args.review_dir:
+        args.review_dir.mkdir(parents=True,exist_ok=True)
+        views += [('side',-90,-90,args.review_dir),('underside',-145,-90,args.review_dir)]
+    for view,yaw,heading,directory in views:
+        pivot.rotation_euler = (0,math.radians(yaw),math.radians(heading))
         bpy.context.view_layer.update()
         points = [obj.matrix_world @ Vector(corner) for obj in meshes for corner in obj.bound_box]
         low = Vector((min(p.x for p in points),min(p.y for p in points),0))
@@ -69,10 +80,9 @@ for key in ('xwing', 'xwingElite'):
         center = (low+high)*.5
         camera.location = (center.x,center.y,3000)
         data.ortho_scale = max(high.x-low.x,high.y-low.y)*1.16
-        view = 'landscape' if landscape else 'portrait'
         with tempfile.TemporaryDirectory() as temp:
             scene.render.filepath = str(Path(temp)/'preview.png')
             bpy.ops.render.render(write_still=True)
             with Image.open(scene.render.filepath) as image:
-                image.save(OUT/f'{key}-{view}-v9.webp','WEBP',quality=97,method=5,exact=True)
+                image.save(directory/f'{key}-{view}-v{version}.webp','WEBP',quality=97,method=5,exact=True)
         print('PREVIEW_READY',key,view,flush=True)

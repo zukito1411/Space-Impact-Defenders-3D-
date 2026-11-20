@@ -15,6 +15,7 @@ export function raidBankingPreviewNozzle(x:number,y:number,landscape:boolean){re
 export function getRaidPicker3DPreviewPath(shipKey:string,landscape:boolean){
   const key=keyFor(shipKey)
   if(isRaid2DMech(key)||!registrations[key])return null
+  if (key === 'fast' || key === 'fastElite' || key === 'gatling' || key === 'gatlingElite') return `assets/ships/previews/${key}-${landscape?'landscape':'portrait'}-v10.webp`
   if (key === 'xwing' || key === 'xwingElite') return `assets/ships/previews/${key}-${landscape?'landscape':'portrait'}-v9.webp`
   const version=landscape?7:5
   return `assets/ships/previews/${key}-${landscape?'landscape':'portrait'}-v${version}.webp`
