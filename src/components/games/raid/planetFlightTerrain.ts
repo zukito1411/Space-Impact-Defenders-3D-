@@ -14,7 +14,7 @@ uniform vec2 uViewport, uView;
 uniform float uFocal, uTravel, uAltitude, uPeriod;
 out vec3 normal;
 out vec2 paint, local;
-out float elevation, distanceToCamera;
+out float elevation, distanceToCamera, geology;
 void main() {
   float x = mod(aCenter.x-uTravel+uPeriod*.5,uPeriod)-uPeriod*.5+aPosition.x;
   float d = aCenter.y+aPosition.z, down = uAltitude-aPosition.y;
@@ -25,7 +25,7 @@ void main() {
   normal = vec3(aNormal.x,uView.y*aNormal.y+uView.x*aNormal.z,uView.x*aNormal.y-uView.y*aNormal.z);
   // Texture coordinates at the foot match the plane under it exactly.
   paint = vec2(aCenter.x+aPosition.x,d)*.42;
-  local = aDetail; elevation = aPosition.y; distanceToCamera = z;
+  local = aDetail; geology = sin(aCenter.x*3.91+aCenter.y*17.3); elevation = aPosition.y; distanceToCamera = z;
 }`
 const fragment = `#version 300 es
 precision highp float;
@@ -35,7 +35,7 @@ uniform float uWet;
 uniform vec4 uWorldColorAlpha;
 in vec3 normal;
 in vec2 paint, local;
-in float elevation, distanceToCamera;
+in float elevation, distanceToCamera, geology;
 out vec4 finalColor;
 void main() {
   if (elevation < .0003) discard;
@@ -50,13 +50,15 @@ void main() {
   vec3 lit = pigment*(uSky*.38+uBounce*.24+uKey*incidence*.72);
   // Thin branching lava channels descend from the recessed crater rim.
   float r = length(local), a = atan(local.y,local.x);
-  float channel = abs(sin(a*5.+sin(r*14.)*.19));
-  float flow = (1.-smoothstep(.025,.075,channel))*smoothstep(.14,.23,r)*(1.-smoothstep(.7,.97,r));
+  float bend = sin(r*17.+a*3.+geology)*.38+sin(r*31.-a*7.)*.12;
+  float channel = abs(sin(a*3.+bend+geology*2.));
+  float flow = (1.-smoothstep(.012,.05,channel))*smoothstep(.14,.23,r)*(1.-smoothstep(.7,.97,r));
   float crater = (1.-smoothstep(.09,.18,r))*.8;
   float lava = max(flow,crater)*(1.-uWet);
-  lit += vec3(1.,.16,.018)*lava*.7;
+  float mineral = texture(uGround,paint*4.7).r;
+  lit += vec3(1.,.16,.018)*lava*(.24+mineral*.55);
   float shoreline = (1.-smoothstep(.002,.016,elevation))*uWet;
-  lit = mix(lit,vec3(.22,.35,.36),shoreline*.6);
+  lit = mix(lit,vec3(.22,.35,.36),shoreline*.32);
   vec3 fog = uSky*.24+uBounce*.1;
   lit = mix(lit,fog,1.-exp(-distanceToCamera*.035));
   float alpha = smoothstep(.0003,.008,elevation)*uWorldColorAlpha.a;

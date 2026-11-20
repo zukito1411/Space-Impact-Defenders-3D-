@@ -6,10 +6,10 @@ export function createPlanetTerrainPeaks(kind: PlanetAtmosphereKind): PlanetTerr
   const wet = kind === 'pelagic'
   return Array.from({ length: 24 }, (_, i) => {
     const band = Math.floor(i / 8), seed = i * 2.399 + .83
-    return { x: (-3.5 + i % 8) * PLANET_FLIGHT_PERIOD / 8 + band * .63, distance: [1.55, 2.85, 4.3][band] + Math.sin(seed) * .17,
-      height: (wet ? [.18, .36, .6] : [.27, .56, .82])[band] * (.86 + .14 * Math.sin(seed * 3)),
-      radiusX: [.62, .86, 1.14][band] * (1 + .17 * Math.cos(seed)),
-      radiusZ: [.42, .65, .87][band], seed }
+    return { x: (-3.5 + i % 8) * PLANET_FLIGHT_PERIOD / 8 + band * .63, distance: [1.75, 2.25, 3.3][band] + Math.sin(seed) * .08,
+      height: (wet ? [.16, .28, .32] : [.21, .4, .42])[band] * (.86 + .14 * Math.sin(seed * 3)),
+      radiusX: [.42, .58, .75][band] * (1 + .17 * Math.cos(seed)),
+      radiusZ: [.32, .43, .6][band], seed }
   })
 }
 

@@ -223,6 +223,11 @@ try {
       await page.waitForTimeout(240)
       await page.evaluate(()=>{window.campaignReview.frame(false);window.campaignReview.actions.sync()})
       await page.evaluate(()=>new Promise(window.reviewRAF))
+      if(verifyTerrain&&[5,10].includes(boss.stage))await page.evaluate(()=>{
+        const review=window.campaignReview
+        review.background.landscapeAtmosphere.lastTime=null
+        review.actions.draw(40000)
+      })
       await page.screenshot({path:output+'/'+filename})
       captures.push({...boss,file:filename})
       if(selectedStages) {
