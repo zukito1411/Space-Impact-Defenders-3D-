@@ -3235,7 +3235,7 @@ export function GradiusRaid({
         reserveSerialRef.current = 0
       }
       stageEntryRef.current = underway ? MESIAH_ENTRY_SECONDS : CARRIER_LAUNCH_SECONDS
-      if (stageChanged && stop.boss !== 'devil') bossTimerRef.current = Math.min(bossTimerRef.current, stop.boss === 'final' ? 24 : 36)
+      if (stageChanged && stop.boss !== 'devil') bossTimerRef.current = BOSS_RESPAWN_SECONDS
       phaseRef.current = 'playing'
       initialLaunchRef.current = true
       syncSnapshot()
@@ -3323,7 +3323,7 @@ export function GradiusRaid({
     formationTimerRef.current = 1.8
     wingSerialRef.current = 0
     reserveSerialRef.current = 0
-    bossTimerRef.current = forceLocalDevilTest ? 3.2 : isBossRush ? 2.4 : isEndless ? 28 + Math.random() * 18 : stage === MAX_RAID_STAGE ? 24 : 36
+    bossTimerRef.current = forceLocalDevilTest ? 3.2 : isBossRush ? 2.4 : isEndless ? 28 + Math.random() * 18 : BOSS_RESPAWN_SECONDS
     spawnLockRef.current = 0
     powerDropCooldownRef.current = 0
     killsSincePowerRef.current = 0
