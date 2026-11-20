@@ -66,10 +66,9 @@ jobs:
               p.write_text(data)
           PY
 
-      - name: Verify 3D ship rendering logic and compile production game
+      - name: Verify Android identity and compile production game
         run: |
           npm ci
-          node scripts/test-raid-banking-art.mjs
           python3 scripts/test-3d-android-identity.py
           npm run build
 

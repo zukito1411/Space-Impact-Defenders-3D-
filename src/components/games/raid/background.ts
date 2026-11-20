@@ -25,7 +25,6 @@ import { projectDepthStar, type DepthStar } from './depthProjection'
 import { RaidTravelMotion } from './travelMotion'
 import { getPublicAssetUrl } from '../sound'
 import type { GraphicsQuality } from '../sound'
-import { getRaidAlienSpriteUrl, getRaidEliteSpriteUrl } from '../RaidShipSprite'
 import { Application, Assets, Container, FillGradient, Graphics, Sprite, Texture, TilingSprite, WebGLRenderer } from 'pixi.js'
 import { RAID_OTHER_ASSET_PATHS, drawCanvasImageContain, getRaidOtherCanvasSprite } from './assets'
 import type { RaidOtherAssetKey } from './assets'
@@ -131,17 +130,9 @@ const FINAL_BATTLE_CRUISERS = [
   { asset: 'xwing', x: 0.9, ySeed: 0.86, speed: 0.056, drift: -0.032, size: 0.07, phase: 5.3, alpha: 0.62 },
 ] as const
 
-function getFinalBattleTextureKey(fighter: typeof FINAL_BATTLE_FIGHTERS[number]) {
-  return `final-battle:${fighter.assetKind}:${fighter.asset}`
-}
-
-function getFinalBattleTextureUrl(fighter: typeof FINAL_BATTLE_FIGHTERS[number]) {
-  const variant = Number(fighter.asset) || 0
-  return fighter.assetKind === 'elite' ? getRaidEliteSpriteUrl(variant) : getRaidAlienSpriteUrl(variant)
-}
-
-function getFinalBattleCruiserTextureKey(cruiser: typeof FINAL_BATTLE_CRUISERS[number]) {
-  return `final-battle:cruiser:${cruiser.asset}`
+function getFinalBattleHullKey(fighter: typeof FINAL_BATTLE_FIGHTERS[number]) {
+  return fighter.assetKind === 'ship' ? fighter.asset
+    : `${fighter.assetKind === 'elite' ? 'eliteHull' : 'alienHull'}${fighter.asset}`
 }
 
 const WORLD_SURFACE_TILE_OFFSETS = [-1, 0, 1] as const
@@ -870,6 +861,7 @@ export class PixiRaidBackground {
   private readonly sceneryHulls = new SceneryHulls()
   private readonly shipLighting = createShipLightingFrame()
   private readonly sceneryShipKeys = new Map<Sprite, string>()
+  private readonly sceneryEclipse = (x: number, y: number) => this.getEclipseAt(x,y)
   private readonly sceneryShipKey = (sprite: Sprite) => this.sceneryShipKeys.get(sprite)
   private readonly sceneryShipDistance = (sprite: Sprite) => this.projected.get(sprite)?.world.distanceKm ?? 6
   private readonly gasVolumes: CosmicGasVolume[] = []
@@ -935,7 +927,6 @@ export class PixiRaidBackground {
   private readonly finalBattleCruiserSprites = FINAL_BATTLE_CRUISERS.map(() => new Sprite(Texture.WHITE))
   private readonly explosionGraphics = new Graphics()
   private readonly assetTextures = new Map<PixiRaidAssetKey, Texture>()
-  private readonly finalBattleTextures = new Map<string, Texture>()
   private readonly gradientCache = new Map<string, FillGradient>()
   private baseKey = ''
   private readonly travel = new RaidTravelMotion()
@@ -1058,7 +1049,7 @@ export class PixiRaidBackground {
       this.scene.addChild(this.explosionGraphics)
 
       for (const [index, fighter] of FINAL_BATTLE_FIGHTERS.entries()) {
-        if (fighter.assetKind === 'ship') this.sceneryHulls.add(this.finalBattleSprites[index], fighter.asset)
+        this.sceneryHulls.add(this.finalBattleSprites[index], getFinalBattleHullKey(fighter))
       }
       for (const [index, cruiser] of FINAL_BATTLE_CRUISERS.entries()) {
         this.sceneryHulls.add(this.finalBattleCruiserSprites[index], cruiser.asset)
@@ -1120,6 +1111,7 @@ export class PixiRaidBackground {
       }
       if (this.app !== app) return false
       this.landscapeAtmosphere.warm()
+      await this.landscapeAtmosphere.prepare(app.renderer)
       const cancelled = new Promise<boolean>((resolve) => {
         this.cancelForegroundPreparation = () => resolve(false)
       })
@@ -1278,12 +1270,14 @@ export class PixiRaidBackground {
         this.updateAmbientGlows(width, height, isLow, isMedium, palette, stageTheme)
         this.updateSurface(width, height, seconds, palette, quality, groundTheme, Boolean(frame.landscape))
         this.updateFinalBattleBackdrop(width, height, seconds, stageTheme, quality, finalBattleIntensity)
-        this.updateFinalBattleLayer(width, height, seconds, stageTheme, quality, finalBattleIntensity)
         this.updateAmbientExplosions(width, height, seconds, isLow, isMedium, stageTheme)
       }
 
       // Cheap GPU-backed movements continue on every frame, so the animated
       // starfield, scrolling scenery and background ships remain smooth.
+      // Battle hulls move every frame; only their vector weapon/bloom effects
+      // reuse the background geometry cadence. Never bake ship poses at 12 Hz.
+      this.updateFinalBattleLayer(width, height, celestialSeconds, stageTheme, quality, finalBattleIntensity, redrawGeometry)
       this.updateGalaxies(width, height, seconds, stageTheme, isLow, isMedium)
       this.orbitalCamera?.setView(width, height, celestialSeconds, this.travel.rush, this.reducedMotion,
         this.travel.x, this.travel.y, frame.runToken ?? 0, Boolean(frame.landscape))
@@ -1317,10 +1311,10 @@ export class PixiRaidBackground {
       // Scrolling water/volcano island and cloud sprites are inexpensive
       // position/visibility updates. They MUST advance each render frame,
       // independently of the 40-80 ms cached vector-ground redraw cadence.
-      if ((quality !== 'low' || frame.landscape) && isWateryWorldTheme(groundTheme)) {
-        this.updateWateryWorldAssetSprites(width, height, seconds, quality === 'low' ? 'medium' : quality)
-      } else if ((quality !== 'low' || frame.landscape) && isVolcanicWorldTheme(groundTheme)) {
-        this.updateVolcanicWorldAssetSprites(width, height, seconds, quality === 'low' ? 'medium' : quality)
+      if (!frame.landscape && quality !== 'low' && isWateryWorldTheme(groundTheme)) {
+        this.updateWateryWorldAssetSprites(width, height, seconds, quality)
+      } else if (!frame.landscape && quality !== 'low' && isVolcanicWorldTheme(groundTheme)) {
+        this.updateVolcanicWorldAssetSprites(width, height, seconds, quality)
       }
       if (frame.landscape && (isWateryWorldTheme(groundTheme) || isVolcanicWorldTheme(groundTheme))) {
         // The playfield is rotated clockwise for side flight. Keep atmospheric
@@ -1362,7 +1356,7 @@ export class PixiRaidBackground {
         for (const dust of this.dustFlybys) this.projectScenery(dust, width, height)
       }
       if (this.orbitalCamera) this.sceneryHulls.update(width, height, this.orbitalCamera.focal,
-        Boolean(frame.landscape), this.sceneryShipDistance, this.sceneryShipKey, this.shipLighting)
+        Boolean(frame.landscape), this.sceneryShipDistance, this.sceneryShipKey, this.shipLighting, this.sceneryEclipse)
       // Present with the foreground once per rAF, not twice. Geometry,
       // scenery and textures are updated here on their existing cadence.
       return true
@@ -1482,22 +1476,8 @@ export class PixiRaidBackground {
         this.assetTextures.delete(key)
       }
     }))
-    await Promise.all(FINAL_BATTLE_FIGHTERS.map(async (fighter) => {
-      const key = getFinalBattleTextureKey(fighter)
-      if (this.finalBattleTextures.has(key)) return
-      if(fighter.assetKind==='ship'){
-        this.finalBattleTextures.set(key,Texture.WHITE)
-        return
-      }
-      try {
-        const texture = await Assets.load(getFinalBattleTextureUrl(fighter))
-        this.finalBattleTextures.set(key, texture as Texture)
-      } catch {
-        this.finalBattleTextures.delete(key)
-      }
-    }))
-    // These anchors carry placement only. Friendly hulls have no painted-body fallback.
-    for(const cruiser of FINAL_BATTLE_CRUISERS)this.finalBattleTextures.set(getFinalBattleCruiserTextureKey(cruiser),Texture.WHITE)
+    // Battle sprites are placement anchors only. Both fleets use the shared
+    // prepared hull geometry and paint; there is no flat ship-art fallback.
   }
 
   private getGradient(key: string, options: object) {
@@ -1779,7 +1759,7 @@ export class PixiRaidBackground {
     this.solidScenery.visible = alpha < 0.999
     const atmospheric = landscape && world
     if (atmospheric) this.landscapeAtmosphere.update(width, height, seconds * 1000,
-      isWateryWorldTheme(groundTheme) ? 'pelagic' : 'cinder', quality, this.reducedMotion, paused, this.travel.rush)
+      isWateryWorldTheme(groundTheme) ? 'pelagic' : 'cinder', quality, this.reducedMotion, paused, this.travel.rush, this.shipLighting)
     else this.landscapeAtmosphere.hide()
     const zoom = this.reducedMotion || atmospheric ? 1 : this.journey.worldZoom
     this.worldScene.pivot.set(width * 0.5, height * 0.5)
@@ -2442,7 +2422,7 @@ export class PixiRaidBackground {
     const pass = sampleCapitalFlyby(age, stage)
     const cruiser = FINAL_BATTLE_CRUISERS[stage % 2]
     this.sceneryShipKeys.set(this.capitalFlyby, cruiser.asset)
-    const hull = this.finalBattleTextures.get(getFinalBattleCruiserTextureKey(cruiser))
+    const hull = Texture.WHITE
     this.capitalFlyby.visible = Boolean(hull && pass >= 0 && !surface && !low && !this.reducedMotion && boss < .35)
     if (this.capitalFlyby.visible && hull) {
       const side = stage % 2 === 0 ? -1 : 1
@@ -2576,9 +2556,9 @@ export class PixiRaidBackground {
     }
   }
 
-  private updateFinalBattleLayer(width: number, height: number, seconds: number, stageTheme: number, quality: GraphicsQuality, intensity: number) {
+  private updateFinalBattleLayer(width: number, height: number, seconds: number, stageTheme: number, quality: GraphicsQuality, intensity: number, redrawEffects: boolean) {
     const graphics = this.finalBattleGraphics
-    graphics.clear()
+    if (redrawEffects) graphics.clear()
     const isFinalTheme = Math.floor(stageTheme) === RAID_BOSS_BACKGROUND_THEME_FINAL
     const alpha = clamp(intensity, 0, 1)
     graphics.visible = isFinalTheme && quality !== 'low' && alpha > 0.01
@@ -2593,26 +2573,27 @@ export class PixiRaidBackground {
     const explosionLimit = isMedium ? 2 : FINAL_BATTLE_EXPLOSIONS.length
     const baseSize = Math.min(width, height)
 
-    this.fillRadial(graphics, width * 0.5, height * 0.42, width * 0.58, height * 0.32, 'rgba(239,35,60,1)', 'rgba(0,0,0,0)', 0.08 * alpha)
-    this.fillRadial(graphics, width * 0.38, height * 0.68, width * 0.48, height * 0.2, 'rgba(56,189,248,1)', 'rgba(0,0,0,0)', 0.055 * alpha)
+    if (redrawEffects) {
+      this.fillRadial(graphics, width * 0.5, height * 0.42, width * 0.58, height * 0.32, 'rgba(239,35,60,1)', 'rgba(0,0,0,0)', 0.08 * alpha)
+      this.fillRadial(graphics, width * 0.38, height * 0.68, width * 0.48, height * 0.2, 'rgba(56,189,248,1)', 'rgba(0,0,0,0)', 0.055 * alpha)
 
-    for (let index = 0; index < explosionLimit; index += 1) {
-      const explosion = FINAL_BATTLE_EXPLOSIONS[index]
-      const y = ((seconds * explosion.speed + explosion.ySeed) % 1) * height
-      const x = width * (explosion.x + Math.sin(seconds * 0.18 + index * 1.7) * 0.032)
-      const cycle = ((seconds + explosion.offset) % explosion.period) / explosion.period
-      const pulse = cycle < 0.4 ? Math.sin((cycle / 0.4) * Math.PI) : 0
-      if (pulse <= 0) continue
-      const radius = baseSize * explosion.radius * (0.7 + pulse * 1.45)
-      this.fillRadial(graphics, x, y, radius, radius, 'rgba(255,255,255,1)', 'rgba(0,0,0,0)', 0.18 * pulse * alpha)
-      this.fillRadial(graphics, x, y, radius * 0.9, radius * 0.9, 'rgba(251,191,36,1)', 'rgba(0,0,0,0)', 0.28 * pulse * alpha)
-      this.fillRadial(graphics, x, y, radius * 0.72, radius * 0.72, 'rgba(239,35,60,1)', 'rgba(0,0,0,0)', 0.16 * pulse * alpha)
+      for (let index = 0; index < explosionLimit; index += 1) {
+        const explosion = FINAL_BATTLE_EXPLOSIONS[index]
+        const y = ((seconds * explosion.speed + explosion.ySeed) % 1) * height
+        const x = width * (explosion.x + Math.sin(seconds * 0.18 + index * 1.7) * 0.032)
+        const cycle = ((seconds + explosion.offset) % explosion.period) / explosion.period
+        const pulse = cycle < 0.4 ? Math.sin((cycle / 0.4) * Math.PI) : 0
+        if (pulse <= 0) continue
+        const radius = baseSize * explosion.radius * (0.7 + pulse * 1.45)
+        this.fillRadial(graphics, x, y, radius, radius, 'rgba(255,255,255,1)', 'rgba(0,0,0,0)', 0.18 * pulse * alpha)
+        this.fillRadial(graphics, x, y, radius * 0.9, radius * 0.9, 'rgba(251,191,36,1)', 'rgba(0,0,0,0)', 0.28 * pulse * alpha)
+        this.fillRadial(graphics, x, y, radius * 0.72, radius * 0.72, 'rgba(239,35,60,1)', 'rgba(0,0,0,0)', 0.16 * pulse * alpha)
+      }
     }
 
     for (let index = 0; index < fighterLimit; index += 1) {
       const fighter = FINAL_BATTLE_FIGHTERS[index]
       const sprite = this.finalBattleSprites[index]
-      const texture = this.finalBattleTextures.get(getFinalBattleTextureKey(fighter))
       const progress = (seconds * fighter.speed + fighter.ySeed) % 1
       const laneDrift = Math.sin(fighter.phase) * fighter.drift * 0.52
       const y = fighter.side === 'ally'
@@ -2622,18 +2603,15 @@ export class PixiRaidBackground {
       const travelDy = fighter.side === 'ally' ? -height * 1.22 : height * 1.22
       const angle = Math.atan2(width * laneDrift, -travelDy)
       const size = baseSize * fighter.size * (isMedium ? 0.92 : 1)
-      const shipTint = sceneryTint(0xffffff, 0.42 + alpha * 0.18)
-      if (texture) {
-        const drawSize = fighter.assetKind === 'ship' ? size : size * 1.08
-        const rotation = angle - (fighter.side === 'enemy' ? Math.PI : 0)
-        setPixiSpriteContain(sprite, texture, x, y, drawSize, drawSize, 1, rotation)
-        sprite.tint = shipTint
-      } else {
-        sprite.visible = false
-      }
+      const shipTint = sceneryTint(0xffffff, 0.76)
+      const edgeFade = clamp(Math.min(progress / .1, (1 - progress) / .12, 1), 0, 1)
+      const drawSize = fighter.assetKind === 'ship' ? size : size * 1.08
+      const rotation = angle - (fighter.side === 'enemy' ? Math.PI : 0)
+      setPixiSpriteContain(sprite, Texture.WHITE, x, y, drawSize, drawSize, alpha * edgeFade * .78, rotation)
+      sprite.tint = shipTint
 
       const fireCycle = ((seconds * (0.72 + index * 0.045) + fighter.phase) % 1)
-      if (fireCycle < 0.92) {
+      if (redrawEffects && fireCycle < 0.92) {
         this.drawFinalBattleWeaponProfile(graphics, fighter.weapon, fighter.side, x, y, size, angle, baseSize, fireCycle / 0.92, alpha)
       }
     }
@@ -2645,7 +2623,6 @@ export class PixiRaidBackground {
     for (let index = 0; index < cruiserLimit; index += 1) {
       const cruiser = FINAL_BATTLE_CRUISERS[index]
       const sprite = this.finalBattleCruiserSprites[index]
-      const texture = this.finalBattleTextures.get(getFinalBattleCruiserTextureKey(cruiser))
       const progress = (seconds * cruiser.speed + cruiser.ySeed) % 1
       const y = height * (1.16 - progress * 1.34)
       const laneDrift = cruiser.drift * (0.65 + Math.sin(cruiser.phase) * 0.18)
@@ -2654,13 +2631,9 @@ export class PixiRaidBackground {
       const size = baseSize * cruiser.size
       const edgeFade = clamp(Math.min(progress / 0.12, (1 - progress) / 0.16, 1), 0, 1)
       const cruiserAlpha = alpha * cruiser.alpha * edgeFade
-      if (texture) {
-        this.drawFinalBattleCruiserTrail(graphics, x, y, size, angle, cruiserAlpha)
-        setPixiSpriteContain(sprite, texture, x, y, size, size, 1, angle)
-        sprite.tint = sceneryTint(0xffffff, 0.42 + cruiser.alpha * 0.25)
-      } else {
-        sprite.visible = false
-      }
+      if (redrawEffects) this.drawFinalBattleCruiserTrail(graphics, x, y, size, angle, cruiserAlpha)
+      setPixiSpriteContain(sprite, Texture.WHITE, x, y, size, size, cruiserAlpha, angle)
+      sprite.tint = sceneryTint(0xffffff, 0.84)
     }
     for (let index = cruiserLimit; index < this.finalBattleCruiserSprites.length; index += 1) {
       this.finalBattleCruiserSprites[index].visible = false
@@ -2891,7 +2864,7 @@ export class PixiRaidBackground {
         const cycle = this.projected.get(sprite)?.world.recycle ?? 0
         const cruiser = FINAL_BATTLE_CRUISERS[Math.floor(cycle/2) % 2]
         const passingHull = !this.reducedMotion && !isMedium && edgeSlot === 0 && cycle % 2 === 0
-          ? this.finalBattleTextures.get(getFinalBattleCruiserTextureKey(cruiser)) : undefined
+          ? Texture.WHITE : undefined
         if (passingHull) this.sceneryShipKeys.set(sprite,cruiser.asset)
         const size = Math.min(width, height) * (passingHull ? .37 : .23)
         setPixiSpriteContain(sprite, passingHull ?? asteroidTexture, width * (edgeSlot === 0 ? .015 : .985),

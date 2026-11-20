@@ -1,4 +1,4 @@
-import { Material, Mesh, MeshStandardMaterial, type Object3D, type Texture, type WebGLRenderer } from 'three'
+import { ShaderChunk, Material, Mesh, MeshStandardMaterial, type Object3D, type Texture, type WebGLRenderer } from 'three'
 import { prepareVolumeSurface } from './volumeSurface'
 import { prepareBossArmor } from './bossHullMaterials'
 import { rigMechHull } from './mechHullRig'
@@ -35,7 +35,7 @@ export function prepareHullSurfaces(object: Object3D, key: string, renderer: Web
     // A low paint floor preserves the authored details on the night side.
     // Direct light and reflections still describe the hull's shape.
     if (material.map && material.emissiveMap === material.map) material.emissiveIntensity = isMechHull(key) ? .035
-      : material.userData.bossHullStage ? .065 : material.userData.bossOrganicLimb ? .025 : .12
+      : material.userData.bossHullStage ? .065 : material.userData.bossOrganicLimb ? .025 : .035
     prepareVolumeSurface(material)
     const bossArmor = prepareBossArmor(material)
     for (const texture of [material.map, material.emissiveMap, ...(bossArmor??[])]) {
@@ -49,14 +49,67 @@ export function prepareHullSurfaces(object: Object3D, key: string, renderer: Web
     material.onBeforeCompile = (shader, context) => {
       previousCompile.call(material, shader, context)
       shader.uniforms.raidSunVisibility = sunVisibility
-      shader.fragmentShader = 'uniform float raidSunVisibility;\n' + shader.fragmentShader
+      shader.vertexShader = `attribute float raidOcclusion;
+varying float raidCavity;
+#ifdef USE_INSTANCING
+attribute vec3 raidHullState;
+varying vec3 raidCondition;
+#endif
+` + shader.vertexShader
+      shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', `
+        #include <begin_vertex>
+        raidCavity = raidOcclusion;
+        #ifdef USE_INSTANCING
+        raidCondition = raidHullState;
+        #endif
+      `)
+      shader.fragmentShader = `uniform float raidSunVisibility;
+varying float raidCavity;
+#ifdef USE_INSTANCING
+varying vec3 raidCondition;
+#endif
+` + shader.fragmentShader
+      shader.fragmentShader = shader.fragmentShader.replace('#include <alphahash_pars_fragment>',
+        ShaderChunk.alphahash_pars_fragment.replace('getAlphaHashThreshold( vec3 position )', 'getAlphaHashThreshold( vec3 position, float maxDeriv )')
+          .replace(/float maxDeriv = max\([\s\S]*?\);/, ''))
+      shader.fragmentShader = shader.fragmentShader.replace('#include <alphamap_fragment>', `
+        #include <alphamap_fragment>
+        #ifdef USE_INSTANCING
+        diffuseColor.a *= raidCondition.x;
+        #endif
+      `).replace('vec3 totalEmissiveRadiance = emissive;', `
+        vec3 totalEmissiveRadiance = emissive;
+        #ifdef USE_INSTANCING
+        totalEmissiveRadiance += vec3(raidCondition.z * .38);
+        #endif
+      `).replace('#include <alphahash_fragment>', `
+        #ifdef USE_ALPHAHASH
+        // Opaque pixels keep the exact same result without evaluating the
+        // derivative/noise hash. Genuine fades and alpha edges still hash.
+        float raidDeriv = max(length(dFdx(vPosition)),length(dFdy(vPosition)));
+        if (diffuseColor.a < 1. && diffuseColor.a < getAlphaHashThreshold(vPosition,raidDeriv)) discard;
+        #endif
+      `)
+      // Eclipse occludes the sun, while sky and planetary bounce remain.
+      // The key is first in the directional-light list, including warmup.
+      shader.fragmentShader = shader.fragmentShader.replace('#include <lights_fragment_begin>',
+        ShaderChunk.lights_fragment_begin.replace('getDirectionalLightInfo( directionalLight, directLight );', `
+          getDirectionalLightInfo( directionalLight, directLight );
+          #if UNROLLED_LOOP_INDEX == 0
+            #ifdef USE_INSTANCING
+            directLight.color *= raidCondition.y;
+            #else
+            directLight.color *= raidSunVisibility;
+            #endif
+          #endif
+        `))
       shader.fragmentShader = shader.fragmentShader.replace('#include <lights_fragment_end>', `
         #include <lights_fragment_end>
-        reflectedLight.directDiffuse *= raidSunVisibility;
-        reflectedLight.directSpecular *= raidSunVisibility;
+        reflectedLight.indirectDiffuse *= raidCavity;
+        reflectedLight.indirectSpecular *= mix(.8, 1., raidCavity);
       `)
     }
-    material.customProgramCacheKey = () => 'sid-hull-light-v1:' + baseKey
+    material.customProgramCacheKey = () => 'sid-hull-light-cavity-v1:' + baseKey
     bindings.push({ material, opacity: material.opacity, emissiveIntensity: material.emissiveIntensity, sunVisibility })
   }
   return { owned, bindings }

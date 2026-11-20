@@ -178,7 +178,7 @@ try {
           actions.draw(performance.now())
           const afterDraw=performance.now(),stats=ships.getShipStats(),costs=r.drawCostsRef.current
           return {simulationMs:afterSim-start,drawMs:afterDraw-afterSim,backgroundMs:costs.backgroundMs,
-            pixiSubmitMs:costs.gpuSubmitMs,canvasMs:Math.max(0,costs.canvasMs-shipCpu),shipSubmitMs:shipCpu,bossMs:costs.bossMs,
+            pixiSubmitMs:costs.gpuSubmitMs,canvasMs:costs.canvasMs,shipSubmitMs:shipCpu,bossMs:costs.bossMs,
             pixiCalls:gpu.calls,pixiTriangles:gpu.triangles,shipCalls:stats.drawCalls,shipTriangles:stats.triangles,
             hulls:stats.hulls,shipTextures:stats.textures,gpuMs:background.getRaidGpuStats().gpuFrameMs,
             enemies:r.enemiesRef.current.length,shots:r.shotsRef.current.length,enemyShots:r.enemyShotsRef.current.length,

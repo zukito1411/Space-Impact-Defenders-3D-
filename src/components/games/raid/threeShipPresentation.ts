@@ -1,9 +1,11 @@
+import { ShipGpuTimer } from './shipGpuTimer'
+import { HullInstances } from './hullInstances'
 import { LANDSCAPE_VIEW_YAW, ORGANIC_BOSS_VIEW_YAW, RAID_CAMERA_FOV, raidCameraFocal } from './raidView'
 import { isRaid2DMech } from './mechArtwork'
 import { prepareLiveProtection } from './liveProtection'
 import { poseOrganicBoss } from './specialBossGeometry'
 import {
-  DirectionalLight, Group, HemisphereLight, NeutralToneMapping, Quaternion, Vector3,
+  DirectionalLight, Mesh, Group, HemisphereLight, NeutralToneMapping, Quaternion, Vector3,
   PerspectiveCamera, Scene, WebGLRenderer, type Material, type Object3D, type Texture, WebGLRenderTarget,
 } from 'three'
 import { ENEMY_HULL_KEYS, ENEMY_HULL_SPECS } from './enemyHulls'
@@ -13,18 +15,20 @@ import { prepareHullSurfaces, type HullSurfaceBinding } from './shipSurface'
 import { acquireHull, hullKey, loadHull, releaseHull, trimHullAssets } from './liveHullAssets'
 import { bindLiveHulls, unbindLiveHulls, type LiveHullDraw, type LiveHullSink } from './liveHullBridge'
 
-type HullNode = { key: string; group: Group; object: Object3D; used: number; materials: Material[]; surfaces: HullSurfaceBinding[]; transient?: boolean }
+type HullNode = { body?: Mesh; hit: number; key: string; group: Group; object: Object3D; used: number; materials: Material[]; surfaces: HullSurfaceBinding[]; transient?: boolean }
 
 /** Live player, support, fighter and cosmetic-copy meshes share one transparent layer.
  * Pixi owns scenery GLBs; Canvas retains exhaust, weapon and energy effects. */
 export class ThreeShipPresentation implements LiveHullSink {
   private renderer: WebGLRenderer | null = null
+  private readonly gpuTimer = new ShipGpuTimer()
+  private measureGpu = false
+  private cpuSubmitMs = 0
+  private readonly drawWorld = () => this.renderer!.render(this.world,this.camera)
   private eclipseAt: ((x: number,y: number) => number) | undefined
   private readonly world = new Scene()
   private readonly keyLight = new DirectionalLight(0xfff0dc, 2.8)
   private readonly fillLight = new DirectionalLight(0x86bddc, .34)
-  // Broad viewing-side fill keeps armor legible under backlighting.
-  private readonly visibilityLight = new DirectionalLight(0xe4eeff, 1.8)
   private readonly ambientLight = new HemisphereLight(0xa0c5e4, 0x182436, .34)
   private readonly lighting = createShipLightingFrame()
   private readonly neutralLighting = createShipLightingFrame()
@@ -48,6 +52,7 @@ export class ThreeShipPresentation implements LiveHullSink {
   private previousProbe = -1
   private readonly camera = new PerspectiveCamera(RAID_CAMERA_FOV, 1, 1, 20000)
   private readonly hulls = new Map<string, HullNode>()
+  private readonly batches = new Map<string, { instances: HullInstances; owner: HullNode; count: number }>()
   private readonly nodePools = new Map<string, HullNode[]>()
   private readonly requests = new Set<string>()
   private readonly preparations = new Map<string,Promise<void>>()
@@ -60,7 +65,7 @@ export class ThreeShipPresentation implements LiveHullSink {
   private disposed = false
   private contextLost = false
   private readonly lost = (event: Event) => {
-    event.preventDefault(); this.contextLost = true
+    event.preventDefault(); this.contextLost = true; this.gpuTimer.reset()
     this.reportError('Graphics context interrupted. Restoring the 3D scene…')
   }
   private readonly restored = () => { void this.restoreLighting() }
@@ -125,12 +130,17 @@ export class ThreeShipPresentation implements LiveHullSink {
         this.warmedMaterials.delete(key)
         this.warmedMaterials.set(key,prepared.owned)
         if (this.warmedMaterials.size > 48) {
-          const oldest = [...this.warmedMaterials.keys()].find(candidate => !ENEMY_HULL_SPECS[candidate])!
-          const retired=this.nodePools.get(oldest)
-          this.nodePools.delete(oldest)
-          for(const node of retired??[])this.releaseNode(node)
-          for (const material of this.warmedMaterials.get(oldest)!) material.dispose()
-          this.warmedMaterials.delete(oldest)
+          const oldest = [...this.warmedMaterials.keys()].find(candidate => !ENEMY_HULL_SPECS[candidate]
+            && ![...this.hulls.values()].some(node => node.key === candidate))
+          if (oldest) {
+            const retired = this.nodePools.get(oldest)
+            this.nodePools.delete(oldest)
+            const batch = this.batches.get(oldest)
+            if (batch) { batch.instances.destroy(); this.releaseNode(batch.owner); this.batches.delete(oldest) }
+            for (const node of retired ?? []) this.releaseNode(node)
+            for (const material of this.warmedMaterials.get(oldest)!) material.dispose()
+            this.warmedMaterials.delete(oldest)
+          }
         }
       } else for (const material of prepared.owned) material.dispose()
       releaseHull(key, asset.object)
@@ -146,11 +156,22 @@ export class ThreeShipPresentation implements LiveHullSink {
     // Shader compilation alone does not upload vertex/index buffers or create
     // the vertex-array bindings used by the actual pooled material instances.
     // Do that before admitting this hull to a visible frame.
+    if (ENEMY_HULL_SPECS[key]?.family !== 'boss' && !this.batches.has(key)) {
+      const owner = this.createNode(key)
+      const instances = owner ? HullInstances.create(owner.object) : null
+      if (instances && owner) this.batches.set(key, { instances, owner, count: 0 })
+      else if (owner) this.releaseNode(owner)
+    }
+    const batch = this.batches.get(key)
     const upload = new Scene()
     upload.environment = this.world.environment
     upload.environmentIntensity = this.world.environmentIntensity
-    upload.add(this.keyLight.clone(), this.fillLight.clone(), this.visibilityLight.clone(), this.ambientLight.clone())
+    upload.add(this.keyLight.clone(), this.fillLight.clone(), this.ambientLight.clone())
     for (const node of pool) { node.group.visible = true; upload.add(node.group) }
+    if (batch) {
+      batch.instances.mesh.count = 1; batch.instances.mesh.visible = true
+      upload.add(batch.instances.mesh)
+    }
     const camera = this.camera.clone()
     camera.aspect = 1; camera.position.set(0, 0, 1000); camera.updateProjectionMatrix()
     const target = renderer.getRenderTarget()
@@ -163,9 +184,15 @@ export class ThreeShipPresentation implements LiveHullSink {
       for (const node of pool) node.group.visible = false
       // Offscreen targets use a different output/tone-mapping program. Retain
       // the screen variant with the same light/environment configuration too.
+      for (const node of pool) node.group.visible = true
       await renderer.compileAsync(upload, this.camera, this.world)
       if (!this.disposed) { this.nodePools.set(key, pool); admitted = true }
     } finally {
+      if (batch) {
+        batch.instances.reset(); batch.instances.mesh.removeFromParent()
+        if (admitted) this.world.add(batch.instances.mesh)
+        else { batch.instances.destroy(); this.releaseNode(batch.owner); this.batches.delete(key) }
+      }
       if (!admitted) {
         for (const material of this.warmedMaterials.get(key) ?? []) material.dispose()
         this.warmedMaterials.delete(key)
@@ -196,8 +223,8 @@ export class ThreeShipPresentation implements LiveHullSink {
       renderer.domElement.className = 'raid__ship-canvas'
       renderer.domElement.addEventListener('webglcontextlost', this.lost)
       renderer.domElement.addEventListener('webglcontextrestored', this.restored)
-      this.world.add(this.keyLight, this.fillLight, this.visibilityLight, this.ambientLight,
-        this.keyLight.target, this.fillLight.target, this.visibilityLight.target)
+      this.world.add(this.keyLight, this.fillLight, this.ambientLight,
+        this.keyLight.target, this.fillLight.target)
       try {
         this.reflectionTargets = prepareShipReflections(renderer)
         this.world.environment = this.reflectionTargets[0].texture
@@ -228,10 +255,12 @@ export class ThreeShipPresentation implements LiveHullSink {
     }
   }
 
-  render(frame: { width: number; height: number; dpr: number; lighting?: ShipLightingFrame; dock?: number; eclipseAt?: (x: number,y: number) => number }) {
+  render(frame: { width: number; height: number; dpr: number; measureGpu?: boolean; lighting?: ShipLightingFrame; dock?: number; eclipseAt?: (x: number,y: number) => number }) {
     const renderer = this.renderer
     if (!renderer || this.disposed || this.contextLost) return false
     this.frame++
+    this.measureGpu = Boolean(frame.measureGpu)
+    this.cpuSubmitMs = 0
     if (frame.width !== this.width || frame.height !== this.height || frame.dpr !== this.density) {
       this.width = frame.width; this.height = frame.height; this.density = frame.dpr
       renderer.setSize(Math.ceil(this.width*this.density), Math.ceil(this.height*this.density), false)
@@ -243,10 +272,11 @@ export class ThreeShipPresentation implements LiveHullSink {
     }
     this.updateLighting(frame.lighting ?? this.neutralLighting, frame.dock ?? 0)
     this.eclipseAt = frame.eclipseAt
-    for(const [id,node] of this.hulls){
-      if(node.transient){this.releaseNode(node);this.hulls.delete(id)}
-      else node.group.visible=false
+    for (const node of this.hulls.values()) {
+      node.group.visible = false
+      if (node.body) node.body.visible = true
     }
+    for (const batch of this.batches.values()) { batch.count = 0; batch.instances.reset() }
     return true
   }
 
@@ -283,8 +313,6 @@ export class ThreeShipPresentation implements LiveHullSink {
     this.ambientLight.intensity = state.ambientIntensity
     this.keyLight.target.position.set(this.width*.5,this.height*.5,0)
     this.fillLight.target.position.copy(this.keyLight.target.position)
-    this.visibilityLight.target.position.copy(this.keyLight.target.position)
-    this.visibilityLight.position.set(this.width*.5, this.height*.5, 1800)
     this.lightDirection.set(state.sun[0],-state.sun[1],state.sun[2]).normalize()
     this.keyLight.position.copy(this.keyLight.target.position).addScaledVector(this.lightDirection,1800)
     const probe = this.reflectionTargets[indoor > .5 ? 6 : target.probe]
@@ -310,7 +338,9 @@ export class ThreeShipPresentation implements LiveHullSink {
     group.visible = false
     group.userData.registration = asset.registration.registration
     const prepared = prepareHullSurfaces(asset.object,key,renderer,this.preparedTextures)
-    return { key, group, object: asset.object, used: this.frame,
+    let body: Mesh | undefined
+    asset.object.traverse(child => { if (child instanceof Mesh) body = child })
+    return { key, group, body, hit: 0, object: asset.object, used: this.frame,
       materials: prepared.owned, surfaces: prepared.bindings }
   }
 
@@ -342,6 +372,7 @@ export class ThreeShipPresentation implements LiveHullSink {
       this.hulls.set(draw.id,node)
     }
     node.used = this.frame
+    if (node.body) node.body.visible = true
     if(draw.bossPose)poseOrganicBoss(node.object,draw.bossPose,draw.id)
     node.transient=draw.id.startsWith('fx:')
     const { group } = node
@@ -360,10 +391,11 @@ export class ThreeShipPresentation implements LiveHullSink {
     // Saucer spin belongs inside the inclined flight plane. Rotating the
     // projected heading instead makes the disc stand up like a wheel.
     node.object.rotation.z = this.reduced.matches ? 0 : draw.spin ?? 0
+    node.hit = Math.max(0, Math.min(1, draw.hit ?? 0))
     const eclipse = Math.max(0, Math.min(1, this.eclipseAt?.(draw.x,draw.y) ?? 0)) * (1-this.dockBlend)
     for (const surface of node.surfaces) {
       surface.material.opacity = draw.alpha * surface.opacity
-      surface.material.emissiveIntensity = surface.emissiveIntensity + Math.max(0, Math.min(1, draw.hit ?? 0)) * .38
+      surface.material.emissiveIntensity = surface.emissiveIntensity + node.hit * .38
       // Shadow the incident light, leaving the painted albedo and weak
       // environment reflection intact on the night side.
       surface.sunVisibility.value = 1-.92*eclipse
@@ -373,11 +405,28 @@ export class ThreeShipPresentation implements LiveHullSink {
 
   present() {
     if (!this.renderer || this.disposed || this.contextLost) return
+    const cpuStart = this.measureGpu ? performance.now() : 0
     // A 2D-only mech frame has no Three work. Clear the previous ship once,
     // then leave the transparent canvas alone until a live hull is submitted.
     let visible = false
     for (const node of this.hulls.values()) if (node.group.visible) { visible = true; break }
-    if (visible) this.renderer.render(this.world, this.camera)
+    if (visible) {
+      for (const node of this.hulls.values()) {
+        if (node.group.visible) {
+          const batch = this.batches.get(node.key)
+          if (batch) batch.count++
+        }
+      }
+      for (const node of this.hulls.values()) {
+        const batch = this.batches.get(node.key), surface = node.surfaces[0]
+        if (node.group.visible && node.body && surface && batch && batch.count > 1) {
+          batch.instances.add(node.body, surface.material.opacity / Math.max(.0001, surface.opacity),
+            surface.sunVisibility.value, node.hit)
+        }
+      }
+      for (const batch of this.batches.values()) batch.instances.present()
+      this.gpuTimer.render(this.renderer.getContext() as WebGL2RenderingContext,this.measureGpu,this.drawWorld)
+    }
     else if (this.hadVisibleHulls) this.renderer.clear()
     else this.renderer.info.reset()
     this.hadVisibleHulls = visible
@@ -387,6 +436,7 @@ export class ThreeShipPresentation implements LiveHullSink {
       this.hulls.delete(id)
     }
     trimHullAssets()
+    this.cpuSubmitMs = this.measureGpu ? performance.now() - cpuStart : 0
   }
 
   private releaseNode(node: HullNode) {
@@ -402,11 +452,15 @@ export class ThreeShipPresentation implements LiveHullSink {
     node.group.removeFromParent()
   }
 
+  getCpuSubmissionMs() { return this.cpuSubmitMs }
+
   getShipStats() {
     return { hulls: [...this.hulls.values()].filter(node => node.group.visible).length,
       textures: this.renderer?.info.memory.textures ?? 0,
       drawCalls: this.renderer?.info.render.calls ?? 0,
-      triangles: this.renderer?.info.render.triangles ?? 0 }
+      triangles: this.renderer?.info.render.triangles ?? 0,
+      cpuSubmitMs: this.cpuSubmitMs, gpuFrameMs: this.gpuTimer.milliseconds, gpuSampleAgeMs: this.gpuTimer.age,
+      instanceBatches: [...this.batches.values()].filter(batch => batch.instances.mesh.visible).length }
   }
 
   destroy() {
@@ -415,6 +469,8 @@ export class ThreeShipPresentation implements LiveHullSink {
     unbindLiveHulls(this)
     for (const node of this.hulls.values()) this.releaseNode(node)
     this.hulls.clear()
+    for (const batch of this.batches.values()) { batch.instances.destroy(); this.releaseNode(batch.owner) }
+    this.batches.clear()
     for (const pool of this.nodePools.values()) for (const node of pool) this.releaseNode(node)
     this.nodePools.clear();this.failed.clear();this.requests.clear()
     for (const materials of this.warmedMaterials.values()) for (const material of materials) material.dispose()
@@ -422,6 +478,7 @@ export class ThreeShipPresentation implements LiveHullSink {
     for (const target of this.reflectionTargets) target.dispose()
     this.reflectionTargets.length = 0
     this.uploadTarget.dispose()
+    this.gpuTimer.reset()
     this.world.environment = null
     if (this.renderer) {
       this.renderer.domElement.removeEventListener('webglcontextlost', this.lost)

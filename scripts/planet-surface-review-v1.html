@@ -1,0 +1,14 @@
+<!doctype html><html><head><link rel="icon" href="data:,"></head><body style="margin:0"><script type="module">
+import 'pixi.js/prepare'
+import { Application,Texture } from 'pixi.js'
+import { PlanetFlightSurface } from '../src/components/games/raid/planetFlightSurface'
+const app = new Application()
+await app.init({width:844,height:390,preference:'webgl',autoStart:false,background:0})
+document.body.appendChild(app.canvas)
+const surface = new PlanetFlightSurface(Texture.WHITE)
+app.stage.addChild(surface.mesh)
+await surface.prepare(app.renderer)
+surface.update(844,390,5,true,Texture.WHITE)
+app.render()
+window.surfaceReview={app,surface,ready:true}
+</script></body></html>

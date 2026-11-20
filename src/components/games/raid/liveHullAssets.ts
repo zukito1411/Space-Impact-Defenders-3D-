@@ -1,3 +1,4 @@
+import { prepareHullOcclusion } from './hullOcclusion'
 import { isRaid2DMech } from './mechArtwork'
 import { Group, Mesh, MeshStandardMaterial, type Object3D } from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
@@ -98,6 +99,7 @@ export function loadHull(key: string): Promise<HullAsset> {
         }
       })
     }
+    await prepareHullOcclusion(object)
     const docking = enemy ? undefined : prepareHullDocking(object,key,registration)
     const asset = { object, registration, docking, references: 0, lastUse: performance.now() }
     assets.set(key, asset)

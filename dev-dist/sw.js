@@ -81,12 +81,23 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "revision": "3ca0b8505b4bec776b69afdba2768812"
   }, {
     "url": "index.html",
-    "revision": "0.01oehlm9dac"
+    "revision": "0.cc7dguru2u4"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html"), {
     allowlist: [/^\/$/]
   }));
+  workbox.registerRoute(function (_a) {
+    var url = _a.url;
+    return url.pathname.includes("/assets/ships/models/");
+  }, new workbox.CacheFirst({
+    "cacheName": "space-defender-raid-models-v1",
+    plugins: [new workbox.ExpirationPlugin({
+      maxEntries: 40
+    }), new workbox.CacheableResponsePlugin({
+      statuses: [0, 200]
+    })]
+  }), 'GET');
   workbox.registerRoute(function (_a) {
     var request = _a.request,
       url = _a.url;

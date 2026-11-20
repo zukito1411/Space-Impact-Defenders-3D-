@@ -52,7 +52,7 @@ import { useRaidFlightView } from './flightView'
 import { FlightViewControls } from '../../ui/FlightViewControls'
 import { GameDialog } from '../../ui/GameDialog'
 import type { CSSProperties } from 'react'
-import { RAID_DEVIL_MASTER_PROJECTILE_FILTER, RAID_DEVIL_MASTER_PROJECTILE_GLOW_STOPS, RAID_OTHER_ASSET_PATHS, RAID_PLAYER_LASER_HEAD_STOPS, RAID_SNAKE_FANG_GLOW_STOPS, RAID_SQUID_BUBBLE_STOPS, RAID_SQUID_INK_STOPS, RAID_VENOM_SPIT_STOPS, drawCanvasSpriteContain, getEnemyCanvasSize, getDerelictWreckVariantData, getDevilMasterProjectileCanvasSprite, getNormalAlienCanvasSprite } from './assets'
+import { RAID_DEVIL_MASTER_PROJECTILE_FILTER, RAID_DEVIL_MASTER_PROJECTILE_GLOW_STOPS, RAID_OTHER_ASSET_PATHS, RAID_PLAYER_LASER_HEAD_STOPS, RAID_SNAKE_FANG_GLOW_STOPS, RAID_SQUID_BUBBLE_STOPS, RAID_SQUID_INK_STOPS, RAID_VENOM_SPIT_STOPS, drawCanvasSpriteContain, getEnemyCanvasSize, getDerelictWreckVariantData, getDevilMasterProjectileCanvasSprite } from './assets'
 import type { CanvasSpriteEntry } from './assets'
 import { playCoreLanderPhysicalAttackSound, playPickupVoiceLine, warmPickupVoiceSamples } from './audio'
 import { DEFAULT_RAID_PALETTE, PixiRaidBackground, RAID_BOSS_BACKGROUND_THEME_FINAL, RAID_BOSS_BACKGROUND_THEME_SNAKE, RAID_BOSS_BACKGROUND_THEME_SQUID, drawVolcanicWorldForegroundClouds, drawWateryWorldForegroundClouds, getRaidCameraShakeOffset, isVolcanicWorldTheme, isWateryWorldTheme } from './background'
@@ -1830,7 +1830,7 @@ export function GradiusRaid({
       })
     }
 
-    shipsRef.current?.render({ width: cssWidth,height: cssHeight,dpr,
+    shipsRef.current?.render({ width: cssWidth,height: cssHeight,dpr,measureGpu: measured,
       lighting: pixiBackground?.getShipLighting(), dock: carrier?.backdrop ?? 0,
       eclipseAt: (x,y) => pixiBackground?.getEclipseAt(x,y) ?? 0 })
     costs.backgroundMs = measured ? performance.now() - backgroundStart : 0
@@ -1924,7 +1924,7 @@ export function GradiusRaid({
       renderCarrierPilot(ownShipRef, 0, PLAYER_COLOR)
       renderCarrierPilot(isGuestView ? playerRef.current : remotePlayerRef.current, 1, ALLY_PLAYER_COLOR)
       shipsRef.current?.present()
-      costs.canvasMs = measured ? performance.now() - canvasStart : 0
+      costs.canvasMs = measured ? Math.max(0, performance.now() - canvasStart - (shipsRef.current?.getCpuSubmissionMs() ?? 0)) : 0
       costs.bossMs = 0
       return
     }
@@ -2612,8 +2612,16 @@ export function GradiusRaid({
       const farSize = Math.max(10, Math.min(cssWidth, cssHeight) * .045)
       const ax = cssWidth * (.08 + battle * .15), ay = cssHeight * (.14 + battle * .14)
       const bx = ax + farSize * 1.4, by = ay - farSize * 2
-      drawCanvasSpriteContain(ctx, getNormalAlienCanvasSprite(8), ax, ay, farSize, 'none', fade * .33, .25, 1, '#8deaff')
-      drawCanvasSpriteContain(ctx, getNormalAlienCanvasSprite(9), bx, by, farSize * .8, 'none', fade * .3, 2.9, 1, '#ffc07b')
+      ctx.save()
+      ctx.translate(ax, ay)
+      ctx.rotate(.25)
+      drawLiveHull(ctx, 'fighterNeedle', 0, 0, farSize, 0, fade * .33, landscapeRef.current, 'fx:distant-battle-a')
+      ctx.restore()
+      ctx.save()
+      ctx.translate(bx, by)
+      ctx.rotate(2.9)
+      drawLiveHull(ctx, 'fighterCinder', 0, 0, farSize * .8, 0, fade * .3, landscapeRef.current, 'fx:distant-battle-b')
+      ctx.restore()
       const bolt = getRaidCombatFrame(COMBAT_TILE.ionNeedle)
       const travel = (battle * 6) % 1
       if (bolt && battle < .75) drawRaidCombatTexture(ctx, bolt, ax + (bx - ax) * travel, ay + (by - ay) * travel,
@@ -2817,7 +2825,7 @@ export function GradiusRaid({
       ctx.fillRect(0, 0, cssWidth, cssHeight)
       ctx.globalAlpha = 1
     }
-    costs.canvasMs = measured ? performance.now() - canvasStart : 0
+    costs.canvasMs = measured ? Math.max(0, performance.now() - canvasStart - (shipsRef.current?.getCpuSubmissionMs() ?? 0)) : 0
   }, [])
 
   const spawnSparks = useCallback((x: number, y: number, color: string, count: number, size = 5, direction?: number) => {
@@ -7515,6 +7523,7 @@ export function GradiusRaid({
           const quantiles = frameTimingsRef.current!.percentiles()
           const perDraw = Math.max(1, perf.frames)
           const gpu = pixiBackgroundRef.current?.getRaidGpuStats()
+          const shipStats = shipsRef.current?.getShipStats()
           const bubbleCount = enemyShotsRef.current.reduce((count, shot) => count + (shot.kind === 'squidBubble' ? 1 : 0), 0)
           const liveShots = shotsRef.current
           let homingCount = 0
@@ -7527,7 +7536,7 @@ export function GradiusRaid({
           const scoutCount = pilot.ship.key === 'mesiah'
             ? normalizeMesiahScoutDrones(pilot).filter(scout => scout.active).length : 0
           if (perfHudRef.current) perfHudRef.current.textContent =
-            `FPS ${renderFps} | Frame p50/p95/p99 ${quantiles.p50.toFixed(1)}/${quantiles.p95.toFixed(1)}/${quantiles.p99.toFixed(1)}ms | Sim ${avgSim}ms | Draw ${avgDraw}ms | GPU submit ${(perf.gpuSubmitMs / perDraw).toFixed(1)}ms | BG ${(perf.backgroundMs / perDraw).toFixed(1)}ms | Canvas ${(perf.canvasMs / perDraw).toFixed(1)}ms | Boss ${(perf.bossMs / perDraw).toFixed(1)}ms | Spike ${Math.round(perf.maxFrameMs)}ms | DPR ${viewportMetricsRef.current?.dpr.toFixed(2) ?? '?'} | Scouts ${scoutCount} | Shots ${liveShots.length}/${enemyShotsRef.current.length} (homing ${homingCount}, needle ${needleCount}) | Bubbles ${bubbleCount} | GPU nodes ${gpu?.shots ?? 0} | GPU textures ${gpu?.textures ?? 0} | WebGL ${gpu?.gpuFrameMs === null || gpu?.gpuFrameMs === undefined ? 'n/a' : gpu.gpuFrameMs.toFixed(1) + 'ms'} | Boss atlas ${gpu?.bossTextureMB ?? 0}MB`
+            `FPS ${renderFps} | Frame p50/p95/p99 ${quantiles.p50.toFixed(1)}/${quantiles.p95.toFixed(1)}/${quantiles.p99.toFixed(1)}ms | Sim ${avgSim}ms | Draw ${avgDraw}ms | GPU submit ${(perf.gpuSubmitMs / perDraw).toFixed(1)}ms | BG ${(perf.backgroundMs / perDraw).toFixed(1)}ms | Canvas ${(perf.canvasMs / perDraw).toFixed(1)}ms | Boss ${(perf.bossMs / perDraw).toFixed(1)}ms | Spike ${Math.round(perf.maxFrameMs)}ms | DPR ${viewportMetricsRef.current?.dpr.toFixed(2) ?? '?'} | Scouts ${scoutCount} | Shots ${liveShots.length}/${enemyShotsRef.current.length} (homing ${homingCount}, needle ${needleCount}) | Bubbles ${bubbleCount} | GPU nodes ${gpu?.shots ?? 0} | GPU textures ${gpu?.textures ?? 0} | WebGL ${gpu?.gpuFrameMs === null || gpu?.gpuFrameMs === undefined ? 'n/a' : gpu.gpuFrameMs.toFixed(1) + 'ms'} | 3D ${shipStats?.drawCalls ?? 0} calls / ${shipStats?.instanceBatches ?? 0} batches | 3D CPU ${shipStats?.cpuSubmitMs.toFixed(1) ?? '0'}ms | 3D GPU ${shipStats?.gpuFrameMs?.toFixed(1) ?? 'n/a'}ms | Boss atlas ${gpu?.bossTextureMB ?? 0}MB`
           perf.windowStart = time
           perf.frames = 0
           perf.ticks = 0

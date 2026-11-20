@@ -1,4 +1,6 @@
-import { Container, Graphics, Sprite, Texture, TilingSprite } from 'pixi.js'
+import { PlanetFlightSurface } from './planetFlightSurface'
+import type { ShipLightingFrame } from './shipLighting'
+import { Container, Graphics, Sprite, Texture, TilingSprite, type Renderer } from 'pixi.js'
 import { atmosphereNoise, bakeAtmosphereCloud, bakePlanetTerrain, CINDER_VENTS, planetTerrainHeight, sampleLandscapeAtmosphere } from './planetAtmosphereArt'
 import type { LandscapeAtmosphereFrame, PlanetAtmosphereKind } from './planetAtmosphereArt'
 import { getPlanetWeatherArt, getSurfaceTerrain } from './surfaceArt'
@@ -78,6 +80,7 @@ export class LandscapePlanetAtmosphere {
   readonly root = new Container()
   private readonly sky = new Sprite(Texture.WHITE)
   private readonly celestialSky = new CelestialScenery()
+  private surface: PlanetFlightSurface | null = null
   private readonly water = new Sprite(Texture.WHITE)
   private readonly ridges = [0, 1, 2].map(() => new TilingSprite({ texture: Texture.WHITE, width: 1, height: 1 }))
   private readonly clouds = Array.from({ length: 8 }, () => new Sprite(Texture.WHITE))
@@ -125,13 +128,16 @@ export class LandscapePlanetAtmosphere {
     ash.fillStyle = '#d7c6b0'; ash.beginPath(); ash.moveTo(5,7); ash.lineTo(16,5); ash.lineTo(20,13); ash.lineTo(10,18); ash.lineTo(4,13); ash.closePath(); ash.fill()
     ash.fillStyle = '#fff6e6'; ash.fillRect(6,8,8,2); this.flakeTexture = texture(flake)
     const water = makeWater()
+    this.surface = new PlanetFlightSurface(water)
+    this.root.addChildAt(this.surface.mesh, this.root.getChildIndex(this.water) + 1)
     for (const kind of ['pelagic', 'cinder'] as const) this.art.set(kind, { sky: makeSky(kind),
       terrain: [0, 1, 2].map(layer => makeTerrain(kind, layer)), water })
     for (const sprite of [...this.clouds, ...this.mist, ...this.plumes, ...this.spray]) sprite.texture = this.cloud
     for (const sprite of [...this.vents, ...this.motes]) sprite.texture = this.glow
     for (const sprite of this.speedLines) sprite.texture = this.streakTexture
   }
-  update(logicalWidth: number, logicalHeight: number, time: number, kind: PlanetAtmosphereKind, quality: string, reduced: boolean, paused = false, speed = 0) {
+  async prepare(renderer: Renderer) { await this.surface?.prepare(renderer) }
+  update(logicalWidth: number, logicalHeight: number, time: number, kind: PlanetAtmosphereKind, quality: string, reduced: boolean, paused = false, speed = 0, lighting?: ShipLightingFrame) {
     const art = this.art.get(kind)
     if (!art) return
     if (this.lastTime === null) this.motionTime = time
@@ -155,14 +161,17 @@ export class LandscapePlanetAtmosphere {
         ;(glowing ? this.emberLayer : this.ashLayer).addChild(mote)
       }
     }
+    // The shared oblique camera looks down at the surface. These full-screen
+    // layers are completely covered by the opaque ground; skip their submission.
+    this.sky.visible = false; this.celestialSky.root.visible = false
     this.sky.width = w; this.sky.height = h
-    this.celestialSky.update(w, h, t, wet ? 0 : 1, quality, reduced, true, !wet)
-    this.water.visible = wet; this.water.position.set(-w * .015 + Math.sin(t * .13) * w * .006, frame.horizon)
+    this.surface?.update(w,h,t,wet,wet ? art.water : getSurfaceTerrain(1) ?? art.terrain[1],lighting)
+    this.water.visible = false; this.water.position.set(-w * .015 + Math.sin(t * .13) * w * .006, frame.horizon)
     this.water.width = w * 1.03; this.water.height = h - frame.horizon
     this.water.alpha = .96 + Math.sin(t * .33) * .025
     // Different speeds and stable tile periods give foreground depth without following steering.
-    const heights = wet ? [.2, .27, .21] : [.6, .55, .28]
-    const tops = wet ? [.56, .64, .85] : [.41, .5, .81]
+    const heights = wet ? [.2, .27, .21] : [.36, .4, .28]
+    const tops = wet ? [.08, .32, .81] : [.02, .29, .76]
     for (let i = 0; i < 3; i++) {
       const sprite = this.ridges[i], tile = w * (i === 2 ? 1.45 : 1.2)
       sprite.position.set(0, h * tops[i]); sprite.width = w; sprite.height = h * heights[i]
@@ -239,6 +248,7 @@ export class LandscapePlanetAtmosphere {
   hide() { this.root.visible = false; this.lastTime = null }
   destroy() {
     this.celestialSky.destroy()
+    this.surface?.destroy(); this.surface = null
     this.root.destroy({ children: true })
     const textures = new Set<Texture>()
     for (const art of this.art.values()) for (const item of [art.sky, art.water, ...art.terrain]) textures.add(item)

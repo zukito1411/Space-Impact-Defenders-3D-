@@ -4,6 +4,7 @@ import android.content.res.Configuration;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.Display;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
@@ -58,8 +59,36 @@ public class MainActivity extends BridgeActivity {
         enterImmersiveMode();
     }
 
+    /** Ask the scheduler for the fastest compatible rate without changing
+     * display resolution or imposing a JavaScript frame cap. Reapply only on
+     * focus/configuration changes, never during the rendering loop. */
+    @SuppressWarnings("deprecation")
+    private void requestHighRefreshRate() {
+        Display display = getWindowManager().getDefaultDisplay();
+        Display.Mode current = display.getMode();
+        float fastest = current.getRefreshRate();
+        for (Display.Mode mode : display.getSupportedModes()) {
+            if (mode.getPhysicalWidth() == current.getPhysicalWidth()
+                    && mode.getPhysicalHeight() == current.getPhysicalHeight()) {
+                fastest = Math.max(fastest, mode.getRefreshRate());
+            }
+        }
+        WindowManager.LayoutParams attributes = getWindow().getAttributes();
+        if (Math.abs(attributes.preferredRefreshRate - fastest) > 0.1f) {
+            attributes.preferredRefreshRate = fastest;
+            getWindow().setAttributes(attributes);
+        }
+        if (Build.VERSION.SDK_INT >= 35) {
+            getWindow().getDecorView().setRequestedFrameRate(View.REQUESTED_FRAME_RATE_CATEGORY_HIGH);
+            if (bridge != null && bridge.getWebView() != null) {
+                bridge.getWebView().setRequestedFrameRate(View.REQUESTED_FRAME_RATE_CATEGORY_HIGH);
+            }
+        }
+    }
+
     @SuppressWarnings("deprecation")
     private void enterImmersiveMode() {
+        requestHighRefreshRate();
         View decor = getWindow().getDecorView();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             getWindow().setDecorFitsSystemWindows(false);
