@@ -1,7 +1,10 @@
 import { PlanetFlightSurface } from './planetFlightSurface'
+import { PlanetFlightTerrain } from './planetFlightTerrain'
+import { planetFlightTravel, projectPlanetFlightPoint, type PlanetFlightPoint } from './planetFlightCamera'
+import { samplePlanetMountain } from './planetTerrainGeometry'
 import type { ShipLightingFrame } from './shipLighting'
-import { Container, Graphics, Sprite, Texture, TilingSprite, type Renderer } from 'pixi.js'
-import { atmosphereNoise, bakeAtmosphereCloud, bakePlanetTerrain, bakePlanetWater, CINDER_VENTS, planetTerrainHeight, sampleLandscapeAtmosphere } from './planetAtmosphereArt'
+import { Container, Graphics, Sprite, Texture, type Renderer } from 'pixi.js'
+import { atmosphereNoise, bakeAtmosphereCloud, bakePlanetTerrain, bakePlanetWater, sampleLandscapeAtmosphere } from './planetAtmosphereArt'
 import type { LandscapeAtmosphereFrame, PlanetAtmosphereKind } from './planetAtmosphereArt'
 import { getPlanetWeatherArt, getSurfaceTerrain } from './surfaceArt'
 import { samplePlanetFlightParticle } from './planetFlightParticles'
@@ -71,11 +74,12 @@ export class LandscapePlanetAtmosphere {
   private readonly celestialSky = new CelestialScenery()
   private surface: PlanetFlightSurface | null = null
   private readonly water = new Sprite(Texture.WHITE)
-  private readonly ridges = [0, 1, 2].map(() => new TilingSprite({ texture: Texture.WHITE, width: 1, height: 1 }))
+  private readonly terrain = new Map<PlanetAtmosphereKind, PlanetFlightTerrain>()
+  private readonly attachment: PlanetFlightPoint = { x: 0, y: 0, scale: 1 }
   private readonly clouds = Array.from({ length: 8 }, () => new Sprite(Texture.WHITE))
   private readonly mist = [new Sprite(Texture.WHITE), new Sprite(Texture.WHITE)]
-  private readonly vents = Array.from({ length: 3 }, () => new Sprite(Texture.WHITE))
-  private readonly plumes = Array.from({ length: 6 }, () => new Sprite(Texture.WHITE))
+  private readonly vents = Array.from({ length: 24 }, () => new Sprite(Texture.WHITE))
+  private readonly plumes = Array.from({ length: 48 }, () => new Sprite(Texture.WHITE))
   private readonly motes = Array.from({ length: 72 }, () => new Sprite(Texture.WHITE))
   private readonly ashLayer = new Container()
   private readonly emberLayer = new Container()
@@ -94,8 +98,7 @@ export class LandscapePlanetAtmosphere {
   private readonly frame: LandscapeAtmosphereFrame = { width: 1, height: 1, horizon: 1, seconds: 0, cloudCount: 0, moteCount: 0 }
   constructor() {
     this.root.visible = false
-    this.root.addChild(this.sky, this.celestialSky.root, this.water, this.ridges[0], this.ridges[1], ...this.vents, ...this.plumes,
-      this.ridges[2], ...this.clouds, ...this.mist, ...this.spray, this.lightning, this.ashLayer, this.emberLayer, ...this.speedLines)
+    this.root.addChild(this.sky, this.celestialSky.root, this.water, ...this.vents, ...this.plumes, ...this.clouds, ...this.mist, ...this.spray, this.lightning, this.ashLayer, this.emberLayer, ...this.speedLines)
     for (const sprite of [...this.clouds, ...this.mist, ...this.vents, ...this.plumes, ...this.motes, ...this.speedLines, ...this.spray]) sprite.anchor.set(.5)
     for (const sprite of [...this.vents, ...this.motes]) sprite.blendMode = 'add'
     this.root.eventMode = 'none'
@@ -121,11 +124,19 @@ export class LandscapePlanetAtmosphere {
     this.root.addChildAt(this.surface.mesh, this.root.getChildIndex(this.water) + 1)
     for (const kind of ['pelagic', 'cinder'] as const) this.art.set(kind, { sky: makeSky(kind),
       terrain: [0, 1, 2].map(layer => makeTerrain(kind, layer)), water })
+    for (const kind of ['pelagic', 'cinder'] as const) {
+      const terrain = new PlanetFlightTerrain(kind,getSurfaceTerrain(1) ?? this.art.get(kind)!.terrain[1])
+      this.terrain.set(kind,terrain)
+      this.root.addChildAt(terrain.mesh,this.root.getChildIndex(this.surface.mesh)+1)
+    }
     for (const sprite of [...this.clouds, ...this.mist, ...this.plumes, ...this.spray]) sprite.texture = this.cloud
     for (const sprite of [...this.vents, ...this.motes]) sprite.texture = this.glow
     for (const sprite of this.speedLines) sprite.texture = this.streakTexture
   }
-  async prepare(renderer: Renderer) { await this.surface?.prepare(renderer) }
+  async prepare(renderer: Renderer) {
+    await this.surface?.prepare(renderer)
+    for (const terrain of this.terrain.values()) await terrain.prepare(renderer)
+  }
   update(logicalWidth: number, logicalHeight: number, time: number, kind: PlanetAtmosphereKind, quality: string, reduced: boolean, paused = false, speed = 0, lighting?: ShipLightingFrame) {
     const art = this.art.get(kind)
     if (!art) return
@@ -137,7 +148,6 @@ export class LandscapePlanetAtmosphere {
     this.root.visible = true; this.root.position.set(0, logicalHeight); this.root.rotation = -Math.PI / 2
     if (this.current !== kind) {
       this.current = kind; this.sky.texture = art.sky; this.water.texture = art.water
-      this.ridges.forEach((sprite, i) => { sprite.texture = art.terrain[i] })
       for (const sprite of this.clouds) sprite.texture = getPlanetWeatherArt(wet ? 0 : 1) ?? this.cloud!
       for (const sprite of this.spray) sprite.texture = getPlanetWeatherArt(2) ?? this.cloud!
       for (const sprite of this.plumes) sprite.texture = getPlanetWeatherArt(3) ?? this.cloud!
@@ -158,15 +168,9 @@ export class LandscapePlanetAtmosphere {
     this.water.visible = false; this.water.position.set(-w * .015 + Math.sin(t * .13) * w * .006, frame.horizon)
     this.water.width = w * 1.03; this.water.height = h - frame.horizon
     this.water.alpha = .96 + Math.sin(t * .33) * .025
-    // Different speeds and stable tile periods give foreground depth without following steering.
-    const heights = wet ? [.2, .27, .21] : [.36, .4, .28]
-    const tops = wet ? [.08, .32, .81] : [.02, .29, .76]
-    for (let i = 0; i < 3; i++) {
-      const sprite = this.ridges[i], tile = w * (i === 2 ? 1.45 : 1.2)
-      sprite.position.set(0, h * tops[i]); sprite.width = w; sprite.height = h * heights[i]
-      sprite.tileScale.set(tile / 1024, h * heights[i] / 256)
-      sprite.tilePosition.set(-mod(t * w * [.0014, .0036, .008][i], tile), 0)
-      sprite.alpha = wet && i === 2 ? .86 : 1
+    for (const [terrainKind, terrain] of this.terrain) {
+      terrain.mesh.visible = terrainKind === kind
+      if (terrain.mesh.visible) terrain.update(w,h,t,lighting)
     }
     for (let i = 0; i < this.clouds.length; i++) {
       const sprite = this.clouds[i]; sprite.visible = i < frame.cloudCount
@@ -186,19 +190,22 @@ export class LandscapePlanetAtmosphere {
       fog.width = w * 1.2; fog.height = h * (i ? .14 : .16)
       fog.tint = wet ? 0x97cae0 : 0xc49278; fog.alpha = wet ? .11 : .095
     }
-    const tile = w * 1.2
-    for (let i = 0; i < 3; i++) {
-      const vent = this.vents[i]; vent.visible = !wet
-      const x = mod(CINDER_VENTS[i] * tile - t * w * .0036, tile)
-      const y = h * tops[1] + planetTerrainHeight(CINDER_VENTS[i], 1, 'cinder') * h * heights[1]
-      vent.position.set(x, y + h * .012); vent.width = h * .17; vent.height = h * .08
-      vent.tint = 0xff632b; vent.alpha = .4 + Math.sin(t * .7 + i * 2) * .075
+    const peaks = this.terrain.get('cinder')!.peaks, travel = planetFlightTravel(t)
+    for (let i = 0; i < this.vents.length; i++) {
+      const peak = peaks[i], vent = this.vents[i]
+      const point = projectPlanetFlightPoint(peak.x,samplePlanetMountain(0,0,peak,false),peak.distance,w,h,travel,this.attachment)
+      const visible = !wet && point.x > -w*.2 && point.x < w*1.2 && point.y > -h*.4 && point.y < h*1.3
+      vent.visible = visible
+      vent.position.set(point.x,point.y); vent.width = point.scale*.11; vent.height = point.scale*.035
+      vent.tint = 0xff632b; vent.alpha = .32 + Math.sin(t*.7+i*2)*.055
       for (let p = 0; p < 2; p++) {
-        const smoke = this.plumes[i * 2 + p]; smoke.visible = !wet
-        const age = mod(t * .055 + p * .5 + i * .23, 1)
-        smoke.position.set(x + h * (.025 + age * .08), y - h * (.04 + age * .15))
-        smoke.width = h * (.22 + age * .25); smoke.height = h * (.12 + age * .09)
-        smoke.rotation = -.22; smoke.tint = p ? 0x9c8696 : 0xdca590; smoke.alpha = Math.sin(age * Math.PI) * (p ? .28 : .39)
+        const smoke = this.plumes[i*2+p]; smoke.visible = visible
+        if (!visible) continue
+        const age = mod(t*.055+p*.5+i*.23,1)
+        smoke.position.set(point.x+point.scale*(.025+age*.08),point.y-point.scale*(.02+age*.2))
+        smoke.width = point.scale*(.14+age*.24); smoke.height = point.scale*(.1+age*.17)
+        smoke.rotation = -.22; smoke.tint = p ? 0x9c8696 : 0xdca590
+        smoke.alpha = Math.sin(age*Math.PI)*(p ? .22 : .3)
       }
     }
     // A restrained local storm flicker, never a full-screen flash.
@@ -238,6 +245,8 @@ export class LandscapePlanetAtmosphere {
   destroy() {
     this.celestialSky.destroy()
     this.surface?.destroy(); this.surface = null
+    for (const terrain of this.terrain.values()) terrain.destroy()
+    this.terrain.clear()
     this.root.destroy({ children: true })
     const textures = new Set<Texture>()
     for (const art of this.art.values()) for (const item of [art.sky, art.water, ...art.terrain]) textures.add(item)

@@ -1,5 +1,6 @@
 import { Container, RenderTexture, Geometry, GlProgram, Mesh, Shader, UniformGroup, type Texture, type Renderer } from 'pixi.js'
-import { LANDSCAPE_VIEW_YAW, raidCameraFocal } from './raidView'
+import { raidCameraFocal } from './raidView'
+import { PLANET_FLIGHT_ALTITUDE, PLANET_FLIGHT_VIEW, planetFlightTravel } from './planetFlightCamera'
 import type { ShipLightingFrame } from './shipLighting'
 
 const vertex = `#version 300 es
@@ -17,7 +18,7 @@ precision highp float;
 uniform sampler2D uGround;
 uniform vec2 uViewport, uView, uTexel;
 uniform vec3 uSun, uKey, uSky, uBounce;
-uniform float uFocal, uTravel, uWet;
+uniform float uFocal, uTravel, uWet, uAltitude;
 in vec2 screen;
 out vec4 finalColor;
 // Let the repeat sampler filter across tile boundaries, including mip levels.
@@ -27,8 +28,8 @@ void main() {
   // View pitch is the same flight-plane basis used by the live hulls. The
   // ground recedes in depth; it is not a horizontal strip facing the camera.
   float down = uView.x-ray.y*uView.y;
-  float depth = 1.6/max(.025,down);
-  vec2 uv = vec2(ray.x*depth-uTravel,(uView.y+ray.y*uView.x)*depth)*.42;
+  float depth = uAltitude/max(.025,down);
+  vec2 uv = vec2(ray.x*depth+uTravel,(uView.y+ray.y*uView.x)*depth)*.42;
   vec3 paint = ground(uv);
   float h = dot(paint,vec3(.2126,.7152,.0722));
   float dx = dot(ground(uv+vec2(uTexel.x,0.)),vec3(.2126,.7152,.0722))-h;
@@ -54,12 +55,13 @@ void main() {
 export class PlanetFlightSurface {
   private readonly parameters = new UniformGroup({
     uViewport: { value: new Float32Array([1,1]), type: 'vec2<f32>' },
-    uView: { value: new Float32Array([Math.cos(LANDSCAPE_VIEW_YAW),-Math.sin(LANDSCAPE_VIEW_YAW)]), type: 'vec2<f32>' },
+    uView: { value: new Float32Array(PLANET_FLIGHT_VIEW), type: 'vec2<f32>' },
     uTexel: { value: new Float32Array([1/1024,1/512]), type: 'vec2<f32>' },
     uSun: { value: new Float32Array([.48,.65,.72]), type: 'vec3<f32>' },
     uKey: { value: new Float32Array([1,.8,.65]), type: 'vec3<f32>' },
     uSky: { value: new Float32Array([.35,.5,.65]), type: 'vec3<f32>' },
     uBounce: { value: new Float32Array([.1,.2,.3]), type: 'vec3<f32>' },
+    uAltitude: { value: PLANET_FLIGHT_ALTITUDE, type: 'f32' },
     uFocal: { value: 1, type: 'f32' }, uTravel: { value: 0, type: 'f32' }, uWet: { value: 1, type: 'f32' },
   })
   readonly mesh: Mesh<Geometry,Shader>
@@ -82,7 +84,7 @@ export class PlanetFlightSurface {
     u.uViewport[0] = width; u.uViewport[1] = height
     u.uFocal = raidCameraFocal(width); u.uWet = wet ? 1 : 0
     u.uTexel[0] = 1/paint.width; u.uTexel[1] = 1/paint.height
-    u.uTravel = (seconds*.055)%1024
+    u.uTravel = planetFlightTravel(seconds)
     if (this.mesh.texture !== paint) { this.mesh.texture = paint; this.mesh.shader!.resources.uGround = paint.source }
     if (lighting) {
       u.uSun[0] = -lighting.sun[1]; u.uSun[1] = -lighting.sun[0]; u.uSun[2] = lighting.sun[2]
