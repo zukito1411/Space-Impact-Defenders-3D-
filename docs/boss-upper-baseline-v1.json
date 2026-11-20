@@ -1,0 +1,156 @@
+{
+  "source": "907482ac5c6d594474adb0dfb3d67d1b9a91a40a",
+  "resolution": 64,
+  "stages": {
+    "1": {
+      "vertices": 2768,
+      "indices": 15180,
+      "position": "13f6cfc1ac7c85dae6fd3f7253fa9ed4639c5a9d8523bfc0e67efc3d897779cb",
+      "uv": "27d592c620a3076c3e32102a32e60ce9c3655430aed4f8a525324c26dcf32ed1",
+      "normal": "17fe386d6a02ac27a0ef1c9faa688c2def74505b36e91015b56cb52e3886568f",
+      "topology": "ed338741a1f110125f7d0b0f89d17646144e2d47ce5fa34d48b2192a37b85bf1",
+      "occlusion": "3a58d4862e429e5e8df23993909344c7e082b5f227e9a4bd5197f1a7087c93a4"
+    },
+    "2": {
+      "vertices": 2768,
+      "indices": 15180,
+      "position": "d2f1f7ebe265d4b6f12e823973ffde542e8c26b7d13b5965e3fb68be85e0e15c",
+      "uv": "27d592c620a3076c3e32102a32e60ce9c3655430aed4f8a525324c26dcf32ed1",
+      "normal": "abe861dea197a48c08c47c477ab64b2334059c605499e1238c14fb9fb736f053",
+      "topology": "ed338741a1f110125f7d0b0f89d17646144e2d47ce5fa34d48b2192a37b85bf1",
+      "occlusion": "9f6b9f05f5cd6d1d53897e523771aae7b625eb1f8902aaae9d4a9a47ecaef63d"
+    },
+    "3": {
+      "vertices": 2768,
+      "indices": 15180,
+      "position": "56aceb96609ce454d488d6f18e2d1699deaa6e7c2060a8ee28383fbf4c8b0047",
+      "uv": "27d592c620a3076c3e32102a32e60ce9c3655430aed4f8a525324c26dcf32ed1",
+      "normal": "a9511b03d30eea5b7e63be23c8767875864dfa68b016973905a0e6536bc97f8d",
+      "topology": "ed338741a1f110125f7d0b0f89d17646144e2d47ce5fa34d48b2192a37b85bf1",
+      "occlusion": "ef80d4db77711b6e295ca73426705303a28d2976ea733b8b644c4a39d085c1b6"
+    },
+    "4": {
+      "vertices": 2768,
+      "indices": 15180,
+      "position": "410565d47ec56d54049c1face3aecec4e460df03b8f5919bd62d57d6501ec2c8",
+      "uv": "27d592c620a3076c3e32102a32e60ce9c3655430aed4f8a525324c26dcf32ed1",
+      "normal": "abe6490d5d967ea81f5562ce426fc0dca484c3a01b7d1e4c2525256eeb5772c8",
+      "topology": "ed338741a1f110125f7d0b0f89d17646144e2d47ce5fa34d48b2192a37b85bf1",
+      "occlusion": "bc9de8d769c82aa4b25ad0fa63aeec386fd94a96f6af179e096a0abba50cbb4a"
+    },
+    "5": {
+      "vertices": 2768,
+      "indices": 15180,
+      "position": "2b6fb50216569404299f0ebcc0bcb19de19237df2c46635814e940965e0b8ccb",
+      "uv": "27d592c620a3076c3e32102a32e60ce9c3655430aed4f8a525324c26dcf32ed1",
+      "normal": "ae8185671152aa3d14b2bc92fa9b5dcb7e7d5383a739ddb349da536262a49110",
+      "topology": "ed338741a1f110125f7d0b0f89d17646144e2d47ce5fa34d48b2192a37b85bf1",
+      "occlusion": "0563654b0281d1d56a0d89414494b5f0beb9ac73edb9d60b15be5bfa62032a31",
+      "complete": {
+        "position": "5ec8efe28a6cb4b54b38f8887d5ca9d33a73c870ec3c81346759883d7943b27f",
+        "uv": "ba5f5ef0c014228a550560aa774a4bb4dc49be57b561e53e6801137a43fc6b60",
+        "index": "1f19b84d9d893f0b9b9b6e3489a8059cb04f813498944e3e736d6fc8c6e3f04e"
+      }
+    },
+    "6": {
+      "vertices": 2768,
+      "indices": 15180,
+      "position": "44d0cf57b13ee91f3753a42f33906e8c72aae2d1f76c9ed4a4444969beda6278",
+      "uv": "27d592c620a3076c3e32102a32e60ce9c3655430aed4f8a525324c26dcf32ed1",
+      "normal": "af5d71dbc81096092759bc35cc0915730ac9d795785a75f886d9ae2aa6c93f80",
+      "topology": "ed338741a1f110125f7d0b0f89d17646144e2d47ce5fa34d48b2192a37b85bf1",
+      "occlusion": "8272eee339df93e6f6c03aa175326cc917929fca40e627450b90629317ba2d2f"
+    },
+    "7": {
+      "vertices": 2768,
+      "indices": 15180,
+      "position": "e63142eae5c1ade62d91edc14857b10f666aaf3f702fb1431e3635cf312465e8",
+      "uv": "27d592c620a3076c3e32102a32e60ce9c3655430aed4f8a525324c26dcf32ed1",
+      "normal": "7285ba2d3b2bd70cdaf7e682f0a9fbfa6ea17d86eda80f7a6720a1520d6df2e8",
+      "topology": "ed338741a1f110125f7d0b0f89d17646144e2d47ce5fa34d48b2192a37b85bf1",
+      "occlusion": "c569e09859c287fd76bc62ee09ab97ee98101c8ce760725d211d58ecce540867"
+    },
+    "8": {
+      "vertices": 2768,
+      "indices": 15180,
+      "position": "e2f235ddafdb25ed85d8defa6e7da1199fd075951aad7cd46c94c07f986948ce",
+      "uv": "27d592c620a3076c3e32102a32e60ce9c3655430aed4f8a525324c26dcf32ed1",
+      "normal": "2c02f263d43404e06d28726a30acdb12754b59248e4789cf02992d6b24f5705a",
+      "topology": "ed338741a1f110125f7d0b0f89d17646144e2d47ce5fa34d48b2192a37b85bf1",
+      "occlusion": "dfcb6c50fda7d72db0be56479cd7d72dcb18b17a9899373d77198ea88532d63d"
+    },
+    "9": {
+      "vertices": 2768,
+      "indices": 15180,
+      "position": "56aceb96609ce454d488d6f18e2d1699deaa6e7c2060a8ee28383fbf4c8b0047",
+      "uv": "27d592c620a3076c3e32102a32e60ce9c3655430aed4f8a525324c26dcf32ed1",
+      "normal": "a9511b03d30eea5b7e63be23c8767875864dfa68b016973905a0e6536bc97f8d",
+      "topology": "ed338741a1f110125f7d0b0f89d17646144e2d47ce5fa34d48b2192a37b85bf1",
+      "occlusion": "ef80d4db77711b6e295ca73426705303a28d2976ea733b8b644c4a39d085c1b6"
+    },
+    "10": {
+      "vertices": 2768,
+      "indices": 15180,
+      "position": "7065ea14bd8cdec47b06fff80b56c3c36ace8188031a26b7f9c7948a20753ad0",
+      "uv": "27d592c620a3076c3e32102a32e60ce9c3655430aed4f8a525324c26dcf32ed1",
+      "normal": "421bb79ff8e28e0b1b237de5963df3b9c44cae9ae779fec2bf1e8cbb07e71fdd",
+      "topology": "ed338741a1f110125f7d0b0f89d17646144e2d47ce5fa34d48b2192a37b85bf1",
+      "occlusion": "857fbf3851672e59c8155c87dee3b7790461c5dce6f7d06c70c625df4e8b7f26",
+      "complete": {
+        "position": "4c1c09ca1be733ca4c5a6ad6d416d1187d753f9785c0e3a593f1d2efe1409ac5",
+        "uv": "ba5f5ef0c014228a550560aa774a4bb4dc49be57b561e53e6801137a43fc6b60",
+        "index": "1f19b84d9d893f0b9b9b6e3489a8059cb04f813498944e3e736d6fc8c6e3f04e"
+      }
+    },
+    "11": {
+      "vertices": 2768,
+      "indices": 15180,
+      "position": "c8f575cb9f6451a9d4f92c14491e3b6435a330780b80a1d29e2ba666428b18a8",
+      "uv": "27d592c620a3076c3e32102a32e60ce9c3655430aed4f8a525324c26dcf32ed1",
+      "normal": "e8e1a42f878b5d6d6993f664f9ca13b5bdad11d2f6c12c3dc4443a95f0bf11fa",
+      "topology": "ed338741a1f110125f7d0b0f89d17646144e2d47ce5fa34d48b2192a37b85bf1",
+      "occlusion": "16ba068c5a578c8127cc4ce59c0441710a5d90b46d991edf914f88e266f87d74"
+    },
+    "12": {
+      "vertices": 2768,
+      "indices": 15180,
+      "position": "cade571c6cf22ac9ea26bca96181d3ec91b892842813f26d1019bbae07a42dac",
+      "uv": "27d592c620a3076c3e32102a32e60ce9c3655430aed4f8a525324c26dcf32ed1",
+      "normal": "c0291c9ad096eaf21d0e0ae1a209410e681592d86ee1caba36e89d5b3f67381d",
+      "topology": "ed338741a1f110125f7d0b0f89d17646144e2d47ce5fa34d48b2192a37b85bf1",
+      "occlusion": "03dd4b9ff39d0051b29f71058a859c4b28da3767ea2117a46d1e40104fdaa8ba"
+    },
+    "13": {
+      "vertices": 2768,
+      "indices": 15180,
+      "position": "4589f73499396b4deeba67ff6bd01c61d0c1a88135bfbed7bc0429a584dbffbc",
+      "uv": "27d592c620a3076c3e32102a32e60ce9c3655430aed4f8a525324c26dcf32ed1",
+      "normal": "59dd88374a2213bf0d913e564d7d81abaf0dfdb01965210ec804ff50f6881a91",
+      "topology": "ed338741a1f110125f7d0b0f89d17646144e2d47ce5fa34d48b2192a37b85bf1",
+      "occlusion": "42e562b1080617e919f417ab34862bf409b91121ba8c61329e344dee4bd767e7"
+    },
+    "14": {
+      "vertices": 2768,
+      "indices": 15180,
+      "position": "d2f1f7ebe265d4b6f12e823973ffde542e8c26b7d13b5965e3fb68be85e0e15c",
+      "uv": "27d592c620a3076c3e32102a32e60ce9c3655430aed4f8a525324c26dcf32ed1",
+      "normal": "abe861dea197a48c08c47c477ab64b2334059c605499e1238c14fb9fb736f053",
+      "topology": "ed338741a1f110125f7d0b0f89d17646144e2d47ce5fa34d48b2192a37b85bf1",
+      "occlusion": "9f6b9f05f5cd6d1d53897e523771aae7b625eb1f8902aaae9d4a9a47ecaef63d"
+    },
+    "15": {
+      "vertices": 2768,
+      "indices": 15180,
+      "position": "a93926648105fdcc1b0b883a84d79e95ea5e61ede4a0b71ad53c701e3afefb8b",
+      "uv": "27d592c620a3076c3e32102a32e60ce9c3655430aed4f8a525324c26dcf32ed1",
+      "normal": "309953f94188ce6d38f19641b6ea5b85b5cc8dee70a7dcc6177e519877a29df4",
+      "topology": "ed338741a1f110125f7d0b0f89d17646144e2d47ce5fa34d48b2192a37b85bf1",
+      "occlusion": "005d801734770080f0f70f8e5a5e34867520cf3d94a670928e38ddb8c074cf42",
+      "complete": {
+        "position": "a0ef3313a74d0908ede5a7a6f9d6c32c72070176ccf8aab7d1399b37b697fecd",
+        "uv": "ba5f5ef0c014228a550560aa774a4bb4dc49be57b561e53e6801137a43fc6b60",
+        "index": "1f19b84d9d893f0b9b9b6e3489a8059cb04f813498944e3e736d6fc8c6e3f04e"
+      }
+    }
+  }
+}

@@ -1,3 +1,4 @@
+import { BOSS_KEEL_DESIGNS, sampleBossKeel } from './bossKeelDesigns'
 /** Component positions follow the approved 512px top-view paintings. Heights
  * are fractions of hull span, independent of display size and flight view.
  * This admission-only data is shared with the geometry worker. */
@@ -136,6 +137,8 @@ export const BOSS_HULL_DESIGNS: Readonly<Record<number, BossHullDesign>> = {
   10: cobra(), 13: carrier(13), 14: orrery(14), 15: mothership(),
 }
 
+const keelDesigns = new Map(Object.entries(BOSS_KEEL_DESIGNS).map(([stage,keel]) => [BOSS_HULL_DESIGNS[Number(stage)],keel]))
+
 function coverage(part: BossDeckSection, x: number, y: number) {
   const dx = x-part.x, dy = y-part.y, c = Math.cos(part.angle ?? 0), s = Math.sin(part.angle ?? 0)
   const px = Math.abs((c*dx+s*dy)/part.rx), py = Math.abs((-s*dx+c*dy)/part.ry)
@@ -180,8 +183,8 @@ export function bossDeckElevation(design: BossHullDesign, u: number, v: number, 
   return .008 + bevel*sampleBossDeck(design,u,v)*.85
 }
 
-/** Convex lower lens, with a rolled edge and a recessed reactor collar.
- * Other capital keels retain their existing reconstruction exactly. */
+/** Mechanical underframes are independent of their unchanged upper decks.
+ * Special organic bodies and the final saucer retain their existing profiles. */
 export function bossKeelElevation(design: BossHullDesign,u:number,v:number,bevel=1,
   deckHeight=bossDeckElevation(design,u,v,bevel)) {
   if(design===BOSS_HULL_DESIGNS[15]) {
@@ -190,5 +193,7 @@ export function bossKeelElevation(design: BossHullDesign,u:number,v:number,bevel
     const collar=.008*Math.exp(-(((radius-.25)/.08)**2))
     return -.008-bevel*(.018+.105*lens+collar)
   }
+  const architecture=keelDesigns.get(design)
+  if(architecture)return sampleBossKeel(architecture,u,v,bevel)
   return -design.keel*(.5+Math.min(1,deckHeight/.08)*.5)
 }

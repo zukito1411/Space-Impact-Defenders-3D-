@@ -4,13 +4,15 @@ import ts from 'typescript'
 
 const compile = source => ts.transpileModule(source, {compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText
 const dataUrl = source => 'data:text/javascript;base64,'+Buffer.from(compile(source)).toString('base64')
-const designUrl = dataUrl(readFileSync('src/components/games/raid/bossHullDesigns.ts','utf8'))
+const keelUrl=dataUrl(readFileSync('src/components/games/raid/bossKeelDesigns.ts','utf8'))
+const designUrl = dataUrl(readFileSync('src/components/games/raid/bossHullDesigns.ts','utf8').replace("'./bossKeelDesigns'",JSON.stringify(keelUrl)))
 const mobUrl = dataUrl(readFileSync('src/components/games/raid/mobHullDesigns.ts','utf8'))
 const {MOB_HULL_DESIGNS}=await import(mobUrl)
 const { BOSS_HULL_DESIGNS, sampleBossDeck, bossKeelElevation } = await import(designUrl)
 const source = readFileSync('src/components/games/raid/volumeGeometry.worker.ts','utf8')
   .replace("'./bossHullDesigns'",JSON.stringify(designUrl))
   .replace("'./mobHullDesigns'",JSON.stringify(mobUrl))
+  .replace("'./bossKeelDesigns'",JSON.stringify(keelUrl))
 globalThis.self = {}
 const compiled = ts.transpileModule(source, {compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText
 const { buildVolumeGeometry } = await import('data:text/javascript;base64,'+Buffer.from(compiled).toString('base64'))
@@ -51,10 +53,10 @@ for(const key of Object.keys(MOB_HULL_DESIGNS)) {
 assert.deepEqual(Object.keys(BOSS_HULL_DESIGNS).map(Number),[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15])
 for(const [stage,design] of Object.entries(BOSS_HULL_DESIGNS)) {
   const mesh=buildVolumeGeometry({pixels,resolution,aspectX:1,aspectY:1,profile:'capital',bossStage:Number(stage)})
-  assert.deepEqual(mesh.index,capital.index,'boss changed its clipped topology')
-  assert.deepEqual(mesh.uv,capital.uv,'boss lost registered paint coordinates')
+  assert.deepEqual(mesh.index.subarray(0,mesh.deckIndexCount),capital.index.subarray(0,capital.deckIndexCount),'boss changed its upper topology')
+  assert.deepEqual(mesh.uv.subarray(0,mesh.deckVertexCount*2),capital.uv.subarray(0,capital.deckVertexCount*2),'boss lost upper paint coordinates')
   let max=0,delta=0
-  for(let i=0;i<mesh.position.length;i+=3) {
+  for(let i=0;i<mesh.deckVertexCount*3;i+=3) {
     assert.equal(mesh.position[i],capital.position[i]);assert.equal(mesh.position[i+1],capital.position[i+1])
     max=Math.max(max,mesh.position[i+2]);delta=Math.max(delta,Math.abs(mesh.position[i+2]-capital.position[i+2]))
   }

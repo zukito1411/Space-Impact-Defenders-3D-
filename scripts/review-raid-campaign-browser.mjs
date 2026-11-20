@@ -16,6 +16,7 @@ const resume=process.argv.includes('--resume')
 const specialOnly=process.argv.includes('--special-only')
 const verifySpecial=specialOnly||process.argv.includes('--verify-special')
 const verifyTerrain=process.env.RAID_REVIEW_TERRAIN_CHECK==='1'
+const verifyKeels=process.env.RAID_REVIEW_KEEL_CHECK==='1'
 const verifyMobs=process.argv.includes('--verify-mobs')
 const frames=Number(process.env.RAID_REVIEW_FRAMES ?? 24)
 assert.ok(Number.isInteger(frames)&&frames>=12&&frames<=180)
@@ -42,13 +43,16 @@ try {
   browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH,
     args:['--no-sandbox','--enable-unsafe-swiftshader','--use-angle=swiftshader']})
   const specialChecks=[],mobChecks=[]
-  for(const landscape of (capturesOnly&&!verifySpecial&&!verifyMobs&&!verifyTerrain ? [true] : [true,false])) {
+  for(const landscape of (capturesOnly&&!verifySpecial&&!verifyMobs&&!verifyTerrain&&!verifyKeels ? [true] : [true,false])) {
     const view=landscape?'landscape':'portrait'
     const page=await browser.newPage({viewport:landscape?(desktop?{width:1920,height:1080}:{width:844,height:390}):{width:393,height:852},
       deviceScaleFactor:1,hasTouch:!desktop,reducedMotion:'no-preference'})
     page.on('pageerror',error=>errors.push(view+': '+error.message))
     page.on('console',message=>{
-      if(message.type()==='error'&&/THREE\.|WebGL|shader|Air Raid frame failed/i.test(message.text())) errors.push(message.text())
+      if(message.type()==='error'&&/THREE\.|WebGL|shader|Air Raid frame failed/i.test(message.text())) {
+        errors.push(message.text())
+        if(verifyKeels)console.error(message.text())
+      }
     })
     await page.route('**/*',route=>new URL(route.request().url()).hostname===new URL(base).hostname?route.continue():route.abort())
     await page.addInitScript(landscape=>{
@@ -259,6 +263,10 @@ try {
         await writeFile(output+'/stage-'+boss.stage+'-surface-checks.json',JSON.stringify(surface,null,2))
       }
       console.log('Captured',boss.stage,boss.name)
+    }
+    if(verifyKeels) {
+      const {checkBossKeels}=await import('./check-boss-keels.mjs')
+      await checkBossKeels(page,output,landscape)
     }
     if(verifySpecial)for(const stage of [5,10,15])for(const phase of stage===10?['idle','attack','bite','retract']:['idle','attack']) {
       const attacking=phase!=='idle'

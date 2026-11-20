@@ -2,7 +2,7 @@ import { BufferAttribute, BufferGeometry, Color, Float32BufferAttribute, Mesh, M
 
 export type VolumeProfile = 'art' | 'fighter' | 'organic' | 'capital'
 
-type VolumeBuffers = { position: Float32Array; uv: Float32Array; index?: Uint16Array | Uint32Array; sideStart: number }
+type VolumeBuffers = { position: Float32Array; uv: Float32Array; index?: Uint16Array | Uint32Array; sideStart: number; deckVertexCount:number; deckIndexCount:number }
 let worker: Worker | null = null
 let serial = 0
 const jobs = new Map<number, { resolve(value: VolumeBuffers): void; reject(error: Error): void }>()
@@ -44,7 +44,7 @@ export async function paintedVolume(source: CanvasImageSource, width: number, he
   const probe = sample.getContext('2d', { willReadFrequently: true })!
   probe.drawImage(canvas, 0, 0, resolution, resolution)
   const pixels = probe.getImageData(0, 0, resolution, resolution).data
-  const { position, uv, index, sideStart } = await volumeBuffers(pixels, resolution, width, height, profile, bossStage,hullDesign)
+  const { position, uv, index, sideStart, deckVertexCount, deckIndexCount } = await volumeBuffers(pixels, resolution, width, height, profile, bossStage,hullDesign)
   const geometry = new BufferGeometry()
   geometry.setAttribute('position', new Float32BufferAttribute(position, 3))
   geometry.setAttribute('uv', new Float32BufferAttribute(uv, 2))
@@ -59,6 +59,9 @@ export async function paintedVolume(source: CanvasImageSource, width: number, he
   geometry.setAttribute('color', new Float32BufferAttribute(colors, 3))
   geometry.setAttribute('hullWall', new Float32BufferAttribute(walls, 1))
   geometry.computeVertexNormals()
+  geometry.userData.shellVertexCount=position.length/3
+  geometry.userData.deckVertexCount=deckVertexCount
+  geometry.userData.deckIndexCount=deckIndexCount
   const map = new Texture(canvas)
   map.colorSpace = SRGBColorSpace
   map.generateMipmaps = true
