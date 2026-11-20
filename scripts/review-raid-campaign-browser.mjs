@@ -49,7 +49,10 @@ try {
       deviceScaleFactor:1,hasTouch:!desktop,reducedMotion:'no-preference'})
     page.on('pageerror',error=>errors.push(view+': '+error.message))
     page.on('console',message=>{
-      if(message.type()==='error'&&/THREE\.|WebGL|shader|Air Raid frame failed/i.test(message.text())) errors.push(message.text())
+      if(message.type()==='error'&&/THREE\.|WebGL|shader|Air Raid frame failed/i.test(message.text())) {
+        errors.push(message.text())
+        if(verifyKeels)console.error(message.text())
+      }
     })
     await page.route('**/*',route=>new URL(route.request().url()).hostname===new URL(base).hostname?route.continue():route.abort())
     await page.addInitScript(landscape=>{
@@ -203,10 +206,6 @@ try {
       const {checkPlanetTerrain}=await import('./check-planet-terrain.mjs')
       await checkPlanetTerrain(page,output,landscape)
     }
-    if(verifyKeels) {
-      const {checkBossKeels}=await import('./check-boss-keels.mjs')
-      await checkBossKeels(page,output,landscape)
-    }
     if(landscape&&!profileOnly) for(const boss of catalog.filter(boss=>!selectedStages||selectedStages.includes(boss.stage))) {
       const filename='boss-'+String(boss.stage).padStart(2,'0')+'-landscape-v1.png'
       if(specialOnly&&![5,10,15].includes(boss.stage)) {
@@ -264,6 +263,10 @@ try {
         await writeFile(output+'/stage-'+boss.stage+'-surface-checks.json',JSON.stringify(surface,null,2))
       }
       console.log('Captured',boss.stage,boss.name)
+    }
+    if(verifyKeels) {
+      const {checkBossKeels}=await import('./check-boss-keels.mjs')
+      await checkBossKeels(page,output,landscape)
     }
     if(verifySpecial)for(const stage of [5,10,15])for(const phase of stage===10?['idle','attack','bite','retract']:['idle','attack']) {
       const attacking=phase!=='idle'

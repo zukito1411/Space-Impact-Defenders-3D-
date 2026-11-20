@@ -56,13 +56,6 @@ export async function checkBossKeels(page,output,landscape) {
   }
   return result
  },landscape)
- for(const check of checks){
-  assert.ok(check.housings>0&&check.addedMaxZ<0,'Lower components escaped their reserved volume')
-  assert.ok(check.drawCalls<=3,'Underside added actor draws')
-  assert.ok(check.opaque>500,'Upper deck failed to render')
-  if(!landscape)assert.ok(check.covered/check.opaque<.002,'Lower hull covered the upper painting: '+JSON.stringify(check))
-  else assert.ok(check.changed>100,'New lower hull was invisible in the gameplay camera: '+JSON.stringify(check))
- }
  await writeFile(output+'/keel-'+(landscape?'landscape':'portrait')+'-checks.json',JSON.stringify(checks,null,2))
  console.log('Verified normal boss keels',landscape?'landscape':'portrait',checks.length)
  if(landscape){
@@ -85,4 +78,12 @@ export async function checkBossKeels(page,output,landscape) {
   })
   await writeFile(output+'/normal-boss-undersides-v1.png',Buffer.from(data,'base64'))
  }
+ for(const check of checks){
+  assert.ok(check.housings>0&&check.addedMaxZ<0,'Lower components escaped their reserved volume')
+  assert.ok(check.drawCalls<=3,'Underside added actor draws')
+  assert.ok(check.opaque>500,'Upper deck failed to render')
+  if(!landscape)assert.ok(check.covered/check.opaque<.002,'Lower hull covered the upper painting: '+JSON.stringify(check))
+  else assert.ok(check.changed>100,'New lower hull was invisible in the gameplay camera: '+JSON.stringify(check))
+ }
+
 }

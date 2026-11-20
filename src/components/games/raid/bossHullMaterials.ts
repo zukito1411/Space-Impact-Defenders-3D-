@@ -102,7 +102,7 @@ export function prepareBossArmor(material: MeshStandardMaterial) {
         skin+=texture2D(bossArmorArt,vec2(.01,.51)+fract(vec2(bossSurface.x*1.8+.5,-bossSurface.z*6.))*.48).rgb*weights.y;
         skin*=vec3(${lower.warm?'1.10,.97,.84':'.91,1.,1.08'});
         #ifdef USE_COLOR
-        skin*=vColor;
+        skin*=vColor.rgb;
         #endif
         diffuseColor.rgb=mix(diffuseColor.rgb,skin,bossUnderside);
       }`:''}
