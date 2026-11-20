@@ -7,7 +7,7 @@ The geometry worker builds these lower structures under the existing silhouette.
 ## Upper-hull preservation
 
 - The original upper elevation function, art assets, paint coordinates, weapons, scale, camera and combat behavior are retained.
-- Golden buffers from source commit `907482ac5c6d594474adb0dfb3d67d1b9a91a40a` verify byte-identical upper vertex positions, normals, UVs and triangle indices for all 15 bosses using an irregular clipped fixture with holes and thin wings.
+- Golden buffers from source commit `907482ac5c6d594474adb0dfb3d67d1b9a91a40a` verify byte-identical upper vertex positions, normals, UVs, triangle indices and baked cavity shading for all 15 bosses using an irregular clipped fixture with holes and thin wings.
 - The complete shell buffers for the squid, serpent and final saucer are also byte-identical. Devil Gundam uses its existing separate artwork path.
 - New painting is restricted to negative model Z; the upper deck retains its existing material behavior.
 

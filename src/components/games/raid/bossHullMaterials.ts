@@ -59,7 +59,7 @@ export function prepareBossArmor(material: MeshStandardMaterial) {
   const panel=organic ? stage===5 ? [.39,.65,.2,.19] : [.12,.47,.22,.18]
     : [7,8,12,14,15].includes(stage) ? [.51,.51,.48,.48] : [.01,.51,.48,.48]
   const previous=material.onBeforeCompile,previousKey=material.customProgramCacheKey()
-  material.customProgramCacheKey=()=>previousKey+(rounded?':rounded-saucer-v1':lower?':ventral-armor-v2':':capital-paint-v1')
+  material.customProgramCacheKey=()=>previousKey+(rounded?':rounded-saucer-v1':lower?':ventral-armor-v2:'+(lower.warm?'warm':'cool'):':capital-paint-v1')
   material.onBeforeCompile=(shader,renderer)=>{
     previous.call(material,shader,renderer)
     shader.uniforms.bossArmorPanel={value:panel}

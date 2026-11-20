@@ -3,9 +3,9 @@ import {readFileSync} from 'node:fs'
 import {createHash} from 'node:crypto'
 import {build} from 'esbuild'
 import {BufferGeometry,BufferAttribute} from 'three'
-const bundled=await build({stdin:{contents:"export * from './src/components/games/raid/volumeGeometry.worker';export * from './src/components/games/raid/bossKeelDesigns'",resolveDir:process.cwd()},bundle:true,platform:'node',format:'esm',write:false})
+const bundled=await build({stdin:{contents:"export * from './src/components/games/raid/volumeGeometry.worker';export * from './src/components/games/raid/bossKeelDesigns';export * from './src/components/games/raid/hullOcclusionBake'",resolveDir:process.cwd()},bundle:true,platform:'node',format:'esm',write:false})
 globalThis.self={}
-const {buildVolumeGeometry,BOSS_KEEL_DESIGNS,sampleBossKeel}=await import('data:text/javascript;base64,'+Buffer.from(bundled.outputFiles[0].text).toString('base64'))
+const {buildVolumeGeometry,BOSS_KEEL_DESIGNS,sampleBossKeel,bakeHullOcclusion}=await import('data:text/javascript;base64,'+Buffer.from(bundled.outputFiles[0].text).toString('base64'))
 const baseline=JSON.parse(readFileSync('docs/boss-upper-baseline-v1.json','utf8'))
 const resolution=baseline.resolution,pixels=new Uint8ClampedArray(resolution*resolution*4)
 for(let y=1;y<63;y++)for(let x=1;x<63;x++){
@@ -20,7 +20,7 @@ for(let stage=1;stage<=15;stage++){
  const m=buildVolumeGeometry({pixels,resolution,aspectX:1,aspectY:1,profile:'capital',bossStage:stage})
  const expected=baseline.stages[stage],n=m.deckVertexCount
  const g=new BufferGeometry();g.setAttribute('position',new BufferAttribute(m.position,3));g.setIndex(new BufferAttribute(m.index,1));g.computeVertexNormals()
- const actual={vertices:n,indices:m.deckIndexCount,position:hash(m.position.subarray(0,n*3)),uv:hash(m.uv.subarray(0,n*2)),normal:hash(g.getAttribute('normal').array.subarray(0,n*3)),topology:hash(new Uint32Array(m.index.subarray(0,m.deckIndexCount)))}
+ const actual={vertices:n,indices:m.deckIndexCount,position:hash(m.position.subarray(0,n*3)),uv:hash(m.uv.subarray(0,n*2)),normal:hash(g.getAttribute('normal').array.subarray(0,n*3)),topology:hash(new Uint32Array(m.index.subarray(0,m.deckIndexCount))),occlusion:hash(bakeHullOcclusion(m.position,new Uint32Array(m.index)).subarray(0,n))}
  const {complete,...upper}=expected
  assert.deepEqual(actual,upper,'Changed original upper hull at stage '+stage)
  if(complete)assert.deepEqual({position:hash(m.position),uv:hash(m.uv),index:hash(new Uint32Array(m.index))},complete,'Changed a special boss')
@@ -35,4 +35,4 @@ for(let stage=1;stage<=15;stage++){
  }
  g.dispose()
 }
-console.log('Verified 15 byte-identical upper hulls/normals/UVs; 12 sculpted keels; 3 unchanged special shells')
+console.log('Verified 15 byte-identical upper hulls/normals/UVs/cavity shading; 12 sculpted keels; 3 unchanged special shells')
