@@ -33,9 +33,14 @@ try {
     assert.equal(stats.protected,true,key+' has no mesh-derived protection outline')
     assert.ok(stats.triangles>1000,key+' did not submit a real mesh')
   }
-  for(const key of ['godGundam','spiegel']) {
-    const stats=await page.evaluate(key=>window.shipFixture.draw(key,.02,false),key)
-    assert.equal(stats.drawn,true,key)
+  // Mechs deliberately remain authored 2D artwork in both flight views.
+  // A successful Three submission here would regress that rendering contract.
+  for(const key of ['godGundam','godGundamBurning','spiegel']) for(const landscape of [false,true]) {
+    const label=key+' ('+(landscape?'landscape':'portrait')+')'
+    const stats=await page.evaluate(({key,landscape})=>window.shipFixture.draw(key,.02,landscape),{key,landscape})
+    assert.equal(stats.drawn,false,label+' must stay on the 2D renderer')
+    assert.equal(stats.protected,false,label+' must not use 3D hull protection')
+    assert.equal(stats.hulls,0,label+' left a visible 3D hull')
   }
   const hash=buffer=>createHash('sha256').update(buffer).digest('hex')
   await page.evaluate(()=>window.shipFixture.draw('rocket',.001,false))
@@ -78,7 +83,7 @@ try {
     assert.deepEqual(gameErrors,[])
     await gameplay.close()
   }
-  console.log('24 live hull GLBs, continuous mesh banking, preserved Pixi scenery/2D FX, portrait/landscape launch and teardown passed')
+  console.log('24 live hull GLBs, 2D-only Gundam variants in both views, continuous mesh banking, preserved Pixi scenery/2D FX, portrait/landscape launch and teardown passed')
 } finally {
   await browser?.close()
   server.kill()
