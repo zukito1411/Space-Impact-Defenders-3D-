@@ -32,9 +32,13 @@ jobs:
         run: node scripts/review-raid-campaign-browser.mjs --captures-only
         env:
           RAID_REVIEW_HULL_LAMP_CHECK: '1'
-          RAID_REVIEW_OUTPUT: presentation-review/hull-lamps-v1
+          RAID_REVIEW_OUTPUT: presentation-review/hull-lamps-v2
+      - name: Package actual gameplay blinking preview
+        run: |
+          python3 -m pip install Pillow
+          python3 scripts/pack-hull-lamp-preview.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: subtle-hull-lights-review
-          path: presentation-review/hull-lamps-v1/
+          path: presentation-review/hull-lamps-v2/

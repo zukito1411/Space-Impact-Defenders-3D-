@@ -1,10 +1,10 @@
 /** Small, authored fittings in each original top painting's UV frame. */
 export type HullLampSpec={u:number;v:number;color:number;channel:0|1|2;size:number;strength:number}
-const led=(u:number,v:number,color:number,channel:0|1|2=0,size=.025,strength=.58):HullLampSpec=>({u,v,color,channel,size,strength})
-const core=(u:number,v:number,color:number,size=.075)=>led(u,v,color,2,size,.30)
+const led=(u:number,v:number,color:number,channel:0|1|2=0,size=.025,strength=.88):HullLampSpec=>({u,v,color,channel,size,strength})
+const core=(u:number,v:number,color:number,size=.075)=>led(u,v,color,2,size,.65)
 const pair=(u:number,v:number,color:number)=>[led(u,v,color,0),led(1-u,v,color,1)]
 const ring=(color:number,radius=.33)=>Array.from({length:8},(_,i)=>{
- const a=i*Math.PI/4;return led(.5+Math.cos(a)*radius,.5+Math.sin(a)*radius,color,i%2?1:0,.022,.46)
+ const a=i*Math.PI/4;return led(.5+Math.cos(a)*radius,.5+Math.sin(a)*radius,color,i%2?1:0,.022,.78)
 })
 const bosses:Record<string,HullLampSpec[]>={
  commandHull1:[core(.5,.34,0xffac36,.055),...pair(.25,.58,0xff853c)],
@@ -31,7 +31,7 @@ const wings:Record<string,readonly[number,number,number]>={
  coreLander:[.36,.41,0x8ee1ef],coreLanderBurning:[.36,.44,0xffc071],
 }
 const players:Record<string,HullLampSpec[]>={}
-for(const [key,[u,v,color]] of Object.entries(wings))players[key]=[...pair(u,v,color),led(.5,.74,0xffd5a0,1,.022,.4)]
+for(const [key,[u,v,color]] of Object.entries(wings))players[key]=[...pair(u,v,color),led(.5,.74,0xffd5a0,1,.022,.70)]
 export function getHullLampDesign(key:string):readonly HullLampSpec[]{
  // Devil Gundam and ordinary enemies never acquire fittings.
  return bosses[key]??players[key.replace(/Elite$/,'')]??[]

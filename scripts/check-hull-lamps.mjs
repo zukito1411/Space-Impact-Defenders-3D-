@@ -72,17 +72,27 @@ export async function checkHullLamps(page,output,landscape){
   const stableClock=frozen.every((v,i)=>v===repeats[i])
   lamps.begin(0,scene.height,scene.density,false);scene.present();const blinkA=read()
   lamps.begin(1.4,scene.height,scene.density,false);scene.present();const blinkPixels=changed(blinkA,read())
+  // Reuse the native camera and actor transforms on a 3x-density target.
+  const width=scene.width,height=scene.height,originalDpr=scene.density
+  const visibleNodes=[...scene.hulls.values()].filter(n=>n.group.visible)
+  scene.render({width,height,dpr:3,lighting:review.background.getShipLighting()})
+  for(const node of visibleNodes){node.group.visible=true;node.used=scene.frame}
+  lamps.begin(0,height,3,false);scene.present();const denseOn=read()
+  lamps.points.visible=false;scene.renderer.render(scene.world,scene.camera);const denseOff=read()
+  const phonePixels=changed(denseOn,denseOff)/9
+  scene.render({width,height,dpr:originalDpr,lighting:review.background.getShipLighting()})
   let realLights=0;scene.world.traverse(o=>{if(o.isPointLight||o.isSpotLight)realLights++})
   review.reset(16);review.frame(false)
   const devil=[...scene.hulls.values()].filter(n=>n.key.includes('devil')).length
   return {environment:'Headless Chromium / SwiftShader; CPU draw/submission samples, not device FPS or hardware GPU timing',
    coverage:'All 15 stages in both views; bosses plus rotating formation, weapon/asteroid burst, entry, clear and co-op fixtures; 3 samples per mode',
-   landscape,players,samples,pixels,blinkPixels,buffersReused,stableClock,realLights,devil}
+   landscape,players,samples,pixels,blinkPixels,phonePixels,buffersReused,stableClock,realLights,devil}
  },landscape)
  assert.equal(result.players.length,24)
  assert.ok(result.buffersReused&&result.stableClock)
- assert.ok(result.blinkPixels>0,'Navigation blink failed to appear in rendered pixels')
- for(const check of result.pixels)assert.ok(check.changed>0&&check.changed<4096,'Core/rim lights invisible or excessive: '+JSON.stringify(check))
+ assert.ok(result.blinkPixels>70,'Navigation blink is too faint at gameplay size')
+ assert.ok(result.phonePixels>80,'Lights are too faint on a high-density phone target')
+ for(const check of result.pixels)assert.ok(check.changed>80&&check.changed<4096,'Core/rim lights invisible or excessive: '+JSON.stringify(check))
  assert.equal(result.realLights,0);assert.equal(result.devil,0)
  for(const s of result.samples){
   assert.ok(s.after.lampPoints<=512)
@@ -102,5 +112,17 @@ export async function checkHullLamps(page,output,landscape){
   review.actions.draw(40000);review.actions.sync()
  })
  await page.screenshot({path:output+'/player-lamps-'+(landscape?'landscape':'portrait')+'.png'})
+ if(landscape){
+  await page.evaluate(()=>{const r=window.campaignReview;r.reset(2);r.actions.draw(40000);r.actions.sync()})
+  for(let frame=0;frame<12;frame++){
+   await page.evaluate(frame=>{
+    const r=window.campaignReview,s=r.ships,nodes=[...s.hulls.values()].filter(n=>n.group.visible)
+    s.render({width:s.width,height:s.height,dpr:s.density,lighting:r.background.getShipLighting()})
+    for(const n of nodes){n.group.visible=true;n.used=s.frame}
+    s.lamps.begin(frame*.22,s.height,s.density,false);s.present()
+   },frame)
+   await page.screenshot({path:output+'/blink-'+String(frame).padStart(2,'0')+'.png'})
+  }
+ }
  console.log('Hull lamps: fitted ships, all-stage paired draw budgets, bounded buffers, stable clock and Devil exclusion verified',landscape?'landscape':'portrait')
 }
