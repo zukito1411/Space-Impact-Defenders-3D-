@@ -1,3 +1,4 @@
+import { drawDestructionEffects } from './destructionEffects'
 import { EnemyTactics } from './enemyTactics'
 import { WorldStories } from './worldStories'
 import { isRaid2DMech } from './mechArtwork'
@@ -1859,6 +1860,7 @@ export function GradiusRaid({
     if (carrierActive || phaseRef.current!=='playing' && phaseRef.current!=='paused') missileSmoke.clear()
     else missileSmoke.update(time,phaseRef.current==='paused',sceneryRunTokenRef.current,
       shotsRef.current,guestLocalShotsRef.current,cssWidth,cssHeight,visualScale)
+    const destructionEffects=scenePresentation.prepareDestructionEffects(time,phaseRef.current,cssWidth,cssHeight,reducedMotion,carrierActive)
     const gpuForegroundDrawn = pixiBackground?.renderForeground({
       width: cssWidth,
       height: cssHeight,
@@ -1880,6 +1882,7 @@ export function GradiusRaid({
       shots: carrierActive ? [] : shotsRef.current,
       guestShots: carrierActive ? [] : guestLocalShotsRef.current,
       missileSmoke: missileSmoke.puffs,
+      destructionEffects,
       enemyShots: carrierActive ? [] : enemyShotsRef.current,
       sparks: carrierActive ? [] : sparksRef.current,
       ripples: carrierActive ? [] : ripplesRef.current,
@@ -2791,6 +2794,7 @@ export function GradiusRaid({
     const sameScreenIdentityAura = sameScreenCoopRef.current
     const sunlight = pixiBackground?.getOrbitalSunlight() ?? 0
     scenePresentation.draw(ctx, time, phaseRef.current, toX, toY, cssWidth, reducedMotion, gfxQuality === 'low')
+    if(!gpuForegroundDrawn)drawDestructionEffects(ctx,destructionEffects,cssWidth,cssHeight)
     if (ownShipRef && !hideOwnShipForBarrage) drawRaidPlayer(ctx, ownShipRef, phaseRef.current, toX, toY, cssWidth, time, PLAYER_COLOR, getCachedEquippedCosmetics(ownShipRef.ship.key), getRaidPlayerVisualShipKey(ownShipRef, progressRef.current), sameScreenIdentityAura ? PLAYER_COLOR : null, journeyRim, pixiBackground?.getEclipseAt(toX(ownShipRef.x), toY(ownShipRef.y)), sunlight, reducedMotion, landscapeRef.current)
     if (allyShipRef && !hideAllyShipForBarrage) drawRaidPlayer(ctx, allyShipRef, phaseRef.current, toX, toY, cssWidth, time, ALLY_PLAYER_COLOR, getCachedEquippedCosmetics(allyShipRef.ship.key), getRaidPlayerVisualShipKey(allyShipRef, progressRef.current), sameScreenIdentityAura ? ALLY_PLAYER_COLOR : null, journeyRim, pixiBackground?.getEclipseAt(toX(allyShipRef.x), toY(allyShipRef.y)), sunlight, reducedMotion, landscapeRef.current)
     if (devilAssistShipRef && !hideDevilAssistForBarrage) drawRaidPlayer(ctx, devilAssistShipRef, phaseRef.current, toX, toY, cssWidth, time, '#facc15', getCachedEquippedCosmetics(devilAssistShipRef.ship.key), getRaidPlayerVisualShipKey(devilAssistShipRef, progressRef.current), null, journeyRim, pixiBackground?.getEclipseAt(toX(devilAssistShipRef.x), toY(devilAssistShipRef.y)), sunlight, reducedMotion, landscapeRef.current)

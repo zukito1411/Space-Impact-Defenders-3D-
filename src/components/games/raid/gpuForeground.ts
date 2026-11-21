@@ -1,3 +1,4 @@
+import { DESTRUCTION_FX_CAPACITY, destructionParticleTexture, type DestructionParticle } from './destructionEffects'
 import { missileVisualScale } from './missilePresentation'
 import { MISSILE_SMOKE_CAPACITY } from './missileSmoke'
 import type { MissileSmokePuff } from './missileSmoke'
@@ -41,6 +42,7 @@ export type RaidGpuForegroundFrame = {
   asteroidApproachProgress?: number
   enemies: readonly Enemy[]
   missileSmoke?: readonly MissileSmokePuff[]
+  destructionEffects?: readonly DestructionParticle[]
   shots: readonly Shot[]
   guestShots: readonly Shot[]
   enemyShots: readonly Shot[]
@@ -112,6 +114,9 @@ type ProjectileSprite = Sprite & { bornAt: number; originX: number; originY: num
  */
 export class RaidGpuForeground {
   readonly root = new Container()
+  private readonly destructionLayer = new Container()
+  private readonly destructionNodes: Sprite[] = []
+  private destructionCount = 0
   private readonly smokeLayer = new Container()
   private readonly smokeNodes: Sprite[] = []
   private smokeCount = 0
@@ -147,7 +152,7 @@ export class RaidGpuForeground {
   constructor() {
     this.particles.blendMode = 'add'
     this.projectileLayer.blendMode = 'add'
-    this.root.addChild(this.smokeLayer, this.particles, this.glowLayer, this.alienLayer, this.bossBodies.root, this.impacts, this.solidProjectileLayer, this.projectileLayer)
+    this.root.addChild(this.smokeLayer, this.particles, this.glowLayer, this.alienLayer, this.bossBodies.root, this.destructionLayer, this.impacts, this.solidProjectileLayer, this.projectileLayer)
   }
 
   private makeProjectileSprite(): ProjectileSprite {
@@ -203,6 +208,11 @@ export class RaidGpuForeground {
       const node=new Sprite(Texture.WHITE)
       node.anchor.set(.5);node.visible=false;node.eventMode='none'
       this.smokeLayer.addChild(node);this.smokeNodes.push(node)
+    }
+    for(let index=0;index<DESTRUCTION_FX_CAPACITY;index++) {
+      const node=new Sprite(Texture.WHITE)
+      node.anchor.set(.5);node.visible=false;node.eventMode='none'
+      this.destructionLayer.addChild(node);this.destructionNodes.push(node)
     }
     // Frame textures use the same two underlying sources; upload each once.
     await renderer.prepare.upload([...getRaidCombatRootTextures(), ...Array.from(this.textures.values(), (record) => record.texture)])
@@ -482,6 +492,23 @@ export class RaidGpuForeground {
     }
   }
 
+  private updateDestruction(frame:RaidGpuForegroundFrame) {
+    let count=0
+    for(const p of frame.destructionEffects ?? []) {
+      if(p.alpha<=.002 || !raidObjectInView(frame.bounds,p.x,p.y,p.width*50/frame.width,p.height*50/frame.height))continue
+      const texture=destructionParticleTexture(p)
+      if(!texture)continue
+      const node=this.destructionNodes[count++]
+      if(!node)break
+      node.texture=texture;node.visible=true;node.alpha=p.alpha
+      node.blendMode=p.kind==='smoke'?'normal':'add'
+      node.position.set(p.x*frame.width/100,p.y*frame.height/100)
+      node.width=p.width;node.height=p.height;node.rotation=p.rotation
+    }
+    this.destructionCount=Math.min(count,this.destructionNodes.length)
+    for(let i=this.destructionCount;i<this.destructionNodes.length;i++)this.destructionNodes[i].visible=false
+  }
+
   private updateSmoke(frame: RaidGpuForegroundFrame) {
     const texture=getRaidCombatFrame(COMBAT_TILE.smoke)
     let count=0
@@ -618,7 +645,7 @@ export class RaidGpuForeground {
   getStats() {
     const boss = this.bossBodies.getStats()
     return { enemies: this.enemyNodes.size, shots: this.shotNodes.size,
-      textures: this.textures.size + getRaidCombatRootTextures().length, particles: this.particleCount + this.impactCount + this.smokeCount,
+      textures: this.textures.size + getRaidCombatRootTextures().length, particles: this.particleCount + this.impactCount + this.smokeCount + this.destructionCount,
       bossFrames: boss.cachedFrames, bossTextureMB: boss.estimatedTextureMB }
   }
 
@@ -627,6 +654,7 @@ export class RaidGpuForeground {
     try {
       this.bossBodies.update(frame)
       this.updateSmoke(frame)
+      this.updateDestruction(frame)
       this.updateParticles(frame)
       this.updateAliens(frame)
       this.updateShots(frame)
@@ -652,6 +680,7 @@ export class RaidGpuForeground {
     this.inactiveEnemyNodes.length = 0
     this.inactiveShotNodes.length = 0
     this.smokeNodes.length = 0
+    this.destructionNodes.length = 0
     this.particleNodes.length = 0
     this.impactNodes.length = 0
     this.tintCache.clear()

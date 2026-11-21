@@ -1,4 +1,4 @@
-import { BOSS_FX, COMBAT_TILE, drawBossFx, drawRaidCombatTexture, getRaidCombatFrame } from './combatArt'
+import { BOSS_FX, drawBossFx } from './combatArt'
 import { COMMAND_PHASE_HP } from './commandBoss'
 import type { BossImpactKind, Enemy, Shot } from './types'
 
@@ -67,53 +67,6 @@ export function drawBossImpact(ctx: CanvasRenderingContext2D, enemy: Enemy, x: n
   }
   drawBossFx(ctx, core ? BOSS_FX.precision : BOSS_FX.impact, atX, atY,
     diameter, diameter, .93 * (1 - progress) ** 1.3, impact.shotId * .37, !heavy)
-}
-
-export function drawHullDamage(ctx: CanvasRenderingContext2D, enemy: Enemy, x: number, y: number,
-  size: number, rotation: number, scale: number, reducedMotion: boolean, opacity = 1) {
-  if (enemy.bossArtStage === undefined) return
-  const defeated = enemy.hp <= 0
-  const ratio = enemy.hp / Math.max(1, enemy.maxHp)
-  if (!defeated && ratio > COMMAND_PHASE_HP.pressure) return
-  const critical = ratio <= COMMAND_PHASE_HP.critical
-  const clock = enemy.bossEncounterAge ?? 0
-  const hydra = enemy.bossArtStage === 11
-  const points = hullDamage(enemy)
-  const count = critical ? points.length : 1
-  ctx.save()
-  ctx.translate(x, y)
-  ctx.rotate(rotation)
-  ctx.scale(size * scale, size * scale)
-  if (defeated) {
-    for (let i = hydra ? 0 : 2; i < points.length; i++) {
-      const [px, py] = points[i]
-      drawBossFx(ctx, BOSS_FX.char, px, py, .11, .09, opacity * .78)
-    }
-    ctx.restore()
-    return
-  }
-  for (let i = 0; i < count; i++) {
-    const [px, py] = points[i]
-    const cycle = (clock * (hydra ? 1.25 : 1.8) + (hydra ? i / 3 : enemy.id * .139 + i * .29)) % 1
-    const burn = reducedMotion ? .35 : Math.max(.08, 1 - cycle * 2)
-    drawBossFx(ctx, BOSS_FX.damage, px, py, critical ? .17 : .135, .125, .4 + burn * .55, i * .78 - .35)
-  }
-  if (critical) {
-    drawBossFx(ctx, BOSS_FX.precision, 0, .09, .095, .095, .57, 0, true)
-    // A single cached smoke sprite makes critical damage readable without particle spam.
-    const smoke = !reducedMotion ? getRaidCombatFrame(COMBAT_TILE.smoke) : undefined
-    if (smoke) {
-      const [px, py] = points[0]
-      const drift = (clock * .55 + enemy.id * .17) % 1
-      drawRaidCombatTexture(ctx, smoke, px, py - .08 - drift * .14, .16 + drift * .05, .18 + drift * .06, 0, false, (1 - drift) * .32 * opacity)
-    }
-  }
-  if (!hydra && !reducedMotion) {
-    const [px, py] = points[2]
-    const pulse = (clock * 3.2 + enemy.id * .17) % 1
-    if (pulse < .58) drawBossFx(ctx, BOSS_FX.muzzle, px, py + .036, .075, .125, .65 * (1 - pulse), 0, true)
-  }
-  ctx.restore()
 }
 
 export function getBossBreakupPoint(enemy: Enemy, index: number): HullPoint {

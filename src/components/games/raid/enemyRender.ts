@@ -4,7 +4,6 @@ import { fighterHullHeading } from './fighterHulls'
 import { drawLiveHull } from './liveHullBridge'
 import { BOSS_FX, COMBAT_TILE, drawBossFx, drawRaidCombatTexture, getRaidCombatFrame } from './combatArt'
 import { getRaidFighter, getRaidFighterCharge } from './stageEncounters'
-import { drawHullDamage } from './bossDamageFx'
 import { drawCommandBossEnergy, drawCommandBossHealthBar, drawCommandBossTelegraph, prefersRaidReducedMotion } from './commandBossRender'
 import { drawGenericBossShip } from './genericBossRender'
 import { getEnemyCanvasSize } from './assets'
@@ -159,7 +158,6 @@ export function drawRaidEnemy(
     const recoil = !reducedMotion && enemy.bossImpact?.kind === 'heavy' ? (enemy.bossImpactTime ?? 0) * size * .12 : 0
     const drift = enemy.hp <= 0 && !reducedMotion ? (1 - defeatFade) * (enemy.id % 2 ? -.18 : .18) : 0
     drawGenericBossShip(ctx, enemy, x, y - recoil, size, rotation + drift, floatScale, defeatFade, landscape, enemyBank)
-    drawHullDamage(ctx, enemy, x, y - recoil, size, rotation + drift, floatScale, reducedMotion, defeatFade)
     drawCommandBossEnergy(ctx, enemy, toX, toY, size)
     ctx.save()
     ctx.translate(x, y)

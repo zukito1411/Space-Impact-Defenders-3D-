@@ -1,3 +1,4 @@
+import { DestructionEffects } from './destructionEffects'
 import { AdaptiveScore, SampleScene, warmImmersionAudio } from '../presentationAudio'
 import type { ImmersionClip } from '../presentationAssets'
 import { getGameSoundEnabled } from '../sound'
@@ -19,6 +20,7 @@ type Burst = DestructionPresentationEvent & { at: number }
 
 /** Audio and cosmetic timelines share authoritative events, never combat decisions. */
 export class RaidScenePresentation {
+  private readonly destructionEffects = new DestructionEffects()
   private sounds = new SampleScene()
   private score = new AdaptiveScore()
   private sequence = 0
@@ -138,11 +140,29 @@ export class RaidScenePresentation {
     }
   }
 
-  draw(_ctx: CanvasRenderingContext2D, time: number, phase: GamePhase, toX: (n: number) => number,
-    toY: (n: number) => number, width: number, reduced: boolean, _low: boolean) {
+  prepareDestructionEffects(time:number,phase:GamePhase,width:number,height:number,reduced:boolean,carrier:boolean) {
     const delta = this.previous ? Math.max(0, Math.min(50, time - this.previous)) : 0
     this.previous = time
     if (phase !== 'paused' && !document.hidden) this.clock += delta
+    this.destructionEffects.clear()
+    if(carrier || phase!=='playing' && phase!=='paused') {
+      this.clearDestruction()
+      return this.destructionEffects.particles
+    }
+    for(const tier of ['capital','armored','fighter'] as const)for(let i=this.bursts.length-1;i>=0;i--){
+      const burst=this.bursts[i]
+      if(burst.tier!==tier)continue
+      const seconds=(this.clock-burst.at)/1000
+      if(seconds>6 || seconds<0)continue
+      const shape={isBoss:tier==='capital',isMiniBoss:Boolean(burst.elite),variant:burst.variant ?? 0,bossKind:burst.bossKind ?? null} as Enemy
+      const size=getEnemyCanvasSize(shape,width,this.landscape)*(shape.isBoss?1.04:!shape.isMiniBoss && width>1100?.96:1)
+      this.destructionEffects.add(burst,seconds,size,width,height,reduced)
+    }
+    return this.destructionEffects.particles
+  }
+
+  draw(_ctx: CanvasRenderingContext2D, _time: number, _phase: GamePhase, toX: (n: number) => number,
+    toY: (n: number) => number, width: number, reduced: boolean, _low: boolean) {
     let write=0
     for(const burst of this.bursts){
       const lifetime=burst.tier==='capital'?6:burst.tier==='armored'?3.4:2.2
@@ -165,11 +185,12 @@ export class RaidScenePresentation {
     }
   }
 
-  clearDestruction(){this.bursts.length=0;this.previous=0}
+  clearDestruction(){this.bursts.length=0;this.previous=0;this.destructionEffects.clear()}
 
   stop() {
     this.sounds.stop(); this.score.stop(); this.bursts.length = 0; this.stream.length = 0
     this.defeated.clear(); this.feedback.clear(); this.sequence = 0; this.received = 0
+    this.destructionEffects.clear()
     this.clock = 0; this.previous = 0; this.lastPhase = 'select'; clearPlayerConditions()
   }
 }
