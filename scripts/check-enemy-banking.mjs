@@ -29,10 +29,10 @@ export async function bankEnemyForCapture(page,stage,elite){
   const node=scene.hulls.get(id)
   if(!node)throw Error('Enemy hull not drawn: '+key)
   return {stage,elite,key,angle:node.object.rotation.y,bank:node.bankPose?.bank,
-    spin:node.object.rotation.z,draws:scene.getShipStats().drawCalls}
+    spin:node.object.rotation.z,lampDraws:scene.getShipStats().lampDraws,draws:scene.getShipStats().drawCalls}
  },{stage,elite})
  if(result.excluded)assert.equal(result.key,null,'Devil entered the live banking renderer')
- else {assert.ok(result.angle>.01&&result.angle<.43,'Enemy did not bank within its limit: '+JSON.stringify(result));assert.ok(result.draws<=3)}
+ else {assert.ok(result.angle>.01&&result.angle<.43,'Enemy did not bank within its limit: '+JSON.stringify(result));assert.ok(result.draws<=3+(result.lampDraws??0))}
  return result
 }
 

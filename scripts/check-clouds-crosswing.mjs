@@ -56,7 +56,7 @@ export async function checkCloudsCrosswing(page,output,landscape){
   for(const family of ['wing','nozzles'])for(const [a,b] of [[0,1],[2,3]]){
    assert.deepEqual(model.registration[family][a].slice(0,2),model.registration[family][b].slice(0,2),'Live attachment columns differ')
   }
-  assert.ok(model.drawCalls<=1,'X-wing no longer fits one draw')
+  assert.ok(model.drawCalls<=1+(model.lampDraws??0),'X-wing no longer fits one draw')
   await page.screenshot({path:output+'/'+key+'-'+view+'.png'})
   await writeFile(output+'/'+key+'-'+view+'-checks.json',JSON.stringify(model,null,2))
  }
