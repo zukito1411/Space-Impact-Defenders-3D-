@@ -20,7 +20,7 @@ parser.add_argument('keys',nargs='*')
 parser.add_argument('--review-dir',type=Path)
 args = parser.parse_args(sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else [])
 for key in args.keys or ('xwing','xwingElite'):
-    version = 10 if key in ('fast','fastElite','gatling','gatlingElite') else 9
+    version = 11 if key in ('gatling','gatlingElite') else 10 if key in ('fast','fastElite') else 9
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.gltf(filepath=str(ROOT / 'public/assets/ships/models/v1' / (key+'.glb')))
     scene = bpy.context.scene

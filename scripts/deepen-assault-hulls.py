@@ -22,6 +22,8 @@ def deepen(key):
     bpy.ops.wm.open_mainfile(filepath=str(path))
     scene = bpy.context.scene
     if scene.get('assault_hull_depth_revision',0) >= 1:
+        if key.startswith('gatling'):
+            refine_crimson(key)
         return
     heavy = key.startswith('gatling')
     hull = scene.objects['Hull']
@@ -140,6 +142,92 @@ def deepen(key):
     bpy.context.preferences.filepaths.save_version=0
     bpy.ops.wm.save_as_mainfile(filepath=str(path),compress=True)
     print('DEEPENED_HULL',key,flush=True)
+    if heavy:
+        refine_crimson(key)
+
+
+def refine_crimson(key):
+    """A recessed three-bore receiver and structural armor for the heavy gunship."""
+    path=ROOT/'art/3d/flight-hulls'/f'{key}.blend'
+    bpy.ops.wm.open_mainfile(filepath=str(path))
+    scene=bpy.context.scene
+    if scene.get('crimson_gunship_revision',0)>=1:return
+    paint=scene.objects['Hull'].data.materials[0]
+    armor=bpy.data.materials.get('Raised shoulder armor • original paint') or paint
+    steel=bpy.data.materials.get('Machined gunmetal')
+    silver=bpy.data.materials.get('Turned steel lip')
+    shell=scene.objects['Hull'];uv=shell.data.uv_layers['Side elevation']
+    samples=np.array([[shell.data.vertices[l.vertex_index].co.y,shell.data.vertices[l.vertex_index].co.z,1] for l in shell.data.loops])
+    # The saved UVs predate the sculpt: use their complete mapping directly.
+    projection=np.linalg.lstsq(samples,np.array([v.uv[:] for v in uv.data]),rcond=None)[0]
+
+    def skin(obj):
+        top=obj.data.uv_layers.get('Reference paint') or obj.data.uv_layers.new(name='Reference paint')
+        side=obj.data.uv_layers.get('Side elevation') or obj.data.uv_layers.new(name='Side elevation')
+        for loop in obj.data.loops:
+            p=obj.data.vertices[loop.vertex_index].co
+            top.data[loop.index].uv=((p.x+144.5)/288,(p.y+143.5)/288)
+            side.data[loop.index].uv=tuple(np.array([p.y,-9+13*max(0,min(1,(p.z+30)/65)),1])@projection)
+        obj.data.uv_layers.active=top
+
+    def mesh(name,vertices,faces,material,bevel=.7):
+        data=bpy.data.meshes.new(name);data.from_pydata(vertices,[],faces);data.update()
+        obj=bpy.data.objects.new(name,data);scene.collection.objects.link(obj);data.materials.append(material)
+        bm=bmesh.new();bm.from_mesh(data);bmesh.ops.recalc_face_normals(bm,faces=bm.faces);bm.to_mesh(data);bm.free()
+        skin(obj)
+        if bevel:
+            mod=obj.modifiers.new('Armor edge bevel','BEVEL');mod.width=bevel;mod.segments=2
+        return obj
+
+    vertices=[]
+    for y,w,top,bottom in ((38,19,31,-5),(58,18,28,-5),(70,16,24,-2)):
+        vertices += [(-w+3,y,top),(w-3,y,top),(w,y,top-4),(w,y,bottom),(-w,y,bottom),(-w,y,top-4)]
+    faces=[tuple(reversed(range(6))),tuple(range(12,18))]
+    for ring in range(2):
+        for i in range(6):faces.append((ring*6+i,ring*6+(i+1)%6,(ring+1)*6+(i+1)%6,(ring+1)*6+i))
+    receiver=mesh('Crimson • three-bore armored receiver',vertices,faces,armor,.8)
+    # Actual bores expose the existing barrels, rather than painting holes on a box.
+    for x,z,r in ((-10,8,5.7),(0,12,8.9),(10,8,5.7)):
+        bpy.ops.mesh.primitive_cylinder_add(vertices=32,radius=r,depth=44,location=(x,56,z),rotation=(math.pi/2,0,0))
+        cutter=bpy.context.object
+        bpy.context.view_layer.objects.active=receiver
+        mod=receiver.modifiers.new('Recessed barrel bore','BOOLEAN');mod.operation='DIFFERENCE';mod.solver='EXACT';mod.object=cutter
+        bpy.ops.object.modifier_apply(modifier=mod.name)
+        bpy.data.objects.remove(cutter,do_unlink=True)
+    skin(receiver)
+    # Compact recoil guides flank the canopy. The gun muzzles remain untouched.
+    for sign in (-1,1):
+        bpy.ops.mesh.primitive_cylinder_add(vertices=16,radius=1.7,depth=32,
+            location=(sign*13,46,30),rotation=(math.pi/2,0,0))
+        rail=bpy.context.object;rail.name=f'Crimson • recoil guide {sign:+}';rail.data.materials.append(steel)
+        for y in (34,41,48,55):
+            bpy.ops.mesh.primitive_torus_add(major_segments=16,minor_segments=6,
+                major_radius=2,minor_radius=.4,location=(sign*13,y,30),rotation=(math.pi/2,0,0))
+            ring=bpy.context.object;ring.name='Crimson • recoil sleeve';ring.data.materials.append(silver)
+        # Raised wing-root gussets are inside the original swept wing outline.
+        top=[(sign*28,-20,27),(sign*63,-42,15),(sign*53,-56,13),(sign*27,-43,27)]
+        verts=top+[(x,y,z-3.2) for x,y,z in top]
+        mesh(f'Crimson • armored wing root {sign:+}',verts,[(0,1,2,3),(7,6,5,4),(0,4,5,1),(1,5,6,2),(2,6,7,3),(3,7,4,0)],armor,.7)
+        # An underbody cooling cassette with a genuinely recessed louver well.
+        verts=[(sign*16,-68,-18),(sign*29,-66,-18),(sign*30,-28,-19),(sign*17,-24,-19),
+               (sign*18,-63,-30),(sign*26,-62,-30),(sign*27,-31,-31),(sign*18,-28,-31)]
+        pod=mesh(f'Crimson • ventral cooling cassette {sign:+}',verts,
+            [(0,1,2,3),(7,6,5,4),(0,4,5,1),(1,5,6,2),(2,6,7,3),(3,7,4,0)],armor,.8)
+        bpy.ops.mesh.primitive_cube_add(size=1,location=(sign*22,-46,-31))
+        cutter=bpy.context.object;cutter.dimensions=(6.5,24,7)
+        bpy.ops.object.transform_apply(location=False,rotation=False,scale=True)
+        bpy.context.view_layer.objects.active=pod
+        mod=pod.modifiers.new('Recessed cooling well','BOOLEAN');mod.operation='DIFFERENCE';mod.solver='EXACT';mod.object=cutter
+        bpy.ops.object.modifier_apply(modifier=mod.name);bpy.data.objects.remove(cutter,do_unlink=True);skin(pod)
+        for y in (-56,-51,-46,-41,-36):
+            bpy.ops.mesh.primitive_cube_add(size=1,location=(sign*22,y,-28.7))
+            vane=bpy.context.object;vane.name='Crimson • cooling louver';vane.dimensions=(6.2,1.3,1.2)
+            bpy.ops.object.transform_apply(location=False,rotation=False,scale=True)
+            vane.data.materials.append(steel)
+    scene['crimson_gunship_revision']=1
+    bpy.context.preferences.filepaths.save_version=0
+    bpy.ops.wm.save_as_mainfile(filepath=str(path),compress=True)
+    print('REFINED_CRIMSON',key,flush=True)
 
 if __name__ == '__main__':
     for key in KEYS:

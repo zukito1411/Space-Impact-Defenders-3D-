@@ -26,7 +26,7 @@ const entries: Array<[string, EnemyHullSpec]> = [
     assetPath: FIGHTER_HULL_ART[key], profile: 'fighter', resolution: 144, family: 'normal', hullDesign:key,
   }]),
   ...eliteKeys.map((key, index): [string, EnemyHullSpec] => [key, {
-    assetPath: `assets/aliens/elite_${index}.png`, profile: 'organic', resolution: 160, family: 'elite',
+    assetPath: `assets/aliens/elite_${index}.png`, profile: 'organic', resolution: 160, family: 'elite', hullDesign:key,
   }]),
   ...CAMPAIGN_BOSS_ART.map((art): [string, EnemyHullSpec] => [bossKey(art.stage), {
     assetPath: art.assetPath, profile: 'capital', resolution: 160, family: 'boss', bossStage: art.stage,

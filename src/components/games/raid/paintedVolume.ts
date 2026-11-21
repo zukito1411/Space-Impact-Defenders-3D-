@@ -51,13 +51,18 @@ export async function paintedVolume(source: CanvasImageSource, width: number, he
   if (index) geometry.setIndex(new BufferAttribute(index, 1))
   const colors = new Float32Array(position.length).fill(1)
   const walls = new Float32Array(position.length/3)
-  const wallColor = new Color(0xa9b6c5), wallVertex = index ? index[sideStart] : sideStart
+  const wallColor = new Color(hullDesign?0xe8ecf2:0xa9b6c5), wallVertex = index ? index[sideStart] : sideStart
   for (let i = wallVertex; i < walls.length; i++) {
     colors[i*3] = wallColor.r; colors[i*3+1] = wallColor.g; colors[i*3+2] = wallColor.b
     walls[i] = 1
   }
   geometry.setAttribute('color', new Float32BufferAttribute(colors, 3))
   geometry.setAttribute('hullWall', new Float32BufferAttribute(walls, 1))
+  if(hullDesign){
+    const lower=new Float32Array(position.length/3)
+    lower.fill(1,deckVertexCount,deckVertexCount*2)
+    geometry.setAttribute('hullVentral',new Float32BufferAttribute(lower,1))
+  }
   geometry.computeVertexNormals()
   geometry.userData.shellVertexCount=position.length/3
   geometry.userData.deckVertexCount=deckVertexCount

@@ -1,6 +1,6 @@
 import { BOSS_KEEL_DESIGNS } from './bossKeelDesigns'
 import { BOSS_HULL_DESIGNS, bossDeckElevation, bossKeelElevation } from './bossHullDesigns'
-import { MOB_HULL_DESIGNS,mobHullElevation } from './mobHullDesigns'
+import { MOB_HULL_DESIGNS,mobHullElevation,mobHullKeelElevation,mobHullPaintUV } from './mobHullDesigns'
 
 type Profile = 'art' | 'fighter' | 'organic' | 'capital'
 type VolumeInput = { pixels: Uint8ClampedArray; resolution: number; aspectX: number; aspectY: number; profile?: Profile; bossStage?: number; hullDesign?:string }
@@ -14,6 +14,20 @@ export function buildVolumeGeometry({ pixels, resolution, aspectX, aspectY, prof
   const mob=hullDesign?MOB_HULL_DESIGNS[hullDesign]:undefined
   const edge = resolution - 1
   const alpha = (x: number, y: number) => pixels[(y * resolution + x) * 4 + 3] / 255 - .4
+  const wantedPaintU=mob?.armorPaint?.[0]??.5,wantedPaintV=mob?.armorPaint?.[1]??.4
+  let paintU=wantedPaintU,paintV=wantedPaintV,bestPaint=Infinity
+  if(mob)for(let y=0;y<resolution;y++)for(let x=0;x<resolution;x++) {
+    if(alpha(x,y)<.5)continue
+    const d=(x/edge-wantedPaintU)**2+(y/edge-wantedPaintV)**2
+    if(d<bestPaint){bestPaint=d;paintU=x/edge;paintV=y/edge}
+  }
+  const armorUV=(u:number,v:number):readonly[number,number]=>{
+    for(let step=0;step<=12;step++){
+      const t=step/12,a=Math.max(0,Math.min(1,u+(paintU-u)*t)),b=Math.max(0,Math.min(1,v+(paintV-v)*t))
+      if(alpha(Math.round(a*edge),Math.round(b*edge))>.45)return[a,1-b]
+    }
+    return[paintU,1-paintV]
+  }
   const distance = new Float32Array(resolution * resolution)
   for (let y = 0; y < resolution; y++) for (let x = 0; x < resolution; x++) {
     distance[y * resolution + x] = alpha(x, y) > 0 ? Math.min(x, y, edge - x, edge - y, resolution) : 0
@@ -42,10 +56,11 @@ export function buildVolumeGeometry({ pixels, resolution, aspectX, aspectY, prof
     const spine = Math.max(0, 1 - Math.abs(u - .5) / .19)
     const canopy = Math.max(0, 1 - Math.abs(u - .5) / .10)
       * Math.max(0, 1 - Math.abs(v - .4) / .18)
+    const limbRadius=mob?.organic ? Math.min(.075,depth/edge*Math.min(aspectX,aspectY)*.9) : 0
     // Broad armor planes, narrow wing edges and a distinct center spine.
     // Painted highlights do not become bumps in the mesh.
     const height = boss ? bossDeckElevation(boss,u,v,bevel)
-      : mob ? mobHullElevation(mob,u,v,bevel)
+      : mob ? Math.max(mobHullElevation(mob,u,v,bevel),.006+limbRadius)
       : profile === 'fighter' ? .006 + bevel*(.017 + .035*spine + .022*canopy)
       : profile === 'capital' ? .008 + bevel*(.035 + .055*spine + .018*canopy)
       : profile === 'organic' ? .006 + bevel*(.025 + .045*spine)
@@ -57,9 +72,9 @@ export function buildVolumeGeometry({ pixels, resolution, aspectX, aspectY, prof
     // A rolled lower shoulder pulls inward while the painted deck and its
     // contour stay at their exact original coordinates.
     const gx=sample(x0+1,y0)-sample(x0-1,y0),gy=sample(x0,y0+1)-sample(x0,y0-1)
-    const length=Math.hypot(gx,gy)||1,inset=ventral?.0055*(1-bevel)**2:0
+    const length=Math.hypot(gx,gy)||1,inset=ventral ? .0055*(1-bevel)**2 : mob ? .006*(1-bevel)**2 : 0
     lowerXY.push((u-.5+gx/length*inset)*aspectX,(.5-v-gy/length*inset)*aspectY)
-    keel.push(boss ? bossKeelElevation(boss,u,v,bevel,height) : mob ? -.006-bevel*(.012+height*.36) : -height*.58)
+    keel.push(boss ? bossKeelElevation(boss,u,v,bevel,height) : mob ? Math.min(mobHullKeelElevation(mob,u,v,bevel),-.006-limbRadius) : -height*.58)
     return id
   }
   const face = (points: Point[]) => {
@@ -89,7 +104,8 @@ export function buildVolumeGeometry({ pixels, resolution, aspectX, aspectY, prof
   const topCount = indices.length, count = position.length/3
   for (let i = 0; i < count; i++) {
     position.push(lowerXY[i*2],lowerXY[i*2+1],keel[i])
-    uv.push(uv[i*2],uv[i*2+1])
+    if(mob){const paint=mobHullPaintUV(mob,uv[i*2],1-uv[i*2+1]);uv.push(...armorUV(paint[0],paint[1]))}
+    else uv.push(uv[i*2],uv[i*2+1])
   }
   for (let i = 0; i < topCount; i += 3) indices.push(indices[i]+count,indices[i+2]+count,indices[i+1]+count)
   const sideStart = indices.length
@@ -101,12 +117,23 @@ export function buildVolumeGeometry({ pixels, resolution, aspectX, aspectY, prof
       for(let j=0;j<4;j++) {
         position.push(...points[j])
         const id=j===0||j===3?a:b
-        uv.push(uv[id*2],uv[id*2+1])
+        if(mob){
+          const t=Math.max(0,Math.min(1,(points[j][2]+.006)/.012))
+          const paint=mobHullPaintUV(mob,uv[id*2],1-uv[id*2+1],t)
+          uv.push(...armorUV(paint[0],paint[1]))
+        }else uv.push(uv[id*2],uv[id*2+1])
       }
       indices.push(start,start+1,start+2,start,start+2,start+3)
     }
     const point=(id:number)=>position.slice(id*3,id*3+3)
-    if(!ventral)quad([point(a),point(b),point(b+count),point(a+count)])
+    if(mob){
+      const shoulder=(id:number,t:number,z:number)=>[
+        position[id*3]*(1-t)+position[(id+count)*3]*t,
+        position[id*3+1]*(1-t)+position[(id+count)*3+1]*t,z]
+      quad([point(a),point(b),shoulder(b,.3,.002),shoulder(a,.3,.002)])
+      quad([shoulder(a,.3,.002),shoulder(b,.3,.002),shoulder(b,.7,-.002),shoulder(a,.7,-.002)])
+      quad([shoulder(a,.7,-.002),shoulder(b,.7,-.002),point(b+count),point(a+count)])
+    }else if(!ventral)quad([point(a),point(b),point(b+count),point(a+count)])
     else {
       const at=(id:number,z:number)=>[position[id*3],position[id*3+1],z]
       quad([point(a),point(b),at(b,0),at(a,0)])
