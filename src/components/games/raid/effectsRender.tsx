@@ -1,5 +1,4 @@
-import { bossChargeKind, bossChargeLabel, bossChargeProgress } from './bossWarnings'
-import type { LanguageCode } from '../../../i18n'
+import { bossChargeKind, bossChargeProgress } from './bossWarnings'
 import { BOSS_FX, drawBossFx, drawBossFxLane, COMBAT_TILE, drawRaidCombatTexture, getRaidCombatFrame, getRaidExplosionFrame } from './combatArt'
 import { impactAlpha, impactFrameProgress } from './combatFeel'
 import { getCanvasSpriteDimensions, RAID_DERELICT_WRECK_FILTER, RAID_SPIEGEL_SHADOW_CLONE_FILTER, RAID_SPIEGEL_SHADOW_CLONE_IMPACT_STOPS, drawCanvasImageContain, drawCanvasSpriteContain, getDerelictWreckCanvasSprite, getDerelictWreckVariantIndex, getGodGundamBarrageCanvasSprite, getRaidOtherCanvasSprite, getRaidSideShipCanvasSprite, getShipCanvasSprite } from './assets'
@@ -890,43 +889,13 @@ export function drawPowerUpCanvas(
   ctx.drawImage(sprite, x - drawSize / 2, y - drawSize / 2, drawSize, drawSize)
 }
 
-/** Compact, high-contrast boss attack cue, drawn on the existing FX canvas. */
-function drawBossChargeAlert(ctx: CanvasRenderingContext2D, width: number, height: number, progress: number, label: string) {
-  const scale = Math.max(.8,Math.min(width / 420, 1.25))
-  const barWidth = Math.min(width-24,240*scale)
-  const barHeight = Math.max(3, 5 * scale)
-  const x = width * .5 - barWidth * .5
-  const y = Math.min(height-20,Math.max(76,height*.125))
-  ctx.save()
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'bottom'
-  ctx.font = `bold ${Math.max(11, Math.round(14 * scale))}px sans-serif`
-  ctx.shadowColor = '#000'
-  ctx.shadowBlur = 5
-  ctx.fillStyle = 'rgba(8,12,24,.88)'
-  ctx.fillRect(x-8,y-26*scale,barWidth+16,barHeight+32*scale)
-  ctx.fillStyle = '#fff1f2'
-  ctx.fillText(label,width*.5,y-5*scale,barWidth)
-  ctx.shadowBlur = 0
-  ctx.fillStyle = 'rgba(8, 12, 24, .85)'
-  ctx.fillRect(x - 2, y - 2, barWidth + 4, barHeight + 4)
-  ctx.fillStyle = '#f87171'
-  ctx.fillRect(x, y, barWidth * clamp(progress, 0, 1), barHeight)
-  ctx.strokeStyle = '#fecaca'
-  ctx.lineWidth = 1
-  ctx.strokeRect(x, y, barWidth, barHeight)
-  ctx.restore()
-}
-
-/** One upright, attack-specific countdown; target boxes match direct-hit areas. */
-export function drawBossAttackAlert(ctx: CanvasRenderingContext2D,enemies: Enemy[],
-  width: number,height: number,landscape: boolean,language: LanguageCode) {
-  let urgent: Enemy | undefined
+/** In-world strike zones match direct-hit areas without covering the HUD. */
+export function drawBossAttackZones(ctx: CanvasRenderingContext2D,enemies: Enemy[],
+  width: number,height: number) {
   for (const enemy of enemies) {
     if (enemy.hp <= 0 || !enemy.isBoss || enemy.chargeTimer <= 0) continue
     const kind = bossChargeKind(enemy)
     if (kind !== 'final' && kind !== 'devil' && kind !== 'squid' && kind !== 'snake') continue
-    if (!urgent || enemy.chargeTimer < urgent.chargeTimer) urgent = enemy
     const strike = kind === 'squid' && enemy.chargePattern !== 'rotate'
     const bite = kind === 'snake' && enemy.chargePattern === 'cross'
     const burst = kind === 'devil' && enemy.chargePattern === 'cross'
@@ -942,17 +911,7 @@ export function drawBossAttackAlert(ctx: CanvasRenderingContext2D,enemies: Enemy
       ctx.restore()
     }
   }
-  if (!urgent) return
-  const kind = bossChargeKind(urgent)
-  const fallback = kind === 'final' ? FINAL_BOSS_BEAM_CHARGE_SECONDS
-    : kind === 'devil' ? getDevilBossChargeDuration(urgent.chargePattern,(urgent.beamVolleyLeft ?? 0)>0)
-    : kind === 'squid' ? urgent.chargePattern === 'rotate' ? .78 : .9
-    : urgent.chargePattern === 'horizontal' ? 1.18 : urgent.chargePattern === 'cross' || urgent.chargePattern === 'scatter' ? 1.08 : .95
-  ctx.save()
-  if (landscape) { ctx.translate(0,height); ctx.rotate(-Math.PI/2) }
-  drawBossChargeAlert(ctx,landscape ? height : width,landscape ? width : height,
-    bossChargeProgress(urgent,fallback),bossChargeLabel(urgent,language))
-  ctx.restore()
+
 }
 
 export function drawFinalChargeLines(
