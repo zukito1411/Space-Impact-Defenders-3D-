@@ -37,6 +37,18 @@ export function cloneDerelictWreck(wreck: DerelictWreck): DerelictWreck {
 }
 
 export function updateDerelictWreckMotion(wreck: DerelictWreck, dt: number, nowSeconds: number) {
+  if (wreck.entering) {
+    // Keep the approach outside the arena clamp. Clamping an unseen wreck to
+    // an interior boundary is precisely the visible teleport this avoids.
+    const arrivalY = 17 + clamp(wreck.height * .48,6,11)
+    wreck.x += wreck.vx * dt
+    wreck.y += wreck.vy * dt
+    if (wreck.y < arrivalY) return
+    wreck.y = arrivalY
+    wreck.vy = .35
+    wreck.entering = false
+    return
+  }
   wreck.x += wreck.vx * dt
   wreck.y += wreck.vy * dt
   wreck.vx += Math.sin(nowSeconds * 0.62 + wreck.phase) * dt * 0.18

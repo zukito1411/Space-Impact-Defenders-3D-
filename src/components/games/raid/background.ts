@@ -1,5 +1,7 @@
 // Register Pixi's optional upload system before creating either renderer consumer.
 import 'pixi.js/prepare'
+import { SpaceBackdrop } from './spaceBackdrop'
+import { AsteroidBelt } from './asteroidBelt'
 import { createShipLightingFrame, sampleShipLighting } from './shipLighting'
 import { SceneryHulls } from './sceneryHulls'
 import { createSpacePlacement, SPACE_DISTANCES } from './spaceWorld'
@@ -855,6 +857,7 @@ export class PixiRaidBackground {
   private orbitalStars: OrbitalStars | null = null
   private readonly globes: OrbitalGlobe[] = []
   private readonly sceneryRocks: OrbitalSceneryRock[] = []
+  private readonly asteroidBelt = new AsteroidBelt()
   private readonly combatRocks = new OrbitalCombatRocks()
   private orbitalBodiesReady = false
   private orbitalSkyReady = false
@@ -881,7 +884,7 @@ export class PixiRaidBackground {
   private readonly sceneryBloomSprites = [new Sprite(Texture.WHITE), new Sprite(Texture.WHITE)]
   private reducedMotion = false
   private readonly gpuForeground = new RaidGpuForeground()
-  private readonly baseGraphics = new Graphics()
+  private readonly backdrop = new SpaceBackdrop()
   private readonly nebulaGraphics = new Graphics()
   private readonly bossTintGraphics = new Graphics()
   private readonly ambientGlowGraphics = new Graphics()
@@ -924,6 +927,7 @@ export class PixiRaidBackground {
   private readonly finalBattleBackdropGraphics = new Graphics()
   private readonly finalBattleSprites = FINAL_BATTLE_FIGHTERS.map(() => new Sprite(Texture.WHITE))
   private readonly finalBattleGraphics = new Graphics()
+  private finalBattleEntered = -1
   private readonly finalBattleCruiserSprites = FINAL_BATTLE_CRUISERS.map(() => new Sprite(Texture.WHITE))
   private readonly explosionGraphics = new Graphics()
   private readonly assetTextures = new Map<PixiRaidAssetKey, Texture>()
@@ -976,7 +980,7 @@ export class PixiRaidBackground {
       app.stage.addChild(this.gpuForeground.root)
       app.stage.addChild(this.combatRocks.root)
       this.scene.addChild(this.skyScene)
-      this.skyScene.addChild(this.baseGraphics)
+      this.skyScene.addChild(this.backdrop.mesh)
       // Only nebula art inherits this gain; the original galaxies remain above it.
       this.nebulaScene.alpha = .66
       this.skyScene.addChild(this.nebulaScene)
@@ -1064,6 +1068,7 @@ export class PixiRaidBackground {
       this.orbitalCamera = new OrbitalCamera()
       this.orbitalStars = new OrbitalStars()
       this.skyScene.addChild(this.orbitalStars.mesh)
+      this.skyScene.addChild(this.asteroidBelt.mesh)
       for (const anchor of this.nebulaSprites) this.gasVolumes.push(new CosmicGasVolume(anchor))
       for (const anchor of this.galaxySprites) this.gasVolumes.push(new CosmicGasVolume(anchor, true))
       for (const anchor of [...this.planetSprites, ...this.atmosphereMoons]) this.globes.push(new OrbitalGlobe(anchor))
@@ -1090,6 +1095,8 @@ export class PixiRaidBackground {
       host.appendChild(canvas)
       await this.loadAssets()
       if (this.destroyed || this.app !== app) return false
+      this.backdrop.prepare(app.renderer)
+      this.asteroidBelt.prepare(app.renderer,this.assetTextures.get('asteroid') ?? Texture.WHITE)
       try { await this.sceneryHulls.prepare(app.renderer) }
       catch (error) {
         this.sceneryHulls.destroy()
@@ -1153,6 +1160,8 @@ export class PixiRaidBackground {
     this.combatRocks.destroy()
     this.sceneryHulls.destroy()
     this.sceneryShipKeys.clear()
+    this.backdrop.destroy()
+    this.asteroidBelt.destroy()
     this.orbitalStars?.destroy()
     this.projected.clear()
     this.gpuForeground.destroy()
@@ -1187,6 +1196,7 @@ export class PixiRaidBackground {
         this.wreckSeed = wreckRunSeed(frame.runToken ?? 0)
         this.journeyRun = frame.runToken ?? 0
         this.journeyStage = 0; this.journeyPreviousStage = 0; this.journeyArena = 0
+        this.finalBattleEntered = -1
       }
       if (frame.stageNumber !== undefined && frame.stageNumber !== this.journeyStage) {
         this.journeyPreviousStage = this.journeyStage
@@ -1241,7 +1251,7 @@ export class PixiRaidBackground {
 
       this.updateBaseGraphics(palette, width, height, quality, dpr)
       // The dark sky stays opaque beneath the translucent nebula layer.
-      this.baseGraphics.visible = true
+      this.backdrop.mesh.visible = true
 
       // Graphics.clear() followed by complex gradients and polygon generation
       // is expensive on Android WebView. Rebuild these layers at 25 Hz,
@@ -1343,6 +1353,8 @@ export class PixiRaidBackground {
         const surface = isWateryWorldTheme(groundTheme) ? 1 : isVolcanicWorldTheme(groundTheme) ? 2 : 0
         sampleShipLighting(this.shipLighting, this.orbitalCamera.sunDirection, this.cosmosRegion,
           surface, this.journey.enabled ? this.journey.worldAlpha : surface ? 1 : 0, celestialSeconds)
+        this.asteroidBelt.update(this.orbitalCamera,this.assetTextures.get('asteroid'),this.shipLighting,
+          frame.stageNumber ?? 1,frame.runToken ?? 0,space && this.journey.worldAlpha < .1,celestialSeconds)
         for (const volume of this.gasVolumes) volume.update(width, height, this.orbitalCamera, this.orbitalSkyReady)
       }
       this.updateSceneryBloom(stageTheme, isLow, isMedium)
@@ -1509,24 +1521,9 @@ export class PixiRaidBackground {
     if (this.baseKey === key) return
     this.baseKey = key
 
-    const base = this.baseGraphics
-    base.clear()
-    const gradient = this.getGradient(`base|${palette.baseTop}|${palette.baseMid}|${palette.baseBottom}`, {
-      type: 'linear',
-      start: { x: 0, y: 0 },
-      end: { x: 0, y: 1 },
-      colorStops: [
-        { offset: 0, color: parsePixiCssColor(palette.baseTop).source },
-        { offset: 0.45, color: parsePixiCssColor(palette.baseMid).source },
-        { offset: 1, color: parsePixiCssColor(palette.baseBottom).source },
-      ],
-    })
-    base.rect(0, 0, width, height).fill(gradient)
-
-    if (quality !== 'low') {
-      this.fillRadial(base, width * 0.18, height * 0.16, width * 0.24, height * 0.24, palette.bgA, 'rgba(0,0,0,0)')
-      this.fillRadial(base, width * 0.76, height * 0.38, width * 0.26, height * 0.26, palette.bgB, 'rgba(0,0,0,0)')
-    }
+    this.backdrop.update(width,height,parsePixiCssColor(palette.baseTop).source,
+      parsePixiCssColor(palette.baseMid).source,parsePixiCssColor(palette.baseBottom).source,
+      parsePixiCssColor(palette.bgA).source,parsePixiCssColor(palette.bgB).source,quality !== 'low')
   }
 
   private updateNebula(width: number, height: number, seconds: number, palette: RaidPalette, stageTheme: number, isLow: boolean) {
@@ -1688,7 +1685,7 @@ export class PixiRaidBackground {
       sprite.position.set(star.x, star.y)
       sprite.width = star.size * (4 + depth * (isLow ? 0.25 : 1.5))
       sprite.height = star.size * 4
-      sprite.alpha = star.alpha
+      sprite.alpha = star.alpha * (.82 + .18 * Math.sin(this.celestialClock.seconds * (1.1 + seed.tint) + i * 2.399963))
       sprite.rotation = star.rotation
     }
   }
@@ -2398,7 +2395,7 @@ export class PixiRaidBackground {
     const shadow = this.orbitalShadow
     shadow.strength = 0
     if (planet.visible && !surface && (this.journey.phase === 'approach' || this.journey.phase === 'descent')) {
-      sampleOrbitalShadow(shadow, planet.x, planet.y, Math.min(planet.width, planet.height), width, height, this.journey.approach)
+      sampleOrbitalShadow(shadow, planet.x, planet.y, Math.min(planet.width, planet.height), width, height, this.journey.approach, this.orbitalCamera?.sunDirection)
       shadow.strength *= 1 - this.journey.worldAlpha
     }
     this.eclipseSprite.visible = !!this.eclipseTexture && shadow.strength > .01
@@ -2555,10 +2552,13 @@ export class PixiRaidBackground {
     const alpha = clamp(intensity, 0, 1)
     graphics.visible = isFinalTheme && quality !== 'low' && alpha > 0.01
     if (!graphics.visible) {
+      this.finalBattleEntered = -1
       for (const sprite of this.finalBattleSprites) sprite.visible = false
       for (const sprite of this.finalBattleCruiserSprites) sprite.visible = false
       return
     }
+    if (this.finalBattleEntered < 0 || seconds < this.finalBattleEntered) this.finalBattleEntered = seconds
+    const battleAge = seconds-this.finalBattleEntered
 
     const isMedium = quality === 'medium'
     const fighterLimit = isMedium ? 5 : FINAL_BATTLE_FIGHTERS.length
@@ -2586,15 +2586,16 @@ export class PixiRaidBackground {
     for (let index = 0; index < fighterLimit; index += 1) {
       const fighter = FINAL_BATTLE_FIGHTERS[index]
       const sprite = this.finalBattleSprites[index]
-      const progress = (seconds * fighter.speed + fighter.ySeed) % 1
+      const progress = (Math.max(0,battleAge-index*.85) * fighter.speed) % 1
       const laneDrift = Math.sin(fighter.phase) * fighter.drift * 0.52
-      const y = fighter.side === 'ally'
-        ? height * (1.1 - progress * 1.22)
-        : height * (-0.1 + progress * 1.22)
-      const x = width * (fighter.x + (progress - 0.5) * laneDrift)
-      const travelDy = fighter.side === 'ally' ? -height * 1.22 : height * 1.22
-      const angle = Math.atan2(width * laneDrift, -travelDy)
       const size = baseSize * fighter.size * (isMedium ? 0.92 : 1)
+      const padding = size*.9+96, span = height+padding*2
+      const y = fighter.side === 'ally'
+        ? height+padding-progress*span
+        : -padding+progress*span
+      const x = width * (fighter.x + (progress - 0.5) * laneDrift)
+      const travelDy = fighter.side === 'ally' ? -span : span
+      const angle = Math.atan2(width * laneDrift, -travelDy)
       const shipTint = sceneryTint(0xffffff, 0.76)
       const edgeFade = clamp(Math.min(progress / .1, (1 - progress) / .12, 1), 0, 1)
       const drawSize = fighter.assetKind === 'ship' ? size : size * 1.08
@@ -2615,12 +2616,13 @@ export class PixiRaidBackground {
     for (let index = 0; index < cruiserLimit; index += 1) {
       const cruiser = FINAL_BATTLE_CRUISERS[index]
       const sprite = this.finalBattleCruiserSprites[index]
-      const progress = (seconds * cruiser.speed + cruiser.ySeed) % 1
-      const y = height * (1.16 - progress * 1.34)
+      const progress = (Math.max(0,battleAge-index*2) * cruiser.speed) % 1
+      const size = baseSize * cruiser.size
+      const padding = size*.9+96, span = height+padding*2
+      const y = height+padding-progress*span
       const laneDrift = cruiser.drift * (0.65 + Math.sin(cruiser.phase) * 0.18)
       const x = width * (cruiser.x + (progress - 0.5) * laneDrift)
-      const angle = Math.atan2(width * laneDrift, height * 1.34)
-      const size = baseSize * cruiser.size
+      const angle = Math.atan2(width * laneDrift, span)
       const edgeFade = clamp(Math.min(progress / 0.12, (1 - progress) / 0.16, 1), 0, 1)
       const cruiserAlpha = alpha * cruiser.alpha * edgeFade
       if (redrawEffects) this.drawFinalBattleCruiserTrail(graphics, x, y, size, angle, cruiserAlpha)
@@ -2828,11 +2830,12 @@ export class PixiRaidBackground {
     if (!texture || !visible) return
 
     const progress = cycle / 0.19
-    const x = width * (1.12 - progress * 1.28)
-    const y = height * (0.14 + progress * 0.18 + Math.sin(seconds * 0.7) * 0.015)
     const size = Math.max(44, Math.min(width, height) * 0.085)
+    const padding = size*1.5+64, span = width+padding*2
+    const x = width+padding-progress*span
+    const y = height * (0.14 + progress * 0.18 + Math.sin(seconds * 0.7) * 0.015)
     const alpha = Math.sin(progress * Math.PI) * 0.34
-    const travelAngle = Math.atan2(height * 0.18, -width * 1.28)
+    const travelAngle = Math.atan2(height * 0.18, -span)
     setPixiSpriteContain(sprite, texture, x, y, size * 2.2, size, alpha, travelAngle - COMET_ASSET_HEAD_ANGLE)
   }
 

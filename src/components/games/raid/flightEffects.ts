@@ -12,17 +12,18 @@ export type OrbitalShadow = {
   x: number; y: number; length: number; width: number; rotation: number; strength: number; sunSide: number
 }
 
-export function sampleOrbitalShadow(out: OrbitalShadow, planetX: number, planetY: number, diameter: number, width: number, height: number, approach: number) {
-  const inward = planetX > width / 2 ? -1 : 1
-  const dx = inward * width * .23
-  const dy = height * .77
+export function sampleOrbitalShadow(out: OrbitalShadow, planetX: number, planetY: number, diameter: number, width: number, height: number, approach: number, sun?: Float32Array) {
+  // Project shadows away from the same source that shades the ships and planet.
+  const sx = sun?.[0] ?? -.61, sy = sun?.[1] ?? -.49
+  const span = Math.hypot(width,height)*.65/Math.max(.001,Math.hypot(sx,sy))
+  const dx = -sx*span, dy = -sy*span
   out.x = planetX + dx * .72
   out.y = planetY + dy * .72
   out.length = Math.hypot(dx, dy) * 1.9
   out.width = Math.min(diameter * .72, Math.min(width, height) * .68)
   out.rotation = Math.atan2(dy, dx)
   out.strength = smoothStep((approach - .49) / .20)
-  out.sunSide = -inward
+  out.sunSide = Math.sign(sx)
 }
 
 export function orbitalShadowCoverage(shadow: OrbitalShadow, x: number, y: number) {

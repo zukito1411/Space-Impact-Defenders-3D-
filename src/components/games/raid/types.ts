@@ -343,6 +343,7 @@ export type DerelictWreck = Vec & {
   phase: number
   variant?: number
   rotation?: number
+  entering?: boolean
 }
 
 export type Snapshot = {

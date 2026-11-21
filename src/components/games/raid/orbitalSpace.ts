@@ -9,11 +9,14 @@ export class OrbitalCamera extends SpaceCamera {
   project(node: Sprite, out: SpacePlacement, width: number, height: number, epoch: number,
     physicalWidthKm = 0, radiusKm = 0, scripted = false, fixed = false) {
     const refresh = !out.admitted || out.texture !== node.texture.uid || out.epoch !== epoch
+    const resumed = out.admitted && out.lastFrame < this.frame - 1
+    if (out.mode === 'scripted' && !fixed && (refresh || resumed)) out.pendingEntry = true
     if (refresh || scripted || out.mode === 'scripted' && !fixed) {
       this.admit(out, node.x, node.y, node.width, node.height, width, height,
         node.texture.uid, epoch, physicalWidthKm, radiusKm, node.rotation)
     }
     this.advance(out)
+    if (resumed && !refresh && out.mode === 'stream' && !fixed) this.recycle(out, width, height, false)
     let distance = this.relativeDistance(out)
     // Nearby scenery exits behind the ship, then returns beyond the leading
     // edge. It never reappears at the centre or accelerates toward the camera.
@@ -38,6 +41,14 @@ export class OrbitalCamera extends SpaceCamera {
     // Conservative frustum culling: keep close/off-axis surfaces and their rims.
     const ratio = Math.min(.975, (radiusKm || out.widthKm * .5) / distance)
     const extentX = node.width * .6 / (1 - ratio), extentY = node.height * .6 / (1 - ratio)
+    if (out.pendingEntry) {
+      // Timed flybys first become eligible with their whole footprint outside
+      // the view. Subsequent frames carry them across the edge continuously.
+      const outside = node.x + extentX < 0 || node.x - extentX > width ||
+        node.y + extentY < 0 || node.y - extentY > height
+      if (outside) out.pendingEntry = false
+      else node.visible = false
+    }
     if (node.x + extentX < -64 || node.x - extentX > width + 64 ||
       node.y + extentY < -64 || node.y - extentY > height + 64) node.visible = false
   }
@@ -259,6 +270,8 @@ void main() {
   color += gas*(.25+.18*density) + veil*(.07+.14*nearDensity);
   float luma = dot(color,vec3(.2126,.7152,.0722));
   color = max(vec3(0.),mix(vec3(luma),color,1.16));
+  float noise = fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(.06711056,.00583715))))-.5;
+  color = clamp(color+noise/255.,0.,1.);
   gl_FragColor = vec4(color,1.) * tint;
 }`
 
@@ -368,7 +381,10 @@ void main() {
   float temperature = fract(seed*13.17);
   vec3 warm = mix(vec3(1.,.48,.24),vec3(1.,.91,.76),smoothstep(0.,.48,temperature));
   spectrum = mix(warm,vec3(.53,.74,1.),smoothstep(.48,1.,temperature));
-  gain = (.52+.48*magnitude) * (.94+.06*sin(uTime*.8+seed*80.));
+  // Unresolved stars vary independently; dust and the scene's key illumination
+  // remain steady. No CPU star updates or additional transparent passes.
+  float shimmer = .5+.5*sin(uTime*(1.1+seed*1.7)+seed*80.)*sin(uTime*.71+seed*121.);
+  gain = (.52+.48*magnitude) * (dust ? 1. : .62+.62*shimmer);
   if (dust) gain *= .30*smoothstep(.75,2.,z)*(1.-smoothstep(12.,15.7,z));
   vec2 direction = vec2(0.,1.);
   float streak = dust ? min(7.,uFocal*uSpeed*.025/distance) : 0.;
@@ -384,7 +400,7 @@ varying float gain;
 void main() {
   float r2 = dot(corner,corner);
   float core = exp(-23.*r2);
-  float light = (core + .16*exp(-5.6*r2)) * gain;
+  float light = (core + .16*exp(-5.6*r2)) * gain * (1.-smoothstep(.5184,1.,r2));
   gl_FragColor = vec4(mix(spectrum,vec3(1.),core*.62)*light,light);
 }`
 

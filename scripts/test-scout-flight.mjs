@@ -71,7 +71,7 @@ for (const landscape of [false, true]) for (const small of [false, true]) {
     m.updatePlayerTimers(p, 0, [], small, landscape)
     assert.equal(scouts(p).length, 2, key)
     for (const s of scouts(p)) {
-      assert.ok((landscape ? s.x : s.y) > 100, 'arrival starts below the visible screen')
+      assert.ok(s.y > 100, 'arrival starts behind the ship: below portrait, left in landscape')
       assert.equal(s.canFire, false)
     }
     advance(p, 1.2, landscape, [], small)

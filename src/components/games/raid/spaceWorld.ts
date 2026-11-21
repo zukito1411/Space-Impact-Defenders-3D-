@@ -21,13 +21,14 @@ export type SpacePlacement = {
   recycle: number
   roll: number
   ageSeconds: number; lastFrame: number
+  pendingEntry: boolean
 }
 
 export function createSpacePlacement(distanceKm: number, mode: SpacePlacementMode): SpacePlacement {
   return { mode, referenceDistanceKm: distanceKm, xKm: 0, yKm: 0, zKm: 0,
     widthKm: 0, heightKm: 0, distanceKm, radiusKm: 0,
     texture: -1, epoch: -1, admitted: false, recycle: 0, roll: 0,
-    ageSeconds: 0, lastFrame: -1 }
+    ageSeconds: 0, lastFrame: -1, pendingEntry: false }
 }
 
 const positiveModulo = (value: number, span: number) => ((value % span) + span) % span
@@ -125,13 +126,16 @@ export class SpaceCamera {
     if (keepPlacement) { out.xKm = previousX; out.yKm = previousY; out.zKm = previousZ }
     out.ageSeconds = 0; out.lastFrame = this.frame
     out.texture = texture; out.epoch = epoch; out.admitted = true; out.roll = roll
+    // New local objects and replacements enter from the leading edge. Authored
+    // screen coordinates are a composition guide, never an in-view spawn point.
+    if (out.mode === 'stream' && physicalWidthKm === 0 && !keepPlacement) this.recycle(out, width, height, false)
   }
 
   /** Admit recycled local scenery beyond the leading edge, at a real stable depth. */
-  recycle(out: SpacePlacement, width: number, height: number) {
-    out.recycle++
+  recycle(out: SpacePlacement, width: number, height: number, nextPass = true) {
+    if (nextPass) out.recycle++
     const distance = out.referenceDistanceKm
-    const seed = out.recycle * .61803398875 + out.referenceDistanceKm * .137
+    const seed = out.recycle * .61803398875 + out.referenceDistanceKm * .137 + out.epoch * .173
     const x = positiveModulo(seed, 1)
     out.zKm = this.positionKm[2] + distance
     out.xKm = this.positionKm[0] + (x - .5) * width * distance / this.focal

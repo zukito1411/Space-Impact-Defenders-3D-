@@ -11,11 +11,11 @@ function turnToward(from: number, to: number, blend: number) {
 export function updateScoutFlight(scout: MesiahScoutUnit, enabled: boolean, home: Vec, dt: number, landscape: boolean) {
   const phase = scout.flightPhase ?? (scout.active ? 'active' : 'idle')
   if (enabled && (phase === 'idle' || phase === 'departing')) {
-    // Landscape rotates world X onto screen Y, so world X > 100 is below the screen.
+    // Logical rear is below portrait and left in landscape, matching stage launches.
     if (phase === 'idle') {
-      scout.x = landscape ? 114 : home.x + scout.side * 4
-      scout.y = landscape ? home.y + 12 : 114
-      scout.rotation = landscape ? -Math.PI / 2 : 0
+      scout.x = home.x + scout.side * (landscape ? 2 : 4)
+      scout.y = 114
+      scout.rotation = 0
     }
     scout.flightPhase = 'arriving'
     scout.flightAge = 0

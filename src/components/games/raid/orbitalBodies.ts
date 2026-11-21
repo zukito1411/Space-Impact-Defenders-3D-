@@ -125,8 +125,9 @@ void main() {
   vec4 texel = texture2D(uArt,uFrame.xy+clamp(paint,.002,.998)*uFrame.zw);
   vec3 pigment = texel.rgb/max(.025,texel.a);
   vec3 n = normalize(normal), light = uSun;
-  float incidence = dot(n,light), day = smoothstep(-.28,.85,incidence);
-  vec3 color = pigment * mix(vec3(.34,.39,.51),vec3(1.22,1.16,1.09),day);
+  float incidence = dot(n,light), day = max(0.,incidence);
+  // Airless surfaces have a true night side; atmospheric twilight is separate.
+  vec3 color = pigment * mix(vec3(.10,.13,.19),vec3(1.22,1.16,1.09),day);
   float rim = pow(1.-max(0.,n.z),3.1);
   color += uAir*rim*(.16+.52*day)*(1.-uRock);
   float twilight = 1.-smoothstep(.02,.29,abs(incidence));
@@ -148,11 +149,11 @@ void main() {
     color = mix(color,cloudLight,coverage*.62);
     float ocean = smoothstep(.04,.24,pigment.b-pigment.r)*(1.-coverage);
     float specular = pow(max(0.,dot(n,uHalfLight)),64.);
-    color += vec3(.38,.57,.68)*specular*ocean;
+    color += vec3(.38,.57,.68)*specular*ocean*day;
   }
   // A restrained mineral glint leaves the original crater/terrain detail clear.
   float glint = pow(max(0.,dot(n,uHalfLight)),30.);
-  color += vec3(.22,.20,.17)*glint*uRock;
+  color += vec3(.22,.20,.17)*glint*uRock*day;
   gl_FragColor = vec4(color,1.)*tint;
 }`
 
@@ -401,7 +402,9 @@ export class OrbitalCombatRocks {
         const scale = pass === 0 ? 1 : incomingScale, size = nearSize * scale
         const actualX = asteroid.x * width / 100, actualY = asteroid.y * height / 100
         const x = width * .5 + (actualX - width * .5) * scale
-        const y = height * .42 + (actualY - height * .42) * scale
+        // Approach from beyond the forward edge, with an exact gameplay handoff.
+        const entryY = Math.min(actualY,-nearSize*.65-16)
+        const y = entryY + (actualY-entryY)*scale
         surface.setTexture(texture)
         if (light) surface.setLight(light)
         surface.setPerspective(size * .48 / focal, (x - width * .5) / focal,

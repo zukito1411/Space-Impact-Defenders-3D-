@@ -617,7 +617,7 @@ export function GradiusRaid({
     ionStrikes: ionStrikesRef.current
       .slice(-MULTIPLAYER_MAX_ION_STRIKES)
       .map(cloneIonStrike),
-    wrecks: takeLastFilteredMapped(wrecksRef.current, MULTIPLAYER_MAX_WRECKS, isNetworkVisible, compactVec),
+    wrecks: takeLastFilteredMapped(wrecksRef.current, MULTIPLAYER_MAX_WRECKS, wreck => Boolean(wreck.entering) || isNetworkVisible(wreck), compactVec),
     powerUps: takeLastFilteredMapped(powerUpsRef.current, MULTIPLAYER_MAX_POWERUPS, isNetworkVisible, compactVec),
     sparks: takeLastFilteredMapped(sparksRef.current, MULTIPLAYER_MAX_SPARKS, isNetworkVisible, compactVec),
     ripples: takeLastFilteredMapped(ripplesRef.current, MULTIPLAYER_MAX_RIPPLES, isNetworkVisible, compactVec),
@@ -5268,9 +5268,10 @@ export function GradiusRaid({
           wrecksRef.current.push({
             id: wreckId++,
             x: leftEntry ? 18 + Math.random() * 8 : 82 - Math.random() * 8,
-            y: 26 + Math.random() * 24,
+            y: -Math.hypot(variantData.width,variantData.height)*scale*.6-4,
             vx: leftEntry ? 1.3 + Math.random() * 1.2 : -1.3 - Math.random() * 1.2,
-            vy: -0.5 + Math.random() * 1.2,
+            vy: 12,
+            entering: true,
             width: variantData.width * scale,
             height: variantData.height * scale,
             hp,
