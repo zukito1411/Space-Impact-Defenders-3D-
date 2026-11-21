@@ -24,6 +24,13 @@ void main() {
   float b = max(0.,1.-length((uv-vec2(.76,.38))/.26))*uGlowB.a*uGlows;
   color = mix(color,uGlowA.rgb,a);
   color = mix(color,uGlowB.rgb,b);
+  // Broad, asymmetric voids between the luminous clouds. These belong to the
+  // sky, beneath the stars and gameplay layers, rather than a dark screen filter.
+  vec2 pocketA = (uv-vec2(.36,.54))*vec2(1.35,.90);
+  vec2 pocketB = (uv-vec2(.81,.19))*vec2(1.65,1.15);
+  float voidA = 1.-smoothstep(.025,.38,dot(pocketA,pocketA));
+  float voidB = 1.-smoothstep(.015,.24,dot(pocketB,pocketB));
+  color *= .68-.42*max(voidA,voidB*.82);
   // Stationary sub-quantization dither breaks dark-sky bands without animated
   // noise, new textures, blur, or a post-processing pass.
   float noise = fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(.06711056,.00583715))))-.5;

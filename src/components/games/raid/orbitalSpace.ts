@@ -271,6 +271,9 @@ void main() {
   color += gas*(.25+.18*density) + veil*(.07+.14*nearDensity);
   float luma = dot(color,vec3(.2126,.7152,.0722));
   color = max(vec3(0.),mix(vec3(luma),color,1.16));
+  // Deepen low-density gaps while preserving luminous cloud rims and detail.
+  // Existing stars render above this gas, so their peaks stay bright in the void.
+  color *= mix(.26,1.,smoothstep(.06,.30,luma));
   float noise = fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(.06711056,.00583715))))-.5;
   color = clamp(color+noise/255.,0.,1.);
   gl_FragColor = vec4(color,1.) * tint;
@@ -400,7 +403,9 @@ varying float gain;
 void main() {
   float r2 = dot(corner,corner);
   float core = exp(-23.*r2);
-  float light = (core + .16*exp(-5.6*r2)) * gain * (1.-smoothstep(.5184,1.,r2));
+  // Bright peaks spread into the existing optical halo in the same star draw.
+  float halo = .16+.10*min(1.5,max(0.,gain-1.));
+  float light = (core + halo*exp(-5.6*r2)) * gain * (1.-smoothstep(.5184,1.,r2));
   gl_FragColor = vec4(mix(spectrum,vec3(1.),core*.62)*light,light);
 }`
 

@@ -1678,7 +1678,10 @@ export class PixiRaidBackground {
       const y = ((star.y*farLayerHeight+farOffset+8)%farLayerHeight+farLayerHeight)%farLayerHeight-8
       sprite.position.set(star.x*width,y)
       sprite.visible = y >= -8 && y <= height+8
-      sprite.alpha = Math.min(1,star.alpha*.52*sampleStarBrightness(star.tint,this.starClock.seconds,this.reducedMotion))
+      const brightness = sampleStarBrightness(star.tint,this.starClock.seconds,this.reducedMotion)
+      const glint = 1+Math.min(.22,Math.max(0,brightness-1)*.1)
+      sprite.width = sprite.height = star.size*4.2*glint
+      sprite.alpha = Math.min(1,star.alpha*.52*brightness)
     }
     for (let i = 0; i < this.depthStarSprites.length; i++) {
       const sprite = this.depthStarSprites[i]
@@ -1692,7 +1695,10 @@ export class PixiRaidBackground {
       sprite.position.set(star.x, star.y)
       sprite.width = star.size * (4 + depth * (isLow ? 0.25 : 1.5))
       sprite.height = star.size * 4
-      sprite.alpha = Math.min(1,star.alpha * sampleStarBrightness(seed.tint,this.starClock.seconds,this.reducedMotion))
+      const brightness = sampleStarBrightness(seed.tint,this.starClock.seconds,this.reducedMotion)
+      const glint = 1+Math.min(.22,Math.max(0,brightness-1)*.1)
+      sprite.scale.set(sprite.scale.x*glint,sprite.scale.y*glint)
+      sprite.alpha = Math.min(1,star.alpha*brightness)
       sprite.rotation = star.rotation
     }
   }

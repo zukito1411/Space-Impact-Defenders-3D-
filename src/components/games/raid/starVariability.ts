@@ -12,7 +12,7 @@ export function sampleStarBrightness(seed: number, seconds: number, reduced = fa
   } else if (group >= .45) {
     let pulse = .5+.5*Math.sin(t*(1.0+fract(seed*43.17)*1.55)+phase)
     pulse *= pulse;pulse *= pulse
-    gain = .12+1.95*pulse
+    gain = .12+3.05*pulse
   }
   return 1+(gain-1)*(reduced ? .35 : 1)
 }
@@ -28,7 +28,7 @@ float starBrightness(float seed, float seconds, float amount) {
   } else if (group >= .45) {
     float pulse = .5+.5*sin(seconds*(1.+fract(seed*43.17)*1.55)+phase);
     pulse *= pulse; pulse *= pulse;
-    gain = .12+1.95*pulse;
+    gain = .12+3.05*pulse;
   }
   return mix(1.,gain,amount);
 }`
