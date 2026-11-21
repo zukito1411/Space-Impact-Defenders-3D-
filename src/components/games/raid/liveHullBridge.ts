@@ -1,3 +1,4 @@
+import type { DestructionStyle } from './destructionProfile'
 import type { EnemyBankMotion } from './enemyBanking'
 import { hullViewYaw } from './raidView'
 import { isRaid2DMech } from './mechArtwork'
@@ -10,7 +11,7 @@ export type LiveHullDraw = {
   bossPose?: OrganicBossPose; spin?: number; enemyBank?: EnemyBankMotion; dock?: number; depth?: number
 }
 export type LiveHullDestruction = { id: string; sourceId: string; key: string; x: number; y: number; size: number;
-  angle: number; landscape: boolean; age: number; seed: number; alpha: number; tempo: number; driftX: number; driftY: number }
+  angle: number; landscape: boolean; age: number; seed: number; alpha: number; tempo: number; style: DestructionStyle; finale: number; driftX: number; driftY: number }
 export interface LiveHullSink {
   submitHull(draw: LiveHullDraw): boolean
   submitDestruction?(draw: LiveHullDestruction): boolean

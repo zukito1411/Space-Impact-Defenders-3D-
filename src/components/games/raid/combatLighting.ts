@@ -1,7 +1,9 @@
+import type { DestructionParticle } from './destructionEffects'
 import { Color, type MeshStandardMaterial } from 'three'
 import type { Player, Ripple, Shot } from './types'
 
 export type CombatLightInput = {
+  destructionEffects?: readonly DestructionParticle[]
   time: number; paused: boolean; ripples: readonly Ripple[]; shots: readonly Shot[]
   muzzles: readonly { owner: Player; x: number; y: number; kind: Shot['kind']; at: number }[]
 }
@@ -34,6 +36,16 @@ export class CombatLightField {
       this.add(r.x*width/100,height-r.y*height/100,36,Math.max(65,Math.min(270,r.size*12)),
         this.color.r,this.color.g,this.color.b,2.5*Math.exp(-age*6))
     }
+    // Delayed core/partial failures light nearby hulls at the actual blast,
+    // rather than emitting an early explosion just to drive the lighting.
+    let blast:DestructionParticle|undefined,blastScore=0
+    for(const particle of input.destructionEffects ?? []) {
+      if(particle.kind!=='explosion')continue
+      const score=particle.width*(1-particle.progress)**2
+      if(score>blastScore){blast=particle;blastScore=score}
+    }
+    if(blast && this.count<4)this.add(blast.x*width/100,height-blast.y*height/100,30,
+      Math.max(65,Math.min(300,blast.width*1.25)),1,.42,.12,2.6*(1-blast.progress)**2)
     for (let i=input.muzzles.length-1;i>=0 && this.count<4;i--) {
       const m=input.muzzles[i],age=(input.time-m.at)/1000
       if (age<0 || age>.11 || m.owner.hp<=0) continue

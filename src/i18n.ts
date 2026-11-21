@@ -1051,6 +1051,7 @@ export const RAID_TEXT = {
       securityAlert: 'Security Alert',
       bossVectorIncoming: 'Boss vector incoming',
       bossDestroyed: 'Boss Destroyed',
+      bossRetreated: 'Boss Retreated',
     },
     menu: {
       combatHold: 'Combat Hold',
@@ -1198,6 +1199,7 @@ export const RAID_TEXT = {
       securityAlert: '安全警报',
       bossVectorIncoming: 'Boss 航向接近',
       bossDestroyed: 'Boss 已摧毁',
+      bossRetreated: 'Boss 已撤退',
     },
     menu: {
       combatHold: '战斗暂停',
@@ -1345,6 +1347,7 @@ export const RAID_TEXT = {
       securityAlert: '警戒警報',
       bossVectorIncoming: 'ボス接近中',
       bossDestroyed: 'ボス撃破',
+      bossRetreated: 'ボス撤退',
     },
     menu: {
       combatHold: '戦闘停止',
@@ -1492,6 +1495,7 @@ export const RAID_TEXT = {
       securityAlert: '보안 경보',
       bossVectorIncoming: '보스 접근 중',
       bossDestroyed: '보스 격파',
+      bossRetreated: '보스 후퇴',
     },
     menu: {
       combatHold: '전투 정지',

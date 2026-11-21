@@ -2,29 +2,7 @@ import { BOSS_FX, drawBossFx } from './combatArt'
 import { COMMAND_PHASE_HP } from './commandBoss'
 import type { BossImpactKind, Enemy, Shot } from './types'
 
-type HullPoint = readonly [x: number, y: number]
-type HullDamage = readonly [HullPoint, HullPoint, HullPoint]
-
-// Coordinates are normalized against the full square hull sprite.
-const HULL_DAMAGE: Readonly<Partial<Record<number, HullDamage>>> = {
-  1: [[-.23, .08], [.22, -.06], [.12, .33]],
-  2: [[-.25, -.15], [.24, .15], [0, .33]],
-  3: [[-.24, -.12], [.23, .08], [.13, .21]],
-  4: [[-.22, -.12], [.21, -.08], [.18, .25]],
-  6: [[-.29, -.09], [.28, .08], [.16, .33]],
-  7: [[-.20, -.22], [.18, -.13], [.08, .34]],
-  8: [[-.22, -.10], [.19, .13], [0, .32]],
-  9: [[-.25, -.08], [.23, .02], [.13, .27]],
-  11: [[-.25, .27], [0, .29], [.25, .27]],
-  12: [[-.24, -.19], [.23, -.03], [.10, .32]],
-  13: [[-.22, -.19], [.23, -.07], [.10, .32]],
-  14: [[-.24, -.10], [.18, -.13], [0, .31]],
-}
-
-const defaultHull: HullDamage = [[-.22, .03], [.22, -.06], [0, .26]]
-const hullDamage = (enemy: Enemy) => HULL_DAMAGE[enemy.bossArtStage ?? 0] ?? defaultHull
 const IMPACT_SECONDS = .22
-export const BOSS_BREAKUP_DELAYS = [.20, .53, .85, 1.26, 1.81] as const
 
 export function recordBossImpact(enemy: Enemy, shot: Shot, shielded: boolean): BossImpactKind | undefined {
   if (!enemy.isBoss && !enemy.isMiniBoss) return
@@ -67,12 +45,5 @@ export function drawBossImpact(ctx: CanvasRenderingContext2D, enemy: Enemy, x: n
   }
   drawBossFx(ctx, core ? BOSS_FX.precision : BOSS_FX.impact, atX, atY,
     diameter, diameter, .93 * (1 - progress) ** 1.3, impact.shotId * .37, !heavy)
-}
-
-export function getBossBreakupPoint(enemy: Enemy, index: number): HullPoint {
-  const points = hullDamage(enemy)
-  if (index === 3) return [0, -.12]
-  if (index === 4) return [0, .05]
-  return points[index % points.length]
 }
 

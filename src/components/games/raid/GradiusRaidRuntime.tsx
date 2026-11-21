@@ -1,3 +1,4 @@
+import { isOrganicBoss } from './destructionProfile'
 import { drawDestructionEffects } from './destructionEffects'
 import { EnemyTactics } from './enemyTactics'
 import { WorldStories } from './worldStories'
@@ -31,7 +32,7 @@ import { clampRaidShipSize, getRaidPlayerHitRadius, useRaidShipSize } from './sh
 import { ShipSizeControls } from '../../ui/ShipSizeControls'
 import { getRaidShipBaseVisualKey } from './shipArtwork'
 import { commitRaidFighterManeuver, getRaidFighterSpeedScale, fireRaidFighter, getRaidFighter, getRaidFighterPathX, getRaidReserveVariant, getRaidStageEncounter, getRaidWingSize, getRaidWingSlot, LEGACY_FIGHTER_COUNT, RAID_STAGE_ENEMY_LIMIT } from './stageEncounters'
-import { BOSS_BREAKUP_DELAYS, drawBossImpact, getBossBreakupPoint, recordBossImpact } from './bossDamageFx'
+import { drawBossImpact, recordBossImpact } from './bossDamageFx'
 import { prefersRaidReducedMotion } from './commandBossRender'
 import { drawIncomingHazard, drawRecoveryCue, findIncomingHazard, needsRepair, passesNearPilot } from './flightCues'
 import { advanceCommandBoss, getCommandBossProfile, getCommandBossHpScale, interruptCommandBoss, isCommandBeam, COMMAND_SHOT_LIMIT, COMMAND_WARNING, COMMAND_FIRED } from './commandBoss'
@@ -82,7 +83,7 @@ import { getRaidBankingFrame } from './bankingArt'
 import { drawRaidOptions, drawRaidPlayer, getCoreBlastSprite, getRaidPlayerFlightBank, warmRaidBankingArt } from './playerRender'
 import { getRaidAssetPreloadInitialState, preloadGradiusRaidAssets, warmRaidGeneratedEffectSprites } from './preload'
 import { activateScoutSupportPickup, clonePlayer, getCheckpointStage, getDefaultPlayerVisualShipKey, getGodGundamGameplayRenderSize, getHighScore, getInitialPlayer, getOptionSupportStacks, getPlayerCoreLanderCombatModel, getRaidGundamName, getRaidPlayerVisualShipKey, getShipByKey, getUnlockedStage, isCoreLanderAoeShot, isGodGundamBarragePilot, normalizeMesiahDrones, normalizeMesiahScoutDrones, powerColor, sanitizePlayerVisualShipKey, saveCheckpointStage, saveHighScore, saveUnlockedStage } from './state'
-import type { AsteroidHazard, BossDefeatExplosionEvent, BossKind, BossMessage, CameraShakeState, CoreLanderCombatModel, DerelictWreck, Enemy, EnemySpawnProfile, GamePhase, GodGundamBarrage, GodGundamPassiveStrike, IonStrike, MeteorHazard, MiniBossKind, MirageBossKind, MultiplayerAsteroidSnapshot, MultiplayerConnectionQuality, MultiplayerEnemySnapshot, MultiplayerHostState, MultiplayerInput, MultiplayerPlayerSnapshot, NukeStrike, Player, PowerKind, PowerUp, RaidAssetPreloadState, RaidBgmMode, RaidDifficulty, RaidMode, RaidMultiplayerSession, RaidRandomEvent, RaidRandomEventKind, RelayGameMessage, Ripple, ShipOption, Shot, Snapshot, Spark, Vec, WeaponKey } from './types'
+import type { AsteroidHazard, BossKind, BossMessage, CameraShakeState, CoreLanderCombatModel, DerelictWreck, Enemy, EnemySpawnProfile, GamePhase, GodGundamBarrage, GodGundamPassiveStrike, IonStrike, MeteorHazard, MiniBossKind, MirageBossKind, MultiplayerAsteroidSnapshot, MultiplayerConnectionQuality, MultiplayerEnemySnapshot, MultiplayerHostState, MultiplayerInput, MultiplayerPlayerSnapshot, NukeStrike, Player, PowerKind, PowerUp, RaidAssetPreloadState, RaidBgmMode, RaidDifficulty, RaidMode, RaidMultiplayerSession, RaidRandomEvent, RaidRandomEventKind, RelayGameMessage, Ripple, ShipOption, Shot, Snapshot, Spark, Vec, WeaponKey } from './types'
 import { acquireRipple, acquireSpark, buildEnemyCollisionBuckets, clamp, collectShotCollisionCandidates, compactInPlace, createEnemyCollisionBuckets, distSq, drawRadialEllipse, getCachedProjectileOrbSprite, getCachedProjectileTrailSprite, getEliteEnemyChance, getMaxActiveEliteEnemies, pickEliteEnemyKind, readRaidPalette, recycleRipple, recycleRippleList, recycleSpark, recycleSparkList, takeLastFilteredMapped, updateRipplesInPlace, updateSparksInPlace } from './utils'
 import type { EnemyCollisionBuckets } from './utils'
 import { RaidFrameTimings } from './frameTimings'
@@ -361,7 +362,6 @@ export function GradiusRaid({
   const nukeBlastOriginRef = useRef<Vec>({ x: 50, y: 46 })
   const godBarrageRef = useRef<GodGundamBarrage | null>(null)
   const godMeleeStrikesRef = useRef<GodGundamPassiveStrike[]>([])
-  const bossDefeatExplosionEventsRef = useRef<BossDefeatExplosionEvent[]>([])
   const asteroidClusterTimerRef = useRef(34 + Math.random() * 18)
   const asteroidApproachRef = useRef<AsteroidHazard[]>([])
   const asteroidSpawnDelayRef = useRef(0)
@@ -922,7 +922,7 @@ export function GradiusRaid({
       }
       const nextEnemyIds = new Set(state.enemies.map((enemy) => enemy.id))
       const destroyedEnemy = prevEnemiesForAudio.find((enemy) => enemy.hp > 0 && enemy.y > -10 && enemy.y < HEIGHT + 10 && !nextEnemyIds.has(enemy.id))
-      if (destroyedEnemy && state.phase === 'playing') {
+      if (destroyedEnemy && !isOrganicBoss(destroyedEnemy) && state.phase === 'playing') {
         playGameSound(destroyedEnemy.isBoss ? 'destroyed_explosion' : destroyedEnemy.isMiniBoss ? 'explosion_big' : 'explosion',raidAudioPosition(destroyedEnemy.x,destroyedEnemy.y,landscapeRef.current,playerRef.current))
       }
     }
@@ -1848,9 +1848,10 @@ export function GradiusRaid({
       })
     }
 
+    const destructionEffects=scenePresentation.prepareDestructionEffects(time,phaseRef.current,cssWidth,cssHeight,reducedMotion,carrierActive)
     shipsRef.current?.render({ width: cssWidth,height: cssHeight,dpr,landscape:landscapeRef.current,measureGpu: measured,
       lighting: pixiBackground?.getShipLighting(), dock: carrier?.backdrop ?? 0,
-      combat:carrierActive?undefined:{time,paused:!playing,ripples:ripplesRef.current,shots:shotsRef.current,muzzles:muzzleFlashesRef.current},
+      combat:carrierActive?undefined:{time,paused:!playing,ripples:ripplesRef.current,shots:shotsRef.current,muzzles:muzzleFlashesRef.current,destructionEffects},
       eclipseAt: (x,y) => pixiBackground?.getEclipseAt(x,y) ?? 0 })
     costs.backgroundMs = measured ? performance.now() - backgroundStart : 0
     // One WebGL pass now presents animated scenery and pooled foreground
@@ -1860,7 +1861,6 @@ export function GradiusRaid({
     if (carrierActive || phaseRef.current!=='playing' && phaseRef.current!=='paused') missileSmoke.clear()
     else missileSmoke.update(time,phaseRef.current==='paused',sceneryRunTokenRef.current,
       shotsRef.current,guestLocalShotsRef.current,cssWidth,cssHeight,visualScale)
-    const destructionEffects=scenePresentation.prepareDestructionEffects(time,phaseRef.current,cssWidth,cssHeight,reducedMotion,carrierActive)
     const gpuForegroundDrawn = pixiBackground?.renderForeground({
       width: cssWidth,
       height: cssHeight,
@@ -2993,7 +2993,6 @@ export function GradiusRaid({
     enemyShotsRef.current = []
 
     let destroyed = 0
-    let markedExplosions = 0
     const survivors: Enemy[] = []
     for (const enemy of enemiesRef.current) {
       if (enemy.hp <= 0) continue
@@ -3033,14 +3032,10 @@ export function GradiusRaid({
       if (remotePlayerRef.current) {
         remotePlayerRef.current.score += Math.round(scoreValue * scoreMult)
       }
-      if (markedExplosions < 10) {
-        markedExplosions += 1
-        addRipple(enemy.x, enemy.y, '#fb923c', 12)
-        spawnSparks(enemy.x, enemy.y, '#fb7185', 24, 6)
-      }
     }
 
     enemiesRef.current = survivors
+    let markedExplosions = 0
     const asteroidSurvivors: AsteroidHazard[] = []
     let vaporizedAsteroids = 0
     for (const asteroid of asteroidsRef.current) {
@@ -3084,7 +3079,7 @@ export function GradiusRaid({
     if (destroyed >= 5) window.setTimeout(() => playGameSound('combo'), 120)
     if (vaporizedAsteroids >= 2 || vaporizedMeteors >= 4) window.setTimeout(() => playGameSound('score'), 180)
     syncSnapshot()
-  }, [addRipple, spawnSparks, syncSnapshot, triggerScreenShake])
+  }, [addRipple, spawnSparks, scenePresentation, syncSnapshot, triggerScreenShake])
 
   const activateNuke = useCallback((sourcePlayer = playerRef.current) => {
     const session = multiplayerSessionRef.current
@@ -3408,7 +3403,6 @@ export function GradiusRaid({
     nukeBlastOriginRef.current = { x: 50, y: 46 }
     godBarrageRef.current = null
     godMeleeStrikesRef.current = []
-    bossDefeatExplosionEventsRef.current = []
     muzzleFlashesRef.current = []
     lastMuzzleFlashRef.current = new WeakMap()
     nearMissCooldownRef.current = 0
@@ -4835,32 +4829,6 @@ export function GradiusRaid({
     if (godMeleeStrikesRef.current.length > 0) {
       for (const strike of godMeleeStrikesRef.current) strike.age += dt
       compactInPlace(godMeleeStrikesRef.current, (strike) => strike.age < strike.duration)
-    }
-    if (bossDefeatExplosionEventsRef.current.length > 0) {
-      let write = 0
-      for (const event of bossDefeatExplosionEventsRef.current) {
-        event.age += dt
-        if (event.age < event.delay) {
-          bossDefeatExplosionEventsRef.current[write] = event
-          write += 1
-          continue
-        }
-        const boss = event.boss
-        const [offsetX, offsetY] = getBossBreakupPoint(boss, event.index)
-        const vp = viewportMetricsRef.current
-        const size = vp ? getEnemyCanvasSize(boss, vp.cssWidth) : 0
-        const x = boss.x + offsetX * (vp ? size / vp.cssWidth * WIDTH : boss.radius * 2)
-        const y = boss.y + offsetY * (vp ? size / vp.cssHeight * HEIGHT : boss.radius * 1.65)
-        const finale = event.index === BOSS_BREAKUP_DELAYS.length - 1
-        const color = event.index % 2 === 0 ? '#fdba74' : '#fbbf24'
-        spawnSparks(x, y, color, finale ? 32 : 15, finale ? 8 : 6)
-        addRipple(x, y, color, finale ? 22 : 10 + event.index)
-        if (finale) {
-          playGameSound('destroyed_explosion',raidAudioPosition(x,y,landscapeRef.current,playerRef.current))
-          triggerScreenShake(1.6, 180)
-        }
-      }
-      bossDefeatExplosionEventsRef.current.length = write
     }
     if (stageClearRef.current > 0) {
       enemyTactics.retreat(enemiesRef.current,dt)
@@ -6335,8 +6303,6 @@ export function GradiusRaid({
             const scoreValue = enemy.isMiniBoss ? 260 + waveRef.current * 32 : 95 + waveRef.current * 14
             player.score += Math.round(scoreValue * scoreMult)
             if (remotePlayer) remotePlayer.score += Math.round(scoreValue * scoreMult)
-            spawnSparks(enemy.x, enemy.y, enemy.isMiniBoss ? '#c084fc' : '#fb7185', enemy.isMiniBoss ? 42 : 18, enemy.isMiniBoss ? 7 : 5)
-            addRipple(enemy.x, enemy.y, enemy.isMiniBoss ? '#a855f7' : '#f97316', enemy.isMiniBoss ? 14 : 9)
             if (enemy.isMiniBoss) {
               spawnPowerUp(enemy.x, enemy.y, Math.random() < ELITE_POWER_DROP_CHANCE)
             } else {
@@ -6491,8 +6457,6 @@ export function GradiusRaid({
       if (remotePlayerRef.current) {
         remotePlayerRef.current.score += Math.round(scoreValue * scoreMult)
       }
-      spawnSparks(enemy.x, enemy.y, enemy.isBoss ? '#fda4af' : enemy.isMiniBoss ? '#c084fc' : '#fb7185', enemy.isBoss ? 60 : enemy.isMiniBoss ? 42 : 18, enemy.isBoss ? 8 : enemy.isMiniBoss ? 7 : 5)
-      addRipple(enemy.x, enemy.y, enemy.isBoss ? '#fb7185' : enemy.isMiniBoss ? '#a855f7' : '#f97316', enemy.isBoss ? 18 : enemy.isMiniBoss ? 14 : 9)
       if (enemy.isMiniBoss) {
         spawnPowerUp(enemy.x, enemy.y, Math.random() < ELITE_POWER_DROP_CHANCE)
       } else if (!enemy.isBoss) spawnPowerUp(enemy.x, enemy.y)
@@ -6985,8 +6949,6 @@ export function GradiusRaid({
             if (remotePlayerRef.current) {
               remotePlayerRef.current.score += Math.round(scoreValue * scoreMult)
             }
-            spawnSparks(enemy.x, enemy.y, enemy.isBoss ? '#fda4af' : enemy.isMiniBoss ? '#c084fc' : '#fb7185', enemy.isBoss ? 60 : enemy.isMiniBoss ? 42 : 18, enemy.isBoss ? 8 : enemy.isMiniBoss ? 7 : 5)
-            addRipple(enemy.x, enemy.y, enemy.isBoss ? '#fb7185' : enemy.isMiniBoss ? '#a855f7' : '#f97316', enemy.isBoss ? 18 : enemy.isMiniBoss ? 14 : 9)
             if (enemy.isMiniBoss) {
               spawnPowerUp(enemy.x, enemy.y, Math.random() < ELITE_POWER_DROP_CHANCE)
             } else if (!enemy.isBoss) spawnPowerUp(enemy.x, enemy.y)
@@ -7052,13 +7014,7 @@ export function GradiusRaid({
     if (bossDefeatedThisFrame) {
       collectPendingLevelUpRewards()
       const defeatedBoss = enemiesRef.current.find((enemy) => enemy.isBoss && enemy.hp <= 0)
-      triggerScreenShake(defeatedBoss?.bossKind === 'devil' || defeatedBoss?.bossKind === 'final' ? 4 : 3, 520)
-      const scheduleBossDefeatExplosions = (boss: Enemy, dropLevelUp: boolean) => {
-        for (let index = 0; index < BOSS_BREAKUP_DELAYS.length; index += 1) {
-          bossDefeatExplosionEventsRef.current.push({ boss, age: 0, delay: BOSS_BREAKUP_DELAYS[index], index })
-        }
-        if (dropLevelUp) spawnLevelUpPowerUp(boss.x, boss.y)
-      }
+      if(defeatedBoss && !isOrganicBoss(defeatedBoss))triggerScreenShake(defeatedBoss.bossKind === 'devil' || defeatedBoss.bossKind === 'final' ? 4 : 3, 520)
       if (completedRun) {
         shotsRef.current = []
         enemyShotsRef.current = []
@@ -7082,7 +7038,6 @@ export function GradiusRaid({
           saveHighScore(player.score)
         }
         submitRaidLeaderboardScore(Math.max(player.score, remotePlayerRef.current?.score ?? 0))
-        if (defeatedBoss) scheduleBossDefeatExplosions(defeatedBoss, false)
         return
       }
       if (preserveLoadoutForSuperBoss) {
@@ -7128,9 +7083,7 @@ export function GradiusRaid({
       asteroidClusterTimerRef.current = getAsteroidClusterInterval()
       randomEventTimerRef.current = getRandomEventInterval()
       powerUpsRef.current = []
-      if (defeatedBoss) {
-        scheduleBossDefeatExplosions(defeatedBoss, true)
-      }
+      if (defeatedBoss)spawnLevelUpPowerUp(defeatedBoss.x,defeatedBoss.y)
       addRipple(player.x, player.y, '#fca5a5', 12)
     }
 
@@ -7354,7 +7307,7 @@ export function GradiusRaid({
     if (remotePlayerRef.current && remotePlayerRef.current.score > highScoreRef.current) {
       highScoreRef.current = remotePlayerRef.current.score
     }
-  }, [activateNuke, addRipple, beginCarrierRecovery, collectLevelUpReward, collectPendingLevelUpRewards, emitCommandBossShot, damagePlayer, destroyPlayerByBossCollision, detonateNuke, finishBarrage, fireEnemy, firePlayer, getLivingPlayers, getNearestLivingPlayer, showRaidVictory, spawnAsteroidCluster, planAsteroidCluster, spawnBoss, spawnEnemyAt, spawnFormation, spawnPowerUp, spawnLevelUpPowerUp, spawnSparks, startRaidBgm, startRandomRaidEvent, stopRaidBgm, submitRaidLeaderboardScore, syncBossRushStageLevel, syncSnapshot, resolveBossKind, triggerScreenShake])
+  }, [activateNuke, addRipple, beginCarrierRecovery, collectLevelUpReward, collectPendingLevelUpRewards, emitCommandBossShot, damagePlayer, destroyPlayerByBossCollision, detonateNuke, finishBarrage, fireEnemy, firePlayer, getLivingPlayers, getNearestLivingPlayer, showRaidVictory, spawnAsteroidCluster, planAsteroidCluster, spawnBoss, spawnEnemyAt, spawnFormation, spawnPowerUp, spawnLevelUpPowerUp, spawnSparks, scenePresentation, startRaidBgm, startRandomRaidEvent, stopRaidBgm, submitRaidLeaderboardScore, syncBossRushStageLevel, syncSnapshot, resolveBossKind, triggerScreenShake])
 
   const getRaidFocusableControls = useCallback(() => {
     const root = rootRef.current
@@ -7912,6 +7865,7 @@ export function GradiusRaid({
   const nukeHint = snapshot.phase === 'playing' && snapshot.nukeCooldown > 0 ? hudText.cooldown : hudText.space
   const bossIncoming = snapshot.bossAlert > 0 && snapshot.bossMessage === 'incoming'
   const bossClear = snapshot.bossAlert > 0 && snapshot.bossMessage === 'clear'
+  const bossRetreated = snapshot.enemies.some(enemy=>enemy.isBoss && enemy.hp<=0 && isOrganicBoss(enemy))
   const bossEntranceSlam = snapshot.phase === 'playing'
     ? clamp(snapshot.bossEntranceSlam / BOSS_ENTRANCE_SLAM_SECONDS, 0, 1)
     : 0
@@ -8227,7 +8181,7 @@ export function GradiusRaid({
 
       {bossClear && snapshot.phase !== 'victory' && (
         <div className="raid__boss-alert raid__boss-alert--clear">
-          {hudText.bossDestroyed}
+          {bossRetreated ? hudText.bossRetreated : hudText.bossDestroyed}
         </div>
       )}
 

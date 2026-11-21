@@ -180,7 +180,7 @@ export class ThreeShipPresentation implements LiveHullSink {
       else if (owner) this.releaseNode(owner)
     }
     let breakup=this.destruction.get(key)
-    if (ENEMY_HULL_SPECS[key] && !breakup) {
+    if (ENEMY_HULL_SPECS[key] && ENEMY_HULL_SPECS[key].special!=='squid' && ENEMY_HULL_SPECS[key].special!=='snake' && !breakup) {
       const owner=pool[0]
       if (owner) { breakup=new HullDestructionBatch(owner.object,this.combatLights);this.destruction.set(key,breakup) }
     }
@@ -491,7 +491,7 @@ export class ThreeShipPresentation implements LiveHullSink {
     this.deathMotion.copy(pose.matrix)
     this.deathMotion.elements[12]+=draw.driftX*draw.age
     this.deathMotion.elements[13]-=draw.driftY*draw.age
-    const admitted=batch.add(this.deathMotion,draw.age,draw.seed,draw.alpha,draw.tempo)
+    const admitted=batch.add(this.deathMotion,draw.age,draw.seed,draw.alpha,draw.tempo,draw.style,draw.finale)
     if(admitted)this.deathCount++
     return admitted
   }

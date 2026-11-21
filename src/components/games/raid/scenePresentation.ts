@@ -1,8 +1,9 @@
+import { destructionProfile, destructionHullAlpha, type DestructionProfile } from './destructionProfile'
 import { DestructionEffects } from './destructionEffects'
 import { AdaptiveScore, SampleScene, warmImmersionAudio } from '../presentationAudio'
 import type { ImmersionClip } from '../presentationAssets'
 import { getGameSoundEnabled } from '../sound'
-import { submitHullDestruction } from './liveHullBridge'
+import { submitHullDestruction, submitLiveHull } from './liveHullBridge'
 import { enemyHullKey, ENEMY_HULL_SPECS } from './enemyHulls'
 import { getEnemyCanvasSize } from './assets'
 import { fighterHullHeading } from './fighterHulls'
@@ -16,7 +17,7 @@ type SceneState = {
   enemies: readonly Enemy[]; hostileShots: number; event?: RaidRandomEventKind; landscape: boolean; elite: boolean
   bgm: HTMLAudioElement | null; track: string
 }
-type Burst = DestructionPresentationEvent & { at: number }
+type Burst = DestructionPresentationEvent & { at: number; poseSeconds: number; profile: DestructionProfile; finalePlayed: boolean }
 
 /** Audio and cosmetic timelines share authoritative events, never combat decisions. */
 export class RaidScenePresentation {
@@ -67,6 +68,9 @@ export class RaidScenePresentation {
       this.stream.splice(expendable<0?0:expendable,1)
     }
     this.ingest([event])
+    const profile=this.bursts.find(b=>b.serial===event.serial)?.profile
+    if(profile){enemy.defeatStyle=profile.style;enemy.defeatFinale=profile.finale}
+    return profile
   }
 
   snapshot() { return this.stream.slice() }
@@ -76,16 +80,19 @@ export class RaidScenePresentation {
       if (!event || !Number.isSafeInteger(event.serial) || event.serial <= this.received || !Number.isFinite(event.seed) || !Number.isFinite(event.x) || !Number.isFinite(event.y)
         || Math.abs(event.x)>160 || Math.abs(event.y)>160 || !Number.isFinite(event.radius) || !['fighter', 'armored', 'capital'].includes(event.tier)) continue
       this.received = event.serial
-      this.bursts.push({ ...event, seed:Math.abs(event.seed)%997,
+      const normalized = { ...event, seed:Math.abs(event.seed)%997,
         enemyId:Number.isSafeInteger(event.enemyId)?event.enemyId:undefined,
         variant:Number.isFinite(event.variant)?Math.max(0,Math.min(32,event.variant!)):0,
         vx:Number.isFinite(event.vx)?Math.max(-300,Math.min(300,event.vx!)):0,
         vy:Number.isFinite(event.vy)?Math.max(-300,Math.min(300,event.vy!)):1,
-        hull:typeof event.hull==='string' && ENEMY_HULL_SPECS[event.hull] ? event.hull : undefined, radius: Math.max(1, Math.min(20, event.radius)), at: this.clock })
+        hull:typeof event.hull==='string' && ENEMY_HULL_SPECS[event.hull] ? event.hull : undefined, radius: Math.max(1, Math.min(20, event.radius)), at: this.clock }
+      const profile=destructionProfile(normalized)
+      this.bursts.push({...normalized,poseSeconds:performance.now()/1000,profile,finalePlayed:false})
       if(this.bursts.length>24){
         const expendable=this.bursts.findIndex(b=>b.tier!=='capital')
         this.bursts.splice(expendable<0?0:expendable,1)
       }
+      if(profile.style===6 || profile.style===4)continue
       this.sounds.play(`${event.tier}-death`, event.tier === 'capital' ? .62 : event.tier === 'armored' ? .42 : .26,
         raidStereoPan(event.x, event.y, this.landscape), 'explosion', event.tier === 'capital' ? 4 : 2, 0, event.tier === 'fighter' ? 110 : 180)
     }
@@ -153,10 +160,15 @@ export class RaidScenePresentation {
       const burst=this.bursts[i]
       if(burst.tier!==tier)continue
       const seconds=(this.clock-burst.at)/1000
-      if(seconds>6 || seconds<0)continue
+      if(seconds>burst.profile.lifetime || seconds<0 || burst.profile.style===6)continue
       const shape={isBoss:tier==='capital',isMiniBoss:Boolean(burst.elite),variant:burst.variant ?? 0,bossKind:burst.bossKind ?? null} as Enemy
-      const size=getEnemyCanvasSize(shape,width,this.landscape)*(shape.isBoss?1.04:!shape.isMiniBoss && width>1100?.96:1)
-      this.destructionEffects.add(burst,seconds,size,width,height,reduced)
+      const size=getEnemyCanvasSize(shape,width,this.landscape)*(shape.isBoss && !['squid','snake','final','devil'].includes(shape.bossKind ?? '')?1.04:width>1100?.96:1)
+      this.destructionEffects.add(burst,seconds,size,width,height,reduced,burst.profile)
+      if(!burst.finalePlayed && burst.profile.finale>0 && seconds>=burst.profile.finale && phase==='playing') {
+        burst.finalePlayed=true
+        this.sounds.play(`${tier}-death`,tier==='capital'?.55:tier==='armored'?.34:.22,
+          raidStereoPan(burst.x,burst.y,this.landscape),'explosion',tier==='capital'?4:2,0,0)
+      }
     }
     return this.destructionEffects.particles
   }
@@ -165,7 +177,7 @@ export class RaidScenePresentation {
     toY: (n: number) => number, width: number, reduced: boolean, _low: boolean) {
     let write=0
     for(const burst of this.bursts){
-      const lifetime=burst.tier==='capital'?6:burst.tier==='armored'?3.4:2.2
+      const lifetime=burst.profile.lifetime
       if((this.clock-burst.at)/1000<=lifetime)this.bursts[write++]=burst
     }
     this.bursts.length=write
@@ -174,13 +186,26 @@ export class RaidScenePresentation {
     for(const tier of ['capital','armored','fighter'] as const)for(let i=this.bursts.length-1;i>=0 && admitted<12;i--){
       const burst=this.bursts[i]
       if(burst.tier!==tier || !burst.hull)continue
-      const seconds=(this.clock-burst.at)/1000,lifetime=tier==='capital'?6:tier==='armored'?3.4:2.2
+      const seconds=(this.clock-burst.at)/1000,profile=burst.profile
       const shape={isBoss:tier==='capital',isMiniBoss:Boolean(burst.elite),variant:burst.variant ?? 0,bossKind:burst.bossKind ?? null} as Enemy
-      const size=getEnemyCanvasSize(shape,width,this.landscape)*(shape.isBoss?1.04:!shape.isMiniBoss && width>1100?.96:1)
+      const size=getEnemyCanvasSize(shape,width,this.landscape)*(shape.isBoss && !['squid','snake','final','devil'].includes(shape.bossKind ?? '')?1.04:width>1100?.96:1)
+      if(profile.style===6) {
+        const t=Math.min(1,seconds/2.85),side=burst.seed%2?1:-1,escape=t*t
+        const angle=(this.landscape?Math.PI/2:0)+(reduced?0:side*Math.sin(t*Math.PI)*.16)
+        // Living bosses withdraw intact. Logical upstream remains the enemy
+        // entry edge in either orientation; depth carries them into the distance.
+        if(submitLiveHull({id:'enemy:'+burst.enemyId,key:burst.hull,x:toX(burst.x+side*18*Math.sin(t*Math.PI/2)),
+          y:toY(burst.y-(burst.y+110)*escape),size:size*(burst.bossKind==='snake'?.8:1)*(1+Math.sin(burst.poseSeconds/1.1)*.03)*(1-t*.2),
+          bank:0,angle,alpha:1,landscape:this.landscape,depth:t*260,
+          bossPose:{seconds:burst.poseSeconds+seconds,attack:0,targetX:0,targetY:-1,motion:reduced?0:1}}))admitted++
+        continue
+      }
+      const alpha=destructionHullAlpha(profile,seconds)
+      if(alpha<=.005)continue
       const heading=shape.isBoss || shape.isMiniBoss ? 0 : fighterHullHeading(burst.vx ?? 0,burst.vy ?? 1,width,toY(100))
       if(submitHullDestruction({id:'death:'+burst.serial+':'+burst.enemyId,sourceId:'enemy:'+burst.enemyId,key:burst.hull,
         x:toX(burst.x),y:toY(burst.y),size,angle:heading,landscape:this.landscape,
-        age:reduced?Math.min(.04,seconds):seconds,seed:burst.seed,alpha:Math.min(1,(lifetime-seconds)/.7),tempo:tier==='capital'?2:1,
+        age:reduced?Math.min(.04,seconds):seconds,seed:burst.seed,alpha,tempo:profile.tempo,style:profile.style,finale:profile.finale,
         driftX:(burst.vx ?? 0)*width/100,driftY:(burst.vy ?? 1)*toY(100)/100}))admitted++
     }
   }

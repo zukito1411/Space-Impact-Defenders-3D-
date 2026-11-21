@@ -1,3 +1,4 @@
+import { authoredDefeatAlpha } from './destructionProfile'
 import { Container, Sprite, Texture } from 'pixi.js'
 import { drawCanvasSpriteContain, getDevilBossCanvasSprite, getEnemyCanvasSize, RAID_DEVIL_BOSS_ATTACK_FILTER, RAID_DEVIL_BOSS_BASE_FILTER } from './assets'
 import { STAGE_CLEAR_SECONDS } from './constants'
@@ -144,8 +145,8 @@ export class RaidGpuBossBodies {
         const pair = this.nodes.get(enemy.id) ?? this.takePair(enemy.id)
         activeIds.add(enemy.id)
         this.renderedIds.add(enemy.id)
-        const fade = enemy.hp > 0 ? 1 :
-          clamp((enemy.defeatTimer ?? enemy.devilDefeatedTimer ?? STAGE_CLEAR_SECONDS) / STAGE_CLEAR_SECONDS, 0, 1)
+        const remaining=enemy.defeatTimer ?? enemy.devilDefeatedTimer ?? STAGE_CLEAR_SECONDS
+        const fade=enemy.hp>0?1:authoredDefeatAlpha(enemy.defeatStyle,enemy.defeatFinale,STAGE_CLEAR_SECONDS-remaining,clamp(remaining/STAGE_CLEAR_SECONDS,0,1))
         if (pair.pose !== pose) {
           pair.fromTexture = pair.pose !== null
             ? (pair.blend.visible ? pair.blend.texture : pair.base.texture) : null

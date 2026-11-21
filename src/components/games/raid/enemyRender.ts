@@ -1,3 +1,4 @@
+import { authoredDefeatAlpha } from './destructionProfile'
 import type { EnemyBankMotion } from './enemyBanking'
 import { enemyHullKey } from './enemyHulls'
 import { fighterHullHeading } from './fighterHulls'
@@ -23,7 +24,8 @@ export function clearNormalEnemyRasters() {}
 
 export function getBossDefeatFade(enemy: Enemy) {
   if (enemy.hp > 0) return 1
-  return clamp((enemy.defeatTimer ?? enemy.devilDefeatedTimer ?? STAGE_CLEAR_SECONDS) / STAGE_CLEAR_SECONDS, 0, 1)
+  const remaining=enemy.defeatTimer ?? enemy.devilDefeatedTimer ?? STAGE_CLEAR_SECONDS
+  return authoredDefeatAlpha(enemy.defeatStyle,enemy.defeatFinale,STAGE_CLEAR_SECONDS-remaining,clamp(remaining/STAGE_CLEAR_SECONDS,0,1))
 }
 
 function drawBossResidualHit(ctx: CanvasRenderingContext2D, enemy: Enemy, size: number) {

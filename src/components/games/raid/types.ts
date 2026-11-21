@@ -208,6 +208,8 @@ export type Enemy = Vec & {
   devilDefeatedTimer?: number
   devilSnakeBurstLeft?: number
   defeatTimer?: number
+  defeatStyle?: number
+  defeatFinale?: number
   bossHpStingerPlayed?: boolean
   chargePattern: 'single' | 'pincer' | 'trident' | 'scatter' | 'diagonal' | 'horizontal' | 'cross' | 'rotate'
 }
@@ -255,13 +257,6 @@ export type NukeStrike = {
   targetY: number
   age: number
   duration: number
-}
-
-export type BossDefeatExplosionEvent = {
-  boss: Enemy
-  age: number
-  delay: number
-  index: number
 }
 
 export type GodGundamBarrage = {
