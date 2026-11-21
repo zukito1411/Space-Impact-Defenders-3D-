@@ -30,10 +30,13 @@ export class OrbitalMoons {
       const relativeRadius = i === 0 ? .18+(this.index%2)*.025 : .105
       const radius = radiusKm*relativeRadius
       const ringed = style.swing === 0
-      const orbit = (ringed ? 4.7 : 2.65)+i*(ringed ? 2.5 : 1.8)
+      // Compact paths remain outside the surface and authored ring footprint.
+      const orbit = (ringed ? 2.35 : 1.65)+i*.65
       const node = 2.248+this.index*.13+i*.11
       const tilt = .90+i*.16-this.index*.08
-      const angle = seconds*(.038-i*.013-this.index*.003)+1.16+i*2.4+this.index*.7
+      // Slow orbital motion; outer satellites take longer to circle the planet.
+      const rate = (.0068-this.index*.0004)*Math.pow(1.65/orbit,1.5)
+      const angle = seconds*rate+1.16+i*2.4+this.index*.7
       const ca = Math.cos(angle), sa = Math.sin(angle), cn = Math.cos(node), sn = Math.sin(node)
       body[0] = orbit*(cn*ca-sn*Math.sin(tilt)*sa)
       body[1] = orbit*(sn*ca+cn*Math.sin(tilt)*sa)

@@ -1307,6 +1307,10 @@ export class PixiRaidBackground {
       this.updateGalaxies(width, height, seconds, stageTheme, isLow, isMedium)
       this.orbitalCamera?.setView(width, height, celestialSeconds, this.travel.rush, this.reducedMotion,
         this.travel.x, this.travel.y, frame.runToken ?? 0, Boolean(frame.landscape))
+      // Keep the original soft-glow catalogue alive alongside the 3D points.
+      // Rendering can begin during async sky preparation; previously these
+      // sprites remained visible but froze when the GPU catalogue became ready.
+      this.updateStarfield(width, height, quality, dpr, palette.starTint, palette.streak, stageTheme)
       if (this.orbitalSkyReady && this.orbitalCamera && this.orbitalStars) {
         this.orbitalStars.mesh.visible = shouldDrawRaidStars(stageTheme)
         if (this.orbitalStars.mesh.visible) {
@@ -1315,7 +1319,6 @@ export class PixiRaidBackground {
         }
       } else {
         if (this.orbitalStars) this.orbitalStars.mesh.visible = false
-        this.updateStarfield(width, height, quality, dpr, palette.starTint, palette.streak, stageTheme)
       }
       if (shouldDrawRaidStars(stageTheme)) this.celestialScenery.update(width, height, celestialSeconds, this.cosmosRegion,
         quality, this.reducedMotion, false, false, starSeconds)
