@@ -54,6 +54,15 @@ for(const kind of ['squid','snake']) {
  poseOrganicBoss(object,{seconds:7,attack:.8,targetX:.2,targetY:-1.4,motion:1})
  assert.equal(uniforms.attack.value,.8);assert.equal(uniforms.time.value,7)
  assert.equal(uniforms.target.value.y,-1.4)
+ // Banking must preserve the attack lane after camera foreshortening.
+ for(const yaw of [0,-24*Math.PI/180])for(const roll of [-.17,.17]) {
+  const scale=Math.cos(yaw)/Math.cos(yaw+roll)
+  poseOrganicBoss(object,{seconds:7,attack:.8,targetX:.2,targetY:-1.4,motion:1},'bank-check',scale)
+  assert.ok(Math.abs(uniforms.target.value.x*Math.cos(yaw+roll)-.2*Math.cos(yaw))<1e-12)
+  const head=object.children.find(child=>child.name==='boss-organic-head-v1')
+  if(head)assert.ok(Math.abs(head.position.x-.2*scale*.8)<1e-12)
+ }
+
  poseOrganicBoss(object,{seconds:8,attack:0,targetX:0,targetY:-1,motion:0})
  assert.equal(geometry.getAttribute('position'),positions,'animation must preserve the shared vertex buffers')
  assert.equal(uniforms.attack.value,0,'pooled organic bosses must reset attack state')

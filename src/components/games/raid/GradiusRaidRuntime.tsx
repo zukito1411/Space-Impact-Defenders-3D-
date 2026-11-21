@@ -2657,7 +2657,7 @@ export function GradiusRaid({
       }
       if (gpuForegroundDrawn && !enemy.isBoss && !enemy.isMiniBoss) continue
       drawRaidEnemy(ctx, enemy, toX, toY, cssWidth, time, normalEnemyFilter, dpr,
-        gpuForegroundDrawn && Boolean(enemy.isBoss && pixiBackground?.isBossGpuRendered(enemy.id)), landscapeRef.current)
+        gpuForegroundDrawn && Boolean(enemy.isBoss && pixiBackground?.isBossGpuRendered(enemy.id)), landscapeRef.current, !playing)
       if (enemy.bossImpactTime && enemy.hp > 0) {
         drawBossImpact(ctx, enemy, toX(enemy.x), toY(enemy.y), cssWidth / WIDTH, cssHeight / HEIGHT,
           getEnemyCanvasSize(enemy, cssWidth, landscapeRef.current), reducedMotion)

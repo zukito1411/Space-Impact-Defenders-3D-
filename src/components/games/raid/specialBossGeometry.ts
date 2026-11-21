@@ -223,7 +223,7 @@ export function prepareOrganicRig(material: MeshStandardMaterial) {
 }
 
 export type OrganicBossPose={seconds:number;attack:number;targetX:number;targetY:number;motion:number}
-export function poseOrganicBoss(object:Object3D,pose:OrganicBossPose,identity='') {
+export function poseOrganicBoss(object:Object3D,pose:OrganicBossPose,identity='',targetScale=1) {
   object.traverse(child=>{
     if(!(child instanceof Mesh))return
     for(const material of Array.isArray(child.material)?child.material:[child.material]) {
@@ -234,11 +234,11 @@ export function poseOrganicBoss(object:Object3D,pose:OrganicBossPose,identity=''
       uniforms.attack.value=recovering?Math.max(pose.attack,uniforms.attack.value-elapsed/.32):pose.attack
       uniforms.owner=identity
       uniforms.time.value=pose.seconds
-      uniforms.target.value.set(pose.targetX,pose.targetY,0);uniforms.motion.value=pose.motion
+      uniforms.target.value.set(pose.targetX*targetScale,pose.targetY,0);uniforms.motion.value=pose.motion
     }
     if(child.name==='boss-organic-head-v1'&&child.userData.organicKind==='snake') {
       // Body endpoint and head move together during a bite, including retraction.
-      child.position.set(pose.targetX*pose.attack,.12+(pose.targetY-.1)*pose.attack,SERPENT_HEAD_ELEVATION)
+      child.position.set(pose.targetX*targetScale*pose.attack,.12+(pose.targetY-.1)*pose.attack,SERPENT_HEAD_ELEVATION)
       child.scale.setScalar(.9*(1-pose.attack*.18))
     }
   })

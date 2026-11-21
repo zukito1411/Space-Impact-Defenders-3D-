@@ -1,3 +1,4 @@
+import type { EnemyBankMotion } from './enemyBanking'
 import { enemyHullKey } from './enemyHulls'
 import { fighterHullHeading } from './fighterHulls'
 import { drawLiveHull } from './liveHullBridge'
@@ -67,10 +68,17 @@ export function drawRaidEnemy(
   _dpr = 1,
   skipGpuStageBossBody = false,
   landscape = false,
+  paused = false,
 ) {
   const x = toX(enemy.x)
   const y = toY(enemy.y)
   const size = getEnemyCanvasSize(enemy, viewportWidth, landscape) * (viewportWidth > 1100 ? 0.96 : 1)
+
+  const enemyBank: EnemyBankMotion | undefined = (enemy.isBoss || enemy.isMiniBoss) && enemy.bossKind !== 'devil'
+    ? { x: enemy.x, y: enemy.y, time, paused: paused || enemy.hp <= 0,
+      kind: enemy.isMiniBoss ? 'elite' : enemy.bossKind === 'squid' || enemy.bossKind === 'snake' ? 'organic'
+        : enemy.bossKind === 'final' ? 'mothership' : 'capital' }
+    : undefined
 
   if (enemy.isBoss) {
     const defeatFade = getBossDefeatFade(enemy)
@@ -111,6 +119,7 @@ export function drawRaidEnemy(
       ctx.scale(bodyScale,bodyScale)
       const key=specialBossHullKey(displayBossKind)!
       const organic=displayBossKind!=='final'
+      if (enemyBank) enemyBank.kind = organic ? 'organic' : 'mothership'
       const reduced=prefersRaidReducedMotion()
       const bite=displayBossKind==='snake'&&enemy.chargePattern==='cross'
         &&(enemy.chargeTimer>0||(enemy.beamVolleyRecovery??0)>0)
@@ -125,7 +134,7 @@ export function drawRaidEnemy(
       const localY=(landscape?-dx:-dy)/(size*bodyScale)
       const rage=clamp((.55-enemy.hp/Math.max(1,enemy.maxHp))/.55,0,1)
       drawLiveHull(ctx,key,0,0,size,0,1,landscape,'enemy:'+enemy.id,{
-        hit:Math.min(1,(enemy.hitFlash??0)/.18),
+        hit:Math.min(1,(enemy.hitFlash??0)/.18), enemyBank,
         spin:organic||reduced?0:time/1000*(.055+rage*.018),
         bossPose:organic?{seconds:time/1000,attack,targetX:localX/(landscape?Math.cos(ORGANIC_BOSS_VIEW_YAW):1),
           targetY:localY,motion:reduced?0:1}:undefined,
@@ -149,7 +158,7 @@ export function drawRaidEnemy(
     const reducedMotion = prefersRaidReducedMotion()
     const recoil = !reducedMotion && enemy.bossImpact?.kind === 'heavy' ? (enemy.bossImpactTime ?? 0) * size * .12 : 0
     const drift = enemy.hp <= 0 && !reducedMotion ? (1 - defeatFade) * (enemy.id % 2 ? -.18 : .18) : 0
-    drawGenericBossShip(ctx, enemy, x, y - recoil, size, rotation + drift, floatScale, defeatFade, landscape)
+    drawGenericBossShip(ctx, enemy, x, y - recoil, size, rotation + drift, floatScale, defeatFade, landscape, enemyBank)
     drawHullDamage(ctx, enemy, x, y - recoil, size, rotation + drift, floatScale, reducedMotion, defeatFade)
     drawCommandBossEnergy(ctx, enemy, toX, toY, size)
     ctx.save()
@@ -172,7 +181,7 @@ export function drawRaidEnemy(
       ctx.translate(x, y)
       ctx.rotate(rotation)
       drawLiveHull(ctx, key, 0, 0, size * floatScale, 0, 1, landscape, 'enemy:' + enemy.id,
-        { hit: Math.min(1, (enemy.hitFlash ?? 0) / .14) })
+        { hit: Math.min(1, (enemy.hitFlash ?? 0) / .14), enemyBank })
       ctx.restore()
     }
     ctx.save()

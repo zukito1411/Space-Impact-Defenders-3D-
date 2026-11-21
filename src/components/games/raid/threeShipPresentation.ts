@@ -1,3 +1,4 @@
+import { updateEnemyBank, type EnemyBankPose } from './enemyBanking'
 import { ShipGpuTimer } from './shipGpuTimer'
 import { HullInstances } from './hullInstances'
 import { LANDSCAPE_VIEW_YAW, ORGANIC_BOSS_VIEW_YAW, RAID_CAMERA_FOV, raidCameraFocal } from './raidView'
@@ -15,7 +16,7 @@ import { prepareHullSurfaces, type HullSurfaceBinding } from './shipSurface'
 import { acquireHull, hullKey, loadHull, releaseHull, trimHullAssets } from './liveHullAssets'
 import { bindLiveHulls, unbindLiveHulls, type LiveHullDraw, type LiveHullSink } from './liveHullBridge'
 
-type HullNode = { body?: Mesh; hit: number; key: string; group: Group; object: Object3D; used: number; materials: Material[]; surfaces: HullSurfaceBinding[]; transient?: boolean }
+type HullNode = { bankPose?: EnemyBankPose; body?: Mesh; hit: number; key: string; group: Group; object: Object3D; used: number; materials: Material[]; surfaces: HullSurfaceBinding[]; transient?: boolean }
 
 /** Live player, support, fighter and cosmetic-copy meshes share one transparent layer.
  * Pixi owns scenery GLBs; Canvas retains exhaust, weapon and energy effects. */
@@ -382,7 +383,6 @@ export class ThreeShipPresentation implements LiveHullSink {
     }
     node.used = this.frame
     if (node.body) node.body.visible = true
-    if(draw.bossPose)poseOrganicBoss(node.object,draw.bossPose,draw.id)
     node.transient=draw.id.startsWith('fx:')
     const { group } = node
     group.visible = draw.alpha > .01
@@ -396,7 +396,20 @@ export class ThreeShipPresentation implements LiveHullSink {
     else group.quaternion.copy(this.headingTurn)
     group.scale.set(draw.size*sx/448, draw.size*sy/448, draw.size*sx/448)
     node.object.position.set((144*sx+ox-224)/sx,(224-144*sy-oy)/sy,0)
-    node.object.rotation.y = this.reduced.matches ? 0 : draw.bank * 150*Math.PI/180
+    let bank = draw.bank
+    if (draw.enemyBank && ENEMY_HULL_SPECS[key]) {
+      const motion = draw.enemyBank
+      node.bankPose ??= { x: motion.x, y: motion.y, time: motion.time, bank: 0, velocity: 0 }
+      bank = updateEnemyBank(node.bankPose, motion, this.reduced.matches)
+    } else node.bankPose = undefined
+    node.object.rotation.y = this.reduced.matches ? 0 : bank * 150*Math.PI/180
+    if (draw.bossPose) {
+      const yaw = draw.landscape ? ORGANIC_BOSS_VIEW_YAW : 0
+      // Keep the committed bite/whip lane in the same camera plane while
+      // banking the body; the attack rig receives the inverse foreshortening.
+      const targetScale = Math.cos(yaw) / Math.cos(yaw + node.object.rotation.y)
+      poseOrganicBoss(node.object, draw.bossPose, draw.id, targetScale)
+    }
     // Saucer spin belongs inside the inclined flight plane. Rotating the
     // projected heading instead makes the disc stand up like a wheel.
     node.object.rotation.z = this.reduced.matches ? 0 : draw.spin ?? 0
@@ -449,6 +462,7 @@ export class ThreeShipPresentation implements LiveHullSink {
   }
 
   private releaseNode(node: HullNode) {
+    node.bankPose = undefined
     const pool = this.nodePools.get(node.key)
     const limit=8
     if (!this.disposed && pool && pool.length < limit) {

@@ -17,6 +17,7 @@ const specialOnly=process.argv.includes('--special-only')
 const verifySpecial=specialOnly||process.argv.includes('--verify-special')
 const verifyTerrain=process.env.RAID_REVIEW_TERRAIN_CHECK==='1'
 const verifyKeels=process.env.RAID_REVIEW_KEEL_CHECK==='1'
+const verifyEnemyBanking=process.env.RAID_REVIEW_ENEMY_BANK_CHECK==='1'
 const verifyCloudsCrosswing=process.env.RAID_REVIEW_CLOUD_WING_CHECK==='1'
 const verifyMobs=process.argv.includes('--verify-mobs')
 const frames=Number(process.env.RAID_REVIEW_FRAMES ?? 24)
@@ -43,8 +44,8 @@ try {
   }
   browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH,
     args:['--no-sandbox','--enable-unsafe-swiftshader','--use-angle=swiftshader']})
-  const specialChecks=[],mobChecks=[]
-  for(const landscape of (capturesOnly&&!verifySpecial&&!verifyMobs&&!verifyTerrain&&!verifyKeels&&!verifyCloudsCrosswing ? [true] : [true,false])) {
+  const specialChecks=[],mobChecks=[],bankingCaptures=[]
+  for(const landscape of (capturesOnly&&!verifySpecial&&!verifyMobs&&!verifyTerrain&&!verifyKeels&&!verifyCloudsCrosswing&&!verifyEnemyBanking ? [true] : [true,false])) {
     const view=landscape?'landscape':'portrait'
     const page=await browser.newPage({viewport:landscape?(desktop?{width:1920,height:1080}:{width:844,height:390}):{width:393,height:852},
       deviceScaleFactor:1,hasTouch:!desktop,reducedMotion:'no-preference'})
@@ -233,6 +234,10 @@ try {
         review.background.landscapeAtmosphere.lastTime=null
         review.actions.draw(40000)
       })
+      if(verifyEnemyBanking) {
+        const {bankEnemyForCapture}=await import('./check-enemy-banking.mjs')
+        bankingCaptures.push(await bankEnemyForCapture(page,boss.stage))
+      }
       await page.screenshot({path:output+'/'+filename})
       captures.push({...boss,file:filename})
       if(selectedStages) {
@@ -264,6 +269,10 @@ try {
         await writeFile(output+'/stage-'+boss.stage+'-surface-checks.json',JSON.stringify(surface,null,2))
       }
       console.log('Captured',boss.stage,boss.name)
+    }
+    if(verifyEnemyBanking) {
+      const {checkEnemyBanking}=await import('./check-enemy-banking.mjs')
+      await checkEnemyBanking(page,output,landscape)
     }
     if(verifyKeels) {
       const {checkBossKeels}=await import('./check-boss-keels.mjs')
@@ -426,6 +435,7 @@ try {
     }
     await page.close()
   }
+  if(bankingCaptures.length)await writeFile(output+'/boss-banking-checks.json',JSON.stringify(bankingCaptures,null,2))
   if(captures.length)await writeFile(output+'/bosses-v1.json',JSON.stringify(captures,null,2))
   if(specialChecks.length)await writeFile(output+'/special-boss-checks-v1.json',JSON.stringify({specialChecks,errors},null,2))
   if(mobChecks.length)await writeFile(output+'/mob-hull-checks-v1.json',JSON.stringify({mobChecks,errors},null,2))
