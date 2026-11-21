@@ -894,8 +894,7 @@ export class PixiRaidBackground {
   private readonly planetSprites = [new Sprite(Texture.WHITE), new Sprite(Texture.WHITE), new Sprite(Texture.WHITE)]
   private readonly wreckSprites = Array.from({ length: RAID_BACKGROUND_MAX_WRECKS }, () => new Sprite(Texture.WHITE))
   private readonly scenicSprites = [new Sprite(Texture.WHITE), new Sprite(Texture.WHITE)]
-  private readonly farStarLayers = [new Graphics(), new Graphics(), new Graphics()]
-  private readonly nearStarLayers = [new Graphics(), new Graphics(), new Graphics()]
+  private readonly farStarSprites = Array.from({length: Math.ceil(BACKGROUND_STARS.length*.55)}, () => new Sprite(Texture.WHITE))
   private depthStarTexture: Texture | null = null
   private readonly depthStarSprites = Array.from({length: 99}, () => new Sprite(Texture.WHITE))
   private readonly depthStarScratch: DepthStar = {x:0,y:0,size:0,alpha:0,rotation:0}
@@ -993,8 +992,6 @@ export class PixiRaidBackground {
       this.skyScene.addChild(this.bossTintGraphics)
       this.skyScene.addChild(this.ambientGlowGraphics)
       this.skyScene.addChild(this.celestialScenery.root)
-      this.farStarLayers.forEach((layer) => this.skyScene.addChild(layer))
-      this.nearStarLayers.forEach((layer) => this.skyScene.addChild(layer))
       // Bake a small soft point once; never blur or rebuild stars per frame.
       const starCanvas = document.createElement('canvas')
       starCanvas.width = starCanvas.height = 64
@@ -1010,6 +1007,11 @@ export class PixiRaidBackground {
         this.depthStarTexture = Texture.from(starCanvas)
         this.depthStarTexture.source.scaleMode = 'linear'
       }
+      this.farStarSprites.forEach(sprite => {
+        sprite.texture = this.depthStarTexture ?? Texture.WHITE
+        sprite.anchor.set(.5);sprite.visible = false
+        this.skyScene.addChild(sprite)
+      })
       this.depthStarSprites.forEach((sprite, index) => {
         sprite.texture = this.depthStarTexture ?? Texture.WHITE
         sprite.anchor.set(0.5)
@@ -1320,8 +1322,6 @@ export class PixiRaidBackground {
       // Keep this stage flag for the existing orbital effects mode selection.
       const space = !isWateryWorldTheme(stageTheme) && !isVolcanicWorldTheme(stageTheme)
       this.nebulaGraphics.position.set(0, 0)
-      for (const layer of this.farStarLayers) layer.x = 0
-      for (const layer of this.nearStarLayers) layer.x = 0
       // Scrolling water/volcano island and cloud sprites are inexpensive
       // position/visibility updates. They MUST advance each render frame,
       // independently of the 40-80 ms cached vector-ground redraw cadence.
@@ -1645,9 +1645,8 @@ export class PixiRaidBackground {
 
   private updateStarfield(width: number, height: number, quality: GraphicsQuality, dpr: number, starTint: string, streak: string, stageTheme: number) {
     if (!shouldDrawRaidStars(stageTheme)) {
+      for (const sprite of this.farStarSprites) sprite.visible = false
       for (const sprite of this.depthStarSprites) sprite.visible = false
-      this.updateScrollingGraphics(this.farStarLayers, Math.max(1, height), 0, false)
-      this.updateScrollingGraphics(this.nearStarLayers, Math.max(1, height), 0, false)
       return
     }
     const key = getRaidStarfieldCacheKey(width, height, quality, dpr, starTint, streak)
@@ -1658,25 +1657,29 @@ export class PixiRaidBackground {
     const farCount = isLow ? 28 : Math.ceil(starLimit * 0.55)
     const nearCount = starLimit - farCount
     const farLayerHeight = height * 1.26
-    const nearLayerHeight = height * 1.38
 
     if (this.starfieldKey !== key) {
       this.starfieldKey = key
-      for (const layer of this.farStarLayers) {
-        layer.clear()
-        for (let index = 0; index < farCount; index += 1) {
-          const star = BACKGROUND_STARS[index]
-          layer.circle(star.x * width, star.y * farLayerHeight, star.size * 0.62).fill(getPixiFill(
-            star.tint > 0.94 ? starTint : star.tint > 0.6 ? 'rgba(173,205,255,0.62)' : star.tint < 0.12 ? 'rgba(255,222,185,0.64)' : 'rgba(241,246,255,0.76)',
-            star.alpha * 0.52,
-          ))
-        }
+      for (let index=0;index<this.farStarSprites.length;index++) {
+        const star = BACKGROUND_STARS[index],sprite = this.farStarSprites[index]
+        sprite.tint = star.tint > .94 ? parsePixiCssColor(starTint).color
+          : star.tint > .6 ? 0xadcdff : star.tint < .12 ? 0xffdeb9 : 0xf1f6ff
+        sprite.width = sprite.height = star.size*4.2
       }
-      for (const layer of this.nearStarLayers) layer.clear()
     }
 
-    this.updateScrollingGraphics(this.farStarLayers, farLayerHeight, this.travel.far - height * 0.13, true)
-    this.updateScrollingGraphics(this.nearStarLayers, nearLayerHeight, this.travel.near - height * 0.19, false)
+    // Legacy distant stars used to be baked into static Graphics. Retain their
+    // catalogue, palette and scroll, but vary each pooled sprite independently.
+    const farOffset = this.travel.far-height*.13
+    for (let i=0;i<this.farStarSprites.length;i++) {
+      const sprite = this.farStarSprites[i]
+      if (i >= farCount) { sprite.visible = false;continue }
+      const star = BACKGROUND_STARS[i]
+      const y = ((star.y*farLayerHeight+farOffset+8)%farLayerHeight+farLayerHeight)%farLayerHeight-8
+      sprite.position.set(star.x*width,y)
+      sprite.visible = y >= -8 && y <= height+8
+      sprite.alpha = Math.min(1,star.alpha*.52*sampleStarBrightness(star.tint,this.starClock.seconds,this.reducedMotion))
+    }
     for (let i = 0; i < this.depthStarSprites.length; i++) {
       const sprite = this.depthStarSprites[i]
       if (i >= nearCount) { sprite.visible = false; continue }
@@ -1691,17 +1694,6 @@ export class PixiRaidBackground {
       sprite.height = star.size * 4
       sprite.alpha = Math.min(1,star.alpha * sampleStarBrightness(seed.tint,this.starClock.seconds,this.reducedMotion))
       sprite.rotation = star.rotation
-    }
-  }
-
-  private updateScrollingGraphics(layers: Graphics[], layerHeight: number, offset: number, visible: boolean) {
-    if (layerHeight <= 0) return
-    const y = ((offset % layerHeight) + layerHeight) % layerHeight
-    for (let index = 0; index < layers.length; index += 1) {
-      const layer = layers[index]
-      layer.position.set(0, y + (index - 1) * layerHeight)
-      layer.alpha = visible ? 1 : 0
-      layer.visible = visible
     }
   }
 

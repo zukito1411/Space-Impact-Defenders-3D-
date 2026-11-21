@@ -20,7 +20,7 @@ for (let i=0;i<64;i++) {
   const alphas=samples.map(frame=>frame.alpha)
   const seed=(i*.61803398875+.071)%1,group=(seed*91.37)%1
   const variation=Math.max(...alphas)-Math.min(...alphas)
-  if(group<.30)assert.ok(variation<1e-9,'steady star changed brightness')
+  if(group<.08)assert.ok(variation<1e-9,'steady star changed brightness')
   else assert.ok(variation>.2,'variable star never visibly brightened')
   for(let n=1;n<samples.length;n++) assert.ok(Math.abs(alphas[n]-alphas[n-1])<.3,'star blinked with an abrupt flash')
   assert.ok(samples.every(frame=>frame.y>0&&frame.y<390*.55),'planet stars spilled into terrain')

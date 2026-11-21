@@ -3,18 +3,7 @@ import type { Renderer, Sprite } from 'pixi.js'
 import type { AsteroidHazard } from './types'
 import { raidObjectInView } from './visibility'
 import type { RaidVisibilityBounds } from './visibility'
-
-/** Sun and viewing direction are uniform across a body. Normalize them once
- * per pose instead of repeating these square roots for every shaded pixel. */
-function writeOrbitalLight(sun: Float32Array, source: Float32Array, half?: Float32Array) {
-  const scale=1/Math.max(1e-12,Math.hypot(source[0],source[1],source[2]))
-  const x=source[0]*scale,y=source[1]*scale,z=source[2]*scale
-  sun[0]=x;sun[1]=y;sun[2]=z
-  if (half) {
-    const rate=1/Math.max(1e-12,Math.hypot(x,y,z+1))
-    half[0]=x*rate;half[1]=y*rate;half[2]=(z+1)*rate
-  }
-}
+import { ASTEROID_SURFACE_GLSL, writeOrbitalLight } from './asteroidMaterial'
 
 // These meshes share the existing Pixi context and painted surface textures.
 // Buffers are built once, then only the camera/rotation uniforms change.
@@ -120,11 +109,16 @@ varying vec2 paint;
 varying vec3 terrain;
 varying float facing;
 varying vec4 tint;
+${ASTEROID_SURFACE_GLSL}
 void main() {
   if (facing < 0.) discard;
   vec4 texel = texture2D(uArt,uFrame.xy+clamp(paint,.002,.998)*uFrame.zw);
   vec3 pigment = texel.rgb/max(.025,texel.a);
   vec3 n = normalize(normal), light = uSun;
+  if (uRock > .5) {
+    gl_FragColor = vec4(shadeAsteroid(pigment,n,light,uHalfLight),1.)*tint;
+    return;
+  }
   float incidence = dot(n,light), day = max(0.,incidence);
   // Airless surfaces have a true night side; atmospheric twilight is separate.
   vec3 color = pigment * mix(vec3(.10,.13,.19),vec3(1.22,1.16,1.09),day);
@@ -151,9 +145,6 @@ void main() {
     float specular = pow(max(0.,dot(n,uHalfLight)),64.);
     color += vec3(.38,.57,.68)*specular*ocean*day;
   }
-  // A restrained mineral glint leaves the original crater/terrain detail clear.
-  float glint = pow(max(0.,dot(n,uHalfLight)),30.);
-  color += vec3(.22,.20,.17)*glint*uRock*day;
   gl_FragColor = vec4(color,1.)*tint;
 }`
 

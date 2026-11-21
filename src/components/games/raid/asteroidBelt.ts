@@ -3,6 +3,7 @@ import type { Geometry, Renderer } from 'pixi.js'
 import type { OrbitalCamera } from './orbitalSpace'
 import type { ShipLightingFrame } from './shipLighting'
 import { createAsteroidBeltGeometry } from './asteroidBeltGeometry'
+import { ASTEROID_SURFACE_GLSL, writeOrbitalLight } from './asteroidMaterial'
 
 const vertex = `
 precision highp float;
@@ -15,9 +16,8 @@ uniform vec3 uOffset;
 uniform float uFocal, uSeconds, uFieldScale, uEntryMargin;
 uniform vec4 uColor, uWorldColorAlpha;
 varying vec2 paint;
-varying vec3 normal, mineral, eye;
+varying vec3 normal;
 varying vec4 tint;
-varying float cavity;
 vec3 turn(vec3 p, float c, float s) {
   return p*c+cross(aMotion.xyz,p)*s+aMotion.xyz*dot(aMotion.xyz,p)*(1.-c);
 }
@@ -39,11 +39,8 @@ void main() {
   vec2 screen = (uProjectionMatrix*uWorldTransformMatrix*uTransformMatrix*vec3(pos,1.)).xy;
   gl_Position = vec4(screen*distance,(1.-.16/distance)*distance,distance);
   normal = vec3(n.x,-n.y,n.z);
-  eye = vec3(-center.x,-center.y,center.z);
-  paint = .5+aHull.xy*.16+vec2(fract(aRock.w*7.13),fract(aRock.w*19.31))*.08;
-  mineral = mix(vec3(.26,.25,.23),vec3(.40,.42,.45),fract(aRock.w*23.17));
-  if (fract(aRock.w*51.91) > .82) mineral *= vec3(1.12,.99,.84);
-  cavity = aNormal.w;
+  // Same full-color paint registration as the existing OrbitalSurface rocks.
+  paint = .5+normalize(aHull).xy*.48*.965;
   tint = uColor*uWorldColorAlpha;
 }`
 
@@ -51,27 +48,16 @@ const fragment = `
 precision highp float;
 uniform sampler2D uArt;
 uniform vec4 uFrame;
-uniform vec3 uSun, uKey, uSky, uFillDirection, uFill;
-uniform float uOpacity, uAmbient, uIntensity, uFillIntensity;
+uniform vec3 uSun, uHalfLight;
+uniform float uOpacity;
 varying vec2 paint;
-varying vec3 normal, mineral, eye;
+varying vec3 normal;
 varying vec4 tint;
-varying float cavity;
+${ASTEROID_SURFACE_GLSL}
 void main() {
-  // Geometry owns the irregular silhouette. Sample interior mineral pigment,
-  // so the source image's circular alpha cannot cut holes into a solid body.
-  vec4 art = texture2D(uArt,uFrame.xy+clamp(paint,.22,.78)*uFrame.zw);
-  float grain = dot(art.rgb/max(.08,art.a),vec3(.2126,.7152,.0722));
-  vec3 albedo = mineral*(.62+grain*.86);
-  vec3 n = normalize(normal), view = normalize(eye), light = normalize(uSun);
-  float day = max(0.,dot(n,light));
-  float bounce = max(0.,dot(n,normalize(uFillDirection)));
-  vec3 diffuse = albedo*(uSky*uAmbient*cavity+uKey*(day*uIntensity*.3183)
-    +uFill*(bounce*uFillIntensity*.3183));
-  float specular = pow(max(0.,dot(n,normalize(light+view))),14.)*day;
-  float rim = pow(1.-max(0.,dot(n,view)),4.);
-  vec3 radiance = diffuse+uKey*specular*.022*uIntensity+uSky*rim*.012*cavity;
-  vec3 color = pow(max(vec3(0.),radiance),vec3(1./2.2));
+  vec4 art = texture2D(uArt,uFrame.xy+clamp(paint,.002,.998)*uFrame.zw);
+  vec3 pigment = art.rgb/max(.025,art.a);
+  vec3 color = shadeAsteroid(pigment,normalize(normal),uSun,uHalfLight);
   gl_FragColor = vec4(color*uOpacity,uOpacity)*tint;
 }`
 
@@ -85,12 +71,8 @@ export class AsteroidBelt {
     uFocal: { value: 1, type: 'f32' }, uSeconds: { value: 0, type: 'f32' },
     uFrame: { value: new Float32Array([0,0,1,1]), type: 'vec4<f32>' },
     uSun: { value: new Float32Array([-.61,-.49,.62]), type: 'vec3<f32>' },
-    uKey: { value: new Float32Array([1,1,1]), type: 'vec3<f32>' },
-    uSky: { value: new Float32Array([.4,.5,.7]), type: 'vec3<f32>' },
-    uFillDirection: { value: new Float32Array([.6,.4,.5]), type: 'vec3<f32>' },
-    uFill: { value: new Float32Array([.3,.4,.6]), type: 'vec3<f32>' },
-    uAmbient: { value: .2, type: 'f32' }, uIntensity: { value: 2.8, type: 'f32' },
-    uFillIntensity: { value: .12, type: 'f32' }, uOpacity: { value: 0, type: 'f32' },
+    uHalfLight: { value: new Float32Array(3), type: 'vec3<f32>' },
+    uOpacity: { value: 0, type: 'f32' },
   })
   private readonly shader = new Shader({ glProgram: GlProgram.from({ vertex, fragment }),
     resources: { belt: this.params, uArt: Texture.WHITE.source } })
@@ -127,9 +109,7 @@ export class AsteroidBelt {
     const u = this.params.uniforms
     u.uViewport[0] = camera.width;u.uViewport[1] = camera.height
     u.uOffset[0] = this.centerX-camera.positionKm[0];u.uOffset[1] = this.centerY-camera.positionKm[1];u.uOffset[2] = -camera.positionKm[2]
-    u.uSun.set(lighting.sun);u.uKey.set(lighting.keyColor);u.uSky.set(lighting.skyColor)
-    u.uFillDirection.set(lighting.fillDirection);u.uFill.set(lighting.fillColor)
-    u.uAmbient = lighting.ambientIntensity;u.uIntensity = lighting.sunIntensity;u.uFillIntensity = lighting.fillIntensity
+    writeOrbitalLight(u.uSun,lighting.sun,u.uHalfLight)
     u.uOpacity = this.opacity;u.uFocal = camera.focal;u.uSeconds = seconds
   }
   private setTexture(texture: Texture) {
