@@ -56,6 +56,12 @@ export type MesiahDroneUnit = Vec & {
 
 export type MesiahScoutUnit = MesiahDroneUnit & {
   stack: number
+  /** Pickup escort flight state, also used by non-Mesiah ships. Optional for older co-op packets. */
+  flightPhase?: 'arriving' | 'active' | 'departing' | 'idle'
+  flightAge?: number
+  flightStartX?: number
+  flightStartY?: number
+  flightStartRotation?: number
 }
 
 export type SpiegelAfterimage = Vec & {

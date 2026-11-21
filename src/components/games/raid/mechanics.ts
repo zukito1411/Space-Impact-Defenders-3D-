@@ -280,7 +280,7 @@ export function applyRiftPullToPlayer(player: Player, event: RaidRandomEvent, dt
   player.y = clamp(player.y, 13, 93)
 }
 
-export function updatePlayerTimers(player: Player, dt: number, enemies: Enemy[], isSmallViewport: boolean) {
+export function updatePlayerTimers(player: Player, dt: number, enemies: Enemy[], isSmallViewport: boolean, landscape = false) {
   player.fireCooldown = Math.max(0, player.fireCooldown - dt)
   WEAPON_KEYS.forEach((key) => {
     player.weaponCooldowns[key] = Math.max(0, player.weaponCooldowns[key] - dt)
@@ -310,7 +310,7 @@ export function updatePlayerTimers(player: Player, dt: number, enemies: Enemy[],
     }
   }
   updateMesiahDrones(player, enemies, dt, isSmallViewport)
-  updateMesiahScoutDrones(player, enemies, dt, isSmallViewport)
+  updateMesiahScoutDrones(player, enemies, dt, isSmallViewport, landscape)
   player.invuln = Math.max(0, player.invuln - dt)
   if (player.barrageRecovery) player.barrageRecovery = Math.max(0, player.barrageRecovery - dt)
   player.shield = Math.max(0, player.shield - dt * 0.16)

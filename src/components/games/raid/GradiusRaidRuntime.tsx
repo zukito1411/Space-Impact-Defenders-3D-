@@ -1002,7 +1002,7 @@ export function GradiusRaid({
 
     movePlayerWithInput(guestPlayer, dt, pointerTargetRef.current, keysRef.current, getPlayerCoreLanderCombatModel(guestPlayer, progressRef.current))
     const isSmallViewport = Boolean(viewportMetricsRef.current && viewportMetricsRef.current.cssWidth < 640)
-    updatePlayerTimers(guestPlayer, dt, enemiesRef.current, isSmallViewport)
+    updatePlayerTimers(guestPlayer, dt, enemiesRef.current, isSmallViewport, landscapeRef.current)
 
     // Drain accumulated position correction gradually so the fix is invisible
     const corr = guestPositionCorrectionRef.current
@@ -3574,7 +3574,6 @@ export function GradiusRaid({
     const defaultScoutOffset = isArk
       ? (isSmallViewport ? 14 : 7.4)
       : (isSmallViewport ? 12 : 5.6)
-    const pickupScoutOffset = isSmallViewport ? 8.2 : 5
     const scoutScale = isArk ? 0.9 : 0.86
     const optionSupportStacks = getOptionSupportStacks(player)
     const emitters: Array<{ x: number; y: number; scale: number; main: boolean; attackShipKey?: string; baseOnly?: boolean; target?: Enemy | null; rotation?: number; canFire?: boolean; laserOnly?: boolean }> = []
@@ -3587,10 +3586,10 @@ export function GradiusRaid({
           { x: clamp(player.x + defaultScoutOffset, 4, 96), y: player.y + 1.8, scale: scoutScale, main: false, attackShipKey: 'rocket' },
         )
         if (optionSupportStacks > 0) {
-          emitters.push(
-            { x: clamp(player.x - pickupScoutOffset, 4, 96), y: player.y + 7.2, scale: 0.54, main: false, attackShipKey: 'spaceEt', baseOnly: true },
-            { x: clamp(player.x + pickupScoutOffset, 4, 96), y: player.y + 7.2, scale: 0.54, main: false, attackShipKey: 'spaceEt', baseOnly: true },
-          )
+          for (const scout of normalizeMesiahScoutDrones(player)) {
+            if (!scout.active || !scout.canFire || scout.stack >= optionSupportStacks) continue
+            emitters.push({ x: scout.x, y: scout.y, scale: 0.54, main: false, attackShipKey: 'spaceEt', baseOnly: true })
+          }
         }
       } else if (optionSupportStacks > 0) {
         if (shipKey === 'mesiah') {
@@ -3611,10 +3610,10 @@ export function GradiusRaid({
             })
           }
         } else {
-          emitters.push(
-            { x: clamp(player.x - defaultScoutOffset, 4, 96), y: player.y + 1.8, scale: scoutScale, main: false },
-            { x: clamp(player.x + defaultScoutOffset, 4, 96), y: player.y + 1.8, scale: scoutScale, main: false },
-          )
+          for (const scout of normalizeMesiahScoutDrones(player)) {
+            if (!scout.active || !scout.canFire || scout.stack >= optionSupportStacks) continue
+            emitters.push({ x: scout.x, y: scout.y, scale: scoutScale, main: false })
+          }
         }
       }
     }
@@ -5102,9 +5101,9 @@ export function GradiusRaid({
     }
 
     const isSmallViewport = Boolean(viewportMetricsRef.current && viewportMetricsRef.current.cssWidth < 640)
-    if (player.hp > 0 && !playerInGodBarrage) updatePlayerTimers(player, dt, enemiesRef.current, isSmallViewport)
-    if (remotePlayer && remotePlayer.hp > 0 && !remotePlayerInGodBarrage) updatePlayerTimers(remotePlayer, dt, enemiesRef.current, isSmallViewport)
-    if (devilAssistPlayer && devilAssistPlayer.hp > 0) updatePlayerTimers(devilAssistPlayer, dt, enemiesRef.current, isSmallViewport)
+    if (player.hp > 0 && !playerInGodBarrage) updatePlayerTimers(player, dt, enemiesRef.current, isSmallViewport, landscapeRef.current)
+    if (remotePlayer && remotePlayer.hp > 0 && !remotePlayerInGodBarrage) updatePlayerTimers(remotePlayer, dt, enemiesRef.current, isSmallViewport, landscapeRef.current)
+    if (devilAssistPlayer && devilAssistPlayer.hp > 0) updatePlayerTimers(devilAssistPlayer, dt, enemiesRef.current, isSmallViewport, landscapeRef.current)
     if (isGodGundamBarragePilot(player, progressRef.current)) clearPickupLoadout(player)
     if (remotePlayer && isGodGundamBarragePilot(remotePlayer, progressRef.current)) clearPickupLoadout(remotePlayer)
     if (devilAssistPlayer && isGodGundamBarragePilot(devilAssistPlayer, progressRef.current)) clearPickupLoadout(devilAssistPlayer)

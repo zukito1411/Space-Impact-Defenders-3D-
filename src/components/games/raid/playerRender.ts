@@ -1,3 +1,4 @@
+import { updateScoutFlight } from './scoutFlight'
 import { isRaid2DMech } from './mechArtwork'
 import { CARRIER_EXIT_SECONDS } from './carrierLaunch'
 import { prepareLiveProtection, sampleLiveProtection } from './liveProtection'
@@ -178,26 +179,32 @@ export function updateMesiahDrones(player: Player, enemies: Enemy[], dt: number,
   }
 }
 
-export function updateMesiahScoutDrones(player: Player, enemies: Enemy[], dt: number, isSmallViewport: boolean) {
+export function updateMesiahScoutDrones(player: Player, enemies: Enemy[], dt: number, isSmallViewport: boolean, landscape = false) {
+  // Reuse the existing replicated scout slots for pickup escorts on every ship.
   const scouts = normalizeMesiahScoutDrones(player)
   const supportStacks = getOptionSupportStacks(player)
-  const active = player.ship.key === 'mesiah' && player.hp > 0 && supportStacks > 0
+  const active = player.hp > 0 && supportStacks > 0
   const elapsed = player.mesiahDroneTimer
   const liveTargets = mesiahLiveTargetsScratch
   liveTargets.length = 0
-  for (const enemy of enemies) {
-    if (enemy.hp > 0 && enemy.y > -8 && (enemy.isBoss || enemy.isMiniBoss)) liveTargets.push(enemy)
+  if (player.ship.key === 'mesiah') {
+    for (const enemy of enemies) {
+      if (enemy.hp > 0 && enemy.y > -8 && (enemy.isBoss || enemy.isMiniBoss)) liveTargets.push(enemy)
+    }
   }
+  const offset = player.ship.key === 'dreadnought' ? (isSmallViewport ? 8.2 : 5) : (isSmallViewport ? 12 : 5.6)
   for (const scout of scouts) {
     const enabled = active && scout.stack < supportStacks
-    const home = getMesiahScoutSupportPoint(player, scout.side, elapsed, isSmallViewport, null, scout.stack, Math.max(1, supportStacks))
-    if (!enabled) {
+    const home = player.ship.key === 'mesiah'
+      ? getMesiahScoutSupportPoint(player, scout.side, elapsed, isSmallViewport, null, scout.stack, Math.max(1, supportStacks))
+      : { x: clamp(player.x + scout.side * offset, 4, 96), y: player.y + (player.ship.key === 'dreadnought' ? 7.2 : 1.8) }
+    if (updateScoutFlight(scout, enabled, home, dt, landscape)) continue
+    if (player.ship.key !== 'mesiah') {
       scout.x = home.x
       scout.y = home.y
       scout.rotation = 0
       scout.targetId = null
-      scout.active = false
-      scout.canFire = false
+      scout.canFire = true
       continue
     }
 
@@ -259,27 +266,36 @@ export function drawRaidOptions(
   const supportStacks = getOptionSupportStacks(player)
   const supportSizeScale = typeof player.sizeScale === 'number' && Number.isFinite(player.sizeScale) ? Math.max(1, Math.min(1.5, player.sizeScale)) : 1
   const formationBank = getRaidPlayerFlightBank(color, player.x)
-  if (supportStacks <= 0 && !isArk && !isMesiah) return
+  const pickupScouts = normalizeMesiahScoutDrones(player)
+  const hasVisibleScouts = pickupScouts.some(scout => scout.active)
+  if (supportStacks <= 0 && !hasVisibleScouts && !isArk && !isMesiah) return
 
-  const drawSupportPair = (shipKey: string, offset: number, yOffset: number, maxBox: number, scale: number, _filter: string) => {
+  const drawSupportPair = (shipKey: string, offset: number, yOffset: number, maxBox: number, scale: number, _filter: string, pickup = false) => {
     const optionShipSize = getShipSpriteSize(shipKey, 'option')
     const drawSize = Math.min(optionShipSize * scale, maxBox) * (landscape ? 1.15 : 1) * supportSizeScale
     const banking = getRaidBankingFrame(shipKey, formationBank, landscape, false)
 
     for (const side of [-1, 1]) {
-      const x = toX(clamp(player.x + offset * side, 4, 96))
-      const y = toY(player.y + yOffset) + Math.sin(time / 900 + (side > 0 ? 0.18 : 0)) * 2.5
+      const scout = pickup ? pickupScouts.find(scout => scout.side === side && scout.stack === 0) : undefined
+      if (pickup && !scout?.active) continue
+      const x = toX(scout?.x ?? clamp(player.x + offset * side, 4, 96))
+      const y = toY(scout?.y ?? player.y + yOffset) + (scout && scout.flightPhase !== 'active' ? 0 : Math.sin(time / 900 + (side > 0 ? 0.18 : 0)) * 2.5)
+      const rotation = scout?.rotation ?? 0
       const trailOverHull = shipKey === 'godGundam' || shipKey === 'spiegel'
-      const throttle = .14 + (player.engineBoost ?? 0) * .58
-      if (!trailOverHull) drawSupportEngineTrail(ctx, x, y, drawSize, time, 0, 0.9, shipKey, throttle, landscape, banking?.nozzles)
+      const throttle = scout && scout.flightPhase !== 'active' ? 1.1 : .14 + (player.engineBoost ?? 0) * .58
+      if (!trailOverHull) drawSupportEngineTrail(ctx, x, y, drawSize, time, rotation, 0.9, shipKey, throttle, landscape, banking?.nozzles)
       if (isRaid2DMech(shipKey)) {
         const sprite = landscape ? getRaidSideShipCanvasSprite(shipKey) : getShipCanvasSprite(shipKey)
         if (sprite?.loaded) {
-          if (landscape) drawCanvasSpriteContain(ctx, sprite, x, y, drawSize, _filter, 1, -Math.PI / 2, 1, color)
-          else drawCanvasSprite(ctx, sprite, x, y, drawSize, _filter, 1, 0, 1, color)
+          if (landscape) drawCanvasSpriteContain(ctx, sprite, x, y, drawSize, _filter, 1, rotation - Math.PI / 2, 1, color)
+          else drawCanvasSprite(ctx, sprite, x, y, drawSize, _filter, 1, rotation, 1, color)
         }
-      } else drawLiveHull(ctx,shipKey,x,y,drawSize,formationBank,1,landscape,color+':option:'+shipKey+':'+side)
-      if (trailOverHull) drawSupportEngineTrail(ctx, x, y, drawSize, time, 0, .7, shipKey, throttle, landscape, banking?.nozzles)
+      } else {
+        ctx.save();ctx.translate(x,y);ctx.rotate(rotation);ctx.translate(-x,-y)
+        drawLiveHull(ctx,shipKey,x,y,drawSize,formationBank,1,landscape,color+':option:'+shipKey+':'+side)
+        ctx.restore()
+      }
+      if (trailOverHull) drawSupportEngineTrail(ctx, x, y, drawSize, time, rotation, .7, shipKey, throttle, landscape, banking?.nozzles)
     }
   }
 
@@ -292,7 +308,7 @@ export function drawRaidOptions(
       1.25,
       'brightness(1.08) contrast(1.18) saturate(1.35)',
     )
-    if (supportStacks > 0) {
+    if (supportStacks > 0 || hasVisibleScouts) {
       drawSupportPair(
         'spaceEt',
         viewportWidth < 640 ? 8.2 : 5,
@@ -300,6 +316,7 @@ export function drawRaidOptions(
         viewportWidth < 860 ? 27 : 39,
         1.04,
         'brightness(1.18) contrast(1.16) saturate(1.3)',
+        true,
       )
     }
     return
@@ -322,13 +339,13 @@ export function drawRaidOptions(
     }
   }
 
-  if (supportStacks > 0) {
+  if (supportStacks > 0 || hasVisibleScouts) {
     if (player.ship.key === 'mesiah') {
       const scoutShipKey = isWhiteMesiah ? 'mesiahRaptorWhite' : 'mesiahRaptorBlack'
       const scoutSizeKey = scoutShipKey
       const scoutSize = Math.min(getShipSpriteSize(scoutSizeKey, 'option') * (viewportWidth < 860 ? 1.14 : 1.28), viewportWidth < 860 ? 35 : 54) * (landscape ? 1.15 : 1) * supportSizeScale
       for (const scout of normalizeMesiahScoutDrones(player)) {
-        if (!scout.active || scout.stack >= supportStacks) continue
+        if (!scout.active) continue
         const x = toX(scout.x)
         const y = toY(scout.y)
         const banking = getRaidBankingFrame(scoutShipKey, clamp(scout.rotation, -.14, .14), landscape, false)
@@ -350,6 +367,7 @@ export function drawRaidOptions(
         supportMaxBox,
         1.28,
         'brightness(1.12) contrast(1.12) saturate(1.24)',
+        true,
       )
     }
   }
