@@ -35,6 +35,7 @@ jobs:
         run: node scripts/review-raid-campaign-browser.mjs --captures-only
         env:
           RAID_REVIEW_HULL_LAMP_CHECK: '1'
+          RAID_REVIEW_HULL_LAMP_QUICK: '1'
           RAID_REVIEW_OUTPUT: presentation-review/hull-lamps-v2
       - name: Package actual gameplay blinking preview
         run: |

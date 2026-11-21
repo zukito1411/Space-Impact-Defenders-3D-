@@ -10,7 +10,12 @@ export class HullLampBatch{
   uniforms:{lampHeight:{value:1}},
   vertexShader:`attribute vec4 lampColor;attribute float lampSize;varying vec4 glow;
    uniform float lampHeight;void main(){vec4 view=modelViewMatrix*vec4(position,1.);
-    gl_Position=projectionMatrix*view;gl_PointSize=clamp(lampSize*lampHeight*projectionMatrix[1][1]/max(1.,-2.*view.z),1.,128.);
+    gl_Position=projectionMatrix*view;
+    // Lift only the glow depth toward the viewer. Its screen anchor stays on
+    // the fitting; nearby hull pixels must not cut the soft halo to a pinhole.
+    vec4 glowDepth=projectionMatrix*vec4(view.xy,view.z+min(lampSize*.9,10.),1.);
+    gl_Position.z=glowDepth.z/max(.001,glowDepth.w)*gl_Position.w;
+    gl_PointSize=clamp(lampSize*lampHeight*projectionMatrix[1][1]/max(1.,-2.*view.z),1.,128.);
     glow=lampColor;}`,
   fragmentShader:`varying vec4 glow;void main(){float radius=length(gl_PointCoord-vec2(.5))*2.;
    if(radius>=1.)discard;float lens=1.-smoothstep(.10,.42,radius);
@@ -49,7 +54,7 @@ export class HullLampBatch{
   for(const binding of bindings)for(const site of binding.sites){
    if(this.count>=HULL_LAMP_CAPACITY)return
    this.point.set(site.point[0],site.point[1],site.point[2]).applyMatrix4(binding.mesh.matrixWorld)
-   const spec=site.spec,core=spec.channel===2,diameter=Math.max(core?10:3.5,Math.min(core?26:6,size*spec.size*(core?2.2:1.7)))
+   const spec=site.spec,core=spec.channel===2,diameter=Math.max(core?12:4.5,Math.min(core?30:7,size*spec.size*(core?2.2:1.7)))
    this.positions.setXYZ(this.count,this.point.x,this.point.y,this.point.z)
    this.sizes.setX(this.count,diameter)
    this.colors.setXYZW(this.count,site.rgb[0],site.rgb[1],site.rgb[2],opacity*spec.strength*this.pulse[spec.channel])
