@@ -1692,9 +1692,9 @@ export class PixiRaidBackground {
       }
     }
 
-    // Legacy distant stars used to be baked into static Graphics. Retain their
-    // catalogue, palette and scroll, but vary each pooled sprite independently.
-    const farOffset = this.travel.far-height*.13
+    // These original soft-glow stars stay at fixed catalogue positions.
+    // Flight travel must not scroll them; only their brightness changes.
+    const farOffset = -height*.13
     for (let i=0;i<this.farStarSprites.length;i++) {
       const sprite = this.farStarSprites[i]
       if (i >= farCount) { sprite.visible = false;continue }
@@ -1703,15 +1703,13 @@ export class PixiRaidBackground {
       sprite.position.set(star.x*width,y)
       sprite.visible = y >= -8 && y <= height+8
       const brightness = sampleStarBrightness(star.tint,this.starClock.seconds,this.reducedMotion)
-      const glint = 1+Math.min(.22,Math.max(0,brightness-1)*.1)
-      sprite.width = sprite.height = star.size*4.2*glint
       sprite.alpha = Math.min(1,star.alpha*.52*brightness)
     }
     for (let i = 0; i < this.depthStarSprites.length; i++) {
       const sprite = this.depthStarSprites[i]
       if (i >= nearCount) { sprite.visible = false; continue }
       const seed = BACKGROUND_STARS[farCount + i]
-      const depth = projectDepthStar(seed.x, seed.y, seed.tint, this.travel.near,
+      const depth = projectDepthStar(seed.x, seed.y, seed.tint, 0,
         width, height, 0, 0, this.depthStarScratch)
       const star = this.depthStarScratch
       sprite.visible = star.alpha > 0.005
@@ -1720,8 +1718,6 @@ export class PixiRaidBackground {
       sprite.width = star.size * (4 + depth * (isLow ? 0.25 : 1.5))
       sprite.height = star.size * 4
       const brightness = sampleStarBrightness(seed.tint,this.starClock.seconds,this.reducedMotion)
-      const glint = 1+Math.min(.22,Math.max(0,brightness-1)*.1)
-      sprite.scale.set(sprite.scale.x*glint,sprite.scale.y*glint)
       sprite.alpha = Math.min(1,star.alpha*brightness)
       sprite.rotation = star.rotation
     }
