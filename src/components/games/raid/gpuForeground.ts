@@ -1,3 +1,6 @@
+import { missileVisualScale } from './missilePresentation'
+import { MISSILE_SMOKE_CAPACITY } from './missileSmoke'
+import type { MissileSmokePuff } from './missileSmoke'
 import { normalEnemyHullKey } from './enemyHulls'
 import { fighterHullHeading } from './fighterHulls'
 import { submitLiveHull } from './liveHullBridge'
@@ -37,6 +40,7 @@ export type RaidGpuForegroundFrame = {
   incomingAsteroids?: readonly AsteroidHazard[]
   asteroidApproachProgress?: number
   enemies: readonly Enemy[]
+  missileSmoke?: readonly MissileSmokePuff[]
   shots: readonly Shot[]
   guestShots: readonly Shot[]
   enemyShots: readonly Shot[]
@@ -77,7 +81,7 @@ function playerStyle(shot: Shot, advanced: boolean, scale: number): ShotStyle | 
   if (!isGpuPlayerShot(shot, advanced)) return null
   if (advanced) return trail('rgba(125,249,255,0.9)', 42 * scale, 3.2 * scale)
   if (shot.kind === 'laser' || shot.kind === 'rocket' || shot.kind === 'needle' || shot.kind === 'homing')
-    return trail(shot.kind === 'rocket' ? 'rgba(251,146,60,0.88)' : 'rgba(125,249,255,0.86)', 36 * scale, 3 * scale)
+    return trail(shot.kind === 'rocket' ? 'rgba(251,146,60,0.88)' : 'rgba(125,249,255,0.86)', 36 * scale * missileVisualScale(shot.kind), 3 * scale * missileVisualScale(shot.kind))
   return orb('rgba(34,197,94,0.86)', 6 * scale)
 }
 
@@ -108,6 +112,9 @@ type ProjectileSprite = Sprite & { bornAt: number; originX: number; originY: num
  */
 export class RaidGpuForeground {
   readonly root = new Container()
+  private readonly smokeLayer = new Container()
+  private readonly smokeNodes: Sprite[] = []
+  private smokeCount = 0
   private readonly particles = new Container()
   private readonly impacts = new Container()
   private readonly particleNodes: Sprite[] = []
@@ -140,7 +147,7 @@ export class RaidGpuForeground {
   constructor() {
     this.particles.blendMode = 'add'
     this.projectileLayer.blendMode = 'add'
-    this.root.addChild(this.particles, this.glowLayer, this.alienLayer, this.bossBodies.root, this.impacts, this.solidProjectileLayer, this.projectileLayer)
+    this.root.addChild(this.smokeLayer, this.particles, this.glowLayer, this.alienLayer, this.bossBodies.root, this.impacts, this.solidProjectileLayer, this.projectileLayer)
   }
 
   private makeProjectileSprite(): ProjectileSprite {
@@ -191,6 +198,11 @@ export class RaidGpuForeground {
       sprite.visible = false
       this.impacts.addChild(sprite)
       this.impactNodes.push(sprite)
+    }
+    for (let index=0;index<MISSILE_SMOKE_CAPACITY;index++) {
+      const node=new Sprite(Texture.WHITE)
+      node.anchor.set(.5);node.visible=false;node.eventMode='none'
+      this.smokeLayer.addChild(node);this.smokeNodes.push(node)
     }
     // Frame textures use the same two underlying sources; upload each once.
     await renderer.prepare.upload([...getRaidCombatRootTextures(), ...Array.from(this.textures.values(), (record) => record.texture)])
@@ -401,9 +413,9 @@ export class RaidGpuForeground {
     node.alpha = 1
     node.anchor.set(0.5)
     node.position.set(shot.x * frame.width / 100, shot.y * frame.height / 100)
-    node.width = image.width
-    node.height = image.height
-    node.rotation = Math.atan2(shot.vy, shot.vx) + Math.PI / 2
+    node.width = image.width*missileVisualScale(shot.kind)
+    node.height = image.height*missileVisualScale(shot.kind)
+    node.rotation = Math.atan2(shot.vy*frame.height, shot.vx*frame.width) + Math.PI / 2
   }
 
   private showSpecialShot(frame: RaidGpuForegroundFrame, shot: Shot, id: number) {
@@ -468,6 +480,23 @@ export class RaidGpuForeground {
       else sprite.destroy()
       this.shotNodes.delete(id)
     }
+  }
+
+  private updateSmoke(frame: RaidGpuForegroundFrame) {
+    const texture=getRaidCombatFrame(COMBAT_TILE.smoke)
+    let count=0
+    if (texture) for (const puff of frame.missileSmoke ?? []) {
+      if (puff.alpha<=.002) continue
+      const size=puff.size*frame.visualScale
+      if (!raidObjectInView(frame.bounds,puff.x,puff.y,size*50/frame.width,size*50/frame.height)) continue
+      const node=this.smokeNodes[count++]
+      if (!node) break
+      node.texture=texture;node.visible=true;node.alpha=puff.alpha
+      node.position.set(puff.x*frame.width/100,puff.y*frame.height/100)
+      node.width=size;node.height=size*.8;node.rotation=puff.rotation
+    }
+    this.smokeCount=Math.min(count,this.smokeNodes.length)
+    for (let i=this.smokeCount;i<this.smokeNodes.length;i++) this.smokeNodes[i].visible=false
   }
 
   private updateParticles(frame: RaidGpuForegroundFrame) {
@@ -589,7 +618,7 @@ export class RaidGpuForeground {
   getStats() {
     const boss = this.bossBodies.getStats()
     return { enemies: this.enemyNodes.size, shots: this.shotNodes.size,
-      textures: this.textures.size + getRaidCombatRootTextures().length, particles: this.particleCount + this.impactCount,
+      textures: this.textures.size + getRaidCombatRootTextures().length, particles: this.particleCount + this.impactCount + this.smokeCount,
       bossFrames: boss.cachedFrames, bossTextureMB: boss.estimatedTextureMB }
   }
 
@@ -597,6 +626,7 @@ export class RaidGpuForeground {
     if (this.broken || this.destroyed) return false
     try {
       this.bossBodies.update(frame)
+      this.updateSmoke(frame)
       this.updateParticles(frame)
       this.updateAliens(frame)
       this.updateShots(frame)
@@ -621,6 +651,7 @@ export class RaidGpuForeground {
     this.shotNodes.clear()
     this.inactiveEnemyNodes.length = 0
     this.inactiveShotNodes.length = 0
+    this.smokeNodes.length = 0
     this.particleNodes.length = 0
     this.impactNodes.length = 0
     this.tintCache.clear()

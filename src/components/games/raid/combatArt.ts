@@ -1,6 +1,7 @@
 import { Assets, Color, Rectangle, Texture } from 'pixi.js'
 import { getPublicAssetUrl } from '../sound'
 import type { Shot } from './types'
+import { missileVisualScale } from './missilePresentation'
 import type { GpuBossProjectileSpec } from './gpuBossProjectiles'
 
 export const RAID_COMBAT_ATLAS_URL = getPublicAssetUrl('assets/raid-fx/combat-atlas-v2.png')
@@ -98,7 +99,8 @@ function buildMaterials(specs: Partial<Record<Shot['kind'], MaterialSpec>>, targ
   for (const [kind, spec] of Object.entries(specs)) {
     const [tile, width, height, directional, solid] = spec
     if (target === playerMaterials && missileLoaded && (kind === 'rocket' || kind === 'homing')) continue
-    target[kind as Shot['kind']] = { texture: combatFrames[tile], width, height, directional, solid }
+    const scale = target === playerMaterials ? missileVisualScale(kind) : 1
+    target[kind as Shot['kind']] = { texture: combatFrames[tile], width:width*scale, height:height*scale, directional, solid }
   }
 }
 
@@ -145,7 +147,7 @@ export function preloadRaidCombatArt(): Promise<void> {
         for (const [index, kind, width, height] of [[0, 'rocket', 76, 42], [1, 'homing', 68, 38]] as const) {
           playerMaterials[kind] = {texture: new Texture({source: texture.source,
             frame: new Rectangle(2, index * texture.height / 2 + 2, texture.width - 4, texture.height / 2 - 4)}),
-            width, height, directional: true, solid: true}
+            width:width*missileVisualScale(kind), height:height*missileVisualScale(kind), directional: true, solid: true}
         }
         missileLoaded = true
       }).catch((error: unknown) => {console.warn('Missile art unavailable:',error)})),

@@ -1,3 +1,7 @@
+/** Visual only: projectile speed, collision radius and damage stay independent. */
+export function missileVisualScale(kind: string) {
+  return kind === 'rocket' || kind === 'homing' ? .8 : 1
+}
 export function missileLaunchScale(kind: string) {
   return kind === 'rocket' ? 0.82 : kind === 'homing' ? 0.9 : 1
 }

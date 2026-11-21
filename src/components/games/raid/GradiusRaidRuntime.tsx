@@ -36,7 +36,8 @@ import { pickGameplayWreckVariant } from './wreckVariety'
 import { getRaidStageEntrySeconds } from './journey'
 import { COSMIC_REGIONS, cosmicRegionIndex } from './cosmos'
 import { CosmosPresentation } from './CosmosPresentation'
-import { missileLaunchScale, homingCruiseSpeed } from './missilePresentation'
+import { missileLaunchScale, homingCruiseSpeed, missileVisualScale } from './missilePresentation'
+import { MissileSmokeTrails } from './missileSmoke'
 import { impactFrameProgress, explosionDiameter, impactAlpha, rippleLifetime, rippleReplacement } from './combatFeel'
 import { useDoorCallback, useDoorState, useSpaceDoor } from '../../ui/SpaceDoor'
 import { getRaidText } from '../../../i18n'
@@ -299,6 +300,7 @@ export function GradiusRaid({
   const pickupsCollectedRef = useRef(0)
   const nukesUsedRef = useRef(0)
   const shotsRef = useRef<Shot[]>([])
+  const missileSmokeRef = useRef<MissileSmokeTrails | null>(null)
   const muzzleFlashesRef = useRef<Array<{ owner: Player; x: number; y: number; kind: Shot['kind']; at: number }>>([])
   const activeShotOwnerRef = useRef<Player | null>(null)
   const lastMuzzleFlashRef = useRef(new WeakMap<Player, number>())
@@ -1846,6 +1848,10 @@ export function GradiusRaid({
     // One WebGL pass now presents animated scenery and pooled foreground
     // sprites together. The complex Canvas overlay still draws every frame.
     const gpuStart = measured ? performance.now() : 0
+    const missileSmoke=missileSmokeRef.current ?? (missileSmokeRef.current=new MissileSmokeTrails())
+    if (carrierActive || phaseRef.current!=='playing' && phaseRef.current!=='paused') missileSmoke.clear()
+    else missileSmoke.update(time,phaseRef.current==='paused',sceneryRunTokenRef.current,
+      shotsRef.current,guestLocalShotsRef.current,cssWidth,cssHeight,visualScale)
     const gpuForegroundDrawn = pixiBackground?.renderForeground({
       width: cssWidth,
       height: cssHeight,
@@ -1866,12 +1872,22 @@ export function GradiusRaid({
       enemies: carrierActive ? [] : enemiesRef.current,
       shots: carrierActive ? [] : shotsRef.current,
       guestShots: carrierActive ? [] : guestLocalShotsRef.current,
+      missileSmoke: missileSmoke.puffs,
       enemyShots: carrierActive ? [] : enemyShotsRef.current,
       sparks: carrierActive ? [] : sparksRef.current,
       ripples: carrierActive ? [] : ripplesRef.current,
     }) ?? false
     costs.gpuSubmitMs = measured ? performance.now() - gpuStart : 0
     const canvasStart = measured ? performance.now() : 0
+    if (!gpuForegroundDrawn) {
+      const smokeTexture=getRaidCombatFrame(COMBAT_TILE.smoke)
+      if (smokeTexture) for (const puff of missileSmoke.puffs) {
+        if (puff.alpha<=.002) continue
+        const size=puff.size*visualScale
+        if (!raidObjectInView(drawBounds,puff.x,puff.y,size*50/cssWidth,size*50/cssHeight)) continue
+        drawRaidCombatTexture(ctx,smokeTexture,toX(puff.x),toY(puff.y),size,size*.8,puff.rotation,false,puff.alpha)
+      }
+    }
     if (carrier) {
       if (recovery && recovery.exteriorAlpha > 0) {
         drawLiveHull(ctx,'mesiahBlack',toX(50+recovery.exteriorLead*6),
@@ -2141,9 +2157,9 @@ export function GradiusRaid({
     const drawRocketWarhead = (shot: Shot) => {
       const x = toX(shot.x)
       const y = toY(shot.y)
-      const angle = Math.atan2(shot.vy, shot.vx) + Math.PI / 2
-      const length = 24 * visualScale
-      const width = 8.5 * visualScale
+      const angle = Math.atan2(shot.vy*cssHeight, shot.vx*cssWidth) + Math.PI / 2
+      const length = 24 * visualScale * missileVisualScale(shot.kind)
+      const width = 8.5 * visualScale * missileVisualScale(shot.kind)
       ctx.save()
       ctx.translate(x, y)
       ctx.rotate(angle)
@@ -2508,12 +2524,13 @@ export function GradiusRaid({
     const drawMissile = (shot: Shot) => {
       const x = toX(shot.x)
       const y = toY(shot.y)
-      const angle = Math.atan2(shot.vy, shot.vx) + Math.PI / 2
+      const angle = Math.atan2(shot.vy*cssHeight, shot.vx*cssWidth) + Math.PI / 2
       const sprite = getHomingMissileSprite(visualScale)
+      const scale = missileVisualScale(shot.kind)
       ctx.save()
       ctx.translate(x, y)
       ctx.rotate(angle)
-      ctx.drawImage(sprite, -sprite.width / 2, -sprite.height / 2)
+      ctx.drawImage(sprite, -sprite.width*scale/2, -sprite.height*scale/2,sprite.width*scale,sprite.height*scale)
       ctx.restore()
     }
 
@@ -2567,7 +2584,7 @@ export function GradiusRaid({
             drawTrail(shot, shot.burning ? 'rgba(251,191,36,0.56)' : 'rgba(249,115,22,0.52)', 34, 2.8)
             drawOrb(shot, shot.burning ? 'rgba(254,240,138,0.62)' : 'rgba(251,146,60,0.58)', 5.6)
           }
-        } else if (shot.kind === 'laser' || shot.kind === 'rocket' || shot.kind === 'needle' || shot.kind === 'homing') drawTrail(shot, shot.kind === 'rocket' ? 'rgba(251,146,60,0.88)' : 'rgba(125,249,255,0.86)', 36, 3)
+        } else if (shot.kind === 'laser' || shot.kind === 'rocket' || shot.kind === 'needle' || shot.kind === 'homing') drawTrail(shot, shot.kind === 'rocket' ? 'rgba(251,146,60,0.88)' : 'rgba(125,249,255,0.86)', 36*missileVisualScale(shot.kind), 3*missileVisualScale(shot.kind))
         else drawOrb(shot, 'rgba(34,197,94,0.86)', 6)
       }
       else if (shot.kind === 'laser') drawPlayerLaserBeam(shot)
