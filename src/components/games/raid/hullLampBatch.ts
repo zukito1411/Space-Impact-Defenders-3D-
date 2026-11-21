@@ -24,6 +24,7 @@ export class HullLampBatch{
  private readonly colors=new Float32BufferAttribute(new Float32Array(HULL_LAMP_CAPACITY*4),4).setUsage(DynamicDrawUsage)
  private readonly sizes=new Float32BufferAttribute(new Float32Array(HULL_LAMP_CAPACITY),1).setUsage(DynamicDrawUsage)
  private readonly attributes=[this.positions,this.colors,this.sizes]
+ private readonly ranges=this.attributes.map(()=>({start:0,count:0}))
  private readonly point=new Vector3()
  private readonly pulse=new Float32Array(3)
  count=0
@@ -40,7 +41,7 @@ export class HullLampBatch{
   this.pulse[2]=reduced ? .85 :.86+.14*Math.cos(seconds*Math.PI*2/4.8)
  }
  add(object:Object3D,bindings:readonly HullLampBinding[],size:number,opacity:number){
-  if(!bindings.length||opacity<.03)return
+  if(!bindings.length||opacity<.03||this.count>=HULL_LAMP_CAPACITY)return
   object.updateWorldMatrix(true,true)
   for(const binding of bindings)for(const site of binding.sites){
    if(this.count>=HULL_LAMP_CAPACITY)return
@@ -56,8 +57,10 @@ export class HullLampBatch{
  present(){
   this.geometry.setDrawRange(0,this.count);this.points.visible=this.count>0
   if(!this.count)return
-  for(const attribute of this.attributes){
-   attribute.clearUpdateRanges();attribute.addUpdateRange(0,this.count*attribute.itemSize);attribute.needsUpdate=true
+  for(let i=0;i<this.attributes.length;i++){
+   const attribute=this.attributes[i],range=this.ranges[i]
+   range.start=0;range.count=this.count*attribute.itemSize
+   attribute.clearUpdateRanges();attribute.updateRanges.push(range);attribute.needsUpdate=true
   }
  }
  async prepare(renderer:WebGLRenderer,camera:Camera,target:WebGLRenderTarget){

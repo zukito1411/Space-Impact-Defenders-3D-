@@ -30,6 +30,7 @@ export function prepareHullLampAnchors(object:Object3D,key:string){
    })
    if(!hit)continue
    normal.copy(hit.face?.normal??new Vector3(0,0,1)).transformDirection(selected.matrixWorld)
+   if(normal.z<0)normal.negate()
    point.copy(hit.point).addScaledVector(normal,boss ? .58 : .75)
    selected.worldToLocal(point)
    color.setHex(spec.color)

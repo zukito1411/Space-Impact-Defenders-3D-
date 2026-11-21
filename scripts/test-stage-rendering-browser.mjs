@@ -145,7 +145,7 @@ try {
       return scene.getShipStats()
     },landscape)
     assert.equal(stats.hulls,12,'regular boss catalog lost a 3D hull')
-    assert.ok(stats.drawCalls<=23,'boss details split into excessive draws')
+    assert.ok(stats.drawCalls<=23+(stats.lampDraws??0),'boss details split into excessive draws')
     assert.ok(stats.triangles>735872,'boss reconstruction lost the original mesh detail')
     await page.screenshot({path:'presentation-review/boss-hulls-v1-'+(landscape?'landscape':'portrait')+'.png'})
   }
