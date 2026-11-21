@@ -6,19 +6,26 @@ import ts from 'typescript'
 const read = file => readFileSync(`src/components/games/raid/${file}`, 'utf8')
 const compile = file => ts.transpileModule(read(file), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
 const motion = {}
+const variability = {}
 const asset = JSON.parse(readFileSync('docs/celestial-art-manifest.json','utf8'))
 assert.equal(createHash('sha256').update(readFileSync(asset.file)).digest('hex'),asset.sha256)
 assert.equal(asset.layout.cells.length,4)
-vm.runInNewContext(compile('celestialMotion.ts'), { exports: motion })
+vm.runInNewContext(compile('starVariability.ts'), { exports: variability })
+vm.runInNewContext(compile('celestialMotion.ts'), { exports: motion, require:name=>{
+  assert.equal(name,'./starVariability');return variability
+} })
 const sample = (i,t,planet=true,reduced=false) => motion.sampleCelestialStar(i,844,390,t,planet,reduced,{})
 for (let i=0;i<64;i++) {
   const samples=Array.from({length:180},(_,n)=>sample(i,n/10))
   const alphas=samples.map(frame=>frame.alpha)
-  assert.ok(Math.max(...alphas)-Math.min(...alphas)>.3,'sky star never visibly twinkled')
-  for(let n=1;n<samples.length;n++) assert.ok(Math.abs(alphas[n]-alphas[n-1])<.13,'star blinked with an abrupt flash')
+  const seed=(i*.61803398875+.071)%1,group=(seed*91.37)%1
+  const variation=Math.max(...alphas)-Math.min(...alphas)
+  if(group<.30)assert.ok(variation<1e-9,'steady star changed brightness')
+  else assert.ok(variation>.2,'variable star never visibly brightened')
+  for(let n=1;n<samples.length;n++) assert.ok(Math.abs(alphas[n]-alphas[n-1])<.3,'star blinked with an abrupt flash')
   assert.ok(samples.every(frame=>frame.y>0&&frame.y<390*.55),'planet stars spilled into terrain')
   assert.equal(sample(i,1).x,sample(i,100).x,'planet stars followed the wind instead of remaining in the sky')
-  assert.deepEqual(sample(i,1,true,true),sample(i,100,true,true),'reduced motion animated stars')
+  assert.equal(sample(i,1,true,true).x,sample(i,100,true,true).x,'reduced motion moved stars')
 }
 assert.notEqual(sample(0,1).alpha,sample(1,1).alpha,'twinkles were synchronized')
 const clock = new motion.CelestialClock()
@@ -50,9 +57,9 @@ assert.equal(scene.stars.filter(sprite=>sprite.visible).length,14)
 assert.ok(scene.wisps.every(sprite=>!sprite.visible),'gas ribbons appeared inside a planet atmosphere')
 assert.ok(scene.dust.every(sprite=>!sprite.visible))
 draw(100,0,'high',true)
-const reduced=scene.stars.map(sprite=>[sprite.position.x,sprite.alpha])
+const reduced=scene.stars.map(sprite=>[sprite.position.x,sprite.position.y])
 draw(200,0,'high',true)
-assert.deepEqual(scene.stars.map(sprite=>[sprite.position.x,sprite.alpha]),reduced)
+assert.deepEqual(scene.stars.map(sprite=>[sprite.position.x,sprite.position.y]),reduced)
 scene.hide();assert.equal(scene.root.visible,false)
 assert.equal(scene.nebulaRoot.visible,false)
 scene.destroy();assert.equal(scene.root.destroyed,true)

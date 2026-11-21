@@ -3,6 +3,7 @@ import { OrbitalAtmosphere, OrbitalSurface } from './orbitalBodies'
 import { SpaceCamera, SPACE_DISTANCES } from './spaceWorld'
 import type { Renderer } from 'pixi.js'
 import type { SpacePlacement } from './spaceWorld'
+import { STAR_VARIABILITY_GLSL } from './starVariability'
 
 // Author the initial composition once, then project persistent kilometre positions.
 export class OrbitalCamera extends SpaceCamera {
@@ -344,10 +345,11 @@ attribute vec4 aStar;
 uniform mat3 uProjectionMatrix, uWorldTransformMatrix, uTransformMatrix;
 uniform vec3 uStarEye, uDustEye;
 uniform vec2 uViewport;
-uniform float uFocal, uTime, uDensity, uSpeed;
+uniform float uFocal, uTime, uDensity, uSpeed, uVariability;
 varying vec2 corner;
 varying vec3 spectrum;
 varying float gain;
+${STAR_VARIABILITY_GLSL}
 void main() {
   corner = aPosition;
   bool dust = aStar.w < 0.;
@@ -381,10 +383,8 @@ void main() {
   float temperature = fract(seed*13.17);
   vec3 warm = mix(vec3(1.,.48,.24),vec3(1.,.91,.76),smoothstep(0.,.48,temperature));
   spectrum = mix(warm,vec3(.53,.74,1.),smoothstep(.48,1.,temperature));
-  // Unresolved stars vary independently; dust and the scene's key illumination
-  // remain steady. No CPU star updates or additional transparent passes.
-  float shimmer = .5+.5*sin(uTime*(1.1+seed*1.7)+seed*80.)*sin(uTime*.71+seed*121.);
-  gain = (.52+.48*magnitude) * (dust ? 1. : .62+.62*shimmer);
+  // Preserve constant stars while other points breathe or flare independently.
+  gain = (.52+.48*magnitude) * (dust ? 1. : starBrightness(seed,uTime,uVariability));
   if (dust) gain *= .30*smoothstep(.75,2.,z)*(1.-smoothstep(12.,15.7,z));
   vec2 direction = vec2(0.,1.);
   float streak = dust ? min(7.,uFocal*uSpeed*.025/distance) : 0.;
@@ -412,6 +412,7 @@ export class OrbitalStars {
     uFocal: {value:1,type:'f32'},
     uSpeed: {value:0,type:'f32'},
     uTime: {value:0,type:'f32'}, uDensity: {value:1,type:'f32'},
+    uVariability: {value:1,type:'f32'},
   })
   private readonly shader = new Shader({glProgram:GlProgram.from({vertex:starVertex,fragment:starFragment}),
     resources:{stars:this.params}})
@@ -447,14 +448,15 @@ export class OrbitalStars {
     try { renderer.render({ container: this.mesh, target, clear: true }) }
     finally { this.mesh.visible = false }
   }
-  update(width: number, height: number, camera: OrbitalCamera, seconds: number, density: number) {
+  update(width: number, height: number, camera: OrbitalCamera, seconds: number, density: number, reduced = false) {
     const u = this.params.uniforms
     u.uViewport[0] = width
     u.uViewport[1] = height
     u.uStarEye.set(camera.starEye)
     u.uDustEye.set(camera.dustEye)
     u.uFocal = camera.focal
-    u.uTime = seconds
+    u.uTime = seconds * (reduced ? .22 : 1)
+    u.uVariability = reduced ? .35 : 1
     u.uDensity = density
     u.uSpeed = camera.speed
   }

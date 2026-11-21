@@ -1,14 +1,13 @@
+import { sampleStarBrightness } from './starVariability'
+
 const unit = (n: number) => n - Math.floor(n)
 const mod = (n: number, span: number) => ((n % span) + span) % span
 export type CelestialSample = { x: number; y: number; size: number; alpha: number }
-/** Independent slow twinkles avoid synchronized flashing or global brightness pulses. */
+/** Steady, breathing and twinkling points share stable spatial catalogue slots. */
 export function sampleCelestialStar(index: number, width: number, height: number, seconds: number,
-  atmospheric: boolean, reduced: boolean, out: CelestialSample) {
-  const seed = unit(index * .61803398875 + .071), phase = index * 2.399963
+  atmospheric: boolean, reduced: boolean, out: CelestialSample, brightnessSeconds = seconds) {
+  const seed = unit(index * .61803398875 + .071)
   const t = reduced ? 0 : Math.max(0, seconds)
-  const period = 3.2 + unit(index * .337) * 5.4
-  const wave = .5 + .5 * Math.sin(t * Math.PI * 2 / period + phase)
-  const twinkle = wave * wave * (.82 + Math.sin(t * .39 + index) * .18)
   out.x = atmospheric ? width * (.025 + seed * .95) : mod(seed * (width + 40) - t * width * (.0007 + index % 3 * .0005), width + 40) - 20
   out.y = height * (atmospheric ? .055 + unit(index * .414213 + .11) * .45 : .025 + unit(index * .414213 + .11) * .95)
   if (!atmospheric) {
@@ -20,7 +19,7 @@ export function sampleCelestialStar(index: number, width: number, height: number
     out.y = height * .5 + (unit(index * .414213 + .11)-.5) * 11 * focal / depth
   }
   out.size = Math.max(10, Math.min(24, Math.min(width, height) * .025)) * (.65 + unit(index * .729) * .7)
-  out.alpha = (atmospheric ? .1 : .13) + twinkle * (atmospheric ? .54 : .58)
+  out.alpha = Math.min(1,(atmospheric ? .43 : .58)*sampleStarBrightness(seed,brightnessSeconds,reduced))
   if (!atmospheric) {
     const depth = mod(index * .731 - t * .025, 12)
     out.alpha *= Math.min(1, depth * 2, (12-depth) * 2)

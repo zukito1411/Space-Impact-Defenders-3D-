@@ -26,7 +26,7 @@ export class CelestialScenery {
     }
     for (const sprite of [...this.stars, ...this.dust]) sprite.blendMode = 'add'
   }
-  update(width: number, height: number, seconds: number, region: number, quality: string, reduced: boolean, atmosphere = false, warm = false) {
+  update(width: number, height: number, seconds: number, region: number, quality: string, reduced: boolean, atmosphere = false, warm = false, brightnessSeconds = seconds) {
     const star = getCelestialArt(0)
     this.root.visible = !!star
     this.nebulaRoot.visible = !!star && !atmosphere
@@ -39,7 +39,7 @@ export class CelestialScenery {
     for (let i = 0; i < this.stars.length; i++) {
       const sprite = this.stars[i]; sprite.visible = i < count
       if (!sprite.visible) continue
-      const p = sampleCelestialStar(i, width, height, t, atmosphere, reduced, this.sample)
+      const p = sampleCelestialStar(i, width, height, t, atmosphere, reduced, this.sample, brightnessSeconds)
       sprite.texture = star; sprite.position.set(p.x, p.y)
       sprite.width = p.size; sprite.height = p.size
       sprite.alpha = p.alpha * (atmosphere ? 1 : .8 + fade * .2)

@@ -1,55 +1,96 @@
-import { Geometry, GlProgram, Mesh, RenderTexture, Shader, Texture, UniformGroup } from 'pixi.js'
-import type { Renderer } from 'pixi.js'
+import { GlProgram, Mesh, RenderTexture, Shader, State, Texture, UniformGroup } from 'pixi.js'
+import type { Geometry, Renderer } from 'pixi.js'
 import type { OrbitalCamera } from './orbitalSpace'
 import type { ShipLightingFrame } from './shipLighting'
+import { createAsteroidBeltGeometry } from './asteroidBeltGeometry'
 
 const vertex = `
 precision highp float;
 attribute vec2 aPosition;
-attribute vec4 aRock;
+attribute vec3 aHull;
+attribute vec4 aNormal, aRock, aShape, aMotion;
 uniform mat3 uProjectionMatrix, uWorldTransformMatrix, uTransformMatrix;
-uniform vec2 uViewport;
+uniform vec2 uViewport, uFieldView;
 uniform vec3 uOffset;
-uniform float uFocal, uSeconds;
-varying vec2 uv;
+uniform float uFocal, uSeconds, uFieldScale, uEntryMargin;
+uniform vec4 uColor, uWorldColorAlpha;
+varying vec2 paint;
+varying vec3 normal, mineral, eye;
+varying vec4 tint;
+varying float cavity;
+vec3 turn(vec3 p, float c, float s) {
+  return p*c+cross(aMotion.xyz,p)*s+aMotion.xyz*dot(aMotion.xyz,p)*(1.-c);
+}
 void main() {
-  uv = aPosition*.5+.5;
-  vec3 p = aRock.xyz+uOffset;
-  float angle = aRock.w*37.+uSeconds*(.018+aRock.w*.012);
+  float angle = aRock.w*41.+uSeconds*aMotion.w;
   float c = cos(angle), s = sin(angle);
-  vec2 corner = mat2(c,-s,s,c)*aPosition;
-  float radius = .035+.16*pow(aRock.w,3.);
-  vec2 pos = uViewport*.5+(p.xy+corner*radius)*uFocal/max(.1,p.z);
-  gl_Position = vec4((uProjectionMatrix*uWorldTransformMatrix*uTransformMatrix*vec3(pos,1.)).xy,0.,1.);
-}`
-const fragment = `
-precision highp float;
-varying vec2 uv;
-uniform sampler2D uArt;
-uniform vec4 uFrame;
-uniform vec3 uSun, uKey;
-uniform float uOpacity, uAmbient, uIntensity;
-void main() {
-  vec4 art = texture2D(uArt,uFrame.xy+uv*uFrame.zw);
-  vec2 p = (uv-.5)*2.;
-  vec3 normal = normalize(vec3(p,sqrt(max(.01,1.-dot(p,p)))));
-  float day = max(0.,dot(normal,uSun));
-  vec3 light = vec3(uAmbient)+uKey*(day*uIntensity*.3183);
-  gl_FragColor = vec4(art.rgb*light,art.a)*uOpacity;
+  // A frozen admission scale keeps foreground boulders dramatic without
+  // allowing one cosmetic rock to cover the entire combat corridor.
+  float radius = min(aShape.w,aRock.z*(.028+fract(aRock.w*17.37)*.035))*uFieldScale;
+  vec3 p = turn(aHull*aShape.xyz,c,s)*radius;
+  vec3 n = turn(aNormal.xyz/aShape.xyz,c,s);
+  // The reference view is captured on entry: resizing cannot teleport rocks.
+  // The full volume enters from beyond the forward edge at independent depths.
+  float z = aRock.z;
+  vec3 center = vec3(aRock.x*uFieldView.x*z,
+    -uFieldView.y*.5*z-uEntryMargin*z-radius*3.2-aRock.y,z)+uOffset;
+  float distance = max(.1,center.z-p.z);
+  vec2 pos = uViewport*.5+(center.xy+vec2(p.x,-p.y))*uFocal/distance;
+  vec2 screen = (uProjectionMatrix*uWorldTransformMatrix*uTransformMatrix*vec3(pos,1.)).xy;
+  gl_Position = vec4(screen*distance,(1.-.16/distance)*distance,distance);
+  normal = vec3(n.x,-n.y,n.z);
+  eye = vec3(-center.x,-center.y,center.z);
+  paint = .5+aHull.xy*.16+vec2(fract(aRock.w*7.13),fract(aRock.w*19.31))*.08;
+  mineral = mix(vec3(.26,.25,.23),vec3(.40,.42,.45),fract(aRock.w*23.17));
+  if (fract(aRock.w*51.91) > .82) mineral *= vec3(1.12,.99,.84);
+  cavity = aNormal.w;
+  tint = uColor*uWorldColorAlpha;
 }`
 
-/** Sparse orbital debris: one fixed-size batch using already-loaded asteroid art.
- * All objects have persistent world positions; no per-frame geometry or recycling. */
+const fragment = `
+precision highp float;
+uniform sampler2D uArt;
+uniform vec4 uFrame;
+uniform vec3 uSun, uKey, uSky, uFillDirection, uFill;
+uniform float uOpacity, uAmbient, uIntensity, uFillIntensity;
+varying vec2 paint;
+varying vec3 normal, mineral, eye;
+varying vec4 tint;
+varying float cavity;
+void main() {
+  // Geometry owns the irregular silhouette. Sample interior mineral pigment,
+  // so the source image's circular alpha cannot cut holes into a solid body.
+  vec4 art = texture2D(uArt,uFrame.xy+clamp(paint,.22,.78)*uFrame.zw);
+  float grain = dot(art.rgb/max(.08,art.a),vec3(.2126,.7152,.0722));
+  vec3 albedo = mineral*(.62+grain*.86);
+  vec3 n = normalize(normal), view = normalize(eye), light = normalize(uSun);
+  float day = max(0.,dot(n,light));
+  float bounce = max(0.,dot(n,normalize(uFillDirection)));
+  vec3 diffuse = albedo*(uSky*uAmbient*cavity+uKey*(day*uIntensity*.3183)
+    +uFill*(bounce*uFillIntensity*.3183));
+  float specular = pow(max(0.,dot(n,normalize(light+view))),14.)*day;
+  float rim = pow(1.-max(0.,dot(n,view)),4.);
+  vec3 radiance = diffuse+uKey*specular*.022*uIntensity+uSky*rim*.012*cavity;
+  vec3 color = pow(max(vec3(0.),radiance),vec3(1./2.2));
+  gl_FragColor = vec4(color*uOpacity,uOpacity)*tint;
+}`
+
+/** Actual tumbling 3D rocks, with fixed world positions and a single draw call. */
 export class AsteroidBelt {
   private readonly params = new UniformGroup({
     uViewport: { value: new Float32Array(2), type: 'vec2<f32>' },
+    uFieldView: { value: new Float32Array(2), type: 'vec2<f32>' },
     uOffset: { value: new Float32Array(3), type: 'vec3<f32>' },
+    uFieldScale: { value: 1, type: 'f32' }, uEntryMargin: { value: 1, type: 'f32' },
     uFocal: { value: 1, type: 'f32' }, uSeconds: { value: 0, type: 'f32' },
     uFrame: { value: new Float32Array([0,0,1,1]), type: 'vec4<f32>' },
-    uSun: { value: new Float32Array(3), type: 'vec3<f32>' },
-    uKey: { value: new Float32Array(3), type: 'vec3<f32>' },
-    uAmbient: { value: .12, type: 'f32' }, uIntensity: { value: 1, type: 'f32' },
-    uOpacity: { value: 0, type: 'f32' },
+    uSun: { value: new Float32Array([-.61,-.49,.62]), type: 'vec3<f32>' },
+    uKey: { value: new Float32Array([1,1,1]), type: 'vec3<f32>' },
+    uSky: { value: new Float32Array([.4,.5,.7]), type: 'vec3<f32>' },
+    uFillDirection: { value: new Float32Array([.6,.4,.5]), type: 'vec3<f32>' },
+    uFill: { value: new Float32Array([.3,.4,.6]), type: 'vec3<f32>' },
+    uAmbient: { value: .2, type: 'f32' }, uIntensity: { value: 2.8, type: 'f32' },
+    uFillIntensity: { value: .12, type: 'f32' }, uOpacity: { value: 0, type: 'f32' },
   })
   private readonly shader = new Shader({ glProgram: GlProgram.from({ vertex, fragment }),
     resources: { belt: this.params, uArt: Texture.WHITE.source } })
@@ -61,24 +102,10 @@ export class AsteroidBelt {
   private opacity = 0
 
   constructor() {
-    const count = 240, corners = new Float32Array(count*8), rocks = new Float32Array(count*16)
-    const indices = new Uint16Array(count*6)
-    for (let i=0;i<count;i++) {
-      const seed = (i*.61803398875+.137)%1, angle = i*2.3999632297
-      const radius = 1+(seed-.5)*.17
-      // A tilted annulus, with a sparse finite thickness instead of a solid wall.
-      const x = Math.cos(angle)*28*radius
-      const y = Math.sin(angle)*13*radius
-      const z = 26+Math.sin(angle)*7+(seed-.5)*2
-      for (let j=0;j<4;j++) rocks.set([x,y,z,seed],i*16+j*4)
-      corners.set([-1,-1,1,-1,1,1,-1,1],i*8)
-      const v = i*4;indices.set([v,v+1,v+2,v,v+2,v+3],i*6)
-    }
-    this.mesh = new Mesh({ geometry: new Geometry({ attributes: {
-      aPosition: { buffer: corners, format: 'float32x2' }, aRock: { buffer: rocks, format: 'float32x4' },
-    }, indexBuffer: indices }), shader: this.shader })
-    this.mesh.geometry.autoGarbageCollect = false
-    this.mesh.visible = false;this.mesh.eventMode = 'none'
+    const state = State.for2d()
+    state.depthTest = true;state.depthMask = true;state.cullMode = 'back'
+    this.mesh = new Mesh({ geometry: createAsteroidBeltGeometry(), shader: this.shader, state })
+    this.mesh.visible = false;this.mesh.eventMode = 'none';this.mesh.zIndex = -60
   }
 
   update(camera: OrbitalCamera, texture: Texture | undefined, lighting: ShipLightingFrame,
@@ -88,30 +115,31 @@ export class AsteroidBelt {
     const switching = selected && this.stage !== stage
     this.opacity += ((selected && !switching ? 1 : 0)-this.opacity)*(1-Math.exp(-camera.deltaSeconds*1.8))
     if (switching && this.opacity < .005) {
-      this.stage = stage
-      this.centerX = camera.positionKm[0]
-      // Pad for the deepest rock and the whole inclined annulus. First entry is
-      // beyond the forward edge, which becomes the right edge in landscape.
-      this.centerY = camera.positionKm[1]-(camera.height*.5+128)*34/camera.focal-15
+      this.stage = stage;this.centerX = camera.positionKm[0];this.centerY = camera.positionKm[1]
+      this.params.uniforms.uFieldView[0] = camera.width/camera.focal
+      this.params.uniforms.uFieldView[1] = camera.height/camera.focal
+      this.params.uniforms.uFieldScale = Math.min(camera.width,camera.height)/camera.focal*1.4
+      this.params.uniforms.uEntryMargin = 96/camera.focal
     }
     this.mesh.visible = !!texture && this.opacity > .002
     if (!texture || !this.mesh.visible) return
-    if (this.mesh.texture !== texture) {
-      this.mesh.texture = texture;this.shader.resources.uArt = texture.source
-      const f = texture.frame, source = texture.source
-      this.params.uniforms.uFrame.set([f.x/source.width,f.y/source.height,f.width/source.width,f.height/source.height])
-    }
+    this.setTexture(texture)
     const u = this.params.uniforms
     u.uViewport[0] = camera.width;u.uViewport[1] = camera.height
     u.uOffset[0] = this.centerX-camera.positionKm[0];u.uOffset[1] = this.centerY-camera.positionKm[1];u.uOffset[2] = -camera.positionKm[2]
-    u.uSun.set(lighting.sun);u.uKey.set(lighting.keyColor)
-    u.uAmbient = lighting.ambientIntensity*.6;u.uIntensity = lighting.sunIntensity
-    u.uOpacity = this.opacity*.72;u.uFocal = camera.focal;u.uSeconds = seconds
+    u.uSun.set(lighting.sun);u.uKey.set(lighting.keyColor);u.uSky.set(lighting.skyColor)
+    u.uFillDirection.set(lighting.fillDirection);u.uFill.set(lighting.fillColor)
+    u.uAmbient = lighting.ambientIntensity;u.uIntensity = lighting.sunIntensity;u.uFillIntensity = lighting.fillIntensity
+    u.uOpacity = this.opacity;u.uFocal = camera.focal;u.uSeconds = seconds
   }
-  prepare(renderer: Renderer, texture: Texture) {
+  private setTexture(texture: Texture) {
+    if (this.mesh.texture === texture) return
     this.mesh.texture = texture;this.shader.resources.uArt = texture.source
     const f = texture.frame, source = texture.source
     this.params.uniforms.uFrame.set([f.x/source.width,f.y/source.height,f.width/source.width,f.height/source.height])
+  }
+  prepare(renderer: Renderer, texture: Texture) {
+    this.setTexture(texture)
     const target = RenderTexture.create({ width: 8, height: 8 })
     this.mesh.visible = true
     try { renderer.render({ container: this.mesh, target, clear: true }) }

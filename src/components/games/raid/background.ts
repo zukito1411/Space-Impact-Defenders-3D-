@@ -12,6 +12,7 @@ import { orbitalShadowCoverage, sampleCapitalFlyby, sampleOrbitalShadow, type Or
 import { LandscapePlanetAtmosphere } from './landscapeAtmosphere'
 import { CelestialScenery } from './celestialScenery'
 import { CelestialClock } from './celestialMotion'
+import { sampleStarBrightness } from './starVariability'
 import { preloadCelestialArt } from './celestialArt'
 import { COMBAT_TILE, getRaidCombatFrame } from './combatArt'
 import { getWreckTexture, preloadWreckArt } from './wreckArt'
@@ -904,6 +905,7 @@ export class PixiRaidBackground {
   private readonly landscapeAtmosphere = new LandscapePlanetAtmosphere()
   private readonly celestialScenery = new CelestialScenery()
   private readonly celestialClock = new CelestialClock()
+  private readonly starClock = new CelestialClock()
   private readonly atmosphereMoons = [new Sprite(Texture.WHITE), new Sprite(Texture.WHITE)]
   private readonly wateryIslandSprites = createWorldSurfaceSprites(WATERY_WORLD_ISLAND_LAYERS.length)
   private readonly wateryCloudSprites = createWorldSurfaceSprites(WATERY_WORLD_CLOUD_LAYERS.length)
@@ -1030,6 +1032,7 @@ export class PixiRaidBackground {
       this.volcanicCloudSprites.forEach((sprite) => this.worldScene.addChild(sprite))
       this.scene.addChild(this.finalBattleBackdropGraphics)
       this.scene.addChild(this.solidScenery)
+      this.solidScenery.addChild(this.asteroidBelt.mesh)
       this.sceneryBloomSprites.forEach((sprite) => { sprite.blendMode = 'add'; sprite.visible = false; this.solidScenery.addChild(sprite) })
       this.planetSprites.forEach((sprite, index) => { sprite.zIndex = PLANET_DEPTH[index]; this.solidScenery.addChild(sprite) })
       this.wreckSprites.forEach((sprite, index) => { sprite.zIndex = 35 + index * 0.01; this.solidScenery.addChild(sprite) })
@@ -1068,7 +1071,6 @@ export class PixiRaidBackground {
       this.orbitalCamera = new OrbitalCamera()
       this.orbitalStars = new OrbitalStars()
       this.skyScene.addChild(this.orbitalStars.mesh)
-      this.skyScene.addChild(this.asteroidBelt.mesh)
       for (const anchor of this.nebulaSprites) this.gasVolumes.push(new CosmicGasVolume(anchor))
       for (const anchor of this.galaxySprites) this.gasVolumes.push(new CosmicGasVolume(anchor, true))
       for (const anchor of [...this.planetSprites, ...this.atmosphereMoons]) this.globes.push(new OrbitalGlobe(anchor))
@@ -1184,6 +1186,8 @@ export class PixiRaidBackground {
       this.sceneryHulls.restoreAnchors()
       const seconds = time / 1000
       const celestialSeconds = this.celestialClock.advance(time, Boolean(frame.paused), this.reducedMotion)
+      // Optical brightness is independent of the reduced-motion transport clock.
+      const starSeconds = this.starClock.advance(time, Boolean(frame.paused), false)
       // Restore the authored transforms before cached and per-frame layers update.
       for (const [sprite, pose] of this.projected) {
         if (!pose.active) continue
@@ -1295,14 +1299,14 @@ export class PixiRaidBackground {
         this.orbitalStars.mesh.visible = shouldDrawRaidStars(stageTheme)
         if (this.orbitalStars.mesh.visible) {
           this.orbitalStars.update(width, height, this.orbitalCamera,
-            celestialSeconds, isLow ? .4 : isMedium ? .7 : 1)
+            starSeconds, isLow ? .4 : isMedium ? .7 : 1, this.reducedMotion)
         }
       } else {
         if (this.orbitalStars) this.orbitalStars.mesh.visible = false
         this.updateStarfield(width, height, quality, dpr, palette.starTint, palette.streak, stageTheme)
       }
       if (shouldDrawRaidStars(stageTheme)) this.celestialScenery.update(width, height, celestialSeconds, this.cosmosRegion,
-        quality, this.reducedMotion)
+        quality, this.reducedMotion, false, false, starSeconds)
       else this.celestialScenery.hide()
       this.updateSpeedLines(width, height, isLow, isMedium, stageTheme)
       this.updatePlanets(width, height, seconds, palette, stageTheme, isLow, isMedium)
@@ -1685,7 +1689,7 @@ export class PixiRaidBackground {
       sprite.position.set(star.x, star.y)
       sprite.width = star.size * (4 + depth * (isLow ? 0.25 : 1.5))
       sprite.height = star.size * 4
-      sprite.alpha = star.alpha * (.82 + .18 * Math.sin(this.celestialClock.seconds * (1.1 + seed.tint) + i * 2.399963))
+      sprite.alpha = Math.min(1,star.alpha * sampleStarBrightness(seed.tint,this.starClock.seconds,this.reducedMotion))
       sprite.rotation = star.rotation
     }
   }
