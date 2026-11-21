@@ -877,7 +877,7 @@ export function drawRaidPlayer(
   _sunlight = 0,
   reducedMotion = false,
   landscape = false,
-  presentation?: { scale: number; engine: number; hideCombatFx: boolean; carrierAge?: number },
+  presentation?: { scale: number; engine: number; hideCombatFx: boolean; carrierAge?: number; dock?: number },
 ) {
   const x = toX(player.x)
   const y = toY(player.y)
@@ -927,7 +927,7 @@ export function drawRaidPlayer(
     ? clamp((CARRIER_EXIT_SECONDS+.8-presentation.carrierAge)/.8,0,1) : 0
   const attack = coreLanderCombatModel && protectionAttackPose
     ? Math.sin(Math.PI*clamp(1-player.fireCooldown/Math.max(.001,getCoreLanderFireInterval(player)),0,1)) : 0
-  const livePoints = !coreLanderCombatModel && liveHullsEnabled() ? sampleLiveHullPoints(bankingKey, liveBank, landscape) : null
+  const livePoints = !coreLanderCombatModel && liveHullsEnabled() ? sampleLiveHullPoints(bankingKey, liveBank, landscape, presentation?.dock) : null
   const nozzles = livePoints?.nozzles ?? (landscape ? getRaidSideShipNozzles(sideVisualKey) : undefined) ?? getRaidShipNozzles(sideVisualKey)
 
   if (!isDown && !coreLanderCombatModel && (presentation?.engine ?? 1) > 0) {
@@ -937,7 +937,7 @@ export function drawRaidPlayer(
     ctx.restore()
   }
   const maneuverJet = pose.maneuverJet ?? 0
-  if (nozzles?.length && player.ship.key !== 'coreLander' && !isDown && phase === 'playing' && !reducedMotion && Math.abs(maneuverJet) > .065) {
+  if (nozzles?.length && player.ship.key !== 'coreLander' && !presentation?.hideCombatFx && !isDown && phase === 'playing' && !reducedMotion && Math.abs(maneuverJet) > .065) {
     const side = Math.sign(maneuverJet)
     const power = Math.abs(maneuverJet)
     const outlet = nozzles.reduce((outer, vent) => (vent[0] - outer[0]) * side < 0 ? vent : outer)
@@ -1056,7 +1056,7 @@ export function drawRaidPlayer(
       : 'rgba(251,191,36,0.28)'
     : player.forceField > 0 || player.shield > 0 ? null : player.invuln > 0 ? 'rgba(226,232,240,0.1)' : null
   const liveHullDrawn = !coreLanderCombatModel && drawLiveHull(ctx, bankingKey, x, y, renderSize * scale, liveBank, alpha,
-    landscape, color, { attack, crouch })
+    landscape, color, { attack, crouch, dock:presentation?.dock })
   if (spriteGlow && (!liveHullDrawn || coreLanderBurning)) drawSpriteGlow(ctx, x, y, renderSize, spriteGlow, .68)
   // Dock exhaust remains the original 2D effect for live and fallback bodies.
   if(dockReady&&dockPose&&coreLanderCombatModel){

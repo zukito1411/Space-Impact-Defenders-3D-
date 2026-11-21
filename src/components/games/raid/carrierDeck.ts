@@ -4,7 +4,7 @@ import { sampleCrewPatrol } from './crewMotion'
 import { drawDeckCrew, drawDeckServices, drawDeckPatroller, getDeckAtlas } from './deckServiceArt'
 import { CARRIER_BOARDING_SECONDS, CARRIER_CLEAR_SECONDS } from './carrierLaunch'
 import { drawBoardingLadder, drawCarrierCockpit, getCarrierBoardingGeometry, sampleCarrierBoarding } from './carrierBoarding'
-import { CARRIER_DECK_LAYOUTS } from './carrierDeckLayout'
+import { CARRIER_DECK_LAYOUTS, LANDSCAPE_BOARDING_FLOOR_Y } from './carrierDeckLayout'
 import type { DockMatrix, ProjectedDock } from './hullDocking'
 
 const unit = (n: number) => Math.max(0, Math.min(1, n))
@@ -83,6 +83,20 @@ function lamp(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, co
   ctx.restore()
 }
 
+let deckContactShadow: HTMLCanvasElement | undefined
+function softDeckShadow(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, alpha: number, angle=0) {
+  if (alpha<=.001) return
+  if (!deckContactShadow) {
+    const bitmap=document.createElement('canvas');bitmap.width=bitmap.height=64
+    const bake=bitmap.getContext('2d');if(!bake)return
+    const gradient=bake.createRadialGradient(32,32,0,32,32,32)
+    gradient.addColorStop(0,'rgba(0,5,9,.65)');gradient.addColorStop(.4,'rgba(0,5,9,.36)');gradient.addColorStop(1,'rgba(0,5,9,0)')
+    bake.fillStyle=gradient;bake.fillRect(0,0,64,64);deckContactShadow=bitmap
+  }
+  ctx.save();ctx.translate(x,y);ctx.rotate(angle);ctx.globalAlpha*=alpha
+  ctx.drawImage(deckContactShadow,-width/2,-height/2,width,height);ctx.restore()
+}
+
 export type CarrierDeckFrame = {
   width: number; height: number; dpr: number; landscape: boolean; ambientAge: number
   launchAge: number; briefing: boolean; reducedMotion: boolean; decorative: boolean
@@ -100,7 +114,8 @@ function boardingGeometry(frame: CarrierDeckFrame) {
   if(frame.liveDock){
     geometry.cockpitX=(frame.liveDock.cockpitX-cover.x)/cover.scale
     geometry.cockpitY=(frame.liveDock.cockpitY-cover.y)/cover.scale
-    geometry.topX=geometry.cockpitX;geometry.topY=geometry.cockpitY+3
+    geometry.topX=((frame.liveDock.boardingX ?? frame.liveDock.cockpitX)-cover.x)/cover.scale
+    geometry.topY=((frame.liveDock.boardingY ?? frame.liveDock.cockpitY)-cover.y)/cover.scale+3
     if(!frame.landscape)geometry.floorY=geometry.topY+95
     geometry.footX=geometry.topX-Math.min(36,Math.max(12,(geometry.floorY-geometry.topY)*.25))
     geometry.startX=geometry.footX-130
@@ -119,6 +134,10 @@ export function drawCarrierBoardingForeground(ctx: CanvasRenderingContext2D, fra
   if(mount?.contacts){
     ctx.save();ctx.translate((frame.deckShiftX??0)/g.cover.scale,(frame.deckShiftY??0)/g.cover.scale)
     ctx.globalAlpha*=frame.deckOpacity??1
+    if (!mount.mech) for (const contact of mount.contacts) {
+      softDeckShadow(ctx,contact.x-contact.nx*mount.hull*.006,contact.y-contact.ny*mount.hull*.006,
+        mount.hull*.09,mount.hull*.025,.75*(1-release),Math.atan2(contact.ny,contact.nx)+Math.PI/2)
+    }
     drawDockClamps(ctx,mount,frame.reducedMotion?Number(release>.5):release,undefined,'front')
     ctx.restore()
   }
@@ -192,6 +211,9 @@ export function drawCarrierDeck(canvas: HTMLCanvasElement, frame: CarrierDeckFra
     dockMounts.set(canvas,dock)
   }
   frameDockMounts.set(frame,dock)
+  if (!dock.mech) softDeckShadow(ctx,dock.x+(landscape?0:dock.hull*.025),
+    landscape?LANDSCAPE_BOARDING_FLOOR_Y:dock.y+dock.hull*.035,
+    dock.hull*.82,dock.hull*(landscape?.065:.85),.6*(1-clampRelease))
   drawDockClamps(ctx,dock,clampRelease,undefined,dock.contacts?'back':'all')
   canvas.dataset.dockClampRenderer='atlas'
   canvas.dataset.dockClampLoaded=String(clampLoaded)

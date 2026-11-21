@@ -45,3 +45,9 @@ export function sampleCarrierLaunch(age: number, landscape: boolean, reducedMoti
     done: t >= CARRIER_LAUNCH_SECONDS,
   } as const
 }
+
+/** Hold the parked angle until the hull clears the bay, then join flight framing. */
+export function sampleCarrierDockBlend(age: number, reducedMotion = false) {
+  if (reducedMotion) return Number(age < CARRIER_EXIT_SECONDS)
+  return 1-smooth((age-CARRIER_EXIT_SECONDS)/1.4)
+}

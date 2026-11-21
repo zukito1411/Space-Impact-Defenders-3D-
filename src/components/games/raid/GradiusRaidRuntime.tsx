@@ -10,7 +10,7 @@ import { getRaidBgmTrack, RAID_BGM_LEVEL } from './raidSoundtrack'
 import { CARRIER_RECOVERY_SECONDS, sampleCarrierRecovery, shouldRecoverAfterStage, shouldRecoverBeforeEndlessBoss, type CarrierStop } from './carrierRecovery'
 import { drawCarrierBoardingForeground, drawCarrierDeck, type CarrierDeckFrame } from './carrierDeck'
 import { sampleCarrierBoarding } from './carrierBoarding'
-import { CARRIER_DEPARTURE_START, CARRIER_LAUNCH_SECONDS, MESIAH_ENTRY_SECONDS, sampleCarrierLaunch } from './carrierLaunch'
+import { sampleCarrierDockBlend, CARRIER_DEPARTURE_START, CARRIER_LAUNCH_SECONDS, MESIAH_ENTRY_SECONDS, sampleCarrierLaunch } from './carrierLaunch'
 import { useCarrierLaunchRequest } from './useCarrierLaunchRequest'
 import { preloadCarrierAssets } from './carrierAssets'
 import { RaidCarrierBriefing } from './RaidCarrierBriefing'
@@ -1841,7 +1841,7 @@ export function GradiusRaid({
       })
     }
 
-    shipsRef.current?.render({ width: cssWidth,height: cssHeight,dpr,measureGpu: measured,
+    shipsRef.current?.render({ width: cssWidth,height: cssHeight,dpr,landscape:landscapeRef.current,measureGpu: measured,
       lighting: pixiBackground?.getShipLighting(), dock: carrier?.backdrop ?? 0,
       eclipseAt: (x,y) => pixiBackground?.getEclipseAt(x,y) ?? 0 })
     costs.backgroundMs = measured ? performance.now() - backgroundStart : 0
@@ -1897,6 +1897,7 @@ export function GradiusRaid({
 
       }
       const enginesCold = briefing && (!underway || Boolean(stop))
+      const dockBlend = underway ? 0 : recovery ? recovery.closing : sampleCarrierDockBlend(carrierAge,reducedMotion)
       const renderCarrierPilot = (pilot: Player | null, slot: number, color: string) => {
         if (!pilot) return
         const wingSpacing = briefing || approaching ? 1 : stageEntryRef.current / launchDuration
@@ -1933,12 +1934,12 @@ export function GradiusRaid({
         if(boardingFrame&&!boardingFrame.groundedMech)boardingFrame.liveDock=sampleLiveHullDock(boardingFrame.visualKey,
           boardingFrame.shipX,boardingFrame.shipY,boardingFrame.hullSize,boardingFrame.width,boardingFrame.height,boardingFrame.landscape,
           sampleCarrierBoarding(boardingFrame.launchAge,boardingFrame.briefing,reducedMotion,
-            boardingFrame.ambientAge-(boardingFrame.briefing?0:boardingFrame.launchAge)).canopy)
+            boardingFrame.ambientAge-(boardingFrame.briefing?0:boardingFrame.launchAge)).canopy,dockBlend)
         if (boardingFrame && carrierDeckCanvasRef.current) drawCarrierDeck(carrierDeckCanvasRef.current, boardingFrame)
         drawRaidPlayer(ctx, pilot, phaseRef.current, projectX, projectY, cssWidth, time, color,
           getCachedEquippedCosmetics(pilot.ship.key), getRaidPlayerVisualShipKey(pilot, progressRef.current),
           null, null, 0, 0, reducedMotion, landscapeRef.current,
-          { scale: displayScale, engine: enginesCold ? 0 : carrier.engine, hideCombatFx: true, carrierAge: underway ? undefined : recovery ? (recovery.release < .5 ? 0 : CARRIER_LAUNCH_SECONDS) : carrierAge })
+          { scale: displayScale, engine: enginesCold ? 0 : carrier.engine, hideCombatFx: true, dock:dockBlend, carrierAge: underway ? undefined : recovery ? (recovery.release < .5 ? 0 : CARRIER_LAUNCH_SECONDS) : carrierAge })
         if (boardingFrame) {
           ctx.save()
           if (landscapeRef.current) { ctx.translate(0, cssHeight); ctx.rotate(-Math.PI / 2) }

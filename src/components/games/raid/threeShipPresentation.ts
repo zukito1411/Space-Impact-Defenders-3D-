@@ -3,7 +3,7 @@ import { bindHullLamps, type HullLampBinding } from './hullLampAnchors'
 import { updateEnemyBank, type EnemyBankPose } from './enemyBanking'
 import { ShipGpuTimer } from './shipGpuTimer'
 import { HullInstances } from './hullInstances'
-import { LANDSCAPE_VIEW_YAW, ORGANIC_BOSS_VIEW_YAW, RAID_CAMERA_FOV, raidCameraFocal } from './raidView'
+import { hullViewYaw, ORGANIC_BOSS_VIEW_YAW, RAID_CAMERA_FOV, raidCameraFocal } from './raidView'
 import { isRaid2DMech } from './mechArtwork'
 import { prepareLiveProtection } from './liveProtection'
 import { poseOrganicBoss } from './specialBossGeometry'
@@ -39,7 +39,9 @@ export class ThreeShipPresentation implements LiveHullSink {
   private readonly lightDirection = new Vector3()
   private readonly reflectionAxis = new Vector3(-.61, .49, .62).normalize()
   private readonly reflectionTurn = new Quaternion()
-  private readonly viewTurn = new Quaternion().setFromAxisAngle(new Vector3(0,1,0), LANDSCAPE_VIEW_YAW)
+  private readonly viewTurn = new Quaternion()
+  private readonly flightViewTurn = new Quaternion().setFromAxisAngle(new Vector3(0,1,0),hullViewYaw(true))
+  private readonly parkedViewTurn = new Quaternion().setFromAxisAngle(new Vector3(0,1,0),hullViewYaw(true,1))
   // Upright organic anatomy faces the combat camera rather than the flight
   // plane's wing-bank basis. Keep depth while retaining the eyes and fangs.
   private readonly organicViewTurn = new Quaternion().setFromAxisAngle(new Vector3(0,1,0), ORGANIC_BOSS_VIEW_YAW)
@@ -262,7 +264,7 @@ export class ThreeShipPresentation implements LiveHullSink {
     }
   }
 
-  render(frame: { width: number; height: number; dpr: number; measureGpu?: boolean; lighting?: ShipLightingFrame; dock?: number; eclipseAt?: (x: number,y: number) => number }) {
+  render(frame: { width: number; height: number; dpr: number; landscape?: boolean; measureGpu?: boolean; lighting?: ShipLightingFrame; dock?: number; eclipseAt?: (x: number,y: number) => number }) {
     const renderer = this.renderer
     if (!renderer || this.disposed || this.contextLost) return false
     this.frame++
@@ -278,7 +280,7 @@ export class ThreeShipPresentation implements LiveHullSink {
       this.camera.updateProjectionMatrix()
     }
     this.lamps.begin(frame.lighting?.seconds??0,frame.height,frame.dpr,this.reduced.matches)
-    this.updateLighting(frame.lighting ?? this.neutralLighting, frame.dock ?? 0)
+    this.updateLighting(frame.lighting ?? this.neutralLighting, frame.dock ?? 0, Boolean(frame.landscape))
     this.eclipseAt = frame.eclipseAt
     for (const node of this.hulls.values()) {
       node.group.visible = false
@@ -288,7 +290,7 @@ export class ThreeShipPresentation implements LiveHullSink {
     return true
   }
 
-  private updateLighting(target: ShipLightingFrame, dock: number) {
+  private updateLighting(target: ShipLightingFrame, dock: number, landscape: boolean) {
     const previous = this.previousLightSeconds
     const dt = previous === null ? 0 : Math.max(0, Math.min(.05, target.seconds-previous))
     this.previousLightSeconds = target.seconds
@@ -299,9 +301,9 @@ export class ThreeShipPresentation implements LiveHullSink {
     this.dockBlend += (Math.max(0,Math.min(1,dock))-this.dockBlend)*blend
     const indoor = this.dockBlend, deck = SHIP_LIGHTING_PALETTES[6], state = this.lighting
     for (let axis = 0; axis < 3; axis++) {
-      const sun = axis === 0 ? -.35 : axis === 1 ? -.78 : .75
+      const sun = axis === 0 ? (landscape ? -.80 : -.35) : axis === 1 ? (landscape ? -.25 : -.78) : .75
       state.sun[axis] += (target.sun[axis]*(1-indoor)+sun*indoor-state.sun[axis])*blend
-      const fill = axis === 0 ? .45 : axis === 1 ? .65 : .45
+      const fill = axis === 0 ? (landscape ? .15 : .85) : axis === 1 ? (landscape ? -.85 : .15) : .45
       state.fillDirection[axis] += (target.fillDirection[axis]*(1-indoor)+fill*indoor-state.fillDirection[axis])*blend
       state.keyColor[axis] += (target.keyColor[axis]*(1-indoor)+deck.key[axis]*indoor-state.keyColor[axis])*blend
       state.skyColor[axis] += (target.skyColor[axis]*(1-indoor)+deck.sky[axis]*indoor-state.skyColor[axis])*blend
@@ -393,11 +395,15 @@ export class ThreeShipPresentation implements LiveHullSink {
     this.headingTurn.setFromAxisAngle(this.headingAxis,angle)
     // Bank in the hull's local flight frame, then turn that frame on screen.
     // This matches the Canvas hardpoints and keeps a sideways enemy's length.
-    if (draw.landscape) group.quaternion.copy(this.headingTurn).multiply(draw.bossPose?this.organicViewTurn:this.viewTurn)
-    else group.quaternion.copy(this.headingTurn)
+    const dock = Math.max(0,Math.min(1,draw.dock ?? 0))
+    if (draw.landscape) {
+      const view = draw.bossPose ? this.organicViewTurn : dock > 0
+        ? this.viewTurn.copy(this.flightViewTurn).slerp(this.parkedViewTurn,dock) : this.flightViewTurn
+      group.quaternion.copy(this.headingTurn).multiply(view)
+    } else group.quaternion.copy(this.headingTurn)
     group.scale.set(draw.size*sx/448, draw.size*sy/448, draw.size*sx/448)
     node.object.position.set((144*sx+ox-224)/sx,(224-144*sy-oy)/sy,0)
-    let bank = draw.bank
+    let bank = draw.bank*(1-dock)
     if (draw.enemyBank && ENEMY_HULL_SPECS[key]) {
       const motion = draw.enemyBank
       node.bankPose ??= { x: motion.x, y: motion.y, time: motion.time, bank: 0, velocity: 0 }

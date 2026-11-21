@@ -12,7 +12,7 @@ export const SHIP_LIGHTING_PALETTES = [
   { sky: linear(0xada8cb), ground: linear(0x251d36), key: linear(0xf6eaf3), fill: linear(0xaaa0cf), sun: 2.8, ambient: .19, bounce: .11, reflection: .29 },
   { sky: linear(0xb4d1e7), ground: linear(0x3a768d), key: linear(0xfff0d9), fill: linear(0x7cb8d1), sun: 2.7, ambient: .48, bounce: .60, reflection: .42 },
   { sky: linear(0xaa9c9b), ground: linear(0xb14c24), key: linear(0xffd9ad), fill: linear(0xf08a45), sun: 2.3, ambient: .36, bounce: .65, reflection: .38 },
-  { sky: linear(0xc9d8df), ground: linear(0x715744), key: linear(0xf0f7ff), fill: linear(0xffc382), sun: 3.0, ambient: .58, bounce: .50, reflection: .50 },
+  { sky: linear(0xb4d3dc), ground: linear(0x645342), key: linear(0xffe4c1), fill: linear(0x79dce7), sun: 2.5, ambient: .42, bounce: .45, reflection: .46 },
 ] as const
 
 export type ShipLightingFrame = {

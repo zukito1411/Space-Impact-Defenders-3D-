@@ -1,14 +1,14 @@
-import { LANDSCAPE_VIEW_YAW, raidCameraFocal } from './raidView'
+import { hullViewYaw, raidCameraFocal } from './raidView'
 import { Box3, Mesh, Raycaster, Vector3, type Object3D } from 'three'
 import { getCarrierCanopyProfile } from './carrierCanopyProfiles'
 import type { HullRegistration } from './liveHullAssets'
 
 type Point = readonly [number, number, number]
-export type HullDocking = { landscape: Point[]; portrait: Point[]; cockpit: Point;
+export type HullDocking = { landscape: Point[]; portrait: Point[]; cockpit: Point; boarding?: Point;
   canopy?: { u: number; v: number; hingeY: number } }
 export type DockMatrix = [number,number,number,number,number,number]
 export type DockContact = { x: number; y: number; side: number; level: number; nx: number; ny: number }
-export type ProjectedDock = { contacts: DockContact[]; cockpitX: number; cockpitY: number;
+export type ProjectedDock = { contacts: DockContact[]; cockpitX: number; cockpitY: number; boardingX?: number; boardingY?: number;
   canopy?: { closed: DockMatrix; open: DockMatrix } }
 
 /** Read structural contacts once from the loaded mesh, never from a sprite's square. */
@@ -44,18 +44,19 @@ export function prepareHullDocking(object: Object3D, key: string, data: HullRegi
   const portrait = stations.flatMap(y => [-1,1].map(side => hit(cockpitX+side*shoulder,y)))
   const cockpit=hit(cockpitX,cockpitY)
   if(!cockpit||landscape.some(p=>!p)||portrait.some(p=>!p))return undefined
-  return { landscape:landscape as Point[], portrait:portrait as Point[], cockpit, canopy: profile ? {
+  return { landscape:landscape as Point[], portrait:portrait as Point[], cockpit,
+    boarding:hit(sourceX(right),cockpitY) ?? cockpit, canopy: profile ? {
     u:(left+right)/480-.5,v:(top+bottom)/480-.5,hingeY:sourceY(profile.hinge[1]),
   } : undefined }
 }
 
 /** Match ThreeShipPresentation's registration, yaw and perspective, then the CSS quarter-turn. */
 export function projectHullDocking(data: HullRegistration, docking: HullDocking, shipX: number, shipY: number,
-  size: number, width: number, height: number, landscape: boolean, canopyOpen=0): ProjectedDock {
+  size: number, width: number, height: number, landscape: boolean, canopyOpen=0, dock=0): ProjectedDock {
   const logicalWidth = landscape ? height : width, logicalHeight = landscape ? width : height
   const centerX = landscape ? shipY : shipX, centerY = landscape ? logicalHeight-shipX : shipY
   const focal = raidCameraFocal(logicalHeight)
-  const [sx,sy,ox,oy] = data.registration, yaw = landscape ? LANDSCAPE_VIEW_YAW : 0
+  const [sx,sy,ox,oy] = data.registration, yaw = hullViewYaw(landscape,dock)
   const c = Math.cos(yaw), s = Math.sin(yaw)
   const project = ([x,y,z]: Point): [number,number] => {
     const localX=(sx*x+144*sx+ox-224)*size/448,localZ=sx*z*size/448
@@ -75,6 +76,7 @@ export function projectHullDocking(data: HullRegistration, docking: HullDocking,
       nx:landscape ? 0 : i ? 1 : -1,ny:landscape ? row ? 1 : -1 : 0})
   }
   const [cockpitScreenX,cockpitScreenY] = project(docking.cockpit)
+  const [boardingX,boardingY] = project(docking.boarding ?? docking.cockpit)
   let canopy: ProjectedDock['canopy']
   if(docking.canopy){
     const {u,v,hingeY}=docking.canopy
@@ -92,5 +94,5 @@ export function projectHullDocking(data: HullRegistration, docking: HullDocking,
     }
     canopy={closed:matrix(0),open:matrix(canopyOpen)}
   }
-  return { contacts, cockpitX:cockpitScreenX,cockpitY:cockpitScreenY, canopy }
+  return { contacts, cockpitX:cockpitScreenX,cockpitY:cockpitScreenY, boardingX, boardingY, canopy }
 }

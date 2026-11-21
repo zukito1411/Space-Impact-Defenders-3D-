@@ -1,5 +1,5 @@
 import type { EnemyBankMotion } from './enemyBanking'
-import { LANDSCAPE_VIEW_YAW } from './raidView'
+import { hullViewYaw } from './raidView'
 import { isRaid2DMech } from './mechArtwork'
 import { projectHullDocking } from './hullDocking'
 import { getHullDocking, getHullRegistration } from './liveHullAssets'
@@ -7,7 +7,7 @@ import type { OrganicBossPose } from './specialBossGeometry'
 export type LiveHullDraw = {
   id: string; key: string; x: number; y: number; size: number; bank: number
   angle: number; alpha: number; landscape: boolean; attack?: number; crouch?: number; hit?: number
-  bossPose?: OrganicBossPose; spin?: number; enemyBank?: EnemyBankMotion
+  bossPose?: OrganicBossPose; spin?: number; enemyBank?: EnemyBankMotion; dock?: number
 }
 export interface LiveHullSink {
   submitHull(draw: LiveHullDraw): boolean
@@ -20,7 +20,7 @@ export function submitLiveHull(draw: LiveHullDraw) { return !isRaid2DMech(draw.k
 export function liveHullsEnabled() { return activeSink !== null }
 export function drawLiveHull(ctx: CanvasRenderingContext2D, key: string, x: number, y: number,
   size: number, bank: number, alpha: number, landscape: boolean, identity = key,
-  pose: { attack?: number; crouch?: number; hit?: number; bossPose?: OrganicBossPose; spin?: number; enemyBank?: EnemyBankMotion } = {}) {
+  pose: { attack?: number; crouch?: number; hit?: number; bossPose?: OrganicBossPose; spin?: number; enemyBank?: EnemyBankMotion; dock?: number } = {}) {
   if (!activeSink || isRaid2DMech(key)) return false
   const transform = ctx.getTransform()
   const density = Math.hypot(transform.a, transform.b)
@@ -35,13 +35,13 @@ export function drawLiveHull(ctx: CanvasRenderingContext2D, key: string, x: numb
 }
 
 
-export function sampleLiveHullPoints(key: string, bank: number, landscape: boolean) {
+export function sampleLiveHullPoints(key: string, bank: number, landscape: boolean, dock = 0) {
   if (isRaid2DMech(key)) return null
   const data = getHullRegistration(key)
   if (!data) return null
   const angle = bank * 150 * Math.PI / 180
   const cos = Math.cos(angle), sin = Math.sin(angle)
-  const yaw = landscape ? LANDSCAPE_VIEW_YAW : 0, c = Math.cos(yaw), s = Math.sin(yaw)
+  const yaw = hullViewYaw(landscape,dock), c = Math.cos(yaw), s = Math.sin(yaw)
   const [sx, sy, ox, oy] = data.registration
   const project = ([x, y, z]: number[]): [number, number] => {
     const px=sx*(cos*x+sin*z)+144*sx+ox-224,pz=sx*(-sin*x+cos*z)
@@ -54,8 +54,8 @@ export function sampleLiveHullPoints(key: string, bank: number, landscape: boole
 }
 
 /** Deck coordinates are physical screen pixels; the model remains in logical flight space. */
-export function sampleLiveHullDock(key: string, x: number, y: number, size: number, width: number, height: number, landscape: boolean, canopyOpen=0) {
+export function sampleLiveHullDock(key: string, x: number, y: number, size: number, width: number, height: number, landscape: boolean, canopyOpen=0, dock=0) {
   if (!activeSink || isRaid2DMech(key)) return undefined
   const registration = getHullRegistration(key), docking = getHullDocking(key)
-  return registration && docking ? projectHullDocking(registration,docking,x,y,size,width,height,landscape,canopyOpen) : undefined
+  return registration && docking ? projectHullDocking(registration,docking,x,y,size,width,height,landscape,canopyOpen,dock) : undefined
 }
