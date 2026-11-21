@@ -86,6 +86,19 @@ export function addMobHullDetail(body:Mesh<BufferGeometry,MeshStandardMaterial>,
     body.geometry=geometry
   }
   body.geometry.userData={...metadata,mobDesign:design.name,ventralModules:lowerModules}
+  if (/^eliteHull[0-4]$/.test(key)) {
+    // Tuck the complete underside, including its armor modules, toward the
+    // deck. Keep the original upper hull, paint, footprint and vertex count.
+    const position=body.geometry.getAttribute('position'),normal=body.geometry.getAttribute('normal')
+    const originalNormals=new Float32Array(normal.array)
+    for(let i=0;i<position.count;i++)if(position.getZ(i)<0)position.setZ(i,position.getZ(i)*.74)
+    position.needsUpdate=true
+    body.geometry.computeVertexNormals()
+    for(let i=0;i<position.count;i++)if(position.getZ(i)>=0)
+      normal.setXYZ(i,originalNormals[i*3],originalNormals[i*3+1],originalNormals[i*3+2])
+    normal.needsUpdate=true
+    body.geometry.computeBoundingBox()
+  }
   body.geometry.computeBoundingSphere()
 }
 
