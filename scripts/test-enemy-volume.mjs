@@ -41,14 +41,33 @@ for(const profile of ['fighter','organic','capital']) {
 // Capital reconstructions retain the exact clipped footprint and UV paint,
 // while giving each encounter its own depth, recesses and physical armament.
 const capital=buildVolumeGeometry({pixels,resolution,aspectX:1,aspectY:1,profile:'capital'})
-assert.equal(Object.keys(MOB_HULL_DESIGNS).length,14)
-for(const key of Object.keys(MOB_HULL_DESIGNS)) {
- const mesh=buildVolumeGeometry({pixels,resolution,aspectX:1,aspectY:1,profile:'fighter',hullDesign:key})
- assert.deepEqual(mesh.index,capital.index,'mob changed its registered silhouette')
- assert.deepEqual(mesh.uv,capital.uv,'mob lost original paint coordinates')
- assert.ok(mesh.position.every(Number.isFinite))
- const heights=Array.from(mesh.position).filter((_,i)=>i%3===2)
- assert.ok(Math.max(...heights)>.09&&Math.max(...heights)<.2,'mob lost its shaped cockpit/carapace')
+const expectedMobKeys=[
+ ...Array.from({length:8},(_,i)=>'alienHull'+i),
+ 'fighterNeedle','fighterCinder','fighterViolet','fighterCrimson','fighterJade','fighterAuric',
+ ...Array.from({length:5},(_,i)=>'eliteHull'+i),
+]
+assert.deepEqual(Object.keys(MOB_HULL_DESIGNS).sort(),expectedMobKeys.sort(),'all 14 normal and five elite designs must be registered')
+for(const key of expectedMobKeys) {
+ const mesh=buildVolumeGeometry({pixels,resolution,aspectX:1,aspectY:1,profile:MOB_HULL_DESIGNS[key].organic?'organic':'fighter',hullDesign:key})
+ // Preserve the registered upper footprint and paint. Lower armor deliberately
+ // has independent UVs, a rolled shoulder, and additional wall bands.
+ assert.equal(mesh.deckVertexCount,capital.deckVertexCount,key+' changed its upper vertex registration')
+ assert.equal(mesh.deckIndexCount,capital.deckIndexCount,key+' changed its upper face count')
+ assert.deepEqual(mesh.index.subarray(0,mesh.deckIndexCount),capital.index.subarray(0,capital.deckIndexCount),key+' changed its upper topology')
+ assert.deepEqual(mesh.uv.subarray(0,mesh.deckVertexCount*2),capital.uv.subarray(0,capital.deckVertexCount*2),key+' lost original upper paint coordinates')
+ for(let i=0;i<mesh.deckVertexCount*3;i+=3){
+  assert.equal(mesh.position[i],capital.position[i],key+' shifted its upper footprint')
+  assert.equal(mesh.position[i+1],capital.position[i+1],key+' shifted its upper footprint')
+ }
+ assert.ok(mesh.position.every(Number.isFinite),key+' has invalid geometry')
+ assert.ok(mesh.uv.every(v=>Number.isFinite(v)&&v>=0&&v<=1),key+' has invalid paint coordinates')
+ assert.ok(mesh.index.every(i=>i<mesh.position.length/3),key+' has invalid faces')
+ const heights=Array.from(mesh.position.subarray(0,mesh.deckVertexCount*3)).filter((_,i)=>i%3===2)
+ assert.ok(Math.max(...heights)>.09&&Math.max(...heights)<.28,key+' lost its bounded cockpit/carapace')
+ const depths=Array.from(mesh.position.subarray(mesh.deckVertexCount*3,mesh.deckVertexCount*6)).filter((_,i)=>i%3===2)
+ assert.ok(Math.min(...depths)<-.09,key+' retained a shallow lower slab')
+ assert.ok(Math.max(...depths)-Math.min(...depths)>.06,key+' lost its underside relief')
+ assert.ok(depths.every(z=>z<0&&z>-.28),key+' left its reserved lower depth')
 }
 assert.deepEqual(Object.keys(BOSS_HULL_DESIGNS).map(Number),[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15])
 for(const [stage,design] of Object.entries(BOSS_HULL_DESIGNS)) {
