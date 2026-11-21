@@ -26,8 +26,11 @@ jobs:
         run: node scripts/test-hull-lamps.mjs
       - name: Build production bundle
         run: npm run build
-      - run: npm install --no-save --package-lock=false playwright
-      - run: npx playwright install --with-deps chromium
+      - name: Install isolated pinned browser tools
+        run: |
+          npm install --prefix "$RUNNER_TEMP/raid-browser" --no-save --package-lock=false playwright@1.62.1
+          ln -s "$RUNNER_TEMP/raid-browser/node_modules/playwright" node_modules/playwright
+          node "$RUNNER_TEMP/raid-browser/node_modules/playwright/cli.js" install --with-deps chromium
       - name: Review all boss images and paired fleet budgets in both views
         run: node scripts/review-raid-campaign-browser.mjs --captures-only
         env:
