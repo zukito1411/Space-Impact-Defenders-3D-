@@ -112,7 +112,7 @@ export type Player = Vec & {
 
 export type PlayerFeedbackKind = 'field-hit' | 'shield-hit' | 'combined-hit' | 'field-break' | 'shield-break' | 'combined-break' | 'hull-hit' | 'repair'
 export type PlayerFeedback = { serial: number; kind: PlayerFeedbackKind; dx: number; dy: number }
-export type DestructionPresentationEvent = { serial: number; x: number; y: number; radius: number; tier: 'fighter' | 'armored' | 'capital'; seed: number }
+export type DestructionPresentationEvent = { serial: number; x: number; y: number; radius: number; tier: 'fighter' | 'armored' | 'capital'; seed: number; enemyId?: number; hull?: string; elite?: boolean; variant?: number; bossKind?: BossKind | null; vx?: number; vy?: number }
 
 export type Shot = Vec & {
   id: number
@@ -184,6 +184,10 @@ export type Enemy = Vec & {
   originX: number
   amplitude: number
   trainSlot: number
+  squadId?: number
+  tacticX?: number
+  tacticSpeed?: number
+  tacticHoldFire?: boolean
   formationMotion?: number
   formationAge?: number
   pathSpeed: number
@@ -209,6 +213,7 @@ export type Enemy = Vec & {
 }
 
 export type EnemySpawnProfile = {
+  squadId?: number
   variant: number
   motion?: number
   speed?: number

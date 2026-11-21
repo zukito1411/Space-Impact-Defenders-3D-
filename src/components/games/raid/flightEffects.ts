@@ -59,3 +59,8 @@ export function muzzleFlashProgress(now: number, startedAt: number) {
 export function raidStereoPan(x: number, y: number, landscape: boolean) {
   return Math.max(-1, Math.min(1, (landscape ? 50 - y : x - 50) / 50))
 }
+
+/** Sound follows physical screen left/right after the landscape quarter-turn. */
+export function raidAudioPosition(x:number,y:number,landscape:boolean,listener?: {x:number;y:number}) {
+  return {pan:raidStereoPan(x,y,landscape),depth:Math.min(1.5,Math.hypot(x-(listener?.x ?? 50),y-(listener?.y ?? 75))/90)}
+}

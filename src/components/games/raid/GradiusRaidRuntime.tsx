@@ -1,4 +1,7 @@
+import { EnemyTactics } from './enemyTactics'
+import { WorldStories } from './worldStories'
 import { isRaid2DMech } from './mechArtwork'
+import { enemyHullKey } from './enemyHulls'
 import { ThreeShipPresentation } from './threeShipPresentation'
 import { drawLiveHull, sampleLiveHullDock } from './liveHullBridge'
 import { loadHull } from './liveHullAssets'
@@ -20,7 +23,7 @@ import { getRaidPlayerHullSize } from './playerMuzzle'
 import { sampleLaunchFlight } from './raidLaunch'
 import { getWeaponIgnition } from './weaponPresentation'
 import { RaidLaunchSequence } from './RaidLaunchSequence'
-import { getHullImpactDirection, raidStereoPan, sampleDistantBattle } from './flightEffects'
+import { raidAudioPosition, getHullImpactDirection, raidStereoPan, sampleDistantBattle } from './flightEffects'
 import { registerSquidBubbleHit } from './bubbleRecoil'
 import { createRaidMainShotEmitter } from './playerMuzzle'
 import { clampRaidShipSize, getRaidPlayerHitRadius, useRaidShipSize } from './shipSize'
@@ -371,6 +374,8 @@ export function GradiusRaid({
   const unlockedStageRef = useRef(getUnlockedStage())
   const [carrierAudio] = useState(() => new CarrierAudio())
   const [scenePresentation] = useState(() => new RaidScenePresentation())
+  const [enemyTactics] = useState(() => new EnemyTactics())
+  const [worldStories] = useState(() => new WorldStories())
   const raidBgmElementRef = useRef<HTMLAudioElement | null>(null)
   const raidBgmLoadRef = useRef<AbortController | null>(null)
   const raidBgmObjectUrlRef = useRef<string | null>(null)
@@ -917,7 +922,7 @@ export function GradiusRaid({
       const nextEnemyIds = new Set(state.enemies.map((enemy) => enemy.id))
       const destroyedEnemy = prevEnemiesForAudio.find((enemy) => enemy.hp > 0 && enemy.y > -10 && enemy.y < HEIGHT + 10 && !nextEnemyIds.has(enemy.id))
       if (destroyedEnemy && state.phase === 'playing') {
-        playGameSound(destroyedEnemy.isBoss ? 'destroyed_explosion' : destroyedEnemy.isMiniBoss ? 'explosion_big' : 'explosion')
+        playGameSound(destroyedEnemy.isBoss ? 'destroyed_explosion' : destroyedEnemy.isMiniBoss ? 'explosion_big' : 'explosion',raidAudioPosition(destroyedEnemy.x,destroyedEnemy.y,landscapeRef.current,playerRef.current))
       }
     }
 
@@ -1657,6 +1662,7 @@ export function GradiusRaid({
       if (pixiBackgroundRef.current === background) pixiBackgroundRef.current = null
       if (shipsRef.current === ships) shipsRef.current = null
       if (rendererPreparationRef.current === preparation) rendererPreparationRef.current = null
+      worldStories.stop()
       ships.destroy()
       background.destroy()
     }
@@ -1843,6 +1849,7 @@ export function GradiusRaid({
 
     shipsRef.current?.render({ width: cssWidth,height: cssHeight,dpr,landscape:landscapeRef.current,measureGpu: measured,
       lighting: pixiBackground?.getShipLighting(), dock: carrier?.backdrop ?? 0,
+      combat:carrierActive?undefined:{time,paused:!playing,ripples:ripplesRef.current,shots:shotsRef.current,muzzles:muzzleFlashesRef.current},
       eclipseAt: (x,y) => pixiBackground?.getEclipseAt(x,y) ?? 0 })
     costs.backgroundMs = measured ? performance.now() - backgroundStart : 0
     // One WebGL pass now presents animated scenery and pooled foreground
@@ -1889,6 +1896,7 @@ export function GradiusRaid({
       }
     }
     if (carrier) {
+      worldStories.stop();scenePresentation.clearDestruction()
       if (recovery && recovery.exteriorAlpha > 0) {
         drawLiveHull(ctx,'mesiahBlack',toX(50+recovery.exteriorLead*6),
           toY(22+recovery.exteriorLead*14),
@@ -2631,6 +2639,10 @@ export function GradiusRaid({
       drawDerelictWreck(ctx, wreck, toX, toY, cssWidth, time)
     }
 
+    worldStories.draw(ctx,time,journeyStageAgeRef.current,stageRef.current,sceneryRunTokenRef.current,
+      landscapeRef.current,phaseRef.current==='paused',playing && !activeBoss && stageClearRef.current<=0 && raidModeRef.current!=='bossRush'
+        && !isWateryWorldTheme(backgroundStageTheme) && !isVolcanicWorldTheme(backgroundStageTheme),
+      cssWidth,cssHeight,reducedMotion)
     const battle = playing && !activeBoss && gfxProfile.drawDecorativeOverlays && !reducedMotion
       && !isWateryWorldTheme(backgroundStageTheme) && !isVolcanicWorldTheme(backgroundStageTheme)
       ? sampleDistantBattle(journeyStageAgeRef.current, stageRef.current) : -1
@@ -2662,6 +2674,7 @@ export function GradiusRaid({
     const damageSmoke = gfxProfile.drawDecorativeOverlays && !reducedMotion ? getRaidCombatFrame(COMBAT_TILE.smoke) : undefined
     let damagedShipsDrawn = 0
     for (const enemy of enemiesRef.current) {
+      if (enemy.hp<=0 && enemyHullKey(enemy)) continue
       const spriteMargin = enemy.isBoss ? 26 : enemy.isMiniBoss ? 12 : landscapeRef.current ? 8 : 5
       if (!raidObjectInView(drawBounds, enemy.x, enemy.y, enemy.radius + spriteMargin)) continue
       if (damageSmoke && damagedShipsDrawn < 4 && !enemy.isBoss && enemy.hp > 0 && enemy.maxHp > 0 && enemy.hp / enemy.maxHp <= .4) {
@@ -4106,11 +4119,11 @@ export function GradiusRaid({
     if (mesiahDroneFired) player.mesiahDroneFireCooldown = MESIAH_DRONE_FIRE_INTERVAL_SECONDS
     if (mesiahRocketsFired) player.mesiahRocketCooldown = MESIAH_ROCKET_FIRE_INTERVAL_SECONDS
     if (!canFireMain) {
-      if (mesiahDroneFired) playGameSound('laser')
+      if (mesiahDroneFired) playGameSound('laser',raidAudioPosition(player.x,player.y,landscapeRef.current,playerRef.current))
       return
     }
 
-    if ((shipKey === 'mesiah' || stacks.rocket > 0 || stacks.homing > 0) && Math.random() < 0.12) playGameSound('rocket')
+    if ((shipKey === 'mesiah' || stacks.rocket > 0 || stacks.homing > 0) && Math.random() < 0.12) playGameSound('rocket',raidAudioPosition(player.x,player.y,landscapeRef.current,playerRef.current))
       ; WEAPON_KEYS.forEach((key) => {
         if (firingWeapons[key]) {
           player.weaponCooldowns[key] = WEAPON_FIRE_INTERVALS[key]
@@ -4133,7 +4146,7 @@ export function GradiusRaid({
     player.fireCooldown = shipKey === 'coreLander'
       ? coreLanderFireInterval
       : Math.max(minFireCooldown, (tunedBaseInterval - Math.min(0.045, totalStacks * 0.006)) / player.ship.fireRate)
-    playGameSound('laser')
+    playGameSound('laser',raidAudioPosition(player.x,player.y,landscapeRef.current,playerRef.current))
     if (shipKey === 'dreadnought') playRaidCue('heavy', raidStereoPan(player.x, player.y, landscapeRef.current))
   }, [pushShot])
   // Keep the stable ref current so predictGuestPlayer can call firePlayer without a forward-reference issue
@@ -4184,6 +4197,7 @@ export function GradiusRaid({
       originX,
       amplitude: isElite ? kind === 'brood' ? 12 + Math.random() * 8 : kind === 'lancer' ? 24 + Math.random() * 14 : 18 + Math.random() * 10 : 8 + Math.random() * 14,
       trainSlot,
+      squadId:profile?.squadId,
       ...(fighter && { formationMotion: profile?.motion, formationAge: 0 }),
       pathSpeed: isElite ? kind === 'lancer' ? 0.105 : 0.076 : 0.06 + Math.random() * 0.035,
       chargeCooldown: isElite ? kind === 'lancer' ? 3.4 : kind === 'brood' ? 4.8 : 4 : 999,
@@ -4206,7 +4220,7 @@ export function GradiusRaid({
     wingSerialRef.current += 1
     for (let i = 0; i < count; i += 1) {
       const slot = getRaidWingSlot(stage, serial, i)
-      spawnEnemyAt(slot.x, slot.y, waveRef.current, 0, i, slot, null)
+      spawnEnemyAt(slot.x, slot.y, waveRef.current, 0, i, {...slot,squadId:stage*4096+serial}, null)
     }
   }, [spawnEnemyAt])
 
@@ -4532,10 +4546,10 @@ export function GradiusRaid({
     player.invuln = 1.05
     spawnSparks(player.x, player.y, '#fca5a5', 22, 6)
     addRipple(player.x, player.y, '#ef4444', 10)
-    playGameSound('hit')
+    playGameSound('hit',raidAudioPosition(player.x,player.y,landscapeRef.current,playerRef.current))
     if (player.hp <= 0) {
       player.hp = 0
-      playGameSound('destroyed_explosion')
+      playGameSound('destroyed_explosion',raidAudioPosition(player.x,player.y,landscapeRef.current,playerRef.current))
       spawnSparks(player.x, player.y, '#fb7185', 62, 8)
       addRipple(player.x, player.y, '#fb7185', 18)
       const ally = player === playerRef.current ? remotePlayerRef.current : playerRef.current
@@ -4582,7 +4596,7 @@ export function GradiusRaid({
     player.forceField = 0
     player.shield = 0
     player.invuln = 2.2
-    playGameSound('destroyed_explosion')
+    playGameSound('destroyed_explosion',raidAudioPosition(player.x,player.y,landscapeRef.current,playerRef.current))
     spawnSparks(player.x, player.y, '#fb7185', 76, 9)
     addRipple(player.x, player.y, '#fb7185', 21)
 
@@ -4838,13 +4852,14 @@ export function GradiusRaid({
         spawnSparks(x, y, color, finale ? 32 : 15, finale ? 8 : 6)
         addRipple(x, y, color, finale ? 22 : 10 + event.index)
         if (finale) {
-          playGameSound('destroyed_explosion')
+          playGameSound('destroyed_explosion',raidAudioPosition(x,y,landscapeRef.current,playerRef.current))
           triggerScreenShake(1.6, 180)
         }
       }
       bossDefeatExplosionEventsRef.current.length = write
     }
     if (stageClearRef.current > 0) {
+      enemyTactics.retreat(enemiesRef.current,dt)
       const before = stageClearRef.current
       stageClearRef.current = Math.max(0, stageClearRef.current - dt)
       const remotePlayer = remotePlayerRef.current
@@ -5532,6 +5547,7 @@ export function GradiusRaid({
 
     const enemies = enemiesRef.current
     let liveEnemyCount = 0
+    enemyTactics.update(enemies,dt,stageRef.current,sceneryRunTokenRef.current,player.hp>0?player:remotePlayerRef.current ?? player)
     for (const enemy of enemies) {
       if (!enemy.isBoss && enemy.hp <= 0) {
         const defeatTimer = Math.max(0, (enemy.defeatTimer ?? 0) - dt)
@@ -6114,7 +6130,7 @@ export function GradiusRaid({
       const nextFire = fireCooldown - dt * (enemy.isBoss ? bossFireDrain : 1)
       const bossInPause = !commandProfile && enemy.isBoss && bossKind !== 'devil' && (bossRushAggressive ? nowSeconds % 5 > 4.25 : nowSeconds % 6 > 3)
       const biteRetracting = attackBossKind === 'snake' && chargePattern === 'cross' && beamVolleyRecovery > 0
-      if (!commandProfile && nextFire <= 0 && enemy.y > 0 && chargeTimer <= 0 && !biteRetracting && !bossInPause && (bossKind !== 'final' || mirageActive)) {
+      if (!commandProfile && !enemy.tacticHoldFire && nextFire <= 0 && enemy.y > 0 && chargeTimer <= 0 && !biteRetracting && !bossInPause && (bossKind !== 'final' || mirageActive)) {
         fireEnemy(enemy, getNearestLivingPlayerThisTick(enemy), now)
         if (bossKind === 'devil') devilNormalAttackTimer = Math.max(devilNormalAttackTimer, enemy.devilNormalAttackTimer ?? 0)
       }
@@ -6123,12 +6139,12 @@ export function GradiusRaid({
         ? clamp(bossX, bossKind === 'devil' ? 50 : bossKind === 'final' ? 14 : bossKind === 'snake' ? 15 : bossKind === 'super' ? 20 : 16, bossKind === 'devil' ? 50 : bossKind === 'final' ? 86 : bossKind === 'snake' ? 85 : bossKind === 'super' ? 80 : 84)
         : enemy.isMiniBoss
           ? clamp(enemy.x + (miniBossX - enemy.x) * Math.min(1, dt * 3.6) + enemy.vx * dt * 0.24, 10, 90)
-          : clamp(enemy.x + (trainX - enemy.x) * Math.min(1, dt * 5.8) + enemy.vx * dt, 4, 96)
+          : clamp(enemy.x + ((enemy.tacticX ?? trainX) - enemy.x) * Math.min(1, dt * 5.8) + enemy.vx * dt, 4, 96)
       enemy.y = commandProfile && enemy.bossEncounterAge !== undefined ? enemy.y : enemy.isBoss
         ? (enemy.y < bossYTarget ? Math.min(bossYTarget, enemy.y + enemy.vy * dt) : bossYTarget)
         : enemy.isMiniBoss
           ? (enemy.y < miniBossYTarget ? Math.min(miniBossYTarget, enemy.y + enemy.vy * dt) : miniBossYTarget)
-          : enemy.y + enemy.vy * dt * (fighter ? getRaidFighterSpeedScale(enemy) : 1)
+          : enemy.y + enemy.vy * dt * (fighter ? getRaidFighterSpeedScale(enemy) : 1) * (enemy.tacticSpeed ?? 1)
       if (enemy.isBoss && bossMessageRef.current === 'incoming') {
         if (enemy.y >= Math.min(5, bossYTarget - 6)) {
           bossAlertRef.current = 0
@@ -6255,7 +6271,7 @@ export function GradiusRaid({
       }
       spawnSparks(asteroid.x, asteroid.y, asteroid.tier === 2 ? '#fb923c' : '#fbbf24', asteroid.tier === 2 ? 38 : 22, asteroid.tier === 2 ? 8 : 5)
       addRipple(asteroid.x, asteroid.y, asteroid.tier === 2 ? '#fb923c' : '#fbbf24', asteroid.tier === 2 ? 15 : 9)
-      playGameSound(asteroid.tier === 2 ? 'explosion_big' : 'explosion')
+      playGameSound(asteroid.tier === 2 ? 'explosion_big' : 'explosion',raidAudioPosition(asteroid.x,asteroid.y,landscapeRef.current,playerRef.current))
     }
 
     const splitSquidBubble = (bubble: Shot) => {
@@ -6292,7 +6308,7 @@ export function GradiusRaid({
       const splashDamage = Math.max(1, Math.ceil(shot.damage * (spiegelKunai ? SPIEGEL_KUNAI_SPLASH_DAMAGE_MULTIPLIER : 0.58)))
       spawnSparks(shot.x, shot.y, spiegelKunai ? '#e2e8f0' : '#fb923c', spiegelKunai ? 14 : 24, spiegelKunai ? 5 : 7)
       addRipple(shot.x, shot.y, spiegelKunai ? '#f87171' : '#fb923c', spiegelKunai ? 9 : 13)
-      playGameSound('explosion')
+      playGameSound('explosion',raidAudioPosition(shot.x,shot.y,landscapeRef.current,playerRef.current))
 
       for (const enemy of enemiesRef.current) {
         if (enemy.hp <= 0 || enemy.id === sourceEnemyId) continue
@@ -6404,7 +6420,7 @@ export function GradiusRaid({
             detonateCoreLanderBlast(shot)
           } else if (shot.kind === 'rocket') {
             addRipple(shot.x, shot.y, '#fb923c', 8)
-            playGameSound('explosion')
+            playGameSound('explosion',raidAudioPosition(shot.x,shot.y,landscapeRef.current,playerRef.current))
           }
           if (isCoreLanderAoeShot(shot)) {
             shot.y = -999
@@ -6443,7 +6459,7 @@ export function GradiusRaid({
             if (remotePlayerRef.current) remotePlayerRef.current.score += Math.round((240 + stageRef.current * 18) * scoreMult)
             spawnSparks(wreck.x, wreck.y, '#fb7185', 44, 8)
             addRipple(wreck.x, wreck.y, '#fb7185', 17)
-            playGameSound('explosion_big')
+            playGameSound('explosion_big',raidAudioPosition(wreck.x,wreck.y,landscapeRef.current,playerRef.current))
           }
           break
         }
@@ -6700,7 +6716,7 @@ export function GradiusRaid({
             if (remotePlayerRef.current) remotePlayerRef.current.score += Math.round(scoreValue * scoreMult)
             spawnSparks(targetAsteroid.x, targetAsteroid.y, targetAsteroid.tier === 2 ? '#fb923c' : '#fbbf24', targetAsteroid.tier === 2 ? 38 : 22, targetAsteroid.tier === 2 ? 8 : 5)
             addRipple(targetAsteroid.x, targetAsteroid.y, targetAsteroid.tier === 2 ? '#fb923c' : '#fbbf24', targetAsteroid.tier === 2 ? 15 : 9)
-            playGameSound(targetAsteroid.tier === 2 ? 'explosion_big' : 'explosion')
+            playGameSound(targetAsteroid.tier === 2 ? 'explosion_big' : 'explosion',raidAudioPosition(targetAsteroid.x,targetAsteroid.y,landscapeRef.current,playerRef.current))
           }
           return true
         }
@@ -6871,7 +6887,7 @@ export function GradiusRaid({
                 if (remotePlayerRef.current) remotePlayerRef.current.score += Math.round(scoreValue * scoreMult)
                 spawnSparks(asteroid.x, asteroid.y, asteroid.tier === 2 ? '#fb923c' : '#fbbf24', asteroid.tier === 2 ? 38 : 22, asteroid.tier === 2 ? 8 : 5)
                 addRipple(asteroid.x, asteroid.y, asteroid.tier === 2 ? '#fb923c' : '#fbbf24', asteroid.tier === 2 ? 15 : 9)
-                playGameSound(asteroid.tier === 2 ? 'explosion_big' : 'explosion')
+                playGameSound(asteroid.tier === 2 ? 'explosion_big' : 'explosion',raidAudioPosition(asteroid.x,asteroid.y,landscapeRef.current,playerRef.current))
               }
             }
             for (const bubble of barrageBubbleTargets) {
@@ -6936,7 +6952,7 @@ export function GradiusRaid({
             if (shot.kind === 'rocket') {
               spawnSparks(shot.x, shot.y, '#f97316', 28, 6)
             addRipple(shot.x, shot.y, '#fb923c', 10)
-            playGameSound('explosion')
+            playGameSound('explosion',raidAudioPosition(shot.x,shot.y,landscapeRef.current,playerRef.current))
             }
             shot.y = -999
           }
@@ -7191,7 +7207,7 @@ export function GradiusRaid({
             }
             spawnSparks(enemy.x, enemy.y, '#22d3ee', enemy.isBoss || enemy.isMiniBoss ? 40 : 18, 7)
             addRipple(enemy.x, enemy.y, '#22d3ee', enemy.isBoss || enemy.isMiniBoss ? 15 : 10)
-            if (enemy.isBoss || enemy.isMiniBoss) playGameSound('hit')
+            if (enemy.isBoss || enemy.isMiniBoss) playGameSound('hit',raidAudioPosition(enemy.x,enemy.y,landscapeRef.current,playerRef.current))
           } else {
             if (enemy.isBoss || enemy.isMiniBoss) {
               enemy.hp = Math.max(1, enemy.hp - (enemy.isBoss ? 22 + waveRef.current * 6 : 30 + waveRef.current * 6))

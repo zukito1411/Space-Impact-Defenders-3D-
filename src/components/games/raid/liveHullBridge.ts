@@ -7,20 +7,24 @@ import type { OrganicBossPose } from './specialBossGeometry'
 export type LiveHullDraw = {
   id: string; key: string; x: number; y: number; size: number; bank: number
   angle: number; alpha: number; landscape: boolean; attack?: number; crouch?: number; hit?: number
-  bossPose?: OrganicBossPose; spin?: number; enemyBank?: EnemyBankMotion; dock?: number
+  bossPose?: OrganicBossPose; spin?: number; enemyBank?: EnemyBankMotion; dock?: number; depth?: number
 }
+export type LiveHullDestruction = { id: string; sourceId: string; key: string; x: number; y: number; size: number;
+  angle: number; landscape: boolean; age: number; seed: number; alpha: number; tempo: number; driftX: number; driftY: number }
 export interface LiveHullSink {
   submitHull(draw: LiveHullDraw): boolean
+  submitDestruction?(draw: LiveHullDestruction): boolean
 }
 let activeSink: LiveHullSink | null = null
 export function bindLiveHulls(sink: LiveHullSink | null) { activeSink = sink }
 export function unbindLiveHulls(sink: LiveHullSink) { if (activeSink === sink) activeSink = null }
 /** GPU actor coordinates already use logical CSS pixels, without a Canvas transform. */
 export function submitLiveHull(draw: LiveHullDraw) { return !isRaid2DMech(draw.key) && (activeSink?.submitHull(draw) ?? false) }
+export function submitHullDestruction(draw: LiveHullDestruction) { return activeSink?.submitDestruction?.(draw) ?? false }
 export function liveHullsEnabled() { return activeSink !== null }
 export function drawLiveHull(ctx: CanvasRenderingContext2D, key: string, x: number, y: number,
   size: number, bank: number, alpha: number, landscape: boolean, identity = key,
-  pose: { attack?: number; crouch?: number; hit?: number; bossPose?: OrganicBossPose; spin?: number; enemyBank?: EnemyBankMotion; dock?: number } = {}) {
+  pose: { attack?: number; crouch?: number; hit?: number; bossPose?: OrganicBossPose; spin?: number; enemyBank?: EnemyBankMotion; dock?: number; depth?: number } = {}) {
   if (!activeSink || isRaid2DMech(key)) return false
   const transform = ctx.getTransform()
   const density = Math.hypot(transform.a, transform.b)

@@ -1,7 +1,10 @@
 import { AdaptiveScore, SampleScene, warmImmersionAudio } from '../presentationAudio'
 import type { ImmersionClip } from '../presentationAssets'
 import { getGameSoundEnabled } from '../sound'
-import { COMBAT_TILE, drawRaidCombatTexture, getRaidCombatFrame } from './combatArt'
+import { submitHullDestruction } from './liveHullBridge'
+import { enemyHullKey, ENEMY_HULL_SPECS } from './enemyHulls'
+import { getEnemyCanvasSize } from './assets'
+import { fighterHullHeading } from './fighterHulls'
 import { cosmicRegionIndex } from './cosmos'
 import { raidStereoPan } from './flightEffects'
 import { clearPlayerConditions, recordPlayerFeedback, validPlayerFeedback } from './playerCondition'
@@ -48,14 +51,19 @@ export class RaidScenePresentation {
       raidStereoPan(player.x, player.y, this.landscape), 'impact', 3)
   }
 
-  defeat(enemy: Pick<Enemy, 'id' | 'x' | 'y' | 'radius' | 'isBoss' | 'isMiniBoss'>) {
+  defeat(enemy: Enemy) {
     if (this.defeated.has(enemy.id)) return
     this.defeated.add(enemy.id)
     if (this.defeated.size > 512) this.defeated.delete(this.defeated.values().next().value!)
     const event: DestructionPresentationEvent = { serial: ++this.sequence, x: enemy.x, y: enemy.y,
-      radius: Math.max(1, Math.min(20, enemy.radius)), tier: enemy.isBoss ? 'capital' : enemy.isMiniBoss || enemy.radius >= 4 ? 'armored' : 'fighter', seed: enemy.id % 997 }
+      radius: Math.max(1, Math.min(20, enemy.radius)), tier: enemy.isBoss ? 'capital' : enemy.isMiniBoss || enemy.radius >= 4 ? 'armored' : 'fighter', seed: enemy.id % 997, enemyId:enemy.id,hull:enemyHullKey(enemy) ?? undefined,
+      elite:enemy.isMiniBoss,variant:enemy.variant,bossKind:enemy.bossKind,vx:enemy.isBoss?0:enemy.vx,vy:enemy.isBoss?3.5:enemy.isMiniBoss?5:enemy.vy*(enemy.tacticSpeed ?? 1) }
     this.stream.push(event)
-    if (this.stream.length > 12) this.stream.shift()
+    if (this.stream.length>12) {
+      // Keep a fresh capital event in co-op packets during simultaneous kills.
+      const expendable=this.stream.findIndex(e=>e.tier!=='capital' || e!==event && !this.bursts.some(b=>b.serial===e.serial && this.clock-b.at<6000))
+      this.stream.splice(expendable<0?0:expendable,1)
+    }
     this.ingest([event])
   }
 
@@ -64,10 +72,18 @@ export class RaidScenePresentation {
   ingest(events: readonly DestructionPresentationEvent[]) {
     for (const event of events.slice(-12)) {
       if (!event || !Number.isSafeInteger(event.serial) || event.serial <= this.received || !Number.isFinite(event.seed) || !Number.isFinite(event.x) || !Number.isFinite(event.y)
-        || !Number.isFinite(event.radius) || !['fighter', 'armored', 'capital'].includes(event.tier)) continue
+        || Math.abs(event.x)>160 || Math.abs(event.y)>160 || !Number.isFinite(event.radius) || !['fighter', 'armored', 'capital'].includes(event.tier)) continue
       this.received = event.serial
-      this.bursts.push({ ...event, radius: Math.max(1, Math.min(20, event.radius)), at: this.clock })
-      if (this.bursts.length > 24) this.bursts.shift()
+      this.bursts.push({ ...event, seed:Math.abs(event.seed)%997,
+        enemyId:Number.isSafeInteger(event.enemyId)?event.enemyId:undefined,
+        variant:Number.isFinite(event.variant)?Math.max(0,Math.min(32,event.variant!)):0,
+        vx:Number.isFinite(event.vx)?Math.max(-300,Math.min(300,event.vx!)):0,
+        vy:Number.isFinite(event.vy)?Math.max(-300,Math.min(300,event.vy!)):1,
+        hull:typeof event.hull==='string' && ENEMY_HULL_SPECS[event.hull] ? event.hull : undefined, radius: Math.max(1, Math.min(20, event.radius)), at: this.clock })
+      if(this.bursts.length>24){
+        const expendable=this.bursts.findIndex(b=>b.tier!=='capital')
+        this.bursts.splice(expendable<0?0:expendable,1)
+      }
       this.sounds.play(`${event.tier}-death`, event.tier === 'capital' ? .62 : event.tier === 'armored' ? .42 : .26,
         raidStereoPan(event.x, event.y, this.landscape), 'explosion', event.tier === 'capital' ? 4 : 2, 0, event.tier === 'fighter' ? 110 : 180)
     }
@@ -122,50 +138,34 @@ export class RaidScenePresentation {
     }
   }
 
-  draw(ctx: CanvasRenderingContext2D, time: number, phase: GamePhase, toX: (n: number) => number,
-    toY: (n: number) => number, width: number, reduced: boolean, low: boolean) {
+  draw(_ctx: CanvasRenderingContext2D, time: number, phase: GamePhase, toX: (n: number) => number,
+    toY: (n: number) => number, width: number, reduced: boolean, _low: boolean) {
     const delta = this.previous ? Math.max(0, Math.min(50, time - this.previous)) : 0
     this.previous = time
     if (phase !== 'paused' && !document.hidden) this.clock += delta
-    const fragment = getRaidCombatFrame(COMBAT_TILE.fragment)
-    const fire = getRaidCombatFrame(COMBAT_TILE.fireImpact)
-    ctx.save()
-    let write = 0
-    for (const burst of this.bursts) {
-      const seconds = (this.clock - burst.at) / 1000
-      const lifetime = burst.tier === 'capital' ? 2.1 : burst.tier === 'armored' ? 1.2 : .62
-      if (seconds > lifetime) continue
-      this.bursts[write++] = burst
-      const progress = seconds / lifetime
-      const x = toX(burst.x), y = toY(burst.y)
-      const size = Math.max(12, Math.min(100, burst.radius * width / 100))
-      if (fire && burst.tier !== 'capital') {
-        const count = burst.tier === 'armored' && !low && !reduced ? 2 : 1
-        for (let i = 0; i < count; i++) {
-          const age = seconds - i * .17
-          if (age < 0 || age > .45) continue
-          drawRaidCombatTexture(ctx, fire, x + (i ? size * .24 : 0), y + (i ? size * .17 : 0),
-            size * (1.1 + age * 2), size * (1 + age * 2), burst.seed * .19, true, (1 - age / .45) * .7)
-        }
-      }
-      if (fragment && !reduced) for (let i = 0; i < (low ? 2 : burst.tier === 'capital' ? 6 : 3); i++) {
-        const angle = i * 2.399 + burst.seed * .31
-        const drift = size * seconds * (1.1 + i * .17)
-        drawRaidCombatTexture(ctx, fragment, x + Math.cos(angle) * drift, y + Math.sin(angle) * drift + seconds * size * .3,
-          size * .22, size * .15, angle + seconds * (i % 2 ? -2 : 2), false, (1 - progress) * .85)
-      }
-      if (burst.tier === 'capital' && seconds >= .55 && !reduced) {
-        const shock = (seconds - .55) / 1.5
-        ctx.strokeStyle = `rgba(253,186,116,${Math.max(0, 1 - shock) * .28})`
-        ctx.lineWidth = 1.5
-        ctx.beginPath()
-        ctx.ellipse(x, y, size * (1 + shock * 3), size * (.35 + shock * 1.3), 0, 0, Math.PI * 2)
-        ctx.stroke()
-      }
+    let write=0
+    for(const burst of this.bursts){
+      const lifetime=burst.tier==='capital'?6:burst.tier==='armored'?3.4:2.2
+      if((this.clock-burst.at)/1000<=lifetime)this.bursts[write++]=burst
     }
-    this.bursts.length = write
-    ctx.restore()
+    this.bursts.length=write
+    // Capital ruptures always get a slot, even during a simultaneous swarm kill.
+    let admitted=0
+    for(const tier of ['capital','armored','fighter'] as const)for(let i=this.bursts.length-1;i>=0 && admitted<12;i--){
+      const burst=this.bursts[i]
+      if(burst.tier!==tier || !burst.hull)continue
+      const seconds=(this.clock-burst.at)/1000,lifetime=tier==='capital'?6:tier==='armored'?3.4:2.2
+      const shape={isBoss:tier==='capital',isMiniBoss:Boolean(burst.elite),variant:burst.variant ?? 0,bossKind:burst.bossKind ?? null} as Enemy
+      const size=getEnemyCanvasSize(shape,width,this.landscape)*(shape.isBoss?1.04:!shape.isMiniBoss && width>1100?.96:1)
+      const heading=shape.isBoss || shape.isMiniBoss ? 0 : fighterHullHeading(burst.vx ?? 0,burst.vy ?? 1,width,toY(100))
+      if(submitHullDestruction({id:'death:'+burst.serial+':'+burst.enemyId,sourceId:'enemy:'+burst.enemyId,key:burst.hull,
+        x:toX(burst.x),y:toY(burst.y),size,angle:heading,landscape:this.landscape,
+        age:reduced?Math.min(.04,seconds):seconds,seed:burst.seed,alpha:Math.min(1,(lifetime-seconds)/.7),tempo:tier==='capital'?2:1,
+        driftX:(burst.vx ?? 0)*width/100,driftY:(burst.vy ?? 1)*toY(100)/100}))admitted++
+    }
   }
+
+  clearDestruction(){this.bursts.length=0;this.previous=0}
 
   stop() {
     this.sounds.stop(); this.score.stop(); this.bursts.length = 0; this.stream.length = 0

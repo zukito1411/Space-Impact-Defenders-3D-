@@ -276,7 +276,7 @@ export class RaidGpuForeground {
     const sx = frame.width / 100
     const sy = frame.height / 100
     for (const alien of frame.enemies) {
-      if (alien.isBoss || alien.isMiniBoss) continue
+      if (alien.hp<=0 || alien.isBoss || alien.isMiniBoss) continue
       if (!raidObjectInView(frame.bounds, alien.x, alien.y, alien.radius + (frame.landscape ? 8 : 5))) continue
       const size = getEnemyCanvasSize(alien, frame.width, frame.landscape) * (frame.width > 1100 ? 0.96 : 1)
       this.visibleEnemies.add(alien.id)
@@ -566,7 +566,7 @@ export class RaidGpuForeground {
         if (!raidObjectInView(frame.bounds, spark.x, spark.y, 3)) continue
         const life = Math.max(0, spark.life / Math.max(0.001, spark.maxLife))
         const streak = getRaidCombatFrame(COMBAT_TILE.spark)
-        const fragment = (spark.fragment || spark.id % 5 === 0) ? getRaidCombatFrame(COMBAT_TILE.fragment) : undefined
+        const fragment = spark.fragment ? getRaidCombatFrame(COMBAT_TILE.fragment) : undefined
         if (fragment) {
           this.paintParticle(fragment, spark.x * sx, spark.y * sy, Math.max(3, spark.size * 1.7),
             0xffffff, life, Math.max(3, spark.size * 1.3), spark.id + (1 - life) * 4)

@@ -148,8 +148,32 @@ const gameSoundDuckers = new Set<GameSoundDucker>()
 const activeSamples = new Set<{ kind: GameSoundKind; stop: () => void }>()
 const activeSynthSources = new Set<AudioScheduledSourceNode>()
 
+export type GameSoundSpace = { pan: number; depth?: number; gain?: number }
+type SpatialBus = { input: GainNode; filter: BiquadFilterNode; pan: StereoPannerNode; refs: number; sealed: boolean; disposed: boolean }
+let currentSfxSpace: SpatialBus | null = null
+const spatialBuses=new Set<SpatialBus>()
+function disposeSpatialBus(bus: SpatialBus) {
+  if(bus.disposed)return
+  bus.disposed=true;bus.input.disconnect();bus.filter.disconnect();bus.pan.disconnect();spatialBuses.delete(bus)
+}
+function retainSpatialBus(bus: SpatialBus) {
+  bus.refs++
+  return ()=>{bus.refs=Math.max(0,bus.refs-1);if(bus.sealed && !bus.refs)disposeSpatialBus(bus)}
+}
+function createSpatialBus(space: GameSoundSpace): SpatialBus | null {
+  const ctx=getAudioContext()
+  if(!ctx || typeof ctx.createStereoPanner!=='function' || spatialBuses.size>=24)return null
+  const input=ctx.createGain(),filter=ctx.createBiquadFilter(),pan=ctx.createStereoPanner()
+  pan.pan.value=Math.max(-.92,Math.min(.92,space.pan))
+  filter.type='lowpass';filter.frequency.value=14000/(1+Math.max(0,space.depth ?? 0)*2.2)
+  input.connect(filter);filter.connect(pan);pan.connect(ctx.destination)
+  const bus={input,filter,pan,refs:0,sealed:false,disposed:false};spatialBuses.add(bus)
+  return bus
+}
+
 function trackGameSoundSource(source: AudioScheduledSourceNode) {
   activeSynthSources.add(source)
+  if(currentSfxSpace){const release=retainSpatialBus(currentSfxSpace);source.addEventListener('ended',release,{once:true})}
   source.onended = () => { activeSynthSources.delete(source); source.disconnect() }
 }
 
@@ -160,6 +184,7 @@ export function stopGameSounds() {
     try { source.stop(); source.disconnect() } catch { /* Already ended. */ }
   }
   activeSynthSources.clear()
+  for(const bus of spatialBuses)disposeSpatialBus(bus)
   recentSfxTimesMs.length = 0
   for (const kind of Object.keys(lastKindPlayMs) as GameSoundKind[]) delete lastKindPlayMs[kind]
 }
@@ -503,12 +528,20 @@ function tryPlaySample(kind: GameSoundKind, eventGain = 1) {
     // Short defeat cues keep their attack, then fade instead of playing long noisy tails.
     const limit = kind === 'gameover' ? 1100 : kind === 'destroyed_explosion' ? 1500 : 0
     const fadeMs = kind === 'gameover' ? 180 : 220
-    const maxVoices = kind === 'laser' ? 3 : limit ? 1 : Infinity
+    const maxVoices = kind === 'laser' ? 3 : limit ? 1 : currentSfxSpace ? 6 : Infinity
     const matching = [...activeSamples].filter(sample => sample.kind === kind)
     while (matching.length >= maxVoices) matching.shift()!.stop()
     let timer = 0, fade = 0
+    let media: MediaElementAudioSourceNode | null=null,releaseSpace:(()=>void)|undefined
+    if(currentSfxSpace && new URL(sampleUrl,window.location.href).origin===window.location.origin){
+      try {
+        media=getAudioContext()!.createMediaElementSource(a);media.connect(currentSfxSpace.input)
+        releaseSpace=retainSpatialBus(currentSfxSpace)
+      } catch { /* The unprocessed media element remains usable if spatial routing is unavailable. */ }
+    }
     const sample = { kind, stop: () => {
-      activeSamples.delete(sample)
+      if(!activeSamples.delete(sample))return
+      media?.disconnect();releaseSpace?.()
       window.clearTimeout(timer); window.clearInterval(fade)
       a.onended = null; a.onerror = null
       a.pause()
@@ -574,7 +607,7 @@ function playExplosionBoom(big: boolean, eventGain = 1) {
 
   bodyOsc.connect(bodyLowpass)
   bodyLowpass.connect(bodyGain)
-  bodyGain.connect(ctx.destination)
+  bodyGain.connect(currentSfxSpace?.input ?? ctx.destination)
   bodyOsc.start(now)
   bodyOsc.stop(now + dur)
 
@@ -592,7 +625,7 @@ function playExplosionBoom(big: boolean, eventGain = 1) {
 
   crack.connect(crackHP)
   crackHP.connect(crackGain)
-  crackGain.connect(ctx.destination)
+  crackGain.connect(currentSfxSpace?.input ?? ctx.destination)
   crack.start(now)
   crack.stop(now + 0.04)
 
@@ -611,7 +644,7 @@ function playExplosionBoom(big: boolean, eventGain = 1) {
 
   debris.connect(debrisBP)
   debrisBP.connect(debrisGain)
-  debrisGain.connect(ctx.destination)
+  debrisGain.connect(currentSfxSpace?.input ?? ctx.destination)
   debris.start(now + 0.012)
   debris.stop(now + (big ? 0.17 : 0.12))
 }
@@ -664,7 +697,7 @@ function tone(
   } else {
     oscillator.connect(gain)
   }
-  gain.connect(ctx.destination)
+  gain.connect(currentSfxSpace?.input ?? ctx.destination)
 
   oscillator.start(startAt)
   oscillator.stop(endAt)
@@ -769,12 +802,15 @@ export function playRaidCue(kind: keyof typeof RAID_CUES, pan = 0, delay = 0) {
 }
 
 export function playGameSound(
-  kind: GameSoundKind
+  kind: GameSoundKind, space?: GameSoundSpace
 ) {
+  const previousSpace=currentSfxSpace
+  let bus:SpatialBus|null=null
   try {
     if (!getGameSoundEnabled()) return
-    const eventGain = getSfxEventGain(kind)
+    const eventGain = getSfxEventGain(kind)*Math.max(0,Math.min(1,space?.gain ?? 1))/(1+Math.max(0,space?.depth ?? 0)*.55)
     if (eventGain <= 0) return
+    if(space && Number.isFinite(space.pan))currentSfxSpace=bus=createSpatialBus(space)
     const kindGain = eventGain * getKindBusGain(kind)
     if (getGameSoundBgmDuckProfile(kind)) {
       duckBgmForSound(kind)
@@ -884,6 +920,9 @@ export function playGameSound(
     }
   } catch {
     // Sound should never break gameplay.
+  } finally {
+    currentSfxSpace=previousSpace
+    if(bus){bus.sealed=true;if(!bus.refs)disposeSpatialBus(bus)}
   }
 }
 

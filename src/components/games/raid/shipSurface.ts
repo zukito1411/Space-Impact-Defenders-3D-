@@ -1,3 +1,4 @@
+import { bindCombatLighting, type CombatLightField } from './combatLighting'
 import { ShaderChunk, Material, Mesh, MeshStandardMaterial, type Object3D, type Texture, type WebGLRenderer } from 'three'
 import { prepareVolumeSurface } from './volumeSurface'
 import { prepareBossArmor } from './bossHullMaterials'
@@ -10,7 +11,7 @@ export type HullSurfaceBinding = { material: MeshStandardMaterial; opacity: numb
 
 /** Own material instances, sharing the original mesh buffers and paint. */
 export function prepareHullSurfaces(object: Object3D, key: string, renderer: WebGLRenderer,
-  preparedTextures: WeakSet<Texture>) {
+  preparedTextures: WeakSet<Texture>, combatLights?: CombatLightField) {
   const owned: Material[] = [], bindings: HullSurfaceBinding[] = []
   object.traverse(child => {
     if (!(child instanceof Mesh)) return
@@ -110,6 +111,7 @@ varying vec3 raidCondition;
       `)
     }
     material.customProgramCacheKey = () => 'sid-hull-light-cavity-v1:' + baseKey
+    if (combatLights) bindCombatLighting(material,combatLights)
     bindings.push({ material, opacity: material.opacity, emissiveIntensity: material.emissiveIntensity, sunVisibility })
   }
   return { owned, bindings }

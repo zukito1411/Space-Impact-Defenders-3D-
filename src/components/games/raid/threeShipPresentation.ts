@@ -1,3 +1,5 @@
+import { CombatLightField, type CombatLightInput } from './combatLighting'
+import { HullDestructionBatch } from './hullDestruction'
 import { HullLampBatch } from './hullLampBatch'
 import { bindHullLamps, type HullLampBinding } from './hullLampAnchors'
 import { updateEnemyBank, type EnemyBankPose } from './enemyBanking'
@@ -9,14 +11,14 @@ import { prepareLiveProtection } from './liveProtection'
 import { poseOrganicBoss } from './specialBossGeometry'
 import {
   DirectionalLight, Mesh, Group, HemisphereLight, NeutralToneMapping, Quaternion, Vector3,
-  PerspectiveCamera, Scene, WebGLRenderer, type Material, type Object3D, type Texture, WebGLRenderTarget,
+  PerspectiveCamera, Scene, WebGLRenderer, Matrix4, type Material, type Object3D, type Texture, WebGLRenderTarget,
 } from 'three'
 import { ENEMY_HULL_KEYS, ENEMY_HULL_SPECS } from './enemyHulls'
 import { createShipLightingFrame, SHIP_LIGHTING_PALETTES, type ShipLightingFrame } from './shipLighting'
 import { prepareShipReflections } from './shipReflections'
 import { prepareHullSurfaces, type HullSurfaceBinding } from './shipSurface'
-import { acquireHull, hullKey, loadHull, releaseHull, trimHullAssets } from './liveHullAssets'
-import { bindLiveHulls, unbindLiveHulls, type LiveHullDraw, type LiveHullSink } from './liveHullBridge'
+import { acquireHull, getHullRegistration, hullKey, loadHull, releaseHull, trimHullAssets } from './liveHullAssets'
+import { bindLiveHulls, unbindLiveHulls, type LiveHullDraw, type LiveHullDestruction, type LiveHullSink } from './liveHullBridge'
 
 type HullNode = { lamps: HullLampBinding[]; lampSize: number; lampOpacity: number; bankPose?: EnemyBankPose; body?: Mesh; hit: number; key: string; group: Group; object: Object3D; used: number; materials: Material[]; surfaces: HullSurfaceBinding[]; transient?: boolean }
 
@@ -31,6 +33,13 @@ export class ThreeShipPresentation implements LiveHullSink {
   private eclipseAt: ((x: number,y: number) => number) | undefined
   private readonly world = new Scene()
   private readonly lamps = new HullLampBatch()
+  private readonly combatLights = new CombatLightField()
+  private readonly destruction = new Map<string,HullDestructionBatch>()
+  private readonly deathPoses = Array.from({length:12},()=>({id:'',used:-1,age:0,matrix:new Matrix4()}))
+  private readonly deathRoot = new Group()
+  private readonly deathObject = new Group()
+  private deathCount=0
+  private readonly deathMotion=new Matrix4()
   private readonly keyLight = new DirectionalLight(0xfff0dc, 2.8)
   private readonly fillLight = new DirectionalLight(0x86bddc, .34)
   private readonly ambientLight = new HemisphereLight(0xa0c5e4, 0x182436, .34)
@@ -104,7 +113,7 @@ export class ThreeShipPresentation implements LiveHullSink {
   }
   private readonly reduced = window.matchMedia('(prefers-reduced-motion: reduce)')
 
-  constructor(private readonly reportError: (message: string | null) => void = () => {}) {}
+  constructor(private readonly reportError: (message: string | null) => void = () => {}) { this.deathRoot.add(this.deathObject) }
 
   prepareHull(key:string):Promise<void>{
     if (isRaid2DMech(key)) return Promise.resolve()
@@ -124,7 +133,7 @@ export class ThreeShipPresentation implements LiveHullSink {
     const asset = acquireHull(key)
     if (!asset) return
     const warmup = new Scene()
-    const prepared = prepareHullSurfaces(asset.object, key, renderer, this.preparedTextures)
+    const prepared = prepareHullSurfaces(asset.object, key, renderer, this.preparedTextures,this.combatLights)
     warmup.add(asset.object)
     let compiled = false
     try {
@@ -137,7 +146,7 @@ export class ThreeShipPresentation implements LiveHullSink {
         this.warmedMaterials.delete(key)
         this.warmedMaterials.set(key,prepared.owned)
         if (this.warmedMaterials.size > 48) {
-          const oldest = [...this.warmedMaterials.keys()].find(candidate => !ENEMY_HULL_SPECS[candidate]
+          const oldest = [...this.warmedMaterials.keys()].find(candidate => !ENEMY_HULL_SPECS[candidate] && candidate!=='rocket' && candidate!=='mesiahBlack'
             && ![...this.hulls.values()].some(node => node.key === candidate))
           if (oldest) {
             const retired = this.nodePools.get(oldest)
@@ -146,6 +155,7 @@ export class ThreeShipPresentation implements LiveHullSink {
             if (batch) { batch.instances.destroy(); this.releaseNode(batch.owner); this.batches.delete(oldest) }
             for (const node of retired ?? []) this.releaseNode(node)
             for (const material of this.warmedMaterials.get(oldest)!) material.dispose()
+            this.destruction.get(oldest)?.destroy();this.destruction.delete(oldest)
             this.warmedMaterials.delete(oldest)
           }
         }
@@ -169,6 +179,11 @@ export class ThreeShipPresentation implements LiveHullSink {
       if (instances && owner) this.batches.set(key, { instances, owner, count: 0 })
       else if (owner) this.releaseNode(owner)
     }
+    let breakup=this.destruction.get(key)
+    if (ENEMY_HULL_SPECS[key] && !breakup) {
+      const owner=pool[0]
+      if (owner) { breakup=new HullDestructionBatch(owner.object,this.combatLights);this.destruction.set(key,breakup) }
+    }
     const batch = this.batches.get(key)
     const upload = new Scene()
     upload.environment = this.world.environment
@@ -179,6 +194,7 @@ export class ThreeShipPresentation implements LiveHullSink {
       batch.instances.mesh.count = 1; batch.instances.mesh.visible = true
       upload.add(batch.instances.mesh)
     }
+    if (breakup) {breakup.add(new Matrix4(),.2,0,1);breakup.present();upload.add(breakup.root)}
     const camera = this.camera.clone()
     camera.aspect = 1; camera.position.set(0, 0, 1000); camera.updateProjectionMatrix()
     const target = renderer.getRenderTarget()
@@ -195,6 +211,11 @@ export class ThreeShipPresentation implements LiveHullSink {
       await renderer.compileAsync(upload, this.camera, this.world)
       if (!this.disposed) { this.nodePools.set(key, pool); admitted = true }
     } finally {
+      if (breakup) {
+        breakup.reset()
+        if(admitted)this.world.add(breakup.root)
+        else {breakup.destroy();this.destruction.delete(key)}
+      }
       if (batch) {
         batch.instances.reset(); batch.instances.mesh.removeFromParent()
         if (admitted) this.world.add(batch.instances.mesh)
@@ -245,6 +266,7 @@ export class ThreeShipPresentation implements LiveHullSink {
       bindLiveHulls(this)
       await this.lamps.prepare(renderer,this.camera,this.uploadTarget)
       await this.prepareHull('rocket')
+      await this.prepareHull('mesiahBlack')
       // Mesh extraction, native-paint uploads and shader compilation finish before
       // gameplay. Two admissions at a time bound decode/worker/driver pressure.
       let nextEnemy = 0
@@ -264,10 +286,13 @@ export class ThreeShipPresentation implements LiveHullSink {
     }
   }
 
-  render(frame: { width: number; height: number; dpr: number; landscape?: boolean; measureGpu?: boolean; lighting?: ShipLightingFrame; dock?: number; eclipseAt?: (x: number,y: number) => number }) {
+  render(frame: { width: number; height: number; dpr: number; landscape?: boolean; measureGpu?: boolean; lighting?: ShipLightingFrame; dock?: number; combat?: CombatLightInput; eclipseAt?: (x: number,y: number) => number }) {
     const renderer = this.renderer
     if (!renderer || this.disposed || this.contextLost) return false
     this.frame++
+    this.deathCount=0
+    for(const batch of this.destruction.values())batch.reset()
+    this.combatLights.update(frame.width,frame.height,frame.combat)
     this.measureGpu = Boolean(frame.measureGpu)
     this.cpuSubmitMs = 0
     if (frame.width !== this.width || frame.height !== this.height || frame.dpr !== this.density) {
@@ -349,7 +374,7 @@ export class ThreeShipPresentation implements LiveHullSink {
     group.add(asset.object)
     group.visible = false
     group.userData.registration = asset.registration.registration
-    const prepared = prepareHullSurfaces(asset.object,key,renderer,this.preparedTextures)
+    const prepared = prepareHullSurfaces(asset.object,key,renderer,this.preparedTextures,this.combatLights)
     let body: Mesh | undefined
     asset.object.traverse(child => { if (child instanceof Mesh) body = child })
     return { lamps: bindHullLamps(asset.object), lampSize: 0, lampOpacity: 0, key, group, body, hit: 0, object: asset.object, used: this.frame,
@@ -391,7 +416,9 @@ export class ThreeShipPresentation implements LiveHullSink {
     group.visible = draw.alpha > .01
     const [sx, sy, ox, oy] = group.userData.registration as number[]
     const angle=draw.angle
-    group.position.set(draw.x,this.height-draw.y,0)
+    const depth=Math.max(0,draw.depth ?? 0),perspective=1+depth/raidCameraFocal(this.height)
+    group.position.set(this.width*.5+(draw.x-this.width*.5)*perspective,
+      this.height*.5+(this.height*.5-draw.y)*perspective,-depth)
     this.headingTurn.setFromAxisAngle(this.headingAxis,angle)
     // Bank in the hull's local flight frame, then turn that frame on screen.
     // This matches the Canvas hardpoints and keeps a sideways enemy's length.
@@ -432,13 +459,51 @@ export class ThreeShipPresentation implements LiveHullSink {
     return true
   }
 
+  submitDestruction(draw: LiveHullDestruction) {
+    const batch=this.destruction.get(draw.key)
+    if (!batch || this.deathCount>=12) return false
+    let pose=this.deathPoses.find(p=>p.id===draw.id && p.used>=this.frame-1)
+    if (!pose) {
+      pose=this.deathPoses.find(p=>p.used<this.frame-1)
+      if(!pose)for(const candidate of this.deathPoses)if(candidate.used<this.frame && (!pose || candidate.age>pose.age))pose=candidate
+      if (!pose) return false
+      const source=this.hulls.get(draw.sourceId)
+      if (source && source.key===draw.key) {
+        source.object.updateWorldMatrix(true,false);pose.matrix.copy(source.object.matrixWorld)
+      } else {
+        const registration=getHullRegistration(draw.key)?.registration
+        if(!registration)return false
+        const [sx,sy,ox,oy]=registration
+        this.deathRoot.position.set(draw.x,this.height-draw.y,0)
+        this.headingTurn.setFromAxisAngle(this.headingAxis,draw.angle)
+        this.deathRoot.quaternion.copy(this.headingTurn)
+        if(draw.landscape)this.deathRoot.quaternion.multiply(this.flightViewTurn)
+        this.deathRoot.scale.set(draw.size*sx/448,draw.size*sy/448,draw.size*sx/448)
+        this.deathObject.position.set((144*sx+ox-224)/sx,(224-144*sy-oy)/sy,0)
+        this.deathRoot.updateWorldMatrix(true,true);pose.matrix.copy(this.deathObject.matrixWorld)
+      }
+      pose.id=draw.id
+    }
+    pose.used=this.frame;pose.age=draw.age
+    const source=this.hulls.get(draw.sourceId)
+    if(source)source.group.visible=false
+    // Keep the hull's forward momentum; the shader adds rigid separation/spin.
+    this.deathMotion.copy(pose.matrix)
+    this.deathMotion.elements[12]+=draw.driftX*draw.age
+    this.deathMotion.elements[13]-=draw.driftY*draw.age
+    const admitted=batch.add(this.deathMotion,draw.age,draw.seed,draw.alpha,draw.tempo)
+    if(admitted)this.deathCount++
+    return admitted
+  }
+
   present() {
     if (!this.renderer || this.disposed || this.contextLost) return
     const cpuStart = this.measureGpu ? performance.now() : 0
     // A 2D-only mech frame has no Three work. Clear the previous ship once,
     // then leave the transparent canvas alone until a live hull is submitted.
     this.lamps.clear()
-    let visible = false
+    for(const batch of this.destruction.values())batch.present()
+    let visible = this.deathCount>0
     for (const node of this.hulls.values()) if (node.group.visible) { visible = true; break }
     if (visible) {
       for (const node of this.hulls.values()) {
@@ -505,6 +570,8 @@ export class ThreeShipPresentation implements LiveHullSink {
     this.hulls.clear()
     for (const batch of this.batches.values()) { batch.instances.destroy(); this.releaseNode(batch.owner) }
     this.batches.clear()
+    for(const batch of this.destruction.values())batch.destroy()
+    this.destruction.clear()
     for (const pool of this.nodePools.values()) for (const node of pool) this.releaseNode(node)
     this.nodePools.clear();this.failed.clear();this.requests.clear()
     for (const materials of this.warmedMaterials.values()) for (const material of materials) material.dispose()
