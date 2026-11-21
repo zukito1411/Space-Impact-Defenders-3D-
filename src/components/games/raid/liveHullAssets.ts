@@ -1,3 +1,4 @@
+import { prepareHullLampAnchors } from './hullLampAnchors'
 import { addBossVentralDetail } from './bossVentralDetail'
 import { prepareHullOcclusion } from './hullOcclusion'
 import { isRaid2DMech } from './mechArtwork'
@@ -101,6 +102,7 @@ export function loadHull(key: string): Promise<HullAsset> {
         }
       })
     }
+    prepareHullLampAnchors(object,key)
     await prepareHullOcclusion(object)
     const docking = enemy ? undefined : prepareHullDocking(object,key,registration)
     const asset = { object, registration, docking, references: 0, lastUse: performance.now() }

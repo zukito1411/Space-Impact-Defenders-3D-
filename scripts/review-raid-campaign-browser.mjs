@@ -17,6 +17,7 @@ const specialOnly=process.argv.includes('--special-only')
 const verifySpecial=specialOnly||process.argv.includes('--verify-special')
 const verifyTerrain=process.env.RAID_REVIEW_TERRAIN_CHECK==='1'
 const verifyKeels=process.env.RAID_REVIEW_KEEL_CHECK==='1'
+const verifyHullLamps=process.env.RAID_REVIEW_HULL_LAMP_CHECK==='1'
 const verifyEnemyBanking=process.env.RAID_REVIEW_ENEMY_BANK_CHECK==='1'
 const verifyCloudsCrosswing=process.env.RAID_REVIEW_CLOUD_WING_CHECK==='1'
 const verifyMobs=process.argv.includes('--verify-mobs')
@@ -45,7 +46,7 @@ try {
   browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH,
     args:['--no-sandbox','--enable-unsafe-swiftshader','--use-angle=swiftshader']})
   const specialChecks=[],mobChecks=[],bankingCaptures=[]
-  for(const landscape of (capturesOnly&&!verifySpecial&&!verifyMobs&&!verifyTerrain&&!verifyKeels&&!verifyCloudsCrosswing&&!verifyEnemyBanking ? [true] : [true,false])) {
+  for(const landscape of (capturesOnly&&!verifySpecial&&!verifyMobs&&!verifyTerrain&&!verifyKeels&&!verifyCloudsCrosswing&&!verifyEnemyBanking&&!verifyHullLamps ? [true] : [true,false])) {
     const view=landscape?'landscape':'portrait'
     const page=await browser.newPage({viewport:landscape?(desktop?{width:1920,height:1080}:{width:844,height:390}):{width:393,height:852},
       deviceScaleFactor:1,hasTouch:!desktop,reducedMotion:'no-preference'})
@@ -270,6 +271,10 @@ try {
       }
       console.log('Captured',boss.stage,boss.name)
     }
+    if(verifyHullLamps) {
+      const {checkHullLamps}=await import('./check-hull-lamps.mjs')
+      await checkHullLamps(page,output,landscape)
+    }
     if(verifyEnemyBanking) {
       const {checkEnemyBanking}=await import('./check-enemy-banking.mjs')
       await checkEnemyBanking(page,output,landscape)
@@ -363,7 +368,7 @@ try {
           attack:shaderPose?.attack.value||0,headMoved:head?.position.length()||0,faceOcclusion,motionPixels}
       },{stage,attacking,phase})
       specialChecks.push({view,phase,...stats})
-      assert.ok(stats.drawCalls<=4,'Special boss split into excessive draws')
+      assert.ok(stats.drawCalls<=4+(stats.lampDraws??0),'Special boss split into excessive draws')
       assert.ok(stats.triangles>10000,'Boss geometry missing')
       await page.screenshot({path:output+'/special-'+stage+'-'+view+(attacking?'-'+phase:'')+'-v1.png'})
       console.log('Verified special',view,stage,phase,JSON.stringify(stats))
@@ -391,7 +396,7 @@ try {
         return {...review.ships.getShipStats(),singleDraw}
       },landscape)
       assert.equal(stats.singleDraw,14)
-      assert.ok(stats.drawCalls<=15,'Mob details added per-ship draws')
+      assert.ok(stats.drawCalls<=15+(stats.lampDraws??0),'Mob details added per-ship draws')
       mobChecks.push({view,...stats})
       await page.screenshot({path:output+'/mobs-'+view+'-v1.png'})
       console.log('Verified normal mobs',view,JSON.stringify(stats))

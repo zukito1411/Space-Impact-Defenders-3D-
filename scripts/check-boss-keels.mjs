@@ -52,7 +52,7 @@ export async function checkBossKeels(page,output,landscape) {
    }
    result.push({stage:art.stage,name:art.name,design:BOSS_KEEL_DESIGNS[art.stage].name,
     housings:data.ventralHousings,deckVertices:data.deckVertexCount,vertices:p.count,
-    drawCalls:scene.getShipStats().drawCalls,changed,opaque,covered,addedMaxZ:Math.max(...lower)})
+    drawCalls:scene.getShipStats().drawCalls,lampDraws:scene.getShipStats().lampDraws,changed,opaque,covered,addedMaxZ:Math.max(...lower)})
   }
   return result
  },landscape)
@@ -80,7 +80,7 @@ export async function checkBossKeels(page,output,landscape) {
  }
  for(const check of checks){
   assert.ok(check.housings>0&&check.addedMaxZ<0,'Lower components escaped their reserved volume')
-  assert.ok(check.drawCalls<=3,'Underside added actor draws')
+  assert.ok(check.drawCalls<=3+(check.lampDraws??0),'Underside added actor draws')
   assert.ok(check.opaque>500,'Upper deck failed to render')
   if(!landscape)assert.ok(check.covered/check.opaque<.002,'Lower hull covered the upper painting: '+JSON.stringify(check))
   else assert.ok(check.changed>100,'New lower hull was invisible in the gameplay camera: '+JSON.stringify(check))

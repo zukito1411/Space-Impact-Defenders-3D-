@@ -1,0 +1,1352 @@
+{
+  "environment": "Headless Chromium / SwiftShader; CPU draw/submission samples, not device FPS or hardware GPU timing",
+  "coverage": "All 15 stages in both views; bosses plus rotating formation, weapon/asteroid burst, entry, clear and co-op fixtures; 3 samples per mode",
+  "landscape": true,
+  "players": [
+    {
+      "key": "coreLander",
+      "sites": 2,
+      "route": "legacy-preview"
+    },
+    {
+      "key": "coreLanderBurning",
+      "sites": 3,
+      "route": "legacy-preview"
+    },
+    {
+      "key": "coreLanderBurningElite",
+      "sites": 3,
+      "route": "legacy-preview"
+    },
+    {
+      "key": "coreLanderElite",
+      "sites": 2,
+      "route": "legacy-preview"
+    },
+    {
+      "key": "dreadnought",
+      "sites": 3,
+      "route": "native-player"
+    },
+    {
+      "key": "dreadnoughtElite",
+      "sites": 3,
+      "route": "native-player"
+    },
+    {
+      "key": "fast",
+      "sites": 3,
+      "route": "native-player"
+    },
+    {
+      "key": "fastElite",
+      "sites": 3,
+      "route": "native-player"
+    },
+    {
+      "key": "gatling",
+      "sites": 3,
+      "route": "native-player"
+    },
+    {
+      "key": "gatlingElite",
+      "sites": 3,
+      "route": "native-player"
+    },
+    {
+      "key": "laser",
+      "sites": 3,
+      "route": "native-player"
+    },
+    {
+      "key": "laserElite",
+      "sites": 3,
+      "route": "native-player"
+    },
+    {
+      "key": "mesiahBlack",
+      "sites": 3,
+      "route": "native-player"
+    },
+    {
+      "key": "mesiahBlackElite",
+      "sites": 3,
+      "route": "native-player"
+    },
+    {
+      "key": "mesiahRaptorBlack",
+      "sites": 3,
+      "route": "legacy-preview"
+    },
+    {
+      "key": "mesiahRaptorWhite",
+      "sites": 3,
+      "route": "legacy-preview"
+    },
+    {
+      "key": "mesiahWhite",
+      "sites": 3,
+      "route": "native-player"
+    },
+    {
+      "key": "mesiahWhiteElite",
+      "sites": 3,
+      "route": "native-player"
+    },
+    {
+      "key": "rocket",
+      "sites": 3,
+      "route": "native-player"
+    },
+    {
+      "key": "rocketElite",
+      "sites": 3,
+      "route": "native-player"
+    },
+    {
+      "key": "spaceEt",
+      "sites": 3,
+      "route": "native-player"
+    },
+    {
+      "key": "spaceEtElite",
+      "sites": 3,
+      "route": "native-player"
+    },
+    {
+      "key": "xwing",
+      "sites": 3,
+      "route": "native-player"
+    },
+    {
+      "key": "xwingElite",
+      "sites": 3,
+      "route": "native-player"
+    }
+  ],
+  "samples": [
+    {
+      "stage": 1,
+      "scenario": "boss",
+      "before": {
+        "enabled": false,
+        "cpuDrawMs": [
+          1.1000000000058208,
+          0.7999999999883585,
+          0.7999999999883585
+        ],
+        "lampPoints": 0,
+        "lampDraws": 0,
+        "hulls": 2,
+        "textures": 71,
+        "drawCalls": 3,
+        "triangles": 84824,
+        "cpuSubmitMs": 0,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 6.899999999994179,
+        "instanceBatches": 0
+      },
+      "after": {
+        "enabled": true,
+        "cpuDrawMs": [
+          0.7999999999883585,
+          0.7000000000116415,
+          0.7999999999883585
+        ],
+        "lampPoints": 6,
+        "lampDraws": 1,
+        "hulls": 2,
+        "textures": 71,
+        "drawCalls": 4,
+        "triangles": 84824,
+        "cpuSubmitMs": 0.10000000000582077,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 10,
+        "instanceBatches": 0
+      }
+    },
+    {
+      "stage": 1,
+      "scenario": "waves",
+      "before": {
+        "enabled": false,
+        "cpuDrawMs": [
+          0.6000000000058208,
+          0.8000000000174623,
+          0.6999999999825377
+        ],
+        "lampPoints": 0,
+        "lampDraws": 0,
+        "hulls": 15,
+        "textures": 71,
+        "drawCalls": 2,
+        "triangles": 272440,
+        "cpuSubmitMs": 0.1999999999825377,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 22.5,
+        "instanceBatches": 1
+      },
+      "after": {
+        "enabled": true,
+        "cpuDrawMs": [
+          0.7999999999883585,
+          0.8999999999941792,
+          1
+        ],
+        "lampPoints": 3,
+        "lampDraws": 1,
+        "hulls": 15,
+        "textures": 71,
+        "drawCalls": 3,
+        "triangles": 272440,
+        "cpuSubmitMs": 0.1999999999825377,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 26,
+        "instanceBatches": 1
+      }
+    },
+    {
+      "stage": 2,
+      "scenario": "boss",
+      "before": {
+        "enabled": false,
+        "cpuDrawMs": [
+          0.8000000000174623,
+          0.7999999999883585,
+          0.7000000000116415
+        ],
+        "lampPoints": 0,
+        "lampDraws": 0,
+        "hulls": 2,
+        "textures": 71,
+        "drawCalls": 3,
+        "triangles": 87868,
+        "cpuSubmitMs": 0.10000000000582077,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 30.800000000017462,
+        "instanceBatches": 0
+      },
+      "after": {
+        "enabled": true,
+        "cpuDrawMs": [
+          0.6000000000058208,
+          0.6000000000058208,
+          0.7999999999883585
+        ],
+        "lampPoints": 12,
+        "lampDraws": 1,
+        "hulls": 2,
+        "textures": 71,
+        "drawCalls": 4,
+        "triangles": 87868,
+        "cpuSubmitMs": 0.09999999997671694,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 33.5,
+        "instanceBatches": 0
+      }
+    },
+    {
+      "stage": 2,
+      "scenario": "burst",
+      "before": {
+        "enabled": false,
+        "cpuDrawMs": [
+          2.900000000023283,
+          2.099999999976717,
+          1.2000000000116415
+        ],
+        "lampPoints": 0,
+        "lampDraws": 0,
+        "hulls": 17,
+        "textures": 64,
+        "drawCalls": 4,
+        "triangles": 389256,
+        "cpuSubmitMs": 0.29999999998835847,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 7886.100000000006,
+        "instanceBatches": 3
+      },
+      "after": {
+        "enabled": true,
+        "cpuDrawMs": [
+          1.2000000000116415,
+          4.2000000000116415,
+          1.1999999999825377
+        ],
+        "lampPoints": 9,
+        "lampDraws": 1,
+        "hulls": 17,
+        "textures": 64,
+        "drawCalls": 5,
+        "triangles": 389256,
+        "cpuSubmitMs": 0.1999999999825377,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 7897,
+        "instanceBatches": 3
+      }
+    },
+    {
+      "stage": 3,
+      "scenario": "boss",
+      "before": {
+        "enabled": false,
+        "cpuDrawMs": [
+          0.8000000000174623,
+          0.6999999999825377,
+          7
+        ],
+        "lampPoints": 0,
+        "lampDraws": 0,
+        "hulls": 2,
+        "textures": 64,
+        "drawCalls": 3,
+        "triangles": 83344,
+        "cpuSubmitMs": 0.1999999999825377,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 7911.5,
+        "instanceBatches": 0
+      },
+      "after": {
+        "enabled": true,
+        "cpuDrawMs": [
+          0.6000000000058208,
+          3.8999999999941792,
+          0.6000000000058208
+        ],
+        "lampPoints": 6,
+        "lampDraws": 1,
+        "hulls": 2,
+        "textures": 64,
+        "drawCalls": 4,
+        "triangles": 83344,
+        "cpuSubmitMs": 0.10000000000582077,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 7917.5,
+        "instanceBatches": 0
+      }
+    },
+    {
+      "stage": 3,
+      "scenario": "entry",
+      "before": {
+        "enabled": false,
+        "cpuDrawMs": [
+          3.599999999976717,
+          0.7000000000116415,
+          0.7000000000116415
+        ],
+        "lampPoints": 0,
+        "lampDraws": 0,
+        "hulls": 1,
+        "textures": 64,
+        "drawCalls": 1,
+        "triangles": 14896,
+        "cpuSubmitMs": 0.10000000000582077,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 7924.3000000000175,
+        "instanceBatches": 0
+      },
+      "after": {
+        "enabled": true,
+        "cpuDrawMs": [
+          0.7000000000116415,
+          3.7000000000116415,
+          0.5999999999767169
+        ],
+        "lampPoints": 3,
+        "lampDraws": 1,
+        "hulls": 1,
+        "textures": 64,
+        "drawCalls": 2,
+        "triangles": 14896,
+        "cpuSubmitMs": 0.09999999997671694,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 7929.899999999994,
+        "instanceBatches": 0
+      }
+    },
+    {
+      "stage": 4,
+      "scenario": "boss",
+      "before": {
+        "enabled": false,
+        "cpuDrawMs": [
+          0.6999999999825377,
+          0.7000000000116415,
+          0.7000000000116415
+        ],
+        "lampPoints": 0,
+        "lampDraws": 0,
+        "hulls": 2,
+        "textures": 64,
+        "drawCalls": 3,
+        "triangles": 80548,
+        "cpuSubmitMs": 0.10000000000582077,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 7934.3000000000175,
+        "instanceBatches": 0
+      },
+      "after": {
+        "enabled": true,
+        "cpuDrawMs": [
+          0.7000000000116415,
+          0.6000000000058208,
+          1.099999999976717
+        ],
+        "lampPoints": 6,
+        "lampDraws": 1,
+        "hulls": 2,
+        "textures": 64,
+        "drawCalls": 4,
+        "triangles": 80548,
+        "cpuSubmitMs": 0.10000000000582077,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 7937.399999999994,
+        "instanceBatches": 0
+      }
+    },
+    {
+      "stage": 4,
+      "scenario": "transition",
+      "before": {
+        "enabled": false,
+        "cpuDrawMs": [
+          1.5,
+          0.6999999999825377,
+          0.6000000000058208
+        ],
+        "lampPoints": 0,
+        "lampDraws": 0,
+        "hulls": 1,
+        "textures": 64,
+        "drawCalls": 1,
+        "triangles": 14896,
+        "cpuSubmitMs": 0.10000000000582077,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 7942,
+        "instanceBatches": 0
+      },
+      "after": {
+        "enabled": true,
+        "cpuDrawMs": [
+          0.7999999999883585,
+          0.6000000000058208,
+          0.6000000000058208
+        ],
+        "lampPoints": 3,
+        "lampDraws": 1,
+        "hulls": 1,
+        "textures": 64,
+        "drawCalls": 2,
+        "triangles": 14896,
+        "cpuSubmitMs": 0.10000000000582077,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 7945.3000000000175,
+        "instanceBatches": 0
+      }
+    },
+    {
+      "stage": 5,
+      "scenario": "boss",
+      "before": {
+        "enabled": false,
+        "cpuDrawMs": [
+          0.7000000000116415,
+          0.5,
+          0.6000000000058208
+        ],
+        "lampPoints": 0,
+        "lampDraws": 0,
+        "hulls": 2,
+        "textures": 64,
+        "drawCalls": 3,
+        "triangles": 78260,
+        "cpuSubmitMs": 0.10000000000582077,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 7951.3000000000175,
+        "instanceBatches": 0
+      },
+      "after": {
+        "enabled": true,
+        "cpuDrawMs": [
+          0.6000000000058208,
+          0.7000000000116415,
+          0.5
+        ],
+        "lampPoints": 6,
+        "lampDraws": 1,
+        "hulls": 2,
+        "textures": 64,
+        "drawCalls": 4,
+        "triangles": 78260,
+        "cpuSubmitMs": 0.10000000000582077,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 7955.3000000000175,
+        "instanceBatches": 0
+      }
+    },
+    {
+      "stage": 5,
+      "scenario": "coop",
+      "before": {
+        "enabled": false,
+        "cpuDrawMs": [
+          1.900000000023283,
+          1.2999999999883585,
+          1.2000000000116415
+        ],
+        "lampPoints": 0,
+        "lampDraws": 0,
+        "hulls": 22,
+        "textures": 64,
+        "drawCalls": 6,
+        "triangles": 650760,
+        "cpuSubmitMs": 0.20000000001164153,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 21863.999999999985,
+        "instanceBatches": 6
+      },
+      "after": {
+        "enabled": true,
+        "cpuDrawMs": [
+          1.1000000000349246,
+          1.2000000000116415,
+          1.1999999999534339
+        ],
+        "lampPoints": 18,
+        "lampDraws": 1,
+        "hulls": 22,
+        "textures": 64,
+        "drawCalls": 7,
+        "triangles": 650760,
+        "cpuSubmitMs": 0.09999999997671694,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 21868.499999999985,
+        "instanceBatches": 6
+      }
+    },
+    {
+      "stage": 6,
+      "scenario": "boss",
+      "before": {
+        "enabled": false,
+        "cpuDrawMs": [
+          0.7000000000116415,
+          0.7999999999883585,
+          0.8999999999650754
+        ],
+        "lampPoints": 0,
+        "lampDraws": 0,
+        "hulls": 2,
+        "textures": 64,
+        "drawCalls": 3,
+        "triangles": 95640,
+        "cpuSubmitMs": 0.19999999995343387,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 21873.999999999985,
+        "instanceBatches": 0
+      },
+      "after": {
+        "enabled": true,
+        "cpuDrawMs": [
+          1.7000000000116415,
+          0.7000000000116415,
+          0.7999999999883585
+        ],
+        "lampPoints": 6,
+        "lampDraws": 1,
+        "hulls": 2,
+        "textures": 64,
+        "drawCalls": 4,
+        "triangles": 95640,
+        "cpuSubmitMs": 0.1000000000349246,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 21878.10000000002,
+        "instanceBatches": 0
+      }
+    },
+    {
+      "stage": 6,
+      "scenario": "waves",
+      "before": {
+        "enabled": false,
+        "cpuDrawMs": [
+          3.199999999953434,
+          1,
+          5.2000000000116415
+        ],
+        "lampPoints": 0,
+        "lampDraws": 0,
+        "hulls": 17,
+        "textures": 64,
+        "drawCalls": 6,
+        "triangles": 638036,
+        "cpuSubmitMs": 0.29999999998835847,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 21913.699999999997,
+        "instanceBatches": 4
+      },
+      "after": {
+        "enabled": true,
+        "cpuDrawMs": [
+          2.3999999999650754,
+          1.2000000000116415,
+          0.7999999999883585
+        ],
+        "lampPoints": 3,
+        "lampDraws": 1,
+        "hulls": 17,
+        "textures": 64,
+        "drawCalls": 7,
+        "triangles": 638036,
+        "cpuSubmitMs": 0.20000000001164153,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 21919.199999999997,
+        "instanceBatches": 4
+      }
+    },
+    {
+      "stage": 7,
+      "scenario": "boss",
+      "before": {
+        "enabled": false,
+        "cpuDrawMs": [
+          3.8999999999650754,
+          0.7000000000116415,
+          0.7000000000116415
+        ],
+        "lampPoints": 0,
+        "lampDraws": 0,
+        "hulls": 2,
+        "textures": 64,
+        "drawCalls": 3,
+        "triangles": 80160,
+        "cpuSubmitMs": 0.1000000000349246,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 21930.60000000002,
+        "instanceBatches": 0
+      },
+      "after": {
+        "enabled": true,
+        "cpuDrawMs": [
+          3.7999999999883585,
+          1.2000000000116415,
+          0.7000000000116415
+        ],
+        "lampPoints": 6,
+        "lampDraws": 1,
+        "hulls": 2,
+        "textures": 64,
+        "drawCalls": 4,
+        "triangles": 80160,
+        "cpuSubmitMs": 0.1000000000349246,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 21937.10000000002,
+        "instanceBatches": 0
+      }
+    },
+    {
+      "stage": 7,
+      "scenario": "burst",
+      "before": {
+        "enabled": false,
+        "cpuDrawMs": [
+          1.2000000000116415,
+          1.1000000000349246,
+          4.199999999953434
+        ],
+        "lampPoints": 0,
+        "lampDraws": 0,
+        "hulls": 20,
+        "textures": 64,
+        "drawCalls": 8,
+        "triangles": 641888,
+        "cpuSubmitMs": 0.19999999995343387,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 21953.499999999985,
+        "instanceBatches": 6
+      },
+      "after": {
+        "enabled": true,
+        "cpuDrawMs": [
+          2.3999999999650754,
+          1.5,
+          4.2000000000116415
+        ],
+        "lampPoints": 9,
+        "lampDraws": 1,
+        "hulls": 20,
+        "textures": 64,
+        "drawCalls": 9,
+        "triangles": 641888,
+        "cpuSubmitMs": 3.2999999999883585,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 21964.90000000001,
+        "instanceBatches": 6
+      }
+    },
+    {
+      "stage": 8,
+      "scenario": "boss",
+      "before": {
+        "enabled": false,
+        "cpuDrawMs": [
+          4.2999999999883585,
+          0.7999999999883585,
+          0.7999999999883585
+        ],
+        "lampPoints": 0,
+        "lampDraws": 0,
+        "hulls": 2,
+        "textures": 64,
+        "drawCalls": 2,
+        "triangles": 80088,
+        "cpuSubmitMs": 0.09999999997671694,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 21973.499999999985,
+        "instanceBatches": 0
+      },
+      "after": {
+        "enabled": true,
+        "cpuDrawMs": [
+          0.9000000000232831,
+          0.7999999999883585,
+          1.599999999976717
+        ],
+        "lampPoints": 12,
+        "lampDraws": 1,
+        "hulls": 2,
+        "textures": 64,
+        "drawCalls": 3,
+        "triangles": 80088,
+        "cpuSubmitMs": 0.09999999997671694,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 21979.699999999997,
+        "instanceBatches": 0
+      }
+    },
+    {
+      "stage": 8,
+      "scenario": "entry",
+      "before": {
+        "enabled": false,
+        "cpuDrawMs": [
+          0.7000000000116415,
+          1,
+          0.7000000000116415
+        ],
+        "lampPoints": 0,
+        "lampDraws": 0,
+        "hulls": 1,
+        "textures": 64,
+        "drawCalls": 1,
+        "triangles": 14896,
+        "cpuSubmitMs": 0.1000000000349246,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 21984.10000000002,
+        "instanceBatches": 0
+      },
+      "after": {
+        "enabled": true,
+        "cpuDrawMs": [
+          0.5999999999767169,
+          0.6000000000349246,
+          0.6999999999534339
+        ],
+        "lampPoints": 3,
+        "lampDraws": 1,
+        "hulls": 1,
+        "textures": 64,
+        "drawCalls": 2,
+        "triangles": 14896,
+        "cpuSubmitMs": 0.09999999997671694,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 21986.499999999985,
+        "instanceBatches": 0
+      }
+    },
+    {
+      "stage": 9,
+      "scenario": "boss",
+      "before": {
+        "enabled": false,
+        "cpuDrawMs": [
+          0.6000000000349246,
+          0.7999999999883585,
+          0.5999999999767169
+        ],
+        "lampPoints": 0,
+        "lampDraws": 0,
+        "hulls": 2,
+        "textures": 64,
+        "drawCalls": 3,
+        "triangles": 81972,
+        "cpuSubmitMs": 0,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 21990.999999999985,
+        "instanceBatches": 0
+      },
+      "after": {
+        "enabled": true,
+        "cpuDrawMs": [
+          0.5999999999767169,
+          0.7999999999883585,
+          0.7999999999883585
+        ],
+        "lampPoints": 6,
+        "lampDraws": 1,
+        "hulls": 2,
+        "textures": 64,
+        "drawCalls": 4,
+        "triangles": 81972,
+        "cpuSubmitMs": 0.19999999995343387,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 21993.999999999985,
+        "instanceBatches": 0
+      }
+    },
+    {
+      "stage": 9,
+      "scenario": "transition",
+      "before": {
+        "enabled": false,
+        "cpuDrawMs": [
+          0.5999999999767169,
+          1,
+          0.7000000000116415
+        ],
+        "lampPoints": 0,
+        "lampDraws": 0,
+        "hulls": 1,
+        "textures": 64,
+        "drawCalls": 1,
+        "triangles": 14896,
+        "cpuSubmitMs": 0.09999999997671694,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 21998.40000000001,
+        "instanceBatches": 0
+      },
+      "after": {
+        "enabled": true,
+        "cpuDrawMs": [
+          0.9000000000232831,
+          0.7000000000116415,
+          0.7999999999883585
+        ],
+        "lampPoints": 3,
+        "lampDraws": 1,
+        "hulls": 1,
+        "textures": 64,
+        "drawCalls": 2,
+        "triangles": 14896,
+        "cpuSubmitMs": 0.20000000001164153,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 22001.40000000001,
+        "instanceBatches": 0
+      }
+    },
+    {
+      "stage": 10,
+      "scenario": "boss",
+      "before": {
+        "enabled": false,
+        "cpuDrawMs": [
+          0.7999999999883585,
+          0.7000000000116415,
+          1.2000000000116415
+        ],
+        "lampPoints": 0,
+        "lampDraws": 0,
+        "hulls": 2,
+        "textures": 64,
+        "drawCalls": 3,
+        "triangles": 82488,
+        "cpuSubmitMs": 0.40000000002328306,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 22007.10000000002,
+        "instanceBatches": 0
+      },
+      "after": {
+        "enabled": true,
+        "cpuDrawMs": [
+          2.7999999999883585,
+          0.7999999999883585,
+          0.7000000000116415
+        ],
+        "lampPoints": 6,
+        "lampDraws": 1,
+        "hulls": 2,
+        "textures": 64,
+        "drawCalls": 4,
+        "triangles": 82488,
+        "cpuSubmitMs": 0.20000000001164153,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 22012.300000000032,
+        "instanceBatches": 0
+      }
+    },
+    {
+      "stage": 10,
+      "scenario": "coop",
+      "before": {
+        "enabled": false,
+        "cpuDrawMs": [
+          1.2999999999883585,
+          4.100000000034925,
+          2.2000000000116415
+        ],
+        "lampPoints": 0,
+        "lampDraws": 0,
+        "hulls": 24,
+        "textures": 64,
+        "drawCalls": 7,
+        "triangles": 854116,
+        "cpuSubmitMs": 0.20000000001164153,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 57594.000000000044,
+        "instanceBatches": 6
+      },
+      "after": {
+        "enabled": true,
+        "cpuDrawMs": [
+          1.3999999999650754,
+          1.400000000023283,
+          1.099999999976717
+        ],
+        "lampPoints": 18,
+        "lampDraws": 1,
+        "hulls": 24,
+        "textures": 64,
+        "drawCalls": 8,
+        "triangles": 854116,
+        "cpuSubmitMs": 0.19999999995343387,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 57599.2,
+        "instanceBatches": 6
+      }
+    },
+    {
+      "stage": 11,
+      "scenario": "boss",
+      "before": {
+        "enabled": false,
+        "cpuDrawMs": [
+          0.6999999999534339,
+          0.7000000000116415,
+          0.7000000000116415
+        ],
+        "lampPoints": 0,
+        "lampDraws": 0,
+        "hulls": 2,
+        "textures": 64,
+        "drawCalls": 3,
+        "triangles": 89660,
+        "cpuSubmitMs": 0.09999999997671694,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 57604.60000000002,
+        "instanceBatches": 0
+      },
+      "after": {
+        "enabled": true,
+        "cpuDrawMs": [
+          0.7000000000116415,
+          0.7999999999883585,
+          0.7000000000116415
+        ],
+        "lampPoints": 6,
+        "lampDraws": 1,
+        "hulls": 2,
+        "textures": 64,
+        "drawCalls": 4,
+        "triangles": 89660,
+        "cpuSubmitMs": 0.09999999997671694,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 57608.000000000044,
+        "instanceBatches": 0
+      }
+    },
+    {
+      "stage": 11,
+      "scenario": "waves",
+      "before": {
+        "enabled": false,
+        "cpuDrawMs": [
+          1,
+          2.099999999976717,
+          3.300000000046566
+        ],
+        "lampPoints": 0,
+        "lampDraws": 0,
+        "hulls": 18,
+        "textures": 64,
+        "drawCalls": 7,
+        "triangles": 682996,
+        "cpuSubmitMs": 2.6000000000349246,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 57620.000000000044,
+        "instanceBatches": 6
+      },
+      "after": {
+        "enabled": true,
+        "cpuDrawMs": [
+          1.1000000000349246,
+          0.8999999999650754,
+          0.7999999999883585
+        ],
+        "lampPoints": 3,
+        "lampDraws": 1,
+        "hulls": 18,
+        "textures": 64,
+        "drawCalls": 8,
+        "triangles": 682996,
+        "cpuSubmitMs": 0.19999999995343387,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 57623.7,
+        "instanceBatches": 6
+      }
+    },
+    {
+      "stage": 12,
+      "scenario": "boss",
+      "before": {
+        "enabled": false,
+        "cpuDrawMs": [
+          0.5999999999767169,
+          0.7000000000116415,
+          0.7000000000116415
+        ],
+        "lampPoints": 0,
+        "lampDraws": 0,
+        "hulls": 2,
+        "textures": 64,
+        "drawCalls": 3,
+        "triangles": 92576,
+        "cpuSubmitMs": 0.09999999997671694,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 57628.10000000002,
+        "instanceBatches": 0
+      },
+      "after": {
+        "enabled": true,
+        "cpuDrawMs": [
+          0.5999999999767169,
+          0.7000000000116415,
+          0.7999999999883585
+        ],
+        "lampPoints": 6,
+        "lampDraws": 1,
+        "hulls": 2,
+        "textures": 64,
+        "drawCalls": 4,
+        "triangles": 92576,
+        "cpuSubmitMs": 0.09999999997671694,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 57631.2,
+        "instanceBatches": 0
+      }
+    },
+    {
+      "stage": 12,
+      "scenario": "burst",
+      "before": {
+        "enabled": false,
+        "cpuDrawMs": [
+          1.2999999999883585,
+          1,
+          0.8999999999650754
+        ],
+        "lampPoints": 0,
+        "lampDraws": 0,
+        "hulls": 22,
+        "textures": 64,
+        "drawCalls": 6,
+        "triangles": 836476,
+        "cpuSubmitMs": 0.29999999998835847,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 57638.2,
+        "instanceBatches": 4
+      },
+      "after": {
+        "enabled": true,
+        "cpuDrawMs": [
+          1,
+          4.2000000000116415,
+          1.099999999976717
+        ],
+        "lampPoints": 9,
+        "lampDraws": 1,
+        "hulls": 22,
+        "textures": 64,
+        "drawCalls": 7,
+        "triangles": 836476,
+        "cpuSubmitMs": 0.20000000001164153,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 57645.90000000001,
+        "instanceBatches": 4
+      }
+    },
+    {
+      "stage": 13,
+      "scenario": "boss",
+      "before": {
+        "enabled": false,
+        "cpuDrawMs": [
+          0.5999999999767169,
+          1.5,
+          0.6000000000349246
+        ],
+        "lampPoints": 0,
+        "lampDraws": 0,
+        "hulls": 2,
+        "textures": 64,
+        "drawCalls": 3,
+        "triangles": 95556,
+        "cpuSubmitMs": 0.1000000000349246,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 57652.500000000044,
+        "instanceBatches": 0
+      },
+      "after": {
+        "enabled": true,
+        "cpuDrawMs": [
+          1.5,
+          0.5999999999767169,
+          1
+        ],
+        "lampPoints": 6,
+        "lampDraws": 1,
+        "hulls": 2,
+        "textures": 64,
+        "drawCalls": 4,
+        "triangles": 95556,
+        "cpuSubmitMs": 0.09999999997671694,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 57656.40000000001,
+        "instanceBatches": 0
+      }
+    },
+    {
+      "stage": 13,
+      "scenario": "entry",
+      "before": {
+        "enabled": false,
+        "cpuDrawMs": [
+          0.5,
+          0.5999999999767169,
+          0.7999999999883585
+        ],
+        "lampPoints": 0,
+        "lampDraws": 0,
+        "hulls": 1,
+        "textures": 64,
+        "drawCalls": 1,
+        "triangles": 14896,
+        "cpuSubmitMs": 0,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 57659.90000000001,
+        "instanceBatches": 0
+      },
+      "after": {
+        "enabled": true,
+        "cpuDrawMs": [
+          0.5999999999767169,
+          0.6000000000349246,
+          0.5999999999767169
+        ],
+        "lampPoints": 3,
+        "lampDraws": 1,
+        "hulls": 1,
+        "textures": 64,
+        "drawCalls": 2,
+        "triangles": 14896,
+        "cpuSubmitMs": 0,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 57662.40000000001,
+        "instanceBatches": 0
+      }
+    },
+    {
+      "stage": 14,
+      "scenario": "boss",
+      "before": {
+        "enabled": false,
+        "cpuDrawMs": [
+          0.5999999999767169,
+          0.7000000000116415,
+          0.7999999999883585
+        ],
+        "lampPoints": 0,
+        "lampDraws": 0,
+        "hulls": 2,
+        "textures": 64,
+        "drawCalls": 3,
+        "triangles": 96196,
+        "cpuSubmitMs": 0.09999999997671694,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 57667.2,
+        "instanceBatches": 0
+      },
+      "after": {
+        "enabled": true,
+        "cpuDrawMs": [
+          0.7999999999883585,
+          0.5999999999767169,
+          0.7999999999883585
+        ],
+        "lampPoints": 12,
+        "lampDraws": 1,
+        "hulls": 2,
+        "textures": 64,
+        "drawCalls": 4,
+        "triangles": 96196,
+        "cpuSubmitMs": 0.19999999995343387,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 57670.2,
+        "instanceBatches": 0
+      }
+    },
+    {
+      "stage": 14,
+      "scenario": "transition",
+      "before": {
+        "enabled": false,
+        "cpuDrawMs": [
+          0.6000000000349246,
+          0.5999999999767169,
+          0.5999999999767169
+        ],
+        "lampPoints": 0,
+        "lampDraws": 0,
+        "hulls": 1,
+        "textures": 64,
+        "drawCalls": 1,
+        "triangles": 14896,
+        "cpuSubmitMs": 0,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 57673.7,
+        "instanceBatches": 0
+      },
+      "after": {
+        "enabled": true,
+        "cpuDrawMs": [
+          0.6000000000349246,
+          0.5999999999767169,
+          0.5999999999767169
+        ],
+        "lampPoints": 3,
+        "lampDraws": 1,
+        "hulls": 1,
+        "textures": 64,
+        "drawCalls": 2,
+        "triangles": 14896,
+        "cpuSubmitMs": 0,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 57676.2,
+        "instanceBatches": 0
+      }
+    },
+    {
+      "stage": 15,
+      "scenario": "boss",
+      "before": {
+        "enabled": false,
+        "cpuDrawMs": [
+          0.7000000000116415,
+          1,
+          0.7999999999883585
+        ],
+        "lampPoints": 0,
+        "lampDraws": 0,
+        "hulls": 2,
+        "textures": 64,
+        "drawCalls": 3,
+        "triangles": 106044,
+        "cpuSubmitMs": 0.1000000000349246,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 57691.30000000003,
+        "instanceBatches": 0
+      },
+      "after": {
+        "enabled": true,
+        "cpuDrawMs": [
+          0.8000000000465661,
+          1.599999999976717,
+          0.7000000000116415
+        ],
+        "lampPoints": 12,
+        "lampDraws": 1,
+        "hulls": 2,
+        "textures": 64,
+        "drawCalls": 4,
+        "triangles": 106044,
+        "cpuSubmitMs": 0.1000000000349246,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 57695.30000000003,
+        "instanceBatches": 0
+      }
+    },
+    {
+      "stage": 15,
+      "scenario": "coop",
+      "before": {
+        "enabled": false,
+        "cpuDrawMs": [
+          4.2000000000116415,
+          1.5,
+          1.900000000023283
+        ],
+        "lampPoints": 0,
+        "lampDraws": 0,
+        "hulls": 29,
+        "textures": 64,
+        "drawCalls": 7,
+        "triangles": 1057144,
+        "cpuSubmitMs": 0.19999999995343387,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 98887.80000000003,
+        "instanceBatches": 7
+      },
+      "after": {
+        "enabled": true,
+        "cpuDrawMs": [
+          1.2999999999883585,
+          3.099999999976717,
+          1.1000000000349246
+        ],
+        "lampPoints": 18,
+        "lampDraws": 1,
+        "hulls": 29,
+        "textures": 64,
+        "drawCalls": 8,
+        "triangles": 1057144,
+        "cpuSubmitMs": 0.20000000001164153,
+        "gpuFrameMs": 134.440774,
+        "gpuSampleAgeMs": 98894.50000000004,
+        "instanceBatches": 7
+      }
+    }
+  ],
+  "pixels": [
+    {
+      "stage": 2,
+      "changed": 42
+    },
+    {
+      "stage": 5,
+      "changed": 41
+    },
+    {
+      "stage": 10,
+      "changed": 34
+    },
+    {
+      "stage": 15,
+      "changed": 28
+    }
+  ],
+  "blinkPixels": 38,
+  "buffersReused": true,
+  "stableClock": true,
+  "realLights": 0,
+  "devil": 0
+}

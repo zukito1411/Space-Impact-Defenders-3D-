@@ -1,0 +1,40 @@
+name: Review subtle hull lights
+on:
+  push:
+    branches: [main, add-subtle-hull-lights]
+    paths:
+      - 'src/components/games/raid/hullLamp*.ts'
+      - 'src/components/games/raid/liveHullAssets.ts'
+      - 'src/components/games/raid/threeShipPresentation.ts'
+      - 'scripts/check-hull-lamps.mjs'
+      - 'scripts/test-hull-lamps.mjs'
+      - '.github/workflows/review-hull-lamps.yml'
+permissions:
+  contents: read
+jobs:
+  lamps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Check fitted lamp coverage and pooled buffers
+        run: node scripts/test-hull-lamps.mjs
+      - name: Build production bundle
+        run: npm run build
+      - run: npm install --no-save --package-lock=false playwright
+      - run: npx playwright install --with-deps chromium
+      - name: Review all boss images and paired fleet budgets in both views
+        run: node scripts/review-raid-campaign-browser.mjs --captures-only
+        env:
+          RAID_REVIEW_HULL_LAMP_CHECK: '1'
+          RAID_REVIEW_OUTPUT: presentation-review/hull-lamps-v1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: subtle-hull-lights-review
+          path: presentation-review/hull-lamps-v1/

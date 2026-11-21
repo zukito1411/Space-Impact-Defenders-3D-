@@ -1,0 +1,15 @@
+# Subtle hull fittings
+
+Player spacecraft receive small navigation fittings on wing or engine panels and a dim aft beacon. Boss fittings follow their existing palette: amber on red/gold capital ships, cyan on blue ships, violet/pink on the matching cores, and warm amber around the golden mothership. Organic bosses retain their own eye/gem colors. Devil Gundam remains on its original rendering path.
+
+Fittings are seated on the actual mesh once during admission, before the existing shader/material warmup. Their shared, immutable attachment coordinates follow each pooled model's world matrices, including banking, mothership spin and the serpent's head pose. Original geometry, paint, textures, attack logic and model scale are unchanged.
+
+The entire live fleet uses one depth-tested point batch, with 512 preallocated slots and three reusable attribute buffers (positions, color/opacity and size). Buffer update-range objects are reused. This adds at most one GPU draw per ship-rendering layer, with no new point/spot lights, textures, shadow passes or bloom targets. Emitters are only a few pixels wide; cores are broader but dimmer. Clock-driven pulses freeze with scene time and become steady under reduced motion. Programs and buffers are prepared before flight and during context recovery. Batch geometry/materials are disposed with the renderer.
+
+Validation includes actual geometry fitting for all 24 shipped GLB hulls, shared-buffer/capacity/cleanup checks, the production build, and native gameplay rendering. The browser fixture exercises all 15 stages in both orientations, with bosses plus a rotating selection of formation, heavy weapon/asteroid, entry, clear and co-op states. It compares lights off/on, checking that hull triangle counts and texture counts stay unchanged, and draw counts increase by at most the single global light batch. It also checks stable program counts after warmup, visible core/rim pixels, navigation blink pixels, and Devil exclusion. Current selectable player identities use the native player path; six legacy GLB variants use their preview path for fitting verification.
+
+The paired CPU samples in the JSON files measure synchronous application drawing in headless Chromium/SwiftShader. Three samples per mode are a bounded diagnostic check, not a sustained device FPS test or a measurement of physical GPU execution. Phone frame pacing and thermal behavior require device testing.
+
+## Recorded result
+
+All 60 paired fixtures passed. The largest live batch contained 18 emitters, adding one draw at most; hull triangles and texture counts were identical with the batch disabled. On-screen core/rim differences covered 28–55 pixels in the sampled native-size captures; navigation blink differences covered 38 landscape pixels and 48 portrait pixels. All attachment buffers and warm program counts remained stable. Median paired synchronous CPU draw differences were 0.0 ms at this browser timer's granularity; the largest individual paired median differences were +1.2 ms landscape and +0.7 ms portrait. These short software-renderer samples do not establish phone FPS or guarantee device frame pacing.

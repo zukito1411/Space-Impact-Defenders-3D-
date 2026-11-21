@@ -1,0 +1,98 @@
+[
+  {
+    "stage": 1,
+    "kind": "carrier",
+    "name": "Crimson Bastion",
+    "file": "boss-01-landscape-v1.png"
+  },
+  {
+    "stage": 2,
+    "kind": "orb",
+    "name": "Amethyst Orrery",
+    "file": "boss-02-landscape-v1.png"
+  },
+  {
+    "stage": 3,
+    "kind": "mantis",
+    "name": "Verdant Reaper",
+    "file": "boss-03-landscape-v1.png"
+  },
+  {
+    "stage": 4,
+    "kind": "serpent",
+    "name": "Tidal Razor",
+    "file": "boss-04-landscape-v1.png"
+  },
+  {
+    "stage": 5,
+    "kind": "squid",
+    "name": "Abyss Squid",
+    "file": "boss-05-landscape-v1.png"
+  },
+  {
+    "stage": 6,
+    "kind": "gate",
+    "name": "Cinder Gate",
+    "file": "boss-06-landscape-v1.png"
+  },
+  {
+    "stage": 7,
+    "kind": "carrier",
+    "name": "Ashen Ark",
+    "file": "boss-07-landscape-v1.png"
+  },
+  {
+    "stage": 8,
+    "kind": "orb",
+    "name": "Prism Sovereign",
+    "file": "boss-08-landscape-v1.png"
+  },
+  {
+    "stage": 9,
+    "kind": "mantis",
+    "name": "Scythe Regent",
+    "file": "boss-09-landscape-v1.png"
+  },
+  {
+    "stage": 10,
+    "kind": "snake",
+    "name": "Serpent Guardian",
+    "file": "boss-10-landscape-v1.png"
+  },
+  {
+    "stage": 11,
+    "kind": "hydra",
+    "name": "Triarch Hydra",
+    "file": "boss-11-landscape-v1.png"
+  },
+  {
+    "stage": 12,
+    "kind": "gate",
+    "name": "Null Cathedral",
+    "file": "boss-12-landscape-v1.png"
+  },
+  {
+    "stage": 13,
+    "kind": "carrier",
+    "name": "Eclipse Dreadnought",
+    "file": "boss-13-landscape-v1.png"
+  },
+  {
+    "stage": 14,
+    "kind": "orb",
+    "name": "Eventide Nexus",
+    "file": "boss-14-landscape-v1.png"
+  },
+  {
+    "stage": 15,
+    "kind": "final",
+    "name": "Mirage Mothership",
+    "file": "boss-15-landscape-v1.png"
+  },
+  {
+    "stage": 16,
+    "kind": "devil",
+    "name": "Devil Gundam",
+    "file": "boss-16-landscape-v1.png"
+  }
+]
