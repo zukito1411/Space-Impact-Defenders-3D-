@@ -8,6 +8,7 @@ on:
       - 'src/components/games/raid/threeShipPresentation.ts'
       - 'scripts/check-hull-lamps.mjs'
       - 'scripts/test-hull-lamps.mjs'
+      - 'scripts/review-raid-campaign-browser.mjs'
       - '.github/workflows/review-hull-lamps.yml'
 permissions:
   contents: read

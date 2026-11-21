@@ -10,6 +10,7 @@ on:
       - 'src/components/games/raid/liveHullBridge.ts'
       - 'scripts/check-enemy-banking.mjs'
       - 'scripts/test-enemy-banking.mjs'
+      - 'scripts/review-raid-campaign-browser.mjs'
       - '.github/workflows/review-enemy-banking.yml'
 permissions:
   contents: read

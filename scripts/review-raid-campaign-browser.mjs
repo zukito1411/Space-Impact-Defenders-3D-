@@ -25,6 +25,17 @@ const frames=Number(process.env.RAID_REVIEW_FRAMES ?? 24)
 assert.ok(Number.isInteger(frames)&&frames>=12&&frames<=180)
 const source=await readFile('src/components/games/raid/GradiusRaidRuntime.tsx','utf8')
 const refNames=[...source.matchAll(/const (\w+Ref) = useRef/g)].map(match=>match[1])
+const resetRefs={
+  arrays:['enemiesRef','shotsRef','enemyShotsRef','sparksRef','ripplesRef','asteroidsRef',
+    'asteroidApproachRef','meteorsRef','ionStrikesRef','wrecksRef','powerUpsRef','muzzleFlashesRef',
+    'godMeleeStrikesRef'],
+  numbers:['stageEntryRef','stageClearRef','bossAlertRef','bossEntranceSlamRef','nukeFlashRef',
+    'asteroidWarningRef','asteroidSpawnDelayRef','victoryBlackoutRef'],
+  nullable:['carrierStopRef','pendingNextStageRef','randomEventRef','nukeStrikeRef','godBarrageRef'],
+}
+// Fail before starting Chromium if runtime refactors leave stale fixture state.
+const missingResetRefs=Object.values(resetRefs).flat().filter(name=>!refNames.includes(name))
+assert.deepEqual(missingResetRefs,[],`Review reset refs missing from Raid runtime: ${missingResetRefs.join(', ')}`)
 const server=process.env.RAID_TEST_URL ? null : spawn(process.execPath,
   ['node_modules/vite/bin/vite.js','--host','127.0.0.1','--port','5200','--strictPort'],{stdio:'ignore'})
 const exited=server ? once(server,'exit') : Promise.resolve()
@@ -81,7 +92,7 @@ try {
     await page.locator('.raid__carrier-briefing').waitFor({timeout:120000})
     await page.locator('.raid__carrier-skip').click()
     await page.waitForFunction(()=>document.querySelector('.raid')?.dataset.carrierStage==='flight',{},{timeout:120000})
-    const catalog=await page.evaluate(async names=>{
+    const catalog=await page.evaluate(async ({names,resetRefs})=>{
       const root=document.querySelector('.raid')
       let fiber=root[Object.keys(root).find(key=>key.startsWith('__reactFiber$'))]
       while(fiber&&fiber.type?.name!=='GradiusRaid')fiber=fiber.return
@@ -94,6 +105,8 @@ try {
       }
       const offset=refs.findIndex(ref=>typeof ref.current?.getShipStats==='function')-names.indexOf('shipsRef')
       const r=Object.fromEntries(names.map((name,index)=>[name,refs[index+offset]]))
+      const missing=names.filter(name=>!r[name]||!Object.hasOwn(r[name],'current'))
+      if(missing.length)throw Error('Diagnostic refs could not be mapped: '+missing.join(', '))
       if(r.stageRef.current!==1||r.phaseRef.current!=='playing'||!r.pixiBackgroundRef.current.render)throw Error('Invalid diagnostic ref mapping')
       const find=(...markers)=>{
         const matches=callbacks.filter(fn=>markers.every(marker=>fn.toString().includes(marker)))
@@ -133,12 +146,9 @@ try {
       const review={r,actions,bosses,gpu,background,ships,player,
         reset(stage,scenario='capture') {
           window.reviewSeed(stage*1009+17)
-          for(const name of ['enemiesRef','shotsRef','enemyShotsRef','sparksRef','ripplesRef','asteroidsRef',
-            'asteroidApproachRef','meteorsRef','ionStrikesRef','wrecksRef','powerUpsRef','muzzleFlashesRef',
-            'godMeleeStrikesRef','bossDefeatExplosionEventsRef'])r[name].current=[]
-          for(const name of ['stageEntryRef','stageClearRef','bossAlertRef','bossEntranceSlamRef','nukeFlashRef',
-            'asteroidWarningRef','asteroidSpawnDelayRef','victoryBlackoutRef'])r[name].current=0
-          for(const name of ['carrierStopRef','pendingNextStageRef','randomEventRef','nukeStrikeRef','godBarrageRef'])r[name].current=null
+          for(const name of resetRefs.arrays)r[name].current=[]
+          for(const name of resetRefs.numbers)r[name].current=0
+          for(const name of resetRefs.nullable)r[name].current=null
           r.initialLaunchRef.current=false;r.phaseRef.current='playing';r.raidModeRef.current=stage===16?'endless':'campaign'
           r.stageRef.current=stage;r.waveRef.current=stage;r.journeyStageAgeRef.current=35
           r.sceneryRunTokenRef.current=stage*1009+17
@@ -198,7 +208,7 @@ try {
       window.campaignReview=review
       window.reviewManual=true
       return bosses
-    },refNames)
+    },{names:refNames,resetRefs})
     await page.evaluate(async()=>{await new Promise(window.reviewRAF);await new Promise(window.reviewRAF)})
     assert.equal(await page.evaluate(()=>typeof window.reviewLoop),'function')
     if(process.env.RAID_REVIEW_LIGHTING_CHECK==='1') {
