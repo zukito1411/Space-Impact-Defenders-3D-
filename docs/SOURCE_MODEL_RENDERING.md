@@ -56,3 +56,5 @@ node scripts/test-raid-banking-art.mjs
 ```
 
 The optional `scripts/build-flight-hulls.py` recreates the starting meshes from the reference art. Running it overwrites the selected source models. Both scripts accept one or more ship keys after `--`. With no keys they process the fleet. The build needs NumPy, SciPy and Pillow in Blender's Python environment. The bake needs Pillow.
+
+After rebuilding the assault hulls, apply `scripts/deepen-assault-hulls.py`, then `scripts/refine-crimson-underbody.py` before exporting the live GLBs. The latter tucks Crimson Saw's normal and elite lower armor and cooling hardware into a shallow, chamfered hull while retaining its upper armor, guns, paint and attachment coordinates. Regenerate its portrait and landscape menu images with `scripts/render-live-ship-previews.py -- gatling gatlingElite`.

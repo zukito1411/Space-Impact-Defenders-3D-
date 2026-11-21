@@ -7,7 +7,7 @@ const dataUrl = source => 'data:text/javascript;base64,'+Buffer.from(compile(sou
 const keelUrl=dataUrl(readFileSync('src/components/games/raid/bossKeelDesigns.ts','utf8'))
 const designUrl = dataUrl(readFileSync('src/components/games/raid/bossHullDesigns.ts','utf8').replace("'./bossKeelDesigns'",JSON.stringify(keelUrl)))
 const mobUrl = dataUrl(readFileSync('src/components/games/raid/mobHullDesigns.ts','utf8'))
-const {MOB_HULL_DESIGNS}=await import(mobUrl)
+const {MOB_HULL_DESIGNS,mobHullKeelElevation}=await import(mobUrl)
 const { BOSS_HULL_DESIGNS, sampleBossDeck, bossKeelElevation } = await import(designUrl)
 const source = readFileSync('src/components/games/raid/volumeGeometry.worker.ts','utf8')
   .replace("'./bossHullDesigns'",JSON.stringify(designUrl))
@@ -65,8 +65,19 @@ for(const key of expectedMobKeys) {
  const heights=Array.from(mesh.position.subarray(0,mesh.deckVertexCount*3)).filter((_,i)=>i%3===2)
  assert.ok(Math.max(...heights)>.09&&Math.max(...heights)<.28,key+' lost its bounded cockpit/carapace')
  const depths=Array.from(mesh.position.subarray(mesh.deckVertexCount*3,mesh.deckVertexCount*6)).filter((_,i)=>i%3===2)
- assert.ok(Math.min(...depths)<-.09,key+' retained a shallow lower slab')
- assert.ok(Math.max(...depths)-Math.min(...depths)>.06,key+' lost its underside relief')
+ if(MOB_HULL_DESIGNS[key].organic){
+  assert.ok(Math.min(...depths)<-.09,key+' retained a shallow lower slab')
+  assert.ok(Math.max(...depths)-Math.min(...depths)>.06,key+' lost its underside relief')
+ }else{
+  assert.ok(Math.min(...depths)>-.08,key+' grew a protruding belly')
+  assert.ok(Math.max(...depths)-Math.min(...depths)>.04,key+' lost its beveled armor relief')
+  const design=MOB_HULL_DESIGNS[key]
+  // Sample an authored armor plane away from its bevel, with wings still thin.
+  const f=design.keel.reduce((a,b)=>a.rise>b.rise?a:b)
+  const center=mobHullKeelElevation(design,f.u,f.v)
+  assert.equal(mobHullKeelElevation(design,f.u+f.rx*.3,f.v),center,key+' inflated its armor plane')
+  assert.ok(mobHullKeelElevation(design,.02,.5)>center+.03,key+' lost its thin wing edge')
+ }
  assert.ok(depths.every(z=>z<0&&z>-.28),key+' left its reserved lower depth')
 }
 assert.deepEqual(Object.keys(BOSS_HULL_DESIGNS).map(Number),[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15])

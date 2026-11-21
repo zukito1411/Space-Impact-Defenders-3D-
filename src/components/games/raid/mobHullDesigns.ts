@@ -64,24 +64,24 @@ const lower:Record<string,Pick<MobHullDesign,'name'|'keel'|'armorPaint'|'modules
   alienHull7:{name:'Spined predator — armored lower jaw',armorPaint:[.5,.38,.08,.14],
     keel:[form(.5,.47,.115,.31,.175),...pair(.33,.42,.065,.19,.13),form(.5,.73,.05,.17,.15)],
     modules:[module(.5,.45,.055,.085,.03),module(.5,.62,.04,.075,.026),...pairedModules(.35,.44,.028,.06,.025)]},
-  fighterNeedle:{name:'Needle — diamond keel and thrust socket',armorPaint:[.5,.62,.035,.08],
-    keel:[form(.5,.47,.067,.36,.14,4),form(.5,.38,.052,.15,.165,4)],
-    modules:[module(.5,.42,.025,.07,.027),module(.5,.57,.022,.055,.024,'reactor')]},
+  fighterNeedle:{name:'Needle — chamfered keel and thrust socket',armorPaint:[.5,.62,.035,.08],
+    keel:[form(.5,.47,.060,.35,.052,4),form(.5,.35,.045,.12,.064,4)],
+    modules:[module(.5,.42,.025,.07,.012),module(.5,.57,.022,.055,.012,'reactor')]},
   fighterCinder:{name:'Cinder — twin engine nacelles',armorPaint:[.5,.57,.065,.09],
-    keel:[form(.5,.48,.085,.28,.15,4),...pair(.39,.38,.075,.19,.135,4),...pair(.29,.47,.10,.13,.07,4)],
-    modules:[...pairedModules(.41,.36,.035,.075,.03,'reactor'),module(.5,.55,.04,.075,.026)]},
+    keel:[form(.5,.48,.075,.27,.052,4),...pair(.39,.38,.065,.18,.068,4),...pair(.29,.47,.10,.13,.036,4)],
+    modules:[...pairedModules(.41,.36,.035,.075,.014,'reactor'),module(.5,.55,.04,.075,.012)]},
   fighterViolet:{name:'Violet — gunship box spar and armored bays',armorPaint:[.5,.55,.08,.075],
-    keel:[form(.5,.48,.10,.26,.16,4),...pair(.27,.45,.10,.18,.14,4),form(.5,.43,.30,.075,.10,4)],
-    modules:[...pairedModules(.28,.45,.05,.065,.034),module(.5,.48,.055,.075,.03,'reactor')]},
+    keel:[form(.5,.48,.09,.25,.064,4),...pair(.27,.45,.09,.17,.060,4),form(.5,.43,.29,.065,.040,4)],
+    modules:[...pairedModules(.28,.45,.05,.065,.014),module(.5,.48,.055,.075,.012,'reactor')]},
   fighterCrimson:{name:'Crimson ram — reinforced wedge and cooling rails',armorPaint:[.5,.61,.075,.11],
-    keel:[form(.5,.54,.12,.31,.18,4),...pair(.32,.39,.085,.17,.12,4),form(.5,.71,.065,.14,.16,4)],
-    modules:[module(.5,.59,.05,.10,.038),...pairedModules(.38,.40,.035,.06,.028)]},
-  fighterJade:{name:'Jade — recessed sensor gondola',armorPaint:[.5,.69,.035,.08],
-    keel:[form(.5,.45,.14,.27,.15),form(.5,.48,.10,.12,.195),...pair(.29,.53,.10,.20,.065,4)],
-    modules:[module(.5,.47,.065,.065,.04,'reactor'),module(.5,.65,.03,.065,.025)]},
+    keel:[form(.5,.54,.10,.29,.064,4),...pair(.32,.39,.075,.16,.050,4),form(.5,.71,.055,.12,.052,4)],
+    modules:[module(.5,.59,.05,.10,.014),...pairedModules(.38,.40,.035,.06,.012)]},
+  fighterJade:{name:'Jade — recessed sensor bay and twin spars',armorPaint:[.5,.69,.035,.08],
+    keel:[form(.5,.45,.13,.26,.048,4),...pair(.455,.48,.035,.13,.064,4),...pair(.29,.53,.10,.19,.032,4)],
+    modules:[module(.5,.47,.055,.055,.012,'reactor'),module(.5,.65,.03,.065,.010)]},
   fighterAuric:{name:'Auric — three armored artillery channels',armorPaint:[.5,.48,.07,.085],
-    keel:[form(.5,.46,.095,.27,.155,4),...pair(.23,.48,.095,.19,.145,4),...pair(.20,.63,.045,.12,.12,4)],
-    modules:[...pairedModules(.23,.46,.04,.075,.033,'reactor'),module(.5,.49,.04,.075,.034)]},
+    keel:[form(.5,.46,.085,.26,.064,4),...pair(.23,.48,.085,.18,.068,4),...pair(.20,.63,.040,.11,.050,4)],
+    modules:[...pairedModules(.23,.46,.04,.075,.014,'reactor'),module(.5,.49,.04,.075,.014)]},
   eliteHull0:{name:'Elite lance scarab — layered longitudinal sternum',armorPaint:[.5,.32,.085,.11],
     keel:[form(.5,.37,.15,.28,.20),form(.5,.62,.075,.23,.175),...pair(.36,.50,.055,.14,.13)],
     modules:[module(.5,.35,.06,.075,.035),module(.5,.51,.055,.065,.034),module(.5,.66,.035,.06,.03)]},
@@ -127,6 +127,18 @@ export function mobHullElevation(design:MobHullDesign,u:number,v:number,bevel=1)
   return .006+bevel*sampleForms(design.forms,u,v,!design.organic)*(design.organic?1.13:1.08)
 }
 export function mobHullKeelElevation(design:MobHullDesign,u:number,v:number,bevel=1) {
+  if(!design.organic){
+    // Flat armor facets with diagonal cut corners and a short linear bevel.
+    // Keep relief in separate spars/nacelles, without a swollen center belly.
+    let depth=.012
+    for(const f of design.keel??design.forms){
+      const x=Math.abs((u-f.u)/f.rx),y=Math.abs((v-f.v)/f.ry)
+      const radius=Math.max(x,y,(x+y)*.72)
+      const shoulder=Math.max(0,Math.min(1,(1-radius)/.24))
+      depth=Math.max(depth,f.rise*shoulder)
+    }
+    return -.006-bevel*depth
+  }
   const relief=sampleForms(design.keel??design.forms,u,v,!design.organic)
   const ribs=design.organic ? 1-.055*Math.sin(v*66)**8 : 1-.035*Math.sin((v+Math.abs(u-.5)*.4)*58)**8
   return -.006-bevel*relief*ribs
