@@ -171,6 +171,7 @@ export class OrbitalGlobe {
       this.rings.zIndex = sprite.zIndex + .001
     }
   }
+  setOccluders(first?: Float32Array, second?: Float32Array) { this.surface.setOccluders(first,second) }
   destroy() {
     this.surface.destroy()
     this.atmosphere.destroy()
@@ -221,8 +222,11 @@ uniform sampler2D uArt;
 uniform vec4 uFrame;
 uniform vec2 uView;
 uniform float uGalaxy;
+uniform float uTime, uVariability;
+uniform sampler2D uStarMap;
 uniform vec3 uEye;
 varying vec2 distantUV, midUV, nearUV;
+${STAR_VARIABILITY_GLSL}
 vec3 nebula(vec2 p) {
   return texture2D(uArt,uFrame.xy + clamp(p,.002,.998)*uFrame.zw).rgb;
 }
@@ -256,6 +260,12 @@ void main() {
       transmission *= 1.-clamp(opacity,0.,.8);
     }
     sum.rgb *= 1.25+.28*exp(-dot(p,p)*5.);
+    // Compact stars painted into the galaxy also dim and flare individually.
+    // A precomputed map avoids high-pass filtering or extra passes in flight.
+    vec2 stellarUV = clamp(.5+(origin+ray*middle).xy*.5,.002,.998);
+    vec3 stellar = texture2D(uStarMap,uFrame.xy+stellarUV*uFrame.zw).rgb;
+    float seed = (stellar.g*255.+stellar.b*65280.)/65535.;
+    sum.rgb *= 1.+stellar.r*(starBrightness(seed,uTime,uVariability)-1.);
     sum.a = clamp(sum.a,0.,1.);
     gl_FragColor = sum*tint;
     return;
@@ -283,6 +293,7 @@ export class CosmicGasVolume {
   private readonly params = new UniformGroup({
     uView: { value: new Float32Array(2), type:'vec2<f32>' },
     uGalaxy: { value: 0, type:'f32' },
+    uTime: { value: 0, type:'f32' }, uVariability: { value: 1, type:'f32' },
     uEye: { value: new Float32Array(3), type:'vec3<f32>' },
     uFrame: { value: new Float32Array(4), type:'vec4<f32>' },
   })
@@ -293,13 +304,13 @@ export class CosmicGasVolume {
     const fragment = skyFragment.replace('uniform float uGalaxy;',
       `const float uGalaxy = ${galaxy ? '1.' : '0.'};`)
     this.shader = new Shader({ glProgram: GlProgram.from({ vertex: gasVertex, fragment }),
-      resources: { volume: this.params, uArt: Texture.WHITE.source } })
+      resources: { volume: this.params, uArt: Texture.WHITE.source, uStarMap: Texture.EMPTY.source } })
     this.mesh = new Mesh({ geometry: galaxy ? new MeshGeometry({}) : gasGeometry(), shader: this.shader })
     if (galaxy) this.mesh.pivot.set(.5)
     this.mesh.visible = false
     anchor.parent!.addChildAt(this.mesh,anchor.parent!.getChildIndex(anchor))
   }
-  update(width: number, height: number, camera: OrbitalCamera, enabled = true) {
+  update(width: number, height: number, camera: OrbitalCamera, enabled = true, starSeconds = 0, starMap?: Texture) {
     const {mesh,anchor} = this
     mesh.visible = enabled && anchor.visible
     anchor.renderable = !enabled
@@ -309,6 +320,9 @@ export class CosmicGasVolume {
       this.shader.resources.uArt = anchor.texture.source
       writeFrame(this.params.uniforms.uFrame,anchor.texture)
     }
+    this.params.uniforms.uTime = starSeconds*(camera.reducedMotion ? .22 : 1)
+    this.params.uniforms.uVariability = camera.reducedMotion ? .35 : 1
+    if (this.galaxy) this.shader.resources.uStarMap = (starMap ?? Texture.EMPTY).source
     this.params.uniforms.uView[0] = width/camera.focal
     this.params.uniforms.uView[1] = height/camera.focal
     this.params.uniforms.uEye.set(camera.eye)
@@ -386,8 +400,8 @@ void main() {
   float temperature = fract(seed*13.17);
   vec3 warm = mix(vec3(1.,.48,.24),vec3(1.,.91,.76),smoothstep(0.,.48,temperature));
   spectrum = mix(warm,vec3(.53,.74,1.),smoothstep(.48,1.,temperature));
-  // Preserve constant stars while other points breathe or flare independently.
-  gain = (.52+.48*magnitude) * (dust ? 1. : starBrightness(seed,uTime,uVariability));
+  // Even the small star-shaped dust points dim and flare independently.
+  gain = (.52+.48*magnitude) * starBrightness(seed,uTime,uVariability);
   if (dust) gain *= .30*smoothstep(.75,2.,z)*(1.-smoothstep(12.,15.7,z));
   vec2 direction = vec2(0.,1.);
   float streak = dust ? min(7.,uFocal*uSpeed*.025/distance) : 0.;

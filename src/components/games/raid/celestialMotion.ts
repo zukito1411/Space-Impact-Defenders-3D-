@@ -3,7 +3,7 @@ import { sampleStarBrightness } from './starVariability'
 const unit = (n: number) => n - Math.floor(n)
 const mod = (n: number, span: number) => ((n % span) + span) % span
 export type CelestialSample = { x: number; y: number; size: number; alpha: number }
-/** Steady, breathing and twinkling points share stable spatial catalogue slots. */
+/** Every optical star has its own continuous dimming and twinkle cycle. */
 export function sampleCelestialStar(index: number, width: number, height: number, seconds: number,
   atmospheric: boolean, reduced: boolean, out: CelestialSample, brightnessSeconds = seconds) {
   const seed = unit(index * .61803398875 + .071)

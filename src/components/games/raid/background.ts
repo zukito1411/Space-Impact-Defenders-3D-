@@ -1,6 +1,8 @@
 // Register Pixi's optional upload system before creating either renderer consumer.
 import 'pixi.js/prepare'
 import { SpaceBackdrop } from './spaceBackdrop'
+import { OrbitalMoons } from './orbitalMoons'
+import { createPaintedStarMap } from './paintedStars'
 import { AsteroidBelt } from './asteroidBelt'
 import { createShipLightingFrame, sampleShipLighting } from './shipLighting'
 import { SceneryHulls } from './sceneryHulls'
@@ -857,6 +859,7 @@ export class PixiRaidBackground {
   private orbitalCamera: OrbitalCamera | null = null
   private orbitalStars: OrbitalStars | null = null
   private readonly globes: OrbitalGlobe[] = []
+  private readonly moonSystems: OrbitalMoons[] = []
   private readonly sceneryRocks: OrbitalSceneryRock[] = []
   private readonly asteroidBelt = new AsteroidBelt()
   private readonly combatRocks = new OrbitalCombatRocks()
@@ -869,6 +872,7 @@ export class PixiRaidBackground {
   private readonly sceneryShipKey = (sprite: Sprite) => this.sceneryShipKeys.get(sprite)
   private readonly sceneryShipDistance = (sprite: Sprite) => this.projected.get(sprite)?.world.distanceKm ?? 6
   private readonly gasVolumes: CosmicGasVolume[] = []
+  private readonly paintedStarMaps = new Map<Texture,Texture>()
   private readonly projected = new Map<Sprite, { world: SpacePlacement; x: number; y: number; sx: number; sy: number; active: boolean }>()
 
   private readonly worldScene = new Container()
@@ -1076,6 +1080,7 @@ export class PixiRaidBackground {
       for (const anchor of this.nebulaSprites) this.gasVolumes.push(new CosmicGasVolume(anchor))
       for (const anchor of this.galaxySprites) this.gasVolumes.push(new CosmicGasVolume(anchor, true))
       for (const anchor of [...this.planetSprites, ...this.atmosphereMoons]) this.globes.push(new OrbitalGlobe(anchor))
+      for (let i=0;i<this.planetSprites.length;i++) this.moonSystems.push(new OrbitalMoons(this.globes[i],i))
       for (const [index, anchor] of [...this.asteroidSprites, ...this.debrisSprites].entries()) {
         this.sceneryRocks.push(new OrbitalSceneryRock(anchor, index))
       }
@@ -1098,6 +1103,8 @@ export class PixiRaidBackground {
       host.textContent = ''
       host.appendChild(canvas)
       await this.loadAssets()
+      if (this.destroyed || this.app !== app) return false
+      await app.renderer.prepare.upload([...this.paintedStarMaps.values()])
       if (this.destroyed || this.app !== app) return false
       this.backdrop.prepare(app.renderer)
       this.asteroidBelt.prepare(app.renderer,this.assetTextures.get('asteroid') ?? Texture.WHITE)
@@ -1160,7 +1167,10 @@ export class PixiRaidBackground {
     }
     this.gradientCache.forEach((gradient) => gradient.destroy())
     this.gradientCache.clear()
+    for (const system of this.moonSystems) system.destroy()
     for (const object of [...this.gasVolumes, ...this.globes, ...this.sceneryRocks]) object.destroy()
+    for (const map of this.paintedStarMaps.values()) map.destroy(true)
+    this.paintedStarMaps.clear()
     this.combatRocks.destroy()
     this.sceneryHulls.destroy()
     this.sceneryShipKeys.clear()
@@ -1359,9 +1369,13 @@ export class PixiRaidBackground {
           surface, this.journey.enabled ? this.journey.worldAlpha : surface ? 1 : 0, celestialSeconds)
         this.asteroidBelt.update(this.orbitalCamera,this.assetTextures.get('asteroid'),this.shipLighting,
           frame.stageNumber ?? 1,frame.runToken ?? 0,space && this.journey.worldAlpha < .1,celestialSeconds)
-        for (const volume of this.gasVolumes) volume.update(width, height, this.orbitalCamera, this.orbitalSkyReady)
+        for (const volume of this.gasVolumes) volume.update(width, height, this.orbitalCamera, this.orbitalSkyReady,starSeconds,this.paintedStarMaps.get(volume.anchor.texture))
       }
       this.updateSceneryBloom(stageTheme, isLow, isMedium)
+      for (let i=0;i<this.moonSystems.length;i++) this.moonSystems[i].update(this.assetTextures.get('asteroid'),
+        this.globeStyle(this.planetSprites[i].texture),this.orbitalCamera,
+        this.projected.get(this.planetSprites[i])?.world.distanceKm ?? 0,celestialSeconds,
+        this.orbitalBodiesReady && space && this.journey.worldAlpha < .99 && Boolean(this.projected.get(this.planetSprites[i])?.active))
       for (const globe of this.globes) globe.update(celestialSeconds, this.globeStyle, this.orbitalBodiesReady,
         this.projected.get(globe.anchor)?.world.distanceKm ?? 0, this.orbitalCamera ?? undefined, this.assetTextures.get('clouds'))
       for (const rock of this.sceneryRocks) rock.update(this.orbitalBodiesReady ? this.assetTextures.get('asteroid') : undefined, celestialSeconds, this.orbitalCamera?.focal ?? 1, width, height, this.orbitalCamera?.sunDirection)
@@ -1492,6 +1506,13 @@ export class PixiRaidBackground {
         this.assetTextures.delete(key)
       }
     }))
+    if (this.destroyed) return
+    for (const key of ['galaxy','galaxy2','galaxy3','galaxy4'] as const) {
+      const texture = this.assetTextures.get(key)
+      if (!texture) continue
+      const map = createPaintedStarMap(texture)
+      if (map) this.paintedStarMaps.set(texture,map)
+    }
     // Battle sprites are placement anchors only. Both fleets use the shared
     // prepared hull geometry and paint; there is no flat ship-art fallback.
   }

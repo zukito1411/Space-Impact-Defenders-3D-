@@ -71,7 +71,7 @@ uniform vec2 uDisc, uYaw, uPitch, uViewSlope, uRoll;
 uniform float uPerspective;
 varying vec3 normal;
 varying vec2 paint;
-varying vec3 terrain;
+varying vec3 terrain, surfacePoint;
 varying float facing;
 varying vec4 tint;
 vec3 turn(vec3 p) {
@@ -84,6 +84,7 @@ void main() {
   facing = dot(n,vec3(-uViewSlope-p.xy*uPerspective,1.-p.z*uPerspective));
   terrain = normalize(aSurface);
   normal = vec3(uRoll.x*n.x-uRoll.y*n.y,uRoll.y*n.x+uRoll.x*n.y,n.z);
+  surfacePoint = vec3(uRoll.x*p.x-uRoll.y*p.y,uRoll.y*p.x+uRoll.x*p.y,p.z);
   // Original disc art supplies the surface identity, with mirrored rear paint.
   paint = .5 + aSurface.xy / max(.001,length(aSurface)) * uDisc * .965;
   vec2 screen = .5 + (p.xy+uViewSlope*p.z) * uDisc / (1.-p.z*uPerspective);
@@ -104,12 +105,24 @@ uniform vec4 uWeatherFrame;
 uniform vec2 uWeatherTurn;
 uniform float uWeatherAmount;
 uniform float uRock, uLava;
+uniform vec4 uOccluder0, uOccluder1;
 varying vec3 normal;
 varying vec2 paint;
-varying vec3 terrain;
+varying vec3 terrain, surfacePoint;
 varying float facing;
 varying vec4 tint;
 ${ASTEROID_SURFACE_GLSL}
+// Trace toward the shared sun in body-radius units. Only an intervening body
+// blocks direct light; the finite source gives its umbra a soft penumbra.
+float sunlightPast(vec4 body, vec3 light) {
+  if (body.w <= 0.) return 1.;
+  vec3 delta = body.xyz-surfacePoint;
+  float along = dot(delta,light);
+  if (along <= 0.) return 1.;
+  float separation = length(delta-light*along);
+  float spread = .006*along+.002;
+  return smoothstep(max(0.,body.w-spread),body.w+spread,separation);
+}
 void main() {
   if (facing < 0.) discard;
   vec4 texel = texture2D(uArt,uFrame.xy+clamp(paint,.002,.998)*uFrame.zw);
@@ -119,13 +132,14 @@ void main() {
     gl_FragColor = vec4(shadeAsteroid(pigment,n,light,uHalfLight),1.)*tint;
     return;
   }
-  float incidence = dot(n,light), day = max(0.,incidence);
+  float visibility = sunlightPast(uOccluder0,light)*sunlightPast(uOccluder1,light);
+  float incidence = dot(n,light), day = max(0.,incidence)*visibility;
   // Airless surfaces have a true night side; atmospheric twilight is separate.
   vec3 color = pigment * mix(vec3(.10,.13,.19),vec3(1.22,1.16,1.09),day);
   float rim = pow(1.-max(0.,n.z),3.1);
-  color += uAir*rim*(.16+.52*day)*(1.-uRock);
+  color += uAir*rim*(.16+.52*day)*(1.-uRock)*visibility;
   float twilight = 1.-smoothstep(.02,.29,abs(incidence));
-  color += uAir*twilight*rim*.2*(1.-uRock);
+  color += uAir*twilight*rim*.2*(1.-uRock)*visibility;
   float fissure = smoothstep(.05,.40,pigment.r-pigment.b)*uLava;
   color += pigment*fissure*(.24+.28*(1.-day));
   if (uRock < .5 && uWeatherAmount > .001) {
@@ -151,6 +165,8 @@ void main() {
 export class OrbitalSurface {
   private readonly params = new UniformGroup({
     uFrame: { value: new Float32Array(4), type: 'vec4<f32>' },
+    uOccluder0: { value: new Float32Array(4), type: 'vec4<f32>' },
+    uOccluder1: { value: new Float32Array(4), type: 'vec4<f32>' },
     uDisc: { value: new Float32Array([.48, .48]), type: 'vec2<f32>' },
     uYaw: { value: new Float32Array([1, 0]), type: 'vec2<f32>' },
     uPitch: { value: new Float32Array([1, 0]), type: 'vec2<f32>' },
@@ -198,6 +214,11 @@ export class OrbitalSurface {
     u.uRoll[0] = c; u.uRoll[1] = s
   }
   setLight(light: Float32Array) { writeOrbitalLight(this.params.uniforms.uSun,light,this.params.uniforms.uHalfLight) }
+  setOccluders(first?: Float32Array, second?: Float32Array) {
+    const u = this.params.uniforms
+    if (first) u.uOccluder0.set(first); else u.uOccluder0.fill(0)
+    if (second) u.uOccluder1.set(second); else u.uOccluder1.fill(0)
+  }
   setWeather(texture: Texture | undefined, seconds: number, amount: number) {
     const u = this.params.uniforms
     u.uWeatherAmount = texture ? amount : 0

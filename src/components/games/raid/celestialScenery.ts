@@ -1,6 +1,7 @@
 import { Container, Sprite, Texture } from 'pixi.js'
 import { getCelestialArt } from './celestialArt'
 import { sampleCelestialStar } from './celestialMotion'
+import { sampleStarBrightness } from './starVariability'
 import type { CelestialSample } from './celestialMotion'
 
 const mod = (n: number, span: number) => ((n % span) + span) % span
@@ -70,7 +71,7 @@ export class CelestialScenery {
         height * .5 + ((i * .233 % 1)-.5) * 7 * focal / depth)
       const size = Math.max(3, Math.min(width, height) * .007) * 3 / depth
       sprite.width = size; sprite.height = size * .75
-      sprite.alpha = (.08 + Math.sin(t * .22 + i) * .035) * fade * Math.min(1, (depth - 1.4) * 2, (10.4 - depth) * 2)
+      sprite.alpha = .1 * sampleStarBrightness((i*.61803398875+.317)%1,brightnessSeconds,reduced) * fade * Math.min(1, (depth - 1.4) * 2, (10.4 - depth) * 2)
       sprite.tint = region === 1 ? 0xe8bc8e : 0x9bbfe9
     }
   }
