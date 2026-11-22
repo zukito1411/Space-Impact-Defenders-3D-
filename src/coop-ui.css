@@ -12,7 +12,9 @@
   display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px;
   padding: 12px; border-bottom: 1px solid #73e5ee29;
 }
-#root .coop-lobby .game-button { min-width: 0; min-height: 44px; max-width: 100%; padding: 10px 14px; font-size: .78rem; white-space: normal; line-height: 1.2; touch-action: manipulation; }
+/* Auto-width controls must include their label in intrinsic sizing. */
+#root .coop-lobby button { container-type: normal; }
+#root .coop-lobby .game-button { min-width: min-content; flex-shrink: 0; min-height: 44px; max-width: 100%; padding: 10px 14px; font-size: .78rem; white-space: normal; line-height: 1.2; touch-action: manipulation; }
 #root .coop-lobby__intro { min-width: 0; }
 #root .coop-lobby__intro .mode-screen__eyebrow { display: block; font-size: .56rem; letter-spacing: .12em; }
 #root .coop-lobby__intro h1 { margin: 4px 0; font-size: clamp(1.15rem, 4.5vw, 1.7rem); line-height: 1.08; }
@@ -76,7 +78,8 @@
 
 /* Three clear connection choices, without scaling the menu to unreadable text. */
 #root .coop-mode-screen .mode-screen__panel { max-height: 100%; overflow-y: auto; }
-#root .coop-mode-screen .mode-screen__actions--coop { min-width: 0; }
+#root .coop-mode-screen .mode-screen__actions.mode-screen__actions--coop { min-width: 0; grid-template-columns: minmax(0, 1fr); }
+#root .coop-mode-screen .game-menu-action__copy :is(strong, small) { overflow-wrap: normal; word-break: normal; }
 #root .coop-briefing-screen .mode-screen__panel { overflow-y: auto; }
 #root .coop-briefing-screen .same-screen-ships__grid { grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); }
 #root .coop-briefing-screen .mode-screen__actions--briefing { position: sticky; bottom: 0; padding-top: 8px; background: #07131ff5; }
@@ -144,7 +147,7 @@
   #root .coop-mode-screen .mode-screen__eyebrow { grid-column: 1; align-self: end; }
   #root .coop-mode-screen .mode-screen__panel h1 { grid-column: 1; margin: 0; font-size: clamp(1.3rem, 5dvh, 2rem); }
   #root .coop-mode-screen .mode-screen__panel > p { grid-column: 1; font-size: .8rem; overflow-y: auto; }
-  #root .coop-mode-screen .mode-screen__actions--coop { grid-column: 2; grid-row: 1 / 4; display: grid; grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; overflow-y: auto; }
+  #root .coop-mode-screen .mode-screen__actions--coop { grid-column: 2; grid-row: 1 / 4; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: repeat(3, minmax(min-content, 1fr)); gap: 8px; margin: 0; overflow-y: auto; }
   #root .coop-mode-screen .game-menu-action { min-height: 64px; padding-block: 8px; }
   #root .coop-mode-screen .game-menu-action__copy strong { font-size: 1rem; }
   #root .coop-mode-screen .game-menu-action__copy small { font-size: .74rem; }
