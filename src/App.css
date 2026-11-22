@@ -4404,3 +4404,15 @@ body {
     width: 22vw;
   }
 }
+
+/* Public room discovery stays within the existing co-op panel in either view. */
+.raid-lobby__directory { margin-top: 18px; padding: 14px; border: 1px solid #7dd3fc33; background: #081522b8; }
+.raid-lobby__directory-heading, .raid-lobby__listed-room { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.raid-lobby__directory-heading h2 { margin: 0; font-size: 1rem; }
+.raid-lobby__directory-rooms { display: grid; gap: 8px; max-height: 230px; overflow-y: auto; }
+.raid-lobby__listed-room { padding: 10px 0; border-bottom: 1px solid #7dd3fc22; }
+.raid-lobby__listed-room > div { display: grid; gap: 4px; min-width: 0; }
+.raid-lobby__listed-room strong { overflow-wrap: anywhere; }
+.raid-lobby__listed-room small, .raid-lobby__directory p { color: #a5bfd2; font-size: .8rem; }
+.raid-lobby__visibility { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: .85rem; }
+.raid-lobby__visibility input { width: 18px; height: 18px; padding: 0; flex: 0 0 18px; accent-color: #67e8f9; }

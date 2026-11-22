@@ -1,3 +1,4 @@
+import { CoopLink, readCoopInput } from './coopLink'
 import { isOrganicBoss } from './destructionProfile'
 import { drawDestructionEffects } from './destructionEffects'
 import { EnemyTactics } from './enemyTactics'
@@ -65,7 +66,7 @@ import { DEFAULT_RAID_PALETTE, PixiRaidBackground, RAID_BOSS_BACKGROUND_THEME_FI
 import type { RaidPalette } from './background'
 import { forEachDevilBossBeamLane, forEachFinalBossBeamLane, getDevilBossBeamRadius, getDevilBossChargeDuration, getFinalBossBeamLaneCount, getFinalBossBeamRadius } from './bossAttacks'
 import { clearNormalEnemyRasters, drawRaidEnemy, getNormalEnemyFilter, pruneNormalEnemyRasters } from './bossRender'
-import { ALLY_PLAYER_COLOR, ASTEROID_CLUSTER_SPAWN_DELAY_SECONDS, ASTEROID_CLUSTER_WARNING_SECONDS, BOSS_COLORS, BOSS_ENTRANCE_SLAM_SECONDS, BOSS_ENTRANCE_SLOWMO_SCALE, BOSS_RESPAWN_SECONDS, BOSS_RUSH_ATTACK_COOLDOWN_SCALE, BOSS_RUSH_ENTRY_SPEED_SCALE, BOSS_RUSH_MOTION_SCALE, BOSS_RUSH_SPECIAL_RECHARGE_SCALE, BOSS_RUSH_STAGES, CORE_LANDER_AOE_RADIUS, DARK_ENEMY_COLORS, DEG, DEVIL_BOSS_MAX_STAGE_GAP, DEVIL_BOSS_MIN_STAGE_GAP, DIFFICULTY_CONFIGS, ELITE_POWER_DROP_CHANCE, EMPTY_WEAPON_FLAGS, EMPTY_WEAPON_TIMERS, FINAL_BOSS_BEAM_CHARGE_SECONDS, FINAL_BOSS_BEAM_LIFE_SECONDS, FORCE_FIELD_ARMOR, GAMEPLAY_ALERT_SNAPSHOT_INTERVAL_MS, GAMEPLAY_SNAPSHOT_INTERVAL_MS, GOD_GUNDAM_BARRAGE_DURATION_SECONDS, GOD_GUNDAM_BARRAGE_HIT_INTERVAL_SECONDS, GOD_GUNDAM_DEFEAT_HOLD_SECONDS, GOD_GUNDAM_MELEE_DAMAGE_PER_SECOND, GOD_GUNDAM_MELEE_EXHAUST_COOLDOWN_SECONDS, GOD_GUNDAM_MELEE_EXHAUST_LIMIT_SECONDS, GOD_GUNDAM_MELEE_HEAT_RECOVERY_PER_SECOND, GOD_GUNDAM_MELEE_VISUAL_DURATION_SECONDS, GOD_GUNDAM_MELEE_VISUAL_INTERVAL_SECONDS, HEIGHT, HOMING_RETARGET_SECONDS, HOMING_RETARGET_STAGGER_SECONDS, IDLE_SNAPSHOT_INTERVAL_MS, MAX_ASTEROIDS, MAX_ION_STRIKES, MAX_METEORS, MAX_RAID_STAGE, MAX_WRECKS, MESIAH_DRONE_FIRE_INTERVAL_SECONDS, MESIAH_ROCKET_FIRE_INTERVAL_SECONDS, MINI_BOSS_COLORS, MULTIPLAYER_BOSS_HP_MULTIPLIER, MULTIPLAYER_CONNECTION_CHECK_MS, MULTIPLAYER_CORRECTION_DRAIN_RATE, MULTIPLAYER_ENTITY_MARGIN, MULTIPLAYER_GUEST_SNAP_DISTANCE_SQ, MULTIPLAYER_GUEST_STALE_MS, MULTIPLAYER_HEARTBEAT_INTERVAL_MS, MULTIPLAYER_HEARTBEAT_TIMEOUT_MS, MULTIPLAYER_INPUT_INTERVAL_MS, MULTIPLAYER_MAX_ASTEROIDS, MULTIPLAYER_MAX_BUFFERED_BYTES, MULTIPLAYER_MAX_ENEMIES, MULTIPLAYER_MAX_ENEMY_SHOTS, MULTIPLAYER_MAX_GUEST_CORRECTION, MULTIPLAYER_MAX_ION_STRIKES, MULTIPLAYER_MAX_METEORS, MULTIPLAYER_MAX_POWERUPS, MULTIPLAYER_MAX_RIPPLES, MULTIPLAYER_MAX_SHOTS, MULTIPLAYER_MAX_SPARKS, MULTIPLAYER_MAX_WRECKS, MULTIPLAYER_REMOTE_BUFFER_MAX, MULTIPLAYER_REMOTE_CORRECTION_BLEND, MULTIPLAYER_REMOTE_INPUT_BLEND, MULTIPLAYER_REMOTE_INPUT_SNAP_DISTANCE_SQ, MULTIPLAYER_STATE_INTERVAL_MS, MULTIPLAYER_STATE_LOST_MS, MULTIPLAYER_STATE_STALE_MS, NORMAL_POWER_DROP_COOLDOWN, NUKE_FLASH_SECONDS, NUKE_MISSILE_SECONDS, PLAYER_COLOR, PLAYER_MAX_RANK, POWER_PITY_KILLS, RAID_BACKGROUND_THEME_COUNT, RAID_CHECKPOINTS, RANDOM_EVENT_WARNING_SECONDS, SHIP_OPTIONS, SIDE_VALUES, SPACE_ET_PASSIVE_FORCE_FIELD_CHARGES, SPIEGEL_KUNAI_DAMAGE_MULTIPLIER, SPIEGEL_KUNAI_SPLASH_DAMAGE_MULTIPLIER, SPIEGEL_SHADOW_CLONE_OFFSET, STAGE_CLEAR_SECONDS, STAGE_ENTRY_SECONDS, VICTORY_BLACKOUT_SECONDS, WEAPON_FIRE_INTERVALS, WEAPON_KEYS, WEAPON_STACK_CAPS, WIDTH, getBossRushStage, getNextBossRushStage, getShipSpriteSize, pickEndlessBossKind, shouldForceLocalDerelictWreckTest, shouldForceLocalDevilBossTest } from './constants'
+import { ALLY_PLAYER_COLOR, ASTEROID_CLUSTER_SPAWN_DELAY_SECONDS, ASTEROID_CLUSTER_WARNING_SECONDS, BOSS_COLORS, BOSS_ENTRANCE_SLAM_SECONDS, BOSS_ENTRANCE_SLOWMO_SCALE, BOSS_RESPAWN_SECONDS, BOSS_RUSH_ATTACK_COOLDOWN_SCALE, BOSS_RUSH_ENTRY_SPEED_SCALE, BOSS_RUSH_MOTION_SCALE, BOSS_RUSH_SPECIAL_RECHARGE_SCALE, BOSS_RUSH_STAGES, CORE_LANDER_AOE_RADIUS, DARK_ENEMY_COLORS, DEG, DEVIL_BOSS_MAX_STAGE_GAP, DEVIL_BOSS_MIN_STAGE_GAP, DIFFICULTY_CONFIGS, ELITE_POWER_DROP_CHANCE, EMPTY_WEAPON_FLAGS, EMPTY_WEAPON_TIMERS, FINAL_BOSS_BEAM_CHARGE_SECONDS, FINAL_BOSS_BEAM_LIFE_SECONDS, FORCE_FIELD_ARMOR, GAMEPLAY_ALERT_SNAPSHOT_INTERVAL_MS, GAMEPLAY_SNAPSHOT_INTERVAL_MS, GOD_GUNDAM_BARRAGE_DURATION_SECONDS, GOD_GUNDAM_BARRAGE_HIT_INTERVAL_SECONDS, GOD_GUNDAM_DEFEAT_HOLD_SECONDS, GOD_GUNDAM_MELEE_DAMAGE_PER_SECOND, GOD_GUNDAM_MELEE_EXHAUST_COOLDOWN_SECONDS, GOD_GUNDAM_MELEE_EXHAUST_LIMIT_SECONDS, GOD_GUNDAM_MELEE_HEAT_RECOVERY_PER_SECOND, GOD_GUNDAM_MELEE_VISUAL_DURATION_SECONDS, GOD_GUNDAM_MELEE_VISUAL_INTERVAL_SECONDS, HEIGHT, HOMING_RETARGET_SECONDS, HOMING_RETARGET_STAGGER_SECONDS, IDLE_SNAPSHOT_INTERVAL_MS, MAX_ASTEROIDS, MAX_ION_STRIKES, MAX_METEORS, MAX_RAID_STAGE, MAX_WRECKS, MESIAH_DRONE_FIRE_INTERVAL_SECONDS, MESIAH_ROCKET_FIRE_INTERVAL_SECONDS, MINI_BOSS_COLORS, MULTIPLAYER_BOSS_HP_MULTIPLIER, MULTIPLAYER_CONNECTION_CHECK_MS, MULTIPLAYER_CORRECTION_DRAIN_RATE, MULTIPLAYER_ENTITY_MARGIN, MULTIPLAYER_GUEST_SNAP_DISTANCE_SQ, MULTIPLAYER_GUEST_STALE_MS, MULTIPLAYER_HEARTBEAT_INTERVAL_MS, MULTIPLAYER_HEARTBEAT_TIMEOUT_MS, MULTIPLAYER_MAX_ASTEROIDS, MULTIPLAYER_MAX_BUFFERED_BYTES, MULTIPLAYER_MAX_ENEMIES, MULTIPLAYER_MAX_ENEMY_SHOTS, MULTIPLAYER_MAX_GUEST_CORRECTION, MULTIPLAYER_MAX_ION_STRIKES, MULTIPLAYER_MAX_METEORS, MULTIPLAYER_MAX_POWERUPS, MULTIPLAYER_MAX_RIPPLES, MULTIPLAYER_MAX_SHOTS, MULTIPLAYER_MAX_SPARKS, MULTIPLAYER_MAX_WRECKS, MULTIPLAYER_REMOTE_BUFFER_MAX, MULTIPLAYER_REMOTE_CORRECTION_BLEND, MULTIPLAYER_REMOTE_INPUT_BLEND, MULTIPLAYER_REMOTE_INPUT_SNAP_DISTANCE_SQ, MULTIPLAYER_STATE_LOST_MS, MULTIPLAYER_STATE_STALE_MS, NORMAL_POWER_DROP_COOLDOWN, NUKE_FLASH_SECONDS, NUKE_MISSILE_SECONDS, PLAYER_COLOR, PLAYER_MAX_RANK, POWER_PITY_KILLS, RAID_BACKGROUND_THEME_COUNT, RAID_CHECKPOINTS, RANDOM_EVENT_WARNING_SECONDS, SHIP_OPTIONS, SIDE_VALUES, SPACE_ET_PASSIVE_FORCE_FIELD_CHARGES, SPIEGEL_KUNAI_DAMAGE_MULTIPLIER, SPIEGEL_KUNAI_SPLASH_DAMAGE_MULTIPLIER, SPIEGEL_SHADOW_CLONE_OFFSET, STAGE_CLEAR_SECONDS, STAGE_ENTRY_SECONDS, VICTORY_BLACKOUT_SECONDS, WEAPON_FIRE_INTERVALS, WEAPON_KEYS, WEAPON_STACK_CAPS, WIDTH, getBossRushStage, getNextBossRushStage, getShipSpriteSize, pickEndlessBossKind, shouldForceLocalDerelictWreckTest, shouldForceLocalDevilBossTest } from './constants'
 import { drawBossAttackZones, drawAsteroidHazard, drawAsteroidWarning, drawDerelictWreck, drawDevilChargeWarnings, drawFinalChargeLines, drawGodGundamBarrage, drawGodGundamPassiveStrikes, drawIonStrike, drawMeteorHazard, drawNukeBlast, drawNukeMissile, drawHomingTargetLock, drawPowerUpCanvas, drawRandomEventOverlay, drawRandomEventWarning, getHomingMissileSprite, godBarrageDamageTargetsScratch } from './effectsRender'
 import { createAsteroidHazard, getAsteroidHp, getAsteroidClusterInterval, getRandomEventDuration, getRandomEventInterval, getRaidAmbushLane, getRaidAmbushWaveSize, RAID_AMBUSH_WAVE_SPACING, pickNextRandomRaidEventKind, splitAsteroidHazard } from './events'
 import { RAID_FX_CANVAS_CONTEXT_SETTINGS, getRaidGraphicsProfile, makeRaidViewportMetrics } from './graphics'
@@ -78,7 +79,7 @@ import { clearRaidSpatialHash, createRaidSpatialHash, insertRaidSpatialHash, que
 import type { RaidViewportMetrics } from './graphics'
 import { clearPickupLoadout, extendLoadoutForSuperBoss, getPowerScore, resetStageLoadout } from './loadout'
 import { acquireHomingTarget, animateStageClearPlayer, applyRiftPullToPlayer, applyStartingStageLevel, fullyBuffRaidPlayer, getCoreLanderFireInterval, getGodGundamBarrageBossDamage, getGodGundamBarrageDamageMultiplier, getGodGundamMeleeDamagePerSecond, getGodGundamMeleeRange, getGodGundamPassivePose, getGodGundamStageAttackBonus, getNukeBossDamage, getNukeCooldownSeconds, getPlayerBaseAttack, getRiftCenter, getSpiegelShadowCloneDamageMultiplier, hasSpiegelShadowClones, isCoreLanderBurning, levelUpPlayer, movePlayerWithInput, revivePlayerForBossClear, updatePlayerTimers } from './mechanics'
-import { clampNetworkVelocity, cloneAsteroid, cloneDerelictWreck, cloneEnemy, cloneIonStrike, cloneMeteor, cloneRaidRandomEvent, cloneVec, compactPlayer, compactVec, getBufferedAsteroidVisuals, getBufferedEnemyVisuals, getBufferedPlayerVisual, getConnectionLabel, getGuestShotTtlMs, getOwnCorrectionBlend, getPlayerPickupAudioKind, getRemoteInterpolationDelayMs, hasClearedRaidInProgress, isNetworkVisible, keepNetworkVisibleInPlace, reconcilePlayerVisual, updateDerelictWreckMotion } from './network'
+import { clampNetworkVelocity, cloneAsteroid, cloneDerelictWreck, cloneEnemy, cloneIonStrike, cloneMeteor, cloneRaidRandomEvent, cloneVec, compactPlayer, compactVec, getBufferedAsteroidVisuals, getBufferedEnemyVisuals, getBufferedPlayerVisual, getConnectionLabel, getGuestShotTtlMs, getOwnCorrectionBlend, getPlayerPickupAudioKind, hasClearedRaidInProgress, isNetworkVisible, keepNetworkVisibleInPlace, reconcilePlayerVisual, updateDerelictWreckMotion } from './network'
 import { getRaidBankingFrame } from './bankingArt'
 import { drawRaidOptions, drawRaidPlayer, getCoreBlastSprite, getRaidPlayerFlightBank, warmRaidBankingArt } from './playerRender'
 import { getRaidAssetPreloadInitialState, preloadGradiusRaidAssets, warmRaidGeneratedEffectSprites } from './preload'
@@ -239,6 +240,9 @@ export function GradiusRaid({
   const selectedShipRef = useRef<ShipOption>(initialShip)
   const progressRef = useRef(loadProgress())
   const shipCosmeticsCacheRef = useRef(new Map<string, { progress: ReturnType<typeof loadProgress>, cosmetics: Required<ShipCosmeticEquipState> }>())
+  const [coopLink] = useState(() => new CoopLink())
+  const pendingCoopStateRef = useRef<MultiplayerHostState|null>(null)
+  const guestInputAckRef = useRef<{seq:number;x:number;y:number}|undefined>(undefined)
   const multiplayerSessionRef = useRef<RaidMultiplayerSession | null>(multiplayerSession ?? null)
   const sameScreenCoopRef = useRef(sameScreenCoop)
   const sameScreenGuestShipKeyRef = useRef(sameScreenGuestShipKey)
@@ -603,14 +607,18 @@ export function GradiusRaid({
     if (!session || session.socket.readyState !== WebSocket.OPEN) return
 
     try {
-      session.socket.send(JSON.stringify({ type: 'game-message', payload }))
+      const encoded=JSON.stringify({ type: 'game-message', payload })
+      if(payload.type==='state')coopLink.recordPacket(encoded.length)
+      session.socket.send(encoded)
     } catch {
-      multiplayerSessionRef.current = null
+      session.socket.close()
     }
   }, [])
 
   const buildMultiplayerState = useCallback((): MultiplayerHostState => ({
     seq: ++multiplayerStateSeqRef.current,
+    sentAt: performance.now(),
+    guestInputAck: guestInputAckRef.current ? {...guestInputAckRef.current} : undefined,
     presentationEvents: scenePresentation.snapshot(),
     phase: phaseRef.current,
     hostPlayer: compactPlayer(playerRef.current),
@@ -656,26 +664,27 @@ export function GradiusRaid({
   }), [])
 
   const applyMultiplayerState = useCallback((state: MultiplayerHostState) => {
-    if (state.seq <= multiplayerLastAppliedSeqRef.current) return
+    if (!Number.isSafeInteger(state.seq) || state.seq <= multiplayerLastAppliedSeqRef.current) return
     multiplayerLastAppliedSeqRef.current = state.seq
 
     const session = multiplayerSessionRef.current
     const now = performance.now()
     if (session && !session.isHost) {
+      const packetAt=coopLink.observeState(state.sentAt,now)
       const hostBuffer = multiplayerHostSnapshotBufferRef.current
-      hostBuffer.push({ at: now, player: clonePlayer(state.hostPlayer) })
+      hostBuffer.push({ at: packetAt, player: clonePlayer(state.hostPlayer) })
       if (hostBuffer.length > MULTIPLAYER_REMOTE_BUFFER_MAX) {
         hostBuffer.splice(0, hostBuffer.length - MULTIPLAYER_REMOTE_BUFFER_MAX)
       }
 
       const enemyBuffer = multiplayerEnemySnapshotBufferRef.current
-      enemyBuffer.push({ at: now, enemies: state.enemies.map(cloneEnemy) })
+      enemyBuffer.push({ at: packetAt, enemies: state.enemies.map(cloneEnemy) })
       if (enemyBuffer.length > MULTIPLAYER_REMOTE_BUFFER_MAX) {
         enemyBuffer.splice(0, enemyBuffer.length - MULTIPLAYER_REMOTE_BUFFER_MAX)
       }
 
       const asteroidBuffer = multiplayerAsteroidSnapshotBufferRef.current
-      asteroidBuffer.push({ at: now, asteroids: (state.asteroids ?? []).map(cloneAsteroid) })
+      asteroidBuffer.push({ at: packetAt, asteroids: (state.asteroids ?? []).map(cloneAsteroid) })
       if (asteroidBuffer.length > MULTIPLAYER_REMOTE_BUFFER_MAX) {
         asteroidBuffer.splice(0, asteroidBuffer.length - MULTIPLAYER_REMOTE_BUFFER_MAX)
       }
@@ -683,7 +692,7 @@ export function GradiusRaid({
       const previousHost = multiplayerLastHostStateRef.current
       const previousTime = multiplayerLastHostPacketTimeRef.current
       if (previousHost && previousTime > 0) {
-        const packetDt = clamp((now - previousTime) / 1000, 0.016, 0.18)
+        const packetDt = clamp(coopLink.sourceStepMs / 1000, 0.016, 0.5)
         multiplayerHostVisualVelocityRef.current = {
           x: clampNetworkVelocity((state.hostPlayer.x - previousHost.x) / packetDt),
           y: clampNetworkVelocity((state.hostPlayer.y - previousHost.y) / packetDt),
@@ -717,14 +726,17 @@ export function GradiusRaid({
         // Do NOT pull position toward the host's stale value every packet �
         // that would create a constant backward drag proportional to ping.
         // Instead, measure the error and drain it invisibly over ~125 ms.
-        const errX = nextGuestPlayer.x - current.x
-        const errY = nextGuestPlayer.y - current.y
+        const correction=state.guestInputAck
+          ?coopLink.correction(state.guestInputAck)
+          :{x:nextGuestPlayer.x-current.x,y:nextGuestPlayer.y-current.y}
+        const errX = correction?.x ?? 0
+        const errY = correction?.y ?? 0
         const errSq = errX * errX + errY * errY
         const ownCorrectionBlend = getOwnCorrectionBlend(multiplayerRttRef.current)
         if (errSq > MULTIPLAYER_GUEST_SNAP_DISTANCE_SQ) {
           // Extreme divergence only: snap immediately
-          current.x = nextGuestPlayer.x
-          current.y = nextGuestPlayer.y
+          current.x = clamp(current.x+errX,4,96)
+          current.y = clamp(current.y+errY,13,93)
           guestPositionCorrectionRef.current = { x: 0, y: 0 }
         } else {
           // Accumulate a small fraction of the error; predictGuestPlayer drains it
@@ -962,16 +974,17 @@ export function GradiusRaid({
 
   const sendMultiplayerInput = useCallback((time: number) => {
     const session = multiplayerSessionRef.current
-    if (!session || session.isHost || time - multiplayerLastSendRef.current < MULTIPLAYER_INPUT_INTERVAL_MS) return
-    if (session.socket.bufferedAmount > MULTIPLAYER_MAX_BUFFERED_BYTES) return
+    if (!session || session.isHost || time - multiplayerLastSendRef.current < coopLink.inputInterval) return
+    if (session.socket.bufferedAmount > coopLink.canQueueBytes) return
     multiplayerLastSendRef.current = time
 
     sendGamePayload({
       type: 'input',
       input: {
+        seq: coopLink.remember(remotePlayerRef.current),
         target: cloneVec(pointerTargetRef.current),
         pointer: cloneVec(pointerVisualRef.current),
-        position: remotePlayerRef.current ? compactVec(remotePlayerRef.current) : null,
+        position: remotePlayerRef.current ? compactVec({x:remotePlayerRef.current.x,y:remotePlayerRef.current.y}) : null,
         keys: [...keysRef.current],
         nuke: multiplayerLocalNukeRef.current,
         shipSizeScale: shipSizeRef.current,
@@ -982,8 +995,8 @@ export function GradiusRaid({
 
   const sendMultiplayerState = useCallback((time: number) => {
     const session = multiplayerSessionRef.current
-    if (!session || !session.isHost || time - multiplayerLastSendRef.current < MULTIPLAYER_STATE_INTERVAL_MS) return
-    if (session.socket.bufferedAmount > MULTIPLAYER_MAX_BUFFERED_BYTES) return
+    if (!session || !session.isHost || time - multiplayerLastSendRef.current < coopLink.stateInterval) return
+    if (session.socket.bufferedAmount > coopLink.canQueueBytes) return
     multiplayerLastSendRef.current = time
     sendGamePayload({ type: 'state', state: buildMultiplayerState() })
   }, [buildMultiplayerState, sendGamePayload])
@@ -1074,7 +1087,7 @@ export function GradiusRaid({
     const hostPlayer = playerRef.current
     const bufferedHost = getBufferedPlayerVisual(
       multiplayerHostSnapshotBufferRef.current,
-      performance.now() - getRemoteInterpolationDelayMs(multiplayerRttRef.current),
+      coopLink.renderAt(performance.now()),
     )
     if (bufferedHost) {
       playerRef.current = bufferedHost
@@ -1110,7 +1123,7 @@ export function GradiusRaid({
 
     const bufferedEnemies = getBufferedEnemyVisuals(
       multiplayerEnemySnapshotBufferRef.current,
-      performance.now() - getRemoteInterpolationDelayMs(multiplayerRttRef.current),
+      coopLink.renderAt(performance.now()),
     )
     if (bufferedEnemies) {
       enemiesRef.current = bufferedEnemies
@@ -1133,7 +1146,7 @@ export function GradiusRaid({
 
     const bufferedAsteroids = getBufferedAsteroidVisuals(
       multiplayerAsteroidSnapshotBufferRef.current,
-      performance.now() - getRemoteInterpolationDelayMs(multiplayerRttRef.current),
+      coopLink.renderAt(performance.now()),
     )
     if (bufferedAsteroids) {
       asteroidsRef.current = bufferedAsteroids
@@ -1224,6 +1237,8 @@ export function GradiusRaid({
     if (socket.readyState !== WebSocket.OPEN) {
       quality = 'offline'
     } else {
+      const ping=coopLink.ping(time)
+      if(ping)sendGamePayload(ping)
       if (
         time - multiplayerLastHeartbeatRef.current >= MULTIPLAYER_HEARTBEAT_INTERVAL_MS &&
         multiplayerHeartbeatSentAtRef.current === 0
@@ -1263,7 +1278,10 @@ export function GradiusRaid({
         else if (hostPacketAge > MULTIPLAYER_STATE_STALE_MS && quality === 'good') quality = 'poor'
       } else if (remotePlayerRef.current && multiplayerLastGuestInputAtRef.current > 0) {
         const guestInputAge = time - multiplayerLastGuestInputAtRef.current
-        if (guestInputAge > MULTIPLAYER_GUEST_STALE_MS && quality === 'good') quality = 'poor'
+        if (guestInputAge > MULTIPLAYER_GUEST_STALE_MS) {
+          if(quality==='good')quality='poor'
+          remotePointerTargetRef.current=null;remoteKeysRef.current.clear()
+        }
       }
     }
 
@@ -1276,13 +1294,18 @@ export function GradiusRaid({
       if (current.quality === quality && current.label === label && currentBucket === nextBucket) return current
       return { quality, label, rtt }
     })
-  }, [])
+  }, [sendGamePayload])
 
   useEffect(() => {
     const session = multiplayerSession
     if (!session) return
 
     multiplayerSessionRef.current = session
+    if(coopLink.configure(session.connectionMode==='local',session.peerId+':'+session.roomCode)){
+      guestInputAckRef.current=undefined;pendingCoopStateRef.current=null
+      multiplayerLastAppliedSeqRef.current=0;multiplayerLastSendRef.current=0
+      resetGuestPredictionState()
+    }
     const socket = session.socket
 
     socket.onmessage = null
@@ -1308,6 +1331,7 @@ export function GradiusRaid({
             remotePointerVisualRef.current = null
             remoteKeysRef.current = new Set()
             multiplayerSessionRef.current = null
+            socket.close()
             syncSnapshot()
           } else {
             multiplayerSessionRef.current = null
@@ -1326,7 +1350,7 @@ export function GradiusRaid({
         const sentAt = multiplayerHeartbeatSentAtRef.current
         if (sentAt > 0) {
           const rtt = performance.now() - sentAt
-          multiplayerRttRef.current = multiplayerRttRef.current === null
+          if(coopLink.rtt===null)multiplayerRttRef.current = multiplayerRttRef.current === null
             ? rtt
             : (multiplayerRttRef.current * 0.7) + (rtt * 0.3)
           multiplayerHeartbeatSentAtRef.current = 0
@@ -1335,15 +1359,25 @@ export function GradiusRaid({
       }
 
       if (message.type !== 'game-message') return
-      if (message.from === session.peerId) return
+      if (message.from === session.peerId || !session.players.some(player=>player.id===message.from)) return
+      if('roomCode' in message && typeof message.roomCode==='string' && message.roomCode!==session.roomCode)return
 
       const payload = 'payload' in message
-        ? message.payload as { type?: unknown; input?: MultiplayerInput; state?: MultiplayerHostState }
+        ? message.payload as { type?: unknown; id?: unknown; input?: MultiplayerInput; state?: MultiplayerHostState }
         : null
       if (!payload || typeof payload !== 'object') return
 
+      if(payload.type==='link-ping' && Number.isSafeInteger(payload.id)){
+        sendGamePayload({type:'link-pong',id:payload.id});return
+      }
+      if(payload.type==='link-pong'){
+        coopLink.pong(payload.id,performance.now())
+        if(coopLink.rtt!==null)multiplayerRttRef.current=coopLink.rtt
+        return
+      }
       if (session.isHost && payload.type === 'input' && payload.input) {
-        const input = payload.input
+        const input = readCoopInput(payload.input)
+        if(!input || !coopLink.acceptInput(input.seq))return
         multiplayerLastGuestInputAtRef.current = performance.now()
         remotePointerTargetRef.current = cloneVec(input.target)
         remotePointerVisualRef.current = cloneVec(input.pointer)
@@ -1365,23 +1399,33 @@ export function GradiusRaid({
             remotePlayer.y += dy * MULTIPLAYER_REMOTE_INPUT_BLEND
           }
         }
+        if(remotePlayer && input.seq!==undefined)guestInputAckRef.current={seq:input.seq,x:remotePlayer.x,y:remotePlayer.y}
       } else if (!session.isHost && payload.type === 'state' && payload.state) {
-        applyMultiplayerState(payload.state)
+        const incoming=payload.state
+        if(Number.isSafeInteger(incoming.seq) && incoming.seq>multiplayerLastAppliedSeqRef.current && incoming.seq>(pendingCoopStateRef.current?.seq ?? 0))pendingCoopStateRef.current=incoming
       }
     }
 
-    socket.onclose = () => {
+    const handleSocketClose = () => {
+      if(multiplayerSessionRef.current!==session)return
       multiplayerSessionRef.current = null
+      pendingCoopStateRef.current=null
+      remotePointerTargetRef.current=null;remotePointerVisualRef.current=null;remoteKeysRef.current.clear()
       multiplayerConnectionQualityRef.current = 'offline'
-      setMultiplayerConnection({ quality: 'offline', label: 'Reconnecting', rtt: multiplayerRttRef.current })
+      setMultiplayerConnection({ quality: 'offline', label: 'Disconnected', rtt: multiplayerRttRef.current })
+      if(session.isHost){remotePlayerRef.current=null;syncSnapshot()}
+      else {stopRaidBgmRef.current();stopBGM();onClose()}
     }
+    socket.onclose=handleSocketClose
 
     socket.addEventListener('message', handleSocketMessage)
 
     return () => {
       socket.removeEventListener('message', handleSocketMessage)
+      if(socket.onclose===handleSocketClose)socket.onclose=null
+      pendingCoopStateRef.current=null
     }
-  }, [applyMultiplayerState, multiplayerSession, onClose, syncSnapshot])
+  }, [applyMultiplayerState, multiplayerSession, onClose, resetGuestPredictionState, sendGamePayload, syncSnapshot])
 
   const addRipple = useCallback((x: number, y: number, color: string, size: number) => {
     const quality = graphicsQualityRef.current
@@ -7529,6 +7573,10 @@ export function GradiusRaid({
       const gameplayDt = entranceSlamActive ? dt * BOSS_ENTRANCE_SLOWMO_SCALE : dt
       if (!doorSequence?.busy && !document.hidden && (phaseRef.current === 'briefing' || (phaseRef.current === 'playing' && (initialLaunchRef.current || carrierStopRef.current?.remaining)))) carrierDeckAgeRef.current += dt
       const session = multiplayerSessionRef.current
+      if(session && !session.isHost && pendingCoopStateRef.current){
+        const state=pendingCoopStateRef.current;pendingCoopStateRef.current=null
+        applyMultiplayerState(state)
+      }
       if ((!session || session.isHost) && (session || !doorSequence?.busy)) updateGame(gameplayDt)
       // Tick the victory blackout on every client (host sets it in updateGame, guest in applyMultiplayerState)
       if (victoryBlackoutRef.current > 0) {
@@ -7640,7 +7688,7 @@ export function GradiusRaid({
       stopLoop()
       clearNormalEnemyRasters()
     }
-  }, [advanceGuestVisuals, drawFxCanvas, pauseFlight, pollRaidGamepads, predictGuestPlayer, sendMultiplayerInput, sendMultiplayerState, syncSnapshot, updateGame, updateMultiplayerConnection])
+  }, [applyMultiplayerState, advanceGuestVisuals, drawFxCanvas, pauseFlight, pollRaidGamepads, predictGuestPlayer, sendMultiplayerInput, sendMultiplayerState, syncSnapshot, updateGame, updateMultiplayerConnection])
 
   useEffect(() => {
     const p1Keys = new Set(['w', 'a', 's', 'd'])

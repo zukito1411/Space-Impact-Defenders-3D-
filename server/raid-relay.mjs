@@ -4,6 +4,9 @@ import pg from 'pg'
 
 const PORT = Number(process.env.PORT || 8787)
 const MAX_PAYLOAD_BYTES = 256 * 1024
+const MAX_GAMEPLAY_QUEUE_BYTES = 64 * 1024
+const MAX_PUBLIC_ROOMS = 64
+let directoryTimer = null
 const LEADERBOARD_MODES = ['ship_defense_normal', 'ship_defense_endless', 'gradius_solo', 'gradius_endless', 'gradius_boss_rush', 'gradius_multiplayer']
 const LEADERBOARD_MODE_SET = new Set(LEADERBOARD_MODES)
 const API_BODY_LIMIT_BYTES = 128 * 1024
@@ -32,9 +35,13 @@ const server = createServer(async (req, res) => {
       return
     }
 
+    if(req.method==='GET' && url.pathname==='/rooms'){writeJson(res,200,{rooms:publicRooms()});return}
+
     if (url.pathname === '/health') {
       writeJson(res, 200, {
         ok: true,
+        protocol:2,
+        capabilities:['public-rooms-v1','latest-gameplay-v1'],
         rooms: rooms.size,
         peers: peers.size,
         leaderboards: Boolean(leaderboardPool),
@@ -65,6 +72,8 @@ const server = createServer(async (req, res) => {
 })
 
 server.on('upgrade', (req, socket) => {
+  socket.setNoDelay(true)
+  socket.setKeepAlive(true,15000)
   const key = req.headers['sec-websocket-key']
   if (typeof key !== 'string') {
     socket.destroy()
@@ -96,14 +105,24 @@ server.on('upgrade', (req, socket) => {
     isHost: false,
     shipKey: 'rocket',
     visualShipKey: 'rocket',
+    listing:false,lastListAt:0,lastCreateAt:0,lastSeenAt:Date.now(),pendingGameplay:null,
   })
 
-  send(id, { type: 'hello', peerId: id })
+  send(id, { type: 'hello', peerId: id, capabilities:['public-rooms-v1','latest-gameplay-v1'] })
+  socket.on('drain',()=>{
+    const peer=peers.get(id)
+    if(peer?.pendingGameplay && !socket.destroyed && socket.writableLength<MAX_GAMEPLAY_QUEUE_BYTES){
+      const pending=peer.pendingGameplay;peer.pendingGameplay=null
+      writeFrame(socket,pending,0x1)
+    }
+    if(peer?.listing && !peer.roomCode && socket.writableLength<MAX_GAMEPLAY_QUEUE_BYTES)send(id,{type:'room-list',rooms:publicRooms()})
+  })
 
   let buffer = Buffer.alloc(0)
   let fragmentedMessage = null
 
   socket.on('data', (chunk) => {
+    const peer=peers.get(id);if(peer)peer.lastSeenAt=Date.now()
     buffer = Buffer.concat([buffer, chunk])
 
     try {
@@ -737,7 +756,14 @@ function handleMessage(id, message) {
   if (!peer || typeof message !== 'object' || message === null) return
 
   switch (message.type) {
+    case 'list-rooms': {
+      peer.listing=true
+      if(Date.now()-peer.lastListAt<1000)return
+      peer.lastListAt=Date.now();send(id,{type:'room-list',rooms:publicRooms()});break
+    }
     case 'create-room': {
+      if(Date.now()-peer.lastCreateAt<1500){send(id,{type:'error',message:'Please wait before creating another room.'});return}
+      peer.lastCreateAt=Date.now()
       leaveRoom(peer)
       peer.name = cleanName(message.name)
       peer.shipKey = cleanShipKey(message.shipKey)
@@ -746,7 +772,7 @@ function handleMessage(id, message) {
       peer.isHost = true
 
       const code = createRoomCode()
-      rooms.set(code, { code, hostId: id, peers: new Set([id]) })
+      rooms.set(code, { code, hostId: id, peers: new Set([id]),public:message.public===true,started:false,createdAt:Date.now() })
       peer.roomCode = code
 
       send(id, { type: 'room-created', room: snapshotRoom(code) })
@@ -762,6 +788,8 @@ function handleMessage(id, message) {
         return
       }
 
+      if(room.peers.has(id)){send(id,{type:'room-joined',room:snapshotRoom(code)});return}
+      if(room.started){send(id,{type:'error',message:'This room has already launched.'});return}
       if (room.peers.size >= 2 && !room.peers.has(id)) {
         send(id, { type: 'error', message: 'Room is full.' })
         return
@@ -813,6 +841,8 @@ function handleMessage(id, message) {
         return
       }
 
+      if(room.started)return
+      room.started=true;scheduleDirectory()
       broadcast(room.code, { type: 'game-started', room: snapshotRoom(room.code) })
       break
     }
@@ -822,11 +852,20 @@ function handleMessage(id, message) {
       const room = rooms.get(peer.roomCode)
       if (!room || !room.peers.has(id)) return
 
-      broadcast(room.code, {
-        type: 'game-message',
-        from: id,
-        payload: message.payload ?? null,
-      }, id)
+      const payload=message.payload
+      if(!payload || typeof payload!=='object' || !room.started)return
+      if(!['state','input','link-ping','link-pong'].includes(payload.type))return
+      if(payload.type==='state' && room.hostId!==id || payload.type==='input' && room.hostId===id)return
+      const encoded=Buffer.from(JSON.stringify({type:'game-message',roomCode:room.code,from:id,payload}),'utf8')
+      for(const peerId of room.peers)if(peerId!==id){
+        const receiver=peers.get(peerId)
+        if(!receiver || receiver.socket.destroyed)continue
+        if(payload.type==='state' || payload.type==='input'){
+          if(receiver.socket.writableLength>MAX_GAMEPLAY_QUEUE_BYTES){receiver.pendingGameplay=encoded;continue}
+          receiver.pendingGameplay=null
+        }
+        writeFrame(receiver.socket,encoded,0x1)
+      }
       break
     }
 
@@ -875,12 +914,15 @@ function leaveRoom(peer) {
     }
   }
 
+  if(room){broadcastRoom(room.code);scheduleDirectory()}
+  peer.pendingGameplay=null
   peer.roomCode = null
   peer.ready = false
   peer.isHost = false
 }
 
 function broadcastRoom(code) {
+  scheduleDirectory()
   const room = rooms.get(code)
   if (!room) return
 
@@ -897,12 +939,42 @@ function broadcast(code, message, exceptPeerId = null) {
   }
 }
 
+function publicRooms(){
+  const list=[]
+  for(const room of rooms.values()){
+    if(!room.public || room.started || room.peers.size!==1)continue
+    const host=peers.get(room.hostId)
+    if(!host || host.socket.destroyed)continue
+    list.push({code:room.code,hostName:host.name,shipKey:host.shipKey,playerCount:room.peers.size,capacity:2,createdAt:room.createdAt})
+  }
+  return list.sort((a,b)=>b.createdAt-a.createdAt).slice(0,MAX_PUBLIC_ROOMS)
+}
+function scheduleDirectory(){
+  if(directoryTimer)return
+  directoryTimer=setTimeout(()=>{
+    directoryTimer=null
+    const encoded=Buffer.from(JSON.stringify({type:'room-list',rooms:publicRooms()}),'utf8')
+    for(const peer of peers.values())if(peer.listing && !peer.roomCode && !peer.socket.destroyed && peer.socket.writableLength<MAX_GAMEPLAY_QUEUE_BYTES)writeFrame(peer.socket,encoded,0x1)
+  },200)
+  directoryTimer.unref()
+}
+// Browser WebSockets answer control pings automatically, including while in a lobby.
+const heartbeat=setInterval(()=>{
+  const now=Date.now()
+  for(const peer of peers.values()){
+    if(now-peer.lastSeenAt>45000){cleanupPeer(peer.id);peer.socket.destroy();continue}
+    if(!peer.socket.destroyed && peer.socket.writableLength<MAX_GAMEPLAY_QUEUE_BYTES)writeFrame(peer.socket,Buffer.alloc(0),0x9)
+  }
+},15000)
+heartbeat.unref()
+
 function snapshotRoom(code) {
   const room = rooms.get(code)
   if (!room) return null
 
   return {
     code: room.code,
+    public:Boolean(room.public),
     players: [...room.peers].map((peerId) => {
       const peer = peers.get(peerId)
       return {

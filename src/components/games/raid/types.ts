@@ -374,6 +374,7 @@ export type Snapshot = {
 }
 
 export type MultiplayerInput = {
+  seq?: number
   target: Vec | null
   pointer: Vec | null
   position: Vec | null
@@ -384,6 +385,8 @@ export type MultiplayerInput = {
 }
 
 export type MultiplayerHostState = {
+  sentAt?: number
+  guestInputAck?: {seq:number;x:number;y:number}
   presentationEvents?: DestructionPresentationEvent[]
   seq: number
   phase: GamePhase
@@ -453,6 +456,7 @@ export type RelayGameMessage =
 export type BriefingBossKind = Extract<BossKind, 'squid' | 'snake' | 'final' | 'devil'>
 
 export type RaidMultiplayerSession = {
+  connectionMode?: 'online' | 'local'
   socket: WebSocket
   peerId: string
   roomCode: string

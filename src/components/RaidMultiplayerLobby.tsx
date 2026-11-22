@@ -23,7 +23,8 @@ type RoomSnapshot = {
 }
 
 type RelayMessage =
-  | { type: 'hello'; peerId: string }
+  | { type: 'hello'; peerId: string; capabilities?: string[] }
+  | { type:'room-list'; rooms:PublicRoom[] }
   | { type: 'room-created' | 'room-joined' | 'room-update'; room: RoomSnapshot | null }
   | { type: 'game-started'; room: RoomSnapshot | null }
   | { type: 'game-message'; from: string; payload: unknown }
@@ -31,7 +32,10 @@ type RelayMessage =
   | { type: 'error'; message: string }
   | { type: 'pong'; at: number }
 
+type PublicRoom = {code:string;hostName:string;shipKey:string;playerCount:number;capacity:number;createdAt:number}
+
 export type RaidMultiplayerSession = {
+  connectionMode?: 'online' | 'local'
   socket: WebSocket
   peerId: string
   roomCode: string
@@ -157,6 +161,8 @@ export function RaidMultiplayerLobby({ playerName, language, connectionMode, onB
     : raidText.ships[shipKey as keyof typeof raidText.ships]?.name ?? getShipName(shipKey)
   const progress = useMemo(() => loadProgress(), [])
   const availableShipOptions = useMemo(() => getMultiplayerShipOptions(progress), [progress])
+  const messageHandlerRef = useRef<(message:RelayMessage)=>void>(()=>{})
+  const aliveRef = useRef(true)
   const socketRef = useRef<WebSocket | null>(null)
   const handoffRef = useRef(false)
   const roomRef = useRef<RoomSnapshot | null>(null)
@@ -168,6 +174,9 @@ export function RaidMultiplayerLobby({ playerName, language, connectionMode, onB
   })
   const onlineRelayUrl = useMemo(getDefaultRelayUrl, [])
   const [joinCode, setJoinCode] = useState('')
+  const [publicRooms,setPublicRooms]=useState<PublicRoom[]>([])
+  const [publicRoom,setPublicRoom]=useState(true)
+  const [directoryAvailable,setDirectoryAvailable]=useState<boolean|null>(null)
   const [localHostInput, setLocalHostInput] = useState('')
   const [localHostAddress, setLocalHostAddress] = useState('')
   const [room, setRoom] = useState<RoomSnapshot | null>(null)
@@ -202,7 +211,9 @@ export function RaidMultiplayerLobby({ playerName, language, connectionMode, onB
   }, [availableShipOptions, selectedShipKey])
 
   useEffect(() => {
+    aliveRef.current=true
     return () => {
+      aliveRef.current=false
       if (!handoffRef.current) {
         socketRef.current?.close()
         socketRef.current = null
@@ -211,6 +222,7 @@ export function RaidMultiplayerLobby({ playerName, language, connectionMode, onB
   }, [])
 
   const connect = (onOpen: (socket: WebSocket) => void, relayTarget = onlineRelayUrl) => {
+    if(!isLocalMode && socketRef.current?.readyState===WebSocket.OPEN){setError('');onOpen(socketRef.current);return}
     const url = normalizeRelayUrl(relayTarget, isLocalMode)
     if (!url) {
       setError(text.noService)
@@ -222,6 +234,7 @@ export function RaidMultiplayerLobby({ playerName, language, connectionMode, onB
     setStatus(text.connecting)
 
     socketRef.current?.close()
+    setPeerId(null);peerIdRef.current=null
     const socket = new WebSocket(url)
     socketRef.current = socket
     let opened = false
@@ -234,7 +247,7 @@ export function RaidMultiplayerLobby({ playerName, language, connectionMode, onB
         socketRef.current = null
       }
       socket.close()
-    }, 9000)
+    }, isLocalMode?9000:30000)
     const clearConnectTimeout = () => window.clearTimeout(connectTimeout)
 
     socket.onopen = () => {
@@ -250,7 +263,7 @@ export function RaidMultiplayerLobby({ playerName, language, connectionMode, onB
       if (socketRef.current !== socket) return
       try {
         const message = JSON.parse(event.data) as RelayMessage
-        handleRelayMessage(message)
+        if(!handoffRef.current)messageHandlerRef.current(message)
       } catch {
         setError(text.unreadable)
       }
@@ -265,9 +278,10 @@ export function RaidMultiplayerLobby({ playerName, language, connectionMode, onB
 
     socket.onclose = () => {
       clearConnectTimeout()
-      if (socketRef.current !== socket && socketRef.current !== null) return
+      if (socketRef.current !== socket || !aliveRef.current) return
       setConnecting(false)
       setStatus(text.disconnected)
+      setRoom(null);roomRef.current=null;setPublicRooms([]);setDirectoryAvailable(null)
       socketRef.current = null
     }
   }
@@ -283,23 +297,37 @@ export function RaidMultiplayerLobby({ playerName, language, connectionMode, onB
 
   const handleRelayMessage = (message: RelayMessage) => {
     if (message.type === 'hello') {
+      peerIdRef.current=message.peerId
       setPeerId(message.peerId)
+      if(!isLocalMode){
+        const available=message.capabilities?.includes('public-rooms-v1') ?? false
+        setDirectoryAvailable(available)
+        if(available)send(socketRef.current,{type:'list-rooms'})
+      }
       return
     }
 
+    if(message.type==='room-list'){
+      if(Array.isArray(message.rooms))setPublicRooms(message.rooms.filter(room=>room && typeof room.code==='string' && typeof room.hostName==='string' && room.playerCount===1 && room.capacity===2).slice(0,64))
+      setDirectoryAvailable(true);return
+    }
+
     if (message.type === 'room-created') {
+      roomRef.current=message.room
       setRoom(message.room)
-      setStatus(text.roomCreated)
+      setError('');setStatus(text.roomCreated)
       return
     }
 
     if (message.type === 'room-joined') {
+      roomRef.current=message.room
       setRoom(message.room)
-      setStatus(text.roomJoined)
+      setError('');setStatus(text.roomJoined)
       return
     }
 
     if (message.type === 'room-update') {
+      roomRef.current=message.room
       setRoom(message.room)
       if (message.room?.players.length === 2) {
         setStatus(text.secondLinked)
@@ -319,6 +347,7 @@ export function RaidMultiplayerLobby({ playerName, language, connectionMode, onB
       handoffRef.current = true
       onStart({
         socket,
+        connectionMode,
         peerId: currentPeerId,
         roomCode: startedRoom.code,
         isHost: ownPlayer.host,
@@ -328,7 +357,8 @@ export function RaidMultiplayerLobby({ playerName, language, connectionMode, onB
     }
 
     if (message.type === 'left-room') {
-      setRoom(null)
+      setRoom(null);roomRef.current=null
+      if(!isLocalMode && directoryAvailable)send(socketRef.current,{type:'list-rooms'})
       setStatus(text.leftRoom)
       return
     }
@@ -341,7 +371,7 @@ export function RaidMultiplayerLobby({ playerName, language, connectionMode, onB
   const hostRoom = () => {
     if (!isLocalMode) {
       connect((socket) => {
-        send(socket, { type: 'create-room', name: playerName, ...getSelectedShipPayload() })
+        send(socket, { type: 'create-room', name: playerName, public:!isLocalMode && publicRoom, ...getSelectedShipPayload() })
       })
       return
     }
@@ -355,6 +385,7 @@ export function RaidMultiplayerLobby({ playerName, language, connectionMode, onB
     setConnecting(true)
     setStatus(text.localHostStarting)
     void startLanRelay(8787).then((relay) => {
+      if(!aliveRef.current)return
       if (!relay.running) {
         setConnecting(false)
         setError(text.localHostUnavailable)
@@ -366,7 +397,7 @@ export function RaidMultiplayerLobby({ playerName, language, connectionMode, onB
       setLocalHostAddress(shareUrl.replace(/^ws:\/\//i, ''))
       setLocalHostInput(shareUrl.replace(/^ws:\/\//i, ''))
       connect((socket) => {
-        send(socket, { type: 'create-room', name: playerName, ...getSelectedShipPayload() })
+        send(socket, { type: 'create-room', name: playerName, public:!isLocalMode && publicRoom, ...getSelectedShipPayload() })
       }, `127.0.0.1:${port}`)
     }).catch(() => {
       setConnecting(false)
@@ -374,8 +405,8 @@ export function RaidMultiplayerLobby({ playerName, language, connectionMode, onB
     })
   }
 
-  const joinRoom = () => {
-    const code = joinCode.trim().toUpperCase()
+  const joinRoom = (listedCode?:string) => {
+    const code = (listedCode ?? joinCode).trim().toUpperCase()
     if (!code) {
       setError(text.enterCode)
       return
@@ -396,6 +427,7 @@ export function RaidMultiplayerLobby({ playerName, language, connectionMode, onB
       setConnecting(true)
       setStatus(text.connecting)
       void probeLanEndpoint(endpoint).then(() => {
+        if(!aliveRef.current)return
         connect((socket) => {
           send(socket, { type: 'join-room', name: playerName, roomCode: code, ...getSelectedShipPayload() })
         }, endpoint)
@@ -429,9 +461,21 @@ export function RaidMultiplayerLobby({ playerName, language, connectionMode, onB
 
   const leaveRoom = () => {
     send(socketRef.current, { type: 'leave-room' })
-    socketRef.current?.close()
-    setRoom(null)
+    if(isLocalMode)socketRef.current?.close()
+    setRoom(null);roomRef.current=null
   }
+
+  messageHandlerRef.current=handleRelayMessage
+  useEffect(()=>{
+    if(!isLocalMode)connect(()=>{})
+    const heartbeat=window.setInterval(()=>{
+      const socket=socketRef.current
+      if(socket?.readyState===WebSocket.OPEN && !handoffRef.current)socket.send(JSON.stringify({type:'ping'}))
+    },10000)
+    return ()=>window.clearInterval(heartbeat)
+  },[isLocalMode])
+
+  const refreshRooms=()=>connect(socket=>send(socket,{type:'list-rooms'}))
 
   return (
     <div className="mode-screen">
@@ -484,9 +528,28 @@ export function RaidMultiplayerLobby({ playerName, language, connectionMode, onB
           })}
         </div>
 
+        {!isLocalMode && !room ? (
+          <section className="raid-lobby__directory" aria-label={text.onlineRooms}>
+            <div className="raid-lobby__directory-heading">
+              <h2>{text.onlineRooms}</h2>
+              <GameButton tone="quiet" disabled={connecting || directoryAvailable===false} onClick={refreshRooms}>{text.refreshRooms}</GameButton>
+            </div>
+            <div className="raid-lobby__directory-rooms">
+              {publicRooms.map(listed=>(
+                <div className="raid-lobby__listed-room" key={listed.code}>
+                  <div><strong>{listed.hostName}</strong><small>{getLocalizedShipName(listed.shipKey)} · {listed.playerCount}/{listed.capacity}</small></div>
+                  <GameButton disabled={connecting} onClick={()=>joinRoom(listed.code)}>{text.join}</GameButton>
+                </div>
+              ))}
+            </div>
+            {!publicRooms.length && <p role="status">{directoryAvailable===false?text.directoryUnavailable:connecting?text.connecting:text.noOpenRooms}</p>}
+            <label className="raid-lobby__visibility"><input type="checkbox" checked={publicRoom} onChange={event=>setPublicRoom(event.target.checked)} />{text.listRoomPublicly}</label>
+          </section>
+        ):null}
+
         <div className={isLocalMode && !canHostLocalRelay ? 'raid-lobby__actions raid-lobby__actions--join-only' : 'raid-lobby__actions'}>
           {canHostLocalRelay ? (
-            <GameButton disabled={connecting} onClick={hostRoom}>
+            <GameButton disabled={connecting || Boolean(room)} onClick={hostRoom}>
               {isLocalMode ? text.startLanHost : text.hostRoom}
             </GameButton>
           ) : null}
@@ -512,7 +575,7 @@ export function RaidMultiplayerLobby({ playerName, language, connectionMode, onB
               spellCheck={false}
               onChange={(event) => setJoinCode(event.target.value.toUpperCase())}
             />
-            <GameButton disabled={connecting} onClick={joinRoom}>
+            <GameButton disabled={connecting || Boolean(room)} onClick={()=>joinRoom()}>
               {text.join}
             </GameButton>
           </label>
