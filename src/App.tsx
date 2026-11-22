@@ -1572,9 +1572,16 @@ function App() {
   if (screen === 'raidCoopMode') {
     const canUseLocalCoop = true
     const canUseSameScreenCoop = true
+    const touchCoop = window.matchMedia('(pointer: coarse)').matches
+    const choices = [
+      {key:'local',available:canUseLocalCoop,label:text.lobby.localCoopTitle,detail:text.lobby.localCoopDesc,launch:()=>{setRaidMultiplayerConnectionMode('local');setScreen('raidMultiplayer')}},
+      {key:'online',available:true,label:text.lobby.onlineCoopTitle,detail:text.lobby.onlineCoopDesc,launch:()=>{setRaidMultiplayerConnectionMode('online');setScreen('raidMultiplayer')}},
+      {key:'shared',available:canUseSameScreenCoop,label:text.lobby.sameScreenCoopTitle,detail:text.lobby.sameScreenCoopDesc,launch:()=>setScreen('raidSameScreenBriefing')},
+    ]
+    const orderedChoices = touchCoop ? choices : [choices[2],choices[0],choices[1]]
 
     return (
-      <div className="mode-screen">
+      <div className="mode-screen coop-mode-screen">
         <div className="mode-screen__panel">
           <GameButton tone="quiet" className="mode-screen__back" onClick={() => setScreen('rocketMode')}>
             {text.lobby.back}
@@ -1585,15 +1592,10 @@ function App() {
           <p>{canUseLocalCoop ? text.lobby.modeCopy : canUseSameScreenCoop ? text.lobby.sameScreenModeCopy : text.lobby.onlineCoopDesc}</p>
 
           <nav className="mode-screen__actions mode-screen__actions--coop" aria-label={text.lobby.modeTitle}>
-            {canUseSameScreenCoop && <GameMenuAction primary data-menu-default label={text.lobby.sameScreenCoopTitle} detail={text.lobby.sameScreenCoopDesc} onClick={() => setScreen('raidSameScreenBriefing')} />}
-            {canUseLocalCoop && <GameMenuAction label={text.lobby.localCoopTitle} detail={text.lobby.localCoopDesc} onClick={() => {
-              setRaidMultiplayerConnectionMode('local')
-              setScreen('raidMultiplayer')
-            }} />}
-            <GameMenuAction label={text.lobby.onlineCoopTitle} detail={text.lobby.onlineCoopDesc} onClick={() => {
-              setRaidMultiplayerConnectionMode('online')
-              setScreen('raidMultiplayer')
-            }} />
+            {orderedChoices.filter(choice=>choice.available).map((choice,index)=>(
+              <GameMenuAction key={choice.key} primary={index===0} data-menu-default={index===0?true:undefined}
+                label={choice.label} detail={choice.detail} onClick={choice.launch} />
+            ))}
           </nav>
           <GameMenuHints language={language} />
         </div>
@@ -1608,7 +1610,7 @@ function App() {
     const selectedGuestShip = sameScreenShipOptions.find((ship) => ship.key === sameScreenGuestShipKey) ?? sameScreenShipOptions[0]
 
     return (
-      <div className="mode-screen">
+      <div className="mode-screen coop-briefing-screen">
         <div className="mode-screen__panel mode-screen__panel--briefing">
           <GameButton tone="quiet" className="mode-screen__back" onClick={() => setScreen('raidCoopMode')}>
             {text.lobby.back}

@@ -9,6 +9,7 @@ import { prepareAndroidAssets } from './androidAssetDownload'
 import './index.css'
 import './game-ui.css'
 import './landscape-ui.css'
+import './coop-ui.css'
 
 const root = document.getElementById('root')!
 

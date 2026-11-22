@@ -7,6 +7,7 @@ import '../src/index.css'
 import '../src/App.css'
 import '../src/game-ui.css'
 import '../src/landscape-ui.css'
+import '../src/coop-ui.css'
 const params = new URLSearchParams(location.search)
 const previewModel = params.get('model')
 if (previewModel === 'godGundam' || previewModel === 'spiegel') {

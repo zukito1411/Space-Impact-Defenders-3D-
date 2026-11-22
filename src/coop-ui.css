@@ -1,0 +1,173 @@
+/* Co-op owns its layout; shared menu art must not restore desktop widths. */
+#root .coop-lobby-screen {
+  height: 100dvh; min-height: 0; overflow: hidden; display: flex; align-items: stretch;
+  padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+}
+#root .coop-lobby-screen .coop-lobby {
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 0;
+  width: min(1060px, 100%); height: 100%; min-height: 0; max-height: none; margin: auto;
+  padding: 0; overflow: hidden; text-align: left;
+}
+#root .coop-lobby__header {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px;
+  padding: 12px; border-bottom: 1px solid #73e5ee29;
+}
+#root .coop-lobby .game-button { min-width: 0; min-height: 44px; max-width: 100%; padding: 10px 14px; font-size: .78rem; white-space: normal; line-height: 1.2; touch-action: manipulation; }
+#root .coop-lobby__intro { min-width: 0; }
+#root .coop-lobby__intro .mode-screen__eyebrow { display: block; font-size: .56rem; letter-spacing: .12em; }
+#root .coop-lobby__intro h1 { margin: 4px 0; font-size: clamp(1.15rem, 4.5vw, 1.7rem); line-height: 1.08; }
+#root .coop-lobby__identity { display: flex; gap: 8px; min-width: 0; color: #a7c0d0; font-size: .7rem; }
+#root .coop-lobby__identity strong { color: #e6f3fa; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#root .coop-lobby__body { display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; }
+#root .coop-lobby__fleet { flex: 0 0 auto; min-width: 0; padding: 10px 12px; border-bottom: 1px solid #73e5ee29; background: #06121c88; }
+#root .coop-lobby__fleet-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 8px; min-width: 0; }
+#root .coop-lobby h2 { margin: 0; color: #e5f0f7; font-size: .78rem; font-weight: 700; }
+#root .coop-lobby__fleet-heading > span { min-width: 0; color: #79dce8; font-size: .7rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+#root .coop-lobby__ships {
+  display: grid; grid-auto-flow: column; grid-auto-columns: 94px; gap: 8px;
+  overflow-x: auto; overflow-y: hidden; padding: 2px 2px 7px; scroll-snap-type: x proximity;
+  overscroll-behavior-inline: contain; touch-action: pan-x; scrollbar-width: thin; scrollbar-color: #376275 #07121c;
+}
+#root .coop-lobby .coop-lobby__ship {
+  display: grid; grid-template-rows: 46px auto; align-items: center; justify-items: center; gap: 4px;
+  width: 100%; min-width: 0; min-height: 86px; padding: 7px 5px; scroll-snap-align: start;
+  color: #b9cddb; font-size: .69rem; line-height: 1.15; text-align: center; touch-action: pan-x;
+}
+#root .coop-lobby__ship-art { display: grid; place-items: center; width: 100%; height: 46px; }
+#root .coop-lobby__ship-art img { max-width: 64px; max-height: 46px; object-fit: contain; }
+#root .coop-lobby__ship[aria-pressed='true'] { color: #e3fcff; outline: 1px solid #79e0eb; outline-offset: -3px; }
+#root .coop-lobby__session { flex: 1 1 auto; min-height: 0; min-width: 0; padding: 12px; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #376275 #07121c; }
+#root .coop-lobby .coop-lobby__copy, #root .coop-lobby__session p { margin: 0 0 12px; color: #b0c6d5; font-size: .78rem; line-height: 1.45; }
+#root .coop-lobby__join { display: grid; gap: 10px; min-width: 0; }
+#root .coop-lobby__join label { display: grid; gap: 6px; min-width: 0; }
+#root .coop-lobby__join label > span { color: #b6ccda; font-size: .72rem; }
+#root .coop-lobby__join input { width: 100%; min-width: 0; height: 46px; padding: 10px 12px; font-size: 16px; box-sizing: border-box; }
+#root .coop-lobby__join input[maxlength='12'] { font-family: var(--ui-mono); letter-spacing: .08em; }
+#root .coop-lobby__code-entry { border: 1px solid #789dbb30; padding: 0 10px 10px; margin-bottom: 14px; }
+#root .coop-lobby__code-entry summary { min-height: 44px; padding: 13px 0; color: #bde9f0; font-size: .8rem; cursor: pointer; }
+#root .coop-lobby__directory-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+#root .coop-lobby__rooms { display: grid; gap: 7px; }
+#root .coop-lobby__listed { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-width: 0; padding: 9px; border: 1px solid #789dbb30; background: #081725; }
+#root .coop-lobby__listed > div { display: grid; gap: 4px; min-width: 0; }
+#root .coop-lobby__listed strong { color: #e6f3fa; font-size: .87rem; overflow-wrap: anywhere; }
+#root .coop-lobby__listed small { color: #a4becf; font-size: .72rem; }
+#root .coop-lobby__directory > p { margin-top: 10px; }
+#root .coop-lobby__code, #root .coop-lobby__address { display: grid; gap: 5px; padding: 12px; margin-bottom: 10px; border: 1px solid #73e5ee32; background: #071622; }
+#root .coop-lobby__code > span, #root .coop-lobby__address > span { color: #a7c0d0; font-size: .72rem; }
+#root .coop-lobby__code > strong { color: #ffda91; font: 700 clamp(1.25rem, 4.5vw, 1.7rem)/1.2 var(--ui-mono); letter-spacing: .1em; user-select: all; }
+#root .coop-lobby__address > strong { color: #9ee9ef; font: 600 .9rem/1.3 var(--ui-mono); overflow-wrap: anywhere; user-select: all; }
+#root .coop-lobby__players { display: grid; gap: 8px; margin: 12px 0; }
+#root .coop-lobby__player { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; gap: 9px; align-items: center; padding: 10px; border: 1px solid #789dbb32; background: #0a1b29; }
+#root .coop-lobby__player > div { display: grid; gap: 5px; min-width: 0; }
+#root .coop-lobby__player strong { color: #e7f2f9; font-size: .85rem; overflow-wrap: anywhere; }
+#root .coop-lobby__player small { color: #a7bfd0; font-size: .7rem; overflow-wrap: anywhere; }
+#root .coop-lobby__player > span { color: #e7c791; font-size: .7rem; text-align: right; }
+#root .coop-lobby__player[data-ready='true'] { border-color: #74d8c76b; }
+#root .coop-lobby__player[data-ready='true'] > span { color: #9ee5cb; }
+#root .coop-lobby__empty-seat { display: flex; justify-content: space-between; padding: 16px; border: 1px dashed #789dbb45; color: #8faabd; font-size: .8rem; }
+#root .coop-lobby__footer { padding: 10px 12px 12px; border-top: 1px solid #73e5ee35; background: #07131ff5; }
+#root .coop-lobby__status { color: #a8d7e1; font-size: .72rem; line-height: 1.35; overflow-wrap: anywhere; }
+#root .coop-lobby__error { margin-top: 6px; color: #ffb0aa; font-size: .75rem; line-height: 1.35; overflow-wrap: anywhere; }
+#root .coop-lobby__host-actions, #root .coop-lobby__room-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 9px; }
+#root .coop-lobby__host-actions > .game-button { flex: 1 1 130px; }
+#root .coop-lobby__visibility { flex: 1 1 140px; display: flex; align-items: center; gap: 8px; min-height: 44px; color: #bdd0df; font-size: .74rem; }
+#root .coop-lobby__visibility input { width: 20px; height: 20px; padding: 0; flex: 0 0 20px; accent-color: #79e0eb; }
+#root .coop-lobby__room-actions > .game-button { flex: 1 1 0; padding-inline: 8px; }
+
+/* Three clear connection choices, without scaling the menu to unreadable text. */
+#root .coop-mode-screen .mode-screen__panel { max-height: 100%; overflow-y: auto; }
+#root .coop-mode-screen .mode-screen__actions--coop { min-width: 0; }
+#root .coop-briefing-screen .mode-screen__panel { overflow-y: auto; }
+#root .coop-briefing-screen .same-screen-ships__grid { grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); }
+#root .coop-briefing-screen .mode-screen__actions--briefing { position: sticky; bottom: 0; padding-top: 8px; background: #07131ff5; }
+
+/* A shared mission cell and two bounded pilot cards replace duplicated HUD grids. */
+#root .raid .raid__hud.raid__hud--crew {
+  inset: max(6px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) auto max(8px, env(safe-area-inset-left));
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 5px; padding: 0; pointer-events: none;
+}
+#root .raid__crew-mission { grid-column: 1 / -1; min-width: 0; min-height: 44px; display: flex; align-items: center; gap: 9px; padding-right: 48px; color: #b7d4df; font-size: .66rem; }
+#root .raid__crew-mission > b { color: #f3d69a; font: 700 1rem/1 var(--ui-mono); }
+#root .raid__crew-link { display: inline-flex; align-items: center; gap: 5px; padding: 4px 6px; color: #afd9d0; font: 600 .63rem/1.2 var(--ui-mono); white-space: nowrap; }
+#root .raid__crew-link i { width: 5px; height: 5px; border-radius: 50%; background: #80d8b2; }
+#root .raid__crew-link--ok i { background: #e2ca81; }
+#root .raid__crew-link--poor i, #root .raid__crew-link--offline i { background: #ff8e86; }
+#root .raid__crew-link--poor, #root .raid__crew-link--offline { color: #ffc3bb; }
+#root .raid__crew-pilot {
+  --crew-color: #f9afa9; --crew-border: #bb797d70;
+  display: grid; grid-template-columns: minmax(0, 1fr) 58px; grid-template-rows: auto auto minmax(18px, auto) minmax(18px, auto);
+  gap: 3px 6px; padding: 7px; min-width: 0; border: 1px solid var(--crew-border); border-top: 2px solid var(--crew-color); background: #06121ee8;
+}
+#root .raid__crew-pilot[data-tone='ally'] { --crew-color: #8ed7f0; --crew-border: #589eaf70; }
+#root .raid__crew-identity { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--crew-color); font-size: .63rem; }
+#root .raid__crew-identity > b { flex: 0 0 auto; font: 800 .65rem/1.2 var(--ui-mono); }
+#root .raid__crew-identity > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#root .raid__crew-numbers { grid-column: 1 / -1; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 3px 7px; min-width: 0; color: #e8f2f8; font-size: .73rem; }
+#root .raid__crew-numbers > b { font-family: var(--ui-mono); font-variant-numeric: tabular-nums; }
+#root .raid__crew-numbers > span { color: #f2d19b; font-size: .67rem; white-space: nowrap; }
+#root .raid__crew-numbers small { font-size: .6rem; color: #aebfcd; }
+#root .raid__crew-loadout { grid-column: 1; grid-row: 3; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 5px; min-width: 0; color: #a0bacb; font-size: .54rem; }
+#root .raid__crew-loadout > b { color: #b7e8f2; font: 600 .62rem/1.15 var(--ui-mono); overflow-wrap: anywhere; }
+#root .raid__crew-hull { grid-column: 1; grid-row: 4; display: flex; flex-wrap: wrap; align-content: center; gap: 3px; min-width: 0; padding: 2px 0; }
+#root .raid__crew-hull .raid__pip { flex: 0 0 5px; width: 5px; height: 5px; margin: 0; border-radius: 1px; }
+#root .raid__crew-hull[data-critical='true'] { outline: 1px solid #f0847a80; outline-offset: 2px; }
+#root .raid .raid__crew-special {
+  grid-column: 2; grid-row: 3 / 5; align-self: stretch; display: grid; place-content: center; gap: 3px;
+  width: 100%; min-width: 0; min-height: 44px; padding: 5px 2px; border: 1px solid #6b879540; border-radius: 2px;
+  color: #9caebd; background: #0b1823; font-size: .6rem; text-align: center; line-height: 1.15; pointer-events: auto; touch-action: manipulation;
+}
+#root .raid__crew-special > b { font-size: .7rem; }
+#root .raid__crew-special small { color: inherit; font-size: .57rem; }
+#root .raid .raid__crew-special[data-ready='true'] { color: #ffe0a6; border-color: #e9c17188; }
+#root .raid .raid__crew-special--status { pointer-events: none; border-style: dashed; }
+#root .raid .raid__hud--crew .raid__crew-pause { top: 0; right: 0; width: 44px; min-width: 44px; height: 44px; }
+
+@media (orientation: landscape) {
+  #root .coop-lobby__header { padding: 8px 12px; }
+  #root .coop-lobby__intro h1 { font-size: 1.2rem; }
+  #root .coop-lobby__intro .mode-screen__eyebrow { display: none; }
+  #root .coop-lobby__body { display: grid; grid-template-columns: minmax(176px, .7fr) minmax(0, 1.5fr); }
+  #root .coop-lobby__fleet { min-height: 0; overflow-y: auto; border-bottom: 0; border-right: 1px solid #73e5ee29; padding: 10px; overscroll-behavior: contain; }
+  #root .coop-lobby__fleet-heading { display: grid; gap: 3px; }
+  #root .coop-lobby__ships { grid-auto-flow: row; grid-auto-columns: auto; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; touch-action: pan-y; padding-bottom: 0; }
+  #root .coop-lobby .coop-lobby__ship { min-height: 78px; grid-template-rows: 40px auto; touch-action: pan-y; }
+  #root .coop-lobby__ship-art { height: 40px; }
+  #root .coop-lobby__ship-art img { max-height: 40px; }
+  #root .coop-lobby__session { padding: 10px 12px; }
+  #root .coop-lobby__join { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #root .coop-lobby__join > .game-button { grid-column: 1 / -1; }
+  #root .coop-lobby__footer { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 1.25fr); gap: 4px 14px; align-items: center; padding: 8px 12px; }
+  #root .coop-lobby__error { grid-column: 1; margin: 0; }
+  #root .coop-lobby__room-actions, #root .coop-lobby__host-actions { grid-column: 2; grid-row: 1 / 3; margin: 0; flex-wrap: nowrap; }
+  #root .coop-lobby__visibility { flex-basis: 120px; }
+  #root .coop-mode-screen .mode-screen__panel { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); grid-template-rows: auto auto minmax(0, 1fr); gap: 8px 24px; height: 100%; padding: 58px 20px 16px; overflow: hidden; }
+  #root .coop-mode-screen .mode-screen__eyebrow { grid-column: 1; align-self: end; }
+  #root .coop-mode-screen .mode-screen__panel h1 { grid-column: 1; margin: 0; font-size: clamp(1.3rem, 5dvh, 2rem); }
+  #root .coop-mode-screen .mode-screen__panel > p { grid-column: 1; font-size: .8rem; overflow-y: auto; }
+  #root .coop-mode-screen .mode-screen__actions--coop { grid-column: 2; grid-row: 1 / 4; display: grid; grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; overflow-y: auto; }
+  #root .coop-mode-screen .game-menu-action { min-height: 64px; padding-block: 8px; }
+  #root .coop-mode-screen .game-menu-action__copy strong { font-size: 1rem; }
+  #root .coop-mode-screen .game-menu-action__copy small { font-size: .74rem; }
+  #root .coop-mode-screen .game-menu-hints { display: none; }
+  #root .raid .raid__hud.raid__hud--crew { grid-template-columns: 62px minmax(0, 1fr) minmax(0, 1fr) 44px; align-items: stretch; gap: 6px; }
+  #root .raid__crew-mission { grid-column: 1; display: flex; flex-direction: column; justify-content: center; gap: 4px; min-height: 0; padding: 3px; font-size: .56rem; background: #06121ecc; }
+  #root .raid__crew-mission > b { font-size: .95rem; }
+  #root .raid__crew-link { padding: 2px 0; font-size: .53rem; gap: 4px; }
+  #root .raid__crew-pilot { grid-template-columns: minmax(0, 1fr) 58px; grid-template-rows: minmax(14px, auto) minmax(15px, auto) minmax(12px, auto) minmax(8px, auto); padding: 5px 7px; gap: 2px 7px; }
+  #root .raid__crew-identity, #root .raid__crew-numbers { grid-column: 1; }
+  #root .raid__crew-numbers { flex-wrap: wrap; }
+  #root .raid .raid__crew-special { grid-row: 1 / 5; max-height: 58px; align-self: center; }
+  #root .raid .raid__hud--crew .raid__crew-pause { position: relative; grid-column: 4; top: 0; right: 0; align-self: start; }
+}
+@media (pointer: coarse) {
+  #root .raid__crew-special[data-ready='true'] small { display: none; }
+  #root .coop-mode-screen .game-menu-hints, #root .coop-briefing-screen .game-menu-hints { display: none; }
+}
+@media (max-width: 360px) and (orientation: portrait) {
+  #root .coop-lobby__header { gap: 8px; padding: 10px; }
+  #root .coop-lobby__session, #root .coop-lobby__footer { padding-inline: 10px; }
+  #root .coop-lobby .game-button { padding-inline: 9px; font-size: .72rem; }
+  #root .coop-lobby__player { grid-template-columns: minmax(0, 1fr) auto; }
+  #root .coop-lobby__player > img { display: none; }
+  #root .raid__crew-numbers small { font-size: .54rem; }
+}

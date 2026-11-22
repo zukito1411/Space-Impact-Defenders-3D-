@@ -8014,47 +8014,39 @@ export function GradiusRaid({
       : nukeStageLocked
       ? hudText.cooldown
       : controlHint
-    return { label, hint, ready: snapshot.phase === 'playing' && !nukeStageLocked && cooldown <= 0 }
+    return { label, hint, ready: snapshot.phase === 'playing' && !nukeStageLocked && cooldown <= 0 && hudPlayer.hp>0 }
   }
-  const renderPilotHud = (hudPlayer: Player, pilotKey: 'p1' | 'p2', pilotLabel: string, controlHint: string) => {
+  const ownPilotKey: 'p1' | 'p2' = isNetworkMultiplayer && !multiplayerSession?.isHost ? 'p2' : 'p1'
+  const coopAlly = isMultiplayer ? snapshot.allyPlayer : null
+  const renderPilotHud = (hudPlayer: Player, pilotKey: 'p1' | 'p2', controlHint: string) => {
     const specialHud = getPilotSpecialHud(hudPlayer, controlHint)
+    const controlled = !isNetworkMultiplayer || pilotKey===ownPilotKey
+    const shipName=hudPlayer.ship.key==='coreLander'?getRaidGundamName(hudPlayer.visualShipKey ?? ''):hudPlayer.ship.name
+    const tone=isNetworkMultiplayer?(controlled?'self':'ally'):(pilotKey==='p1'?'self':'ally')
+    const specialContent=<><b>{specialHud.label}</b><small>{specialHud.hint}</small></>
     return (
-      <div className={`raid__pilot-panel raid__pilot-panel--${pilotKey}`}>
-        <div className="raid__pilot-tag">
-          <b>{pilotLabel}</b>
-          <span>{hudPlayer.ship.key === 'coreLander' ? getRaidGundamName(hudPlayer.visualShipKey ?? '') : hudPlayer.ship.name}</span>
+      <section className="raid__crew-pilot" data-tone={tone} aria-label={`${pilotKey.toUpperCase()} ${shipName}`}>
+        <div className="raid__crew-identity"><b>{pilotKey.toUpperCase()}</b><span title={shipName}>{shipName}</span></div>
+        <div className="raid__crew-numbers">
+          <b aria-label={`${hudText.score} ${hudPlayer.score}`}>{hudPlayer.score.toLocaleString()}</b>
+          <span aria-label={`${hudText.level} ${hudPlayer.rank}`}>LV {hudPlayer.rank} <small>ATK {getPlayerBaseAttack(hudPlayer).toFixed(1)}</small></span>
         </div>
-        <div className="raid__stat">
-          <span>{hudText.score}</span>
-          <b>{hudPlayer.score.toLocaleString()}</b>
+        <div className="raid__crew-loadout"><span>{hudText.stack}</span><b>{getWeaponStackLabel(hudPlayer)}</b></div>
+        <div className="raid__crew-hull" data-critical={needsRepair(hudPlayer)} aria-label={`${pilotKey.toUpperCase()} ${hudText.hullAndForce}: ${hudPlayer.hp}/${hudPlayer.maxHp}`}>
+          {renderHullPips(hudPlayer,pilotKey)}
         </div>
-        <div className="raid__stat">
-          <span>{hudText.stage}</span>
-          <b>{snapshot.stageTheme}</b>
-        </div>
-        <div className="raid__stat raid__stat--level">
-          <span>{hudText.level}</span>
-          <b key={hudPlayer.rank}>LV {hudPlayer.rank} ATK {getPlayerBaseAttack(hudPlayer).toFixed(1)}</b>
-        </div>
-        <div className="raid__stat raid__stat--weapon">
-          <span>{hudText.stack}</span>
-          <b>{getWeaponStackLabel(hudPlayer)}</b>
-        </div>
-        <div className={needsRepair(hudPlayer) ? "raid__hp raid__hp--pilot raid__hp--critical" : "raid__hp raid__hp--pilot"} aria-label={`${pilotLabel} ${hudText.hullAndForce}`}>
-          {renderHullPips(hudPlayer, pilotKey)}
-        </div>
-        <div className={specialHud.ready ? "raid__pilot-special raid__pilot-special--ready" : "raid__pilot-special"}>
-          <span>{specialHud.label}</span>
-          <b>{specialHud.hint}</b>
-        </div>
-      </div>
+        {controlled ? <button className="raid__crew-special" type="button" data-ready={specialHud.ready}
+          disabled={!specialHud.ready || hudPlayer.hp<=0} aria-label={`${pilotKey.toUpperCase()} ${specialHud.label} ${specialHud.hint}`}
+          onClick={()=>activateNuke(pilotKey==='p1'?playerRef.current:remotePlayerRef.current ?? playerRef.current)}>
+          {specialContent}
+        </button> : <div className="raid__crew-special raid__crew-special--status" data-ready={specialHud.ready}>{specialContent}</div>}
+      </section>
     )
   }
-  const sameScreenAlly = sameScreenCoop ? snapshot.allyPlayer : null
 
   return (
     <div
-      className={`raid raid--theme-${((snapshot.stageTheme - 1) % RAID_BACKGROUND_THEME_COUNT) + 1}${sameScreenCoop ? ' raid--same-screen' : ''}${landscape ? ' raid--landscape' : ''}`}
+      className={`raid raid--theme-${((snapshot.stageTheme - 1) % RAID_BACKGROUND_THEME_COUNT) + 1}${sameScreenCoop ? ' raid--same-screen' : ''}${isMultiplayer ? ' raid--coop' : ''}${landscape ? ' raid--landscape' : ''}`}
       ref={rootRef}
       onPointerDown={(event) => {
         if (sameScreenCoopRef.current) return
@@ -8090,11 +8082,19 @@ export function GradiusRaid({
         <p>{shipRendererError}</p>
         <button type="button" onClick={() => window.location.reload()}>Reload ship renderer</button>
       </div>}
-      {sameScreenAlly ? (
-        <div className="raid__hud raid__hud--same-screen" inert={snapshot.phase !== 'playing'}>
-          {renderPilotHud(player, 'p1', 'P1', hudText.space)}
-          <button className="raid__pause raid__pause--center" type="button" onClick={pauseGame} aria-label={hudText.pause} title={`${hudText.pause} (Esc)`}><span className="raid__pause-mark" aria-hidden="true">Ⅱ</span></button>
-          {renderPilotHud(sameScreenAlly, 'p2', 'P2', 'Shift')}
+      {coopAlly ? (
+        <div className={`raid__hud raid__hud--crew${sameScreenCoop?' raid__hud--same-screen':''}`} inert={snapshot.phase !== 'playing'}>
+          <div className="raid__crew-mission">
+            <span>{hudText.stage}</span><b>{snapshot.stageTheme}</b>
+            {isNetworkMultiplayer && <span className={`raid__crew-link raid__crew-link--${multiplayerConnection.quality}`}
+              role="status" aria-label={multiplayerConnection.label} title={multiplayerConnection.label}>
+              <i aria-hidden="true" /><span>{multiplayerConnection.rtt===null?'—':`${Math.round(multiplayerConnection.rtt)}ms`}</span>
+            </span>}
+          </div>
+          {renderPilotHud(player,ownPilotKey,hudText.space)}
+          {renderPilotHud(coopAlly,ownPilotKey==='p1'?'p2':'p1','Shift')}
+          <button className="raid__pause raid__crew-pause" type="button" disabled={!canControlOverlay}
+            onClick={pauseGame} aria-label={hudText.pause} title={hudText.pause}><span className="raid__pause-mark" aria-hidden="true">Ⅱ</span></button>
         </div>
       ) : (
         <div className="raid__hud" inert={snapshot.phase !== 'playing'}>
@@ -8140,7 +8140,7 @@ export function GradiusRaid({
         </div>
       )}
 
-      {isNetworkMultiplayer && (
+      {isNetworkMultiplayer && !coopAlly && (
         <div className={connectionClass} aria-live="polite">
           <i aria-hidden="true" />
           <span>{multiplayerConnection.label}</span>

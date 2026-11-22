@@ -477,150 +477,106 @@ export function RaidMultiplayerLobby({ playerName, language, connectionMode, onB
 
   const refreshRooms=()=>connect(socket=>send(socket,{type:'list-rooms'}))
 
+  const joinFields=(
+    <form className="coop-lobby__join" aria-busy={connecting} onSubmit={event=>{event.preventDefault();joinRoom()}}>
+      {isLocalMode && <label><span>{text.localHostAddress}</span><input value={localHostInput}
+        placeholder={text.localHostPlaceholder} disabled={connecting} autoCapitalize="off" autoCorrect="off" spellCheck={false}
+        inputMode="url" onChange={event=>setLocalHostInput(event.target.value)} /></label>}
+      <label><span>{text.roomCode}</span><input value={joinCode} placeholder={text.roomPlaceholder}
+        maxLength={12} disabled={connecting} autoCapitalize="characters" autoCorrect="off" spellCheck={false}
+        onChange={event=>setJoinCode(event.target.value.toUpperCase())} /></label>
+      <GameButton type="submit" disabled={connecting}>{text.join}</GameButton>
+    </form>
+  )
+
   return (
-    <div className="mode-screen">
+    <div className="mode-screen coop-lobby-screen">
       <div className="mode-screen__stars" />
-      <div className="mode-screen__panel raid-lobby">
-        <GameButton tone="quiet" className="mode-screen__back" onClick={onBack}>
-          {text.back}
-        </GameButton>
-
-        <div className="mode-screen__eyebrow">{isLocalMode ? text.localEyebrow : text.eyebrow}</div>
-        <h1>{isLocalMode ? text.localTitle : text.title}</h1>
-        <p>
-          {isLocalMode ? text.localCopy : text.copy}
-        </p>
-
-        <div className="raid-lobby__grid">
-          <div className="raid-lobby__field raid-lobby__field--readonly">
-            <span>{getLanguageText(language).player.pilotName}</span>
-            <strong>{playerName}</strong>
+      <div className="mode-screen__panel raid-lobby coop-lobby">
+        <header className="coop-lobby__header">
+          <GameButton tone="quiet" onClick={onBack}>{text.back}</GameButton>
+          <div className="coop-lobby__intro">
+            <span className="mode-screen__eyebrow">{isLocalMode ? text.localEyebrow : text.eyebrow}</span>
+            <h1>{isLocalMode ? text.localTitle : text.title}</h1>
+            <div className="coop-lobby__identity"><span>{getLanguageText(language).player.pilotName}</span><strong title={playerName}>{playerName}</strong></div>
           </div>
-        </div>
+        </header>
 
-        {isLocalMode && canHostLocalRelay ? (
-          <div className="raid-lobby__lan-card">
-            <span>{text.localHostAddress}</span>
-            <strong>{localHostAddress || text.localHostWaiting}</strong>
-            <small>{text.localHostHint}</small>
-          </div>
-        ) : null}
-
-        <div className="raid-lobby__ships" aria-label={text.chooseShip}>
-          {availableShipOptions.map((ship) => {
-            const shipSpriteKey = getDefaultPlayerVisualShipKey(ship.key, progress)
-            return (
-              <button
-                key={ship.key}
-                data-ship={ship.key}
-                aria-pressed={selectedShipKey === ship.key}
-                className={selectedShipKey === ship.key ? 'raid-lobby__ship raid-lobby__ship--active' : 'raid-lobby__ship'}
-                type="button"
-                onClick={() => chooseShip(ship.key)}
-                disabled={Boolean(ownPlayer?.ready)}
-              >
-                <span className="raid-lobby__ship-art" aria-hidden="true">
-                  <RaidShipSprite shipKey={shipSpriteKey} size={getLobbyShipSize(ship.key)} />
-                </span>
-                <span className="raid-lobby__ship-name">{getLocalizedShipName(ship.key)}</span>
-              </button>
-            )
-          })}
-        </div>
-
-        {!isLocalMode && !room ? (
-          <section className="raid-lobby__directory" aria-label={text.onlineRooms}>
-            <div className="raid-lobby__directory-heading">
-              <h2>{text.onlineRooms}</h2>
-              <GameButton tone="quiet" disabled={connecting || directoryAvailable===false} onClick={refreshRooms}>{text.refreshRooms}</GameButton>
+        <div className="coop-lobby__body">
+          <section className="coop-lobby__fleet" aria-label={text.chooseShip}>
+            <div className="coop-lobby__fleet-heading"><h2>{text.chooseShip}</h2><span>{getLocalizedShipName(selectedShipKey)}</span></div>
+            <div className="coop-lobby__ships">
+              {availableShipOptions.map(ship=>{
+                const spriteKey=getDefaultPlayerVisualShipKey(ship.key,progress)
+                return <button key={ship.key} type="button" data-ship={ship.key}
+                  className="coop-lobby__ship" aria-pressed={selectedShipKey===ship.key}
+                  onClick={()=>chooseShip(ship.key)} disabled={connecting || Boolean(ownPlayer?.ready)}>
+                  <span className="coop-lobby__ship-art" aria-hidden="true"><RaidShipSprite shipKey={spriteKey} size={getLobbyShipSize(ship.key)} /></span>
+                  <span>{getLocalizedShipName(ship.key)}</span>
+                </button>
+              })}
             </div>
-            <div className="raid-lobby__directory-rooms">
-              {publicRooms.map(listed=>(
-                <div className="raid-lobby__listed-room" key={listed.code}>
-                  <div><strong>{listed.hostName}</strong><small>{getLocalizedShipName(listed.shipKey)} · {listed.playerCount}/{listed.capacity}</small></div>
-                  <GameButton disabled={connecting} onClick={()=>joinRoom(listed.code)}>{text.join}</GameButton>
-                </div>
-              ))}
-            </div>
-            {!publicRooms.length && <p role="status">{directoryAvailable===false?text.directoryUnavailable:connecting?text.connecting:text.noOpenRooms}</p>}
-            <label className="raid-lobby__visibility"><input type="checkbox" checked={publicRoom} onChange={event=>setPublicRoom(event.target.checked)} />{text.listRoomPublicly}</label>
           </section>
-        ):null}
 
-        <div className={isLocalMode && !canHostLocalRelay ? 'raid-lobby__actions raid-lobby__actions--join-only' : 'raid-lobby__actions'}>
-          {canHostLocalRelay ? (
-            <GameButton disabled={connecting || Boolean(room)} onClick={hostRoom}>
-              {isLocalMode ? text.startLanHost : text.hostRoom}
-            </GameButton>
-          ) : null}
-          <label className={isLocalMode ? 'raid-lobby__join raid-lobby__join--local' : 'raid-lobby__join'}>
-            {isLocalMode ? (
-              <input
-                value={localHostInput}
-                placeholder={text.localHostPlaceholder}
-                aria-label={text.localHostAddress}
-                autoCapitalize="off"
-                autoCorrect="off"
-                spellCheck={false}
-                onChange={(event) => setLocalHostInput(event.target.value)}
-              />
-            ) : null}
-            <input
-              value={joinCode}
-              placeholder={text.roomPlaceholder}
-              aria-label={text.roomCode}
-              maxLength={12}
-              autoCapitalize="characters"
-              autoCorrect="off"
-              spellCheck={false}
-              onChange={(event) => setJoinCode(event.target.value.toUpperCase())}
-            />
-            <GameButton disabled={connecting || Boolean(room)} onClick={()=>joinRoom()}>
-              {text.join}
-            </GameButton>
-          </label>
-        </div>
-
-        <div className="raid-lobby__status" role="status">
-          {status}
-        </div>
-        {error ? <div className="raid-lobby__error">{error}</div> : null}
-
-        {room ? (
-          <div className="raid-lobby__room">
-            <div className="raid-lobby__room-code">
-              <span>{text.roomCode}</span>
-              <strong>{room.code}</strong>
-            </div>
-
-            <div className="raid-lobby__players">
-              {room.players.map((player) => (
-                <div className="raid-lobby__player" key={player.id}>
-                  <span>{player.name}</span>
-                  <strong>
-                    {player.host ? text.host : text.guest} - {getLocalizedShipName(player.shipKey, player.visualShipKey)} - {player.ready ? text.ready : text.waiting}
-                  </strong>
+          <section className="coop-lobby__session" aria-label={isLocalMode?text.localTitle:text.title}>
+            {room ? (
+              <div className="coop-lobby__room">
+                <div className="coop-lobby__code"><span>{text.roomCode}</span><strong>{room.code}</strong></div>
+                {isLocalMode && localHostAddress && <div className="coop-lobby__address"><span>{text.localHostAddress}</span><strong>{localHostAddress}</strong></div>}
+                <div className="coop-lobby__players">
+                  {room.players.map(pilot=>(
+                    <div className="coop-lobby__player" key={pilot.id} data-ready={pilot.ready}>
+                      <RaidShipSprite shipKey={pilot.visualShipKey ?? pilot.shipKey} size={42} />
+                      <div><strong>{pilot.name}</strong><small>{pilot.host?text.host:text.guest} · {getLocalizedShipName(pilot.shipKey,pilot.visualShipKey)}</small></div>
+                      <span>{pilot.ready?text.ready:text.waiting}</span>
+                    </div>
+                  ))}
+                  {room.players.length<2 && <div className="coop-lobby__empty-seat"><strong>{text.guest}</strong><span>{text.waiting}</span></div>}
                 </div>
-              ))}
-            </div>
-
-            <div className="raid-lobby__room-actions">
-              <GameButton aria-pressed={Boolean(ownPlayer?.ready)} onClick={toggleReady}>{ownPlayer?.ready ? text.cancelReady : text.ready}</GameButton>
-              {canStart && ownPlayer?.host ? (
-                <GameButton tone="primary" onClick={startCoop}>{text.startCoop}</GameButton>
-              ) : null}
-              <GameButton tone="quiet" className="raid-lobby__secondary" onClick={leaveRoom}>
-                {text.leave}
-              </GameButton>
-            </div>
-
-            {canStart ? (
-              <div className="raid-lobby__ready">
-                {text.readyMessage}
+                <p>{canStart?text.readyMessage:room.players.length===2?text.secondLinked:text.roomCreated}</p>
+                {isLocalMode && localHostAddress && <p>{text.localHostHint}</p>}
               </div>
-            ) : null}
-          </div>
-        ) : null}
+            ) : (
+              <>
+                <p className="coop-lobby__copy">{isLocalMode?text.localCopy:text.copy}</p>
+                {isLocalMode?joinFields:(
+                  <details className="coop-lobby__code-entry"><summary>{text.joinByCode}</summary>{joinFields}</details>
+                )}
+                {!isLocalMode && <section className="coop-lobby__directory" aria-label={text.onlineRooms}>
+                  <div className="coop-lobby__directory-heading"><h2>{text.onlineRooms}</h2>
+                    <GameButton tone="quiet" disabled={connecting || directoryAvailable===false} onClick={refreshRooms}>{text.refreshRooms}</GameButton>
+                  </div>
+                  <div className="coop-lobby__rooms">
+                    {publicRooms.map(listed=>(
+                      <div className="coop-lobby__listed" key={listed.code}>
+                        <div><strong>{listed.hostName}</strong><small>{getLocalizedShipName(listed.shipKey)} · {listed.playerCount}/{listed.capacity}</small></div>
+                        <GameButton disabled={connecting} onClick={()=>joinRoom(listed.code)}>{text.join}</GameButton>
+                      </div>
+                    ))}
+                  </div>
+                  {!publicRooms.length && <p>{directoryAvailable===false?text.directoryUnavailable:connecting?text.connecting:text.noOpenRooms}</p>}
+                </section>}
+              </>
+            )}
+          </section>
+        </div>
+
+        <footer className="coop-lobby__footer">
+          <div className="coop-lobby__status" role="status" aria-live="polite">{status}</div>
+          {error && <div className="coop-lobby__error" role="alert">{error}</div>}
+          {room ? (
+            <div className="coop-lobby__room-actions">
+              <GameButton tone={ownPlayer?.ready?'quiet':'primary'} aria-pressed={Boolean(ownPlayer?.ready)} onClick={toggleReady}>{ownPlayer?.ready?text.cancelReady:text.ready}</GameButton>
+              {ownPlayer?.host && <GameButton tone="primary" disabled={!canStart} onClick={startCoop}>{text.startCoop}</GameButton>}
+              <GameButton tone="quiet" onClick={leaveRoom}>{text.leave}</GameButton>
+            </div>
+          ) : (
+            <div className="coop-lobby__host-actions">
+              {!isLocalMode && <label className="coop-lobby__visibility"><input type="checkbox" checked={publicRoom} onChange={event=>setPublicRoom(event.target.checked)} />{text.listRoomPublicly}</label>}
+              {canHostLocalRelay && <GameButton tone="primary" disabled={connecting} onClick={hostRoom}>{isLocalMode?text.startLanHost:text.hostRoom}</GameButton>}
+            </div>
+          )}
+        </footer>
       </div>
     </div>
   )
