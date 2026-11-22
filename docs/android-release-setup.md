@@ -1,6 +1,6 @@
 # Android APK release signing — permanent key
 
-**Current setup (November 2026):** Android APKs are built with `assembleRelease`, and a single signing certificate is persisted in a **private, unpublished GitHub draft release** named `space-impact-private-signing-vault-v1`. Future workflows always restore that exact signing key. The user's old `ANDROID_DEBUG_KEYSTORE_BASE64` value (a fingerprint) is intentionally ignored.
+**Current setup (November 2026):** Android APKs are built with `assembleRelease`, and a single signing certificate is persisted in a **private, unpublished GitHub draft release** named `space-impact-3d-private-signing-vault-v1`. Future workflows always restore that exact signing key. The user's old `ANDROID_DEBUG_KEYSTORE_BASE64` value (a fingerprint) is intentionally ignored.
 
 ## Why v19 and earlier cannot update normally
 
@@ -14,7 +14,7 @@ Once a persistent-key APK is installed, higher-version-code APKs signed with thi
 2. The key, alias and passwords are saved as a single asset on an **unpublished draft GitHub Release**. The asset is not included in the public APK releases.
 3. Every subsequent run checks that the vault is still a **draft**, downloads the key, checks that it can be opened, and signs the APK with it.
 4. `apksigner verify` and a comparison against the keytool certificate fingerprint must succeed before publishing.
-5. Only the three latest published releases tagged `android-vN` are kept; the vault is on a separate tag and is excluded from cleanup.
+5. Only the three latest published releases tagged `android-3d-vN` are kept; the vault is on a separate tag and is excluded from cleanup.
 
 Workflow: `.github/workflows/android-release.yml`
 
@@ -26,14 +26,15 @@ If the vault is missing or made public after APKs have shipped, stop releasing, 
 
 ## itch.io Android delivery
 
-A separate job downloads the same verified APK from the release for the current
+The 3D workflow downloads the same verified, permanently signed APK from the release for the current
 run and publishes it to the [itch.io game page](https://zukiaoki.itch.io/spaceimpactdefender).
 Configure the repository Actions secret `BUTLER_API_KEY` with a key for the game
-owner. The job uses the `android` channel by default. If the game already has a
+owner, in **this 3D repository**. The job uses the `android` channel by default. If the game already has a
 Butler-managed Android channel under another name, set the repository Actions
 variable `ITCH_ANDROID_CHANNEL` to that channel. The job uploads one file with a
-stable name and stamps it with the Android release version. A manually uploaded
-legacy APK can be removed from the project page after verifying the new channel.
+stable name and stamps it with the Android release version. The existing `android` channel is replaced with `SpaceImpactDefenders3D-release.apk`;
+the original 2D application ID and signing identity remain separate. Disable the
+old repository’s itch.io publishing job so later 2D builds cannot overwrite this channel.
 
 ## Performance diagnostics
 
@@ -43,8 +44,8 @@ In Air Raid, open **Pause → Settings → Show FPS and performance timings (Air
 
 ## Links
 
-- [Latest Android releases](https://github.com/zukito1411/space-defenders-impact/releases)
-- [Build and signature verification](https://github.com/zukito1411/space-defenders-impact/actions/workflows/android-release.yml)
+- [Latest Android releases](https://github.com/zukito1411/Space-Impact-Defenders-3D-/releases)
+- [Build and signature verification](https://github.com/zukito1411/Space-Impact-Defenders-3D-/actions/workflows/android-release.yml)
 
 ## Android asset downloads
 
@@ -55,7 +56,7 @@ Android reuses local files for offline play and only fetches packs containing
 missing or changed assets. If a download stops, retry from the startup screen.
 
 The signed release workflow uploads the content-addressed ZIPs to
-`android-assets-v1` before making the APK available. The APK pins its exact
+`android-3d-assets-v1` before making the APK available. The APK pins its exact
 media inventory. Keep the asset release and its existing packs so that older
 APKs can still finish a first download. Regular APK retention applies only to
-`android-vN` releases.
+`android-3d-vN` releases.

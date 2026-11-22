@@ -32,8 +32,9 @@ assert "SpaceImpactDefenders3D-release.apk" in workflow
 assert "SpaceImpactDefenders3D-release.apk" in verify
 assert 'TAG="android-3d-v${GITHUB_RUN_NUMBER}"' in workflow
 assert "com.zukito.spaceimpactdefender3d" in workflow
-assert "publish-itch-android" not in workflow
-assert "butler" not in workflow.lower()
-assert "itch.io" not in workflow.lower()
+assert "publish-itch-android:" in workflow
+assert 'SpaceImpactDefenders3D-v${GITHUB_RUN_NUMBER}-release.apk' in workflow
+assert 'SpaceImpactDefenders3D-release.apk' in workflow
+assert 'secrets.BUTLER_API_KEY' in workflow
 assert "space-defenders-impact/releases/" not in native_assets
-print("Verified independent 3D Android ID, display name, media host, APK, and no itch.io publishing")
+print("Verified independent 3D Android ID, display name, media host, APK, and 3D itch.io publishing")
