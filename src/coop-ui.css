@@ -87,9 +87,9 @@
 /* A shared mission cell and two bounded pilot cards replace duplicated HUD grids. */
 #root .raid .raid__hud.raid__hud--crew {
   inset: max(6px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) auto max(8px, env(safe-area-inset-left));
-  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 5px; padding: 0; pointer-events: none;
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) 44px; align-items: stretch; gap: 4px; padding: 0; pointer-events: none;
 }
-#root .raid__crew-mission { grid-column: 1 / -1; min-width: 0; min-height: 44px; display: flex; align-items: center; gap: 9px; padding-right: 48px; color: #b7d4df; font-size: .66rem; }
+#root .raid__crew-mission { grid-column: 1 / 3; grid-row: 1; min-width: 0; min-height: 22px; display: flex; align-items: center; gap: 7px; padding: 0; color: #b7d4df; font-size: .66rem; }
 #root .raid__crew-mission > b { color: #f3d69a; font: 700 1rem/1 var(--ui-mono); }
 #root .raid__crew-link { display: inline-flex; align-items: center; gap: 5px; padding: 4px 6px; color: #afd9d0; font: 600 .63rem/1.2 var(--ui-mono); white-space: nowrap; }
 #root .raid__crew-link i { width: 5px; height: 5px; border-radius: 50%; background: #80d8b2; }
@@ -97,33 +97,34 @@
 #root .raid__crew-link--poor i, #root .raid__crew-link--offline i { background: #ff8e86; }
 #root .raid__crew-link--poor, #root .raid__crew-link--offline { color: #ffc3bb; }
 #root .raid__crew-pilot {
-  --crew-color: #f9afa9; --crew-border: #bb797d70;
-  display: grid; grid-template-columns: minmax(0, 1fr) 58px; grid-template-rows: auto auto minmax(18px, auto) minmax(18px, auto);
-  gap: 3px 6px; padding: 7px; min-width: 0; border: 1px solid var(--crew-border); border-top: 2px solid var(--crew-color); background: #06121ee8;
+  --crew-color: #f9afa9; --crew-border: #bb797d40;
+  display: grid; grid-template-columns: minmax(0, 1fr) 52px; grid-template-rows: repeat(4, auto);
+  gap: 1px 5px; padding: 3px 5px; min-width: 0; border: 1px solid var(--crew-border); background: rgba(3, 9, 17, .28); box-shadow: none; text-shadow: 0 1px 2px #000a;
 }
-#root .raid__crew-pilot[data-tone='ally'] { --crew-color: #8ed7f0; --crew-border: #589eaf70; }
-#root .raid__crew-identity { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--crew-color); font-size: .63rem; }
+#root .raid__crew-pilot[data-tone='ally'] { --crew-color: #8ed7f0; --crew-border: #589eaf40; }
+#root .raid__crew-identity { grid-column: 1; grid-row: 1; display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--crew-color); font-size: .63rem; }
 #root .raid__crew-identity > b { flex: 0 0 auto; font: 800 .65rem/1.2 var(--ui-mono); }
 #root .raid__crew-identity > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#root .raid__crew-numbers { grid-column: 1 / -1; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 3px 7px; min-width: 0; color: #e8f2f8; font-size: .73rem; }
+#root .raid__crew-numbers { grid-column: 1; grid-row: 2; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1px 5px; min-width: 0; color: #e8f2f8; font-size: .73rem; }
 #root .raid__crew-numbers > b { font-family: var(--ui-mono); font-variant-numeric: tabular-nums; }
 #root .raid__crew-numbers > span { color: #f2d19b; font-size: .67rem; white-space: nowrap; }
 #root .raid__crew-numbers small { font-size: .6rem; color: #aebfcd; }
 #root .raid__crew-loadout { grid-column: 1; grid-row: 3; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 5px; min-width: 0; color: #a0bacb; font-size: .54rem; }
 #root .raid__crew-loadout > b { color: #b7e8f2; font: 600 .62rem/1.15 var(--ui-mono); overflow-wrap: anywhere; }
-#root .raid__crew-hull { grid-column: 1; grid-row: 4; display: flex; flex-wrap: wrap; align-content: center; gap: 3px; min-width: 0; padding: 2px 0; }
-#root .raid__crew-hull .raid__pip { flex: 0 0 5px; width: 5px; height: 5px; margin: 0; border-radius: 1px; }
+#root .raid__crew-hull { grid-column: 1; grid-row: 4; display: flex; flex-wrap: wrap; align-content: center; gap: 2px; min-width: 0; padding: 1px 0; }
+#root .raid__crew-hull .raid__pip { flex: 0 0 4px; width: 4px; height: 4px; margin: 0; border-radius: 1px; }
 #root .raid__crew-hull[data-critical='true'] { outline: 1px solid #f0847a80; outline-offset: 2px; }
 #root .raid .raid__crew-special {
-  grid-column: 2; grid-row: 3 / 5; align-self: stretch; display: grid; place-content: center; gap: 3px;
-  width: 100%; min-width: 0; min-height: 44px; padding: 5px 2px; border: 1px solid #6b879540; border-radius: 2px;
-  color: #9caebd; background: #0b1823; font-size: .6rem; text-align: center; line-height: 1.15; pointer-events: auto; touch-action: manipulation;
+  grid-column: 2; grid-row: 1 / 5; align-self: center; display: grid; place-content: center; gap: 3px;
+  width: 100%; min-width: 0; min-height: 44px; max-height: 48px; padding: 4px 2px; border: 1px solid #6b879540; border-image: none; box-shadow: none; border-radius: 2px;
+  color: #9caebd; background: rgba(5, 12, 22, .2); font-size: .6rem; text-align: center; line-height: 1.15; pointer-events: auto; touch-action: manipulation;
 }
 #root .raid__crew-special > b { font-size: .7rem; }
 #root .raid__crew-special small { color: inherit; font-size: .57rem; }
 #root .raid .raid__crew-special[data-ready='true'] { color: #ffe0a6; border-color: #e9c17188; }
 #root .raid .raid__crew-special--status { pointer-events: none; border-style: dashed; }
-#root .raid .raid__hud--crew .raid__crew-pause { top: 0; right: 0; width: 44px; min-width: 44px; height: 44px; }
+#root .raid .raid__hud--crew .raid__crew-pause { position: relative; grid-column: 3; grid-row: 1 / 3; align-self: start; top: 0; right: 0; width: 44px; min-width: 44px; height: 44px; }
+#root .raid .raid__hud--crew .raid__crew-pause::before { opacity: .25; }
 
 @media (orientation: landscape) {
   #root .coop-lobby__header { padding: 8px 12px; }
@@ -152,15 +153,15 @@
   #root .coop-mode-screen .game-menu-action__copy strong { font-size: 1rem; }
   #root .coop-mode-screen .game-menu-action__copy small { font-size: .74rem; }
   #root .coop-mode-screen .game-menu-hints { display: none; }
-  #root .raid .raid__hud.raid__hud--crew { grid-template-columns: 62px minmax(0, 1fr) minmax(0, 1fr) 44px; align-items: stretch; gap: 6px; }
-  #root .raid__crew-mission { grid-column: 1; display: flex; flex-direction: column; justify-content: center; gap: 4px; min-height: 0; padding: 3px; font-size: .56rem; background: #06121ecc; }
-  #root .raid__crew-mission > b { font-size: .95rem; }
+  #root .raid .raid__hud.raid__hud--crew { grid-template-columns: 48px minmax(0, 1fr) minmax(0, 1fr) 44px; align-items: stretch; gap: 4px; }
+  #root .raid__crew-mission { grid-column: 1; grid-row: 1; display: flex; flex-direction: column; justify-content: center; gap: 3px; min-height: 0; padding: 2px; font-size: .56rem; background: rgba(3, 9, 17, .16); }
+  #root .raid__crew-mission > b { font-size: .85rem; }
   #root .raid__crew-link { padding: 2px 0; font-size: .53rem; gap: 4px; }
-  #root .raid__crew-pilot { grid-template-columns: minmax(0, 1fr) 58px; grid-template-rows: minmax(14px, auto) minmax(15px, auto) minmax(12px, auto) minmax(8px, auto); padding: 5px 7px; gap: 2px 7px; }
+  #root .raid__crew-pilot { grid-template-columns: minmax(0, 1fr) 52px; grid-template-rows: minmax(12px, auto) minmax(13px, auto) minmax(10px, auto) minmax(6px, auto); padding: 3px 5px; gap: 1px 5px; }
   #root .raid__crew-identity, #root .raid__crew-numbers { grid-column: 1; }
   #root .raid__crew-numbers { flex-wrap: wrap; }
-  #root .raid .raid__crew-special { grid-row: 1 / 5; max-height: 58px; align-self: center; }
-  #root .raid .raid__hud--crew .raid__crew-pause { position: relative; grid-column: 4; top: 0; right: 0; align-self: start; }
+  #root .raid .raid__crew-special { grid-row: 1 / 5; max-height: 48px; align-self: center; }
+  #root .raid .raid__hud--crew .raid__crew-pause { position: relative; grid-column: 4; grid-row: 1; top: 0; right: 0; align-self: start; }
 }
 @media (pointer: coarse) {
   #root .raid__crew-special[data-ready='true'] small { display: none; }
