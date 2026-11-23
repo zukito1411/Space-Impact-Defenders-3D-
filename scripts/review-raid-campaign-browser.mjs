@@ -288,6 +288,8 @@ try {
     if(verifyEnemyBanking) {
       const {checkEnemyBanking}=await import('./check-enemy-banking.mjs')
       await checkEnemyBanking(page,output,landscape)
+      const {checkPilotWeaponGlows}=await import('./check-combat-lighting.mjs')
+      await checkPilotWeaponGlows(page,output,landscape)
     }
     if(verifyKeels) {
       const {checkBossKeels}=await import('./check-boss-keels.mjs')

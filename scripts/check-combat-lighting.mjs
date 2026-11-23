@@ -65,3 +65,85 @@ export async function checkCombatLighting(page, output) {
   }
   console.log('Verified combat readability:',checks.length,'lighting/view cases; carrier and instancing preserved')
 }
+
+/** Exercise the real Stage 2 shot emission and effects canvas at the rAF boundary. */
+export async function checkPilotWeaponGlows(page, output, landscape) {
+ const checks=await page.evaluate(async()=>{
+  const {r,actions,ships}=window.campaignReview
+  const {getWeaponIgnition,warmRaidWeaponGlows}=await import('/src/components/games/raid/weaponPresentation.ts')
+  const {getCachedProjectileOrbSprite,spriteGlowCache}=await import('/src/components/games/raid/utils.ts')
+  const checks=[]
+  const quality=r.graphicsQualityRef.current
+  const canvas=document.querySelector('.raid__fx-canvas')
+  const ctx=canvas.getContext('2d')
+  const original=ctx.drawImage
+  warmRaidWeaponGlows()
+  const exhaustSources=new Set([...spriteGlowCache.values()].map(sprite=>sprite.canvas))
+  let exhaust=0
+  try {
+   for(const [preset,kind] of [['low','pulse'],['max','laser']]){
+    reviewSetup(preset)
+    const pilot=r.playerRef.current
+    pilot.weapons.laser=kind==='laser'?2:0
+    pilot.weaponCooldowns.laser=0
+    const frameTime=performance.now()
+    actions.update(1/60)
+    const flash=r.muzzleFlashesRef.current.find(entry=>entry.owner===pilot&&entry.kind===kind)
+    if(!flash)throw Error('Missing emitted '+kind+' muzzle')
+    if(flash.at<frameTime)throw Error('Fixture missed the rAF timestamp boundary')
+    const source=getCachedProjectileOrbSprite(getWeaponIgnition(kind).color,24).canvas
+    let flashDraws=0
+    ctx.drawImage=function(image,...args){
+     if(image===source)flashDraws++
+     if(exhaustSources.has(image))exhaust++
+     return original.call(this,image,...args)
+    }
+    actions.draw(frameTime)
+    const {cssWidth,cssHeight,dpr}=r.viewportMetricsRef.current
+    const x=Math.round((pilot.x+flash.x)*cssWidth*dpr/100),y=Math.round((pilot.y+flash.y)*cssHeight*dpr/100)
+    const brightness=()=>{
+     const pixels=ctx.getImageData(x-3,y-3,7,7).data
+     let light=0
+     for(let i=0;i<pixels.length;i+=4)light+=(pixels[i]+pixels[i+1]+pixels[i+2])*pixels[i+3]/255
+     return light/49
+    }
+    const withFlash=brightness()
+    const flashDrawsWhileFiring=flashDraws
+    const exhaustWhileFiring=exhaust
+    const draws=ships.getShipStats().drawCalls
+    actions.draw(flash.at+200)
+    const withoutFlash=brightness()
+    checks.push({preset,kind,flashDrawsWhileFiring,exhaustWhileFiring,withFlash,withoutFlash,
+     expired:!r.muzzleFlashesRef.current.length,draws,drawsAfter:ships.getShipStats().drawCalls})
+    if(kind==='laser'){
+     r.muzzleFlashesRef.current=[flash]
+     actions.draw(frameTime)
+     actions.sync()
+    }
+   }
+  } finally {
+   ctx.drawImage=original
+   r.graphicsQualityRef.current=quality
+  }
+  return checks
+  function reviewSetup(preset) {
+   window.campaignReview.reset(2,'waves')
+   r.enemiesRef.current=[]
+   r.journeyStageAgeRef.current=1
+   r.graphicsQualityRef.current=preset
+   r.playerRef.current.fireCooldown=0
+   r.playerRef.current.invuln=0
+   exhaust=0
+  }
+ })
+ for(const check of checks){
+  assert.ok(check.flashDrawsWhileFiring>0&&check.withFlash>check.withoutFlash+35,'Muzzle glow did not appear: '+JSON.stringify(check))
+  assert.ok(check.exhaustWhileFiring>0,'Missing nozzle bloom: '+JSON.stringify(check))
+  assert.ok(check.expired,'Muzzle glow outlasted its shot')
+  assert.equal(check.draws,check.drawsAfter,'Muzzle bloom added 3D draw calls')
+ }
+ const view=landscape?'landscape':'portrait'
+ await page.screenshot({path:output+'/stage-02-pilot-glow-'+view+'.png'})
+ await writeFile(output+'/pilot-glow-'+view+'-checks.json',JSON.stringify(checks,null,2))
+ console.log('Stage 2 muzzle and exhaust glow verified in',view,checks.map(({preset,kind})=>preset+'/'+kind).join(', '))
+}

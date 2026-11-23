@@ -24,7 +24,7 @@ import { CAMPAIGN_COMMS_UI } from './campaignComms'
 import { getCarrierMission } from './carrierMission'
 import { getRaidPlayerHullSize } from './playerMuzzle'
 import { sampleLaunchFlight } from './raidLaunch'
-import { getWeaponIgnition } from './weaponPresentation'
+import { drawRaidMuzzleBloom, recordRaidMuzzleFlash, sampleRaidMuzzleFlash, type RaidMuzzleFlash } from './weaponPresentation'
 import { RaidLaunchSequence } from './RaidLaunchSequence'
 import { raidAudioPosition, getHullImpactDirection, raidStereoPan, sampleDistantBattle } from './flightEffects'
 import { registerSquidBubbleHit } from './bubbleRecoil'
@@ -310,9 +310,7 @@ export function GradiusRaid({
   const nukesUsedRef = useRef(0)
   const shotsRef = useRef<Shot[]>([])
   const missileSmokeRef = useRef<MissileSmokeTrails | null>(null)
-  const muzzleFlashesRef = useRef<Array<{ owner: Player; x: number; y: number; kind: Shot['kind']; at: number }>>([])
-  const activeShotOwnerRef = useRef<Player | null>(null)
-  const lastMuzzleFlashRef = useRef(new WeakMap<Player, number>())
+  const muzzleFlashesRef = useRef<RaidMuzzleFlash[]>([])
   const enemyShotsRef = useRef<Shot[]>([])
   const expiredSquidBubblesRef = useRef<Shot[]>([])
   const spawnedSquidBubblesRef = useRef<Shot[]>([])
@@ -1896,7 +1894,7 @@ export function GradiusRaid({
     const destructionEffects=scenePresentation.prepareDestructionEffects(time,phaseRef.current,cssWidth,cssHeight,reducedMotion,carrierActive)
     shipsRef.current?.render({ width: cssWidth,height: cssHeight,dpr,landscape:landscapeRef.current,measureGpu: measured,
       lighting: pixiBackground?.getShipLighting(), dock: carrier?.backdrop ?? 0,
-      combat:carrierActive?undefined:{time,paused:!playing,ripples:ripplesRef.current,shots:shotsRef.current,muzzles:muzzleFlashesRef.current,destructionEffects},
+      combat:carrierActive?undefined:{time,paused:!playing,ripples:ripplesRef.current,shots:shotsRef.current,muzzles:muzzleFlashesRef.current,destructionEffects,deepSpace:projectileGlow},
       eclipseAt: (x,y) => pixiBackground?.getEclipseAt(x,y) ?? 0 })
     costs.backgroundMs = measured ? performance.now() - backgroundStart : 0
     // One WebGL pass now presents animated scenery and pooled foreground
@@ -2818,18 +2816,6 @@ export function GradiusRaid({
     const hideOwnShipForBarrage = Boolean(ownShipRef && !stageClearActive && isGodGundamBarragePilot(ownShipRef, progressRef.current) && (godBarrageRef.current || (ownShipRef.godMeleeCloak ?? 0) > 0))
     const hideAllyShipForBarrage = Boolean(allyShipRef && !stageClearActive && isGodGundamBarragePilot(allyShipRef, progressRef.current) && (godBarrageRef.current || (allyShipRef.godMeleeCloak ?? 0) > 0))
     const hideDevilAssistForBarrage = Boolean(devilAssistShipRef && !stageClearActive && isGodGundamBarragePilot(devilAssistShipRef, progressRef.current) && (devilAssistShipRef.godMeleeCloak ?? 0) > 0)
-    // Reuse the preloaded muzzle atlas, with a strict six-flash budget.
-    const flashes = muzzleFlashesRef.current
-    for (let i = flashes.length - 1; i >= 0; i -= 1) {
-      const flash = flashes[i]
-      const material = getWeaponIgnition(flash.kind)
-      const progress = (time - flash.at) / material.duration
-      if (progress >= 1 || progress < 0 || flash.owner.hp <= 0) { flashes.splice(i, 1); continue }
-      if (!playing || reducedMotion || !gfxProfile.drawDecorativeOverlays || stageEntryRef.current > 0) continue
-      const texture = getRaidCombatFrame(material.tile)
-      if (texture) drawRaidCombatTexture(ctx, texture, toX(flash.owner.x + flash.x), toY(flash.owner.y + flash.y),
-        material.width * visualScale, material.height * visualScale, -Math.PI / 2, true, (1 - progress) * .8)
-    }
     if (stageEntryRef.current <= 0 && gfxProfile.drawOptionShips && ownShipRef && !hideOwnShipForBarrage) drawRaidOptions(ctx, ownShipRef, toX, toY, cssWidth, time, PLAYER_COLOR, getRaidPlayerVisualShipKey(ownShipRef, progressRef.current), landscapeRef.current)
     if (stageEntryRef.current <= 0 && gfxProfile.drawOptionShips && allyShipRef && !hideAllyShipForBarrage) drawRaidOptions(ctx, allyShipRef, toX, toY, cssWidth, time, ALLY_PLAYER_COLOR, getRaidPlayerVisualShipKey(allyShipRef, progressRef.current), landscapeRef.current)
     if (stageEntryRef.current <= 0 && gfxProfile.drawOptionShips && devilAssistShipRef && !hideDevilAssistForBarrage) drawRaidOptions(ctx, devilAssistShipRef, toX, toY, cssWidth, time, '#facc15', getRaidPlayerVisualShipKey(devilAssistShipRef, progressRef.current), landscapeRef.current)
@@ -2842,9 +2828,23 @@ export function GradiusRaid({
     const sunlight = pixiBackground?.getOrbitalSunlight() ?? 0
     scenePresentation.draw(ctx, time, phaseRef.current, toX, toY, cssWidth, reducedMotion, gfxQuality === 'low')
     if(!gpuForegroundDrawn)drawDestructionEffects(ctx,destructionEffects,cssWidth,cssHeight)
-    if (ownShipRef && !hideOwnShipForBarrage) drawRaidPlayer(ctx, ownShipRef, phaseRef.current, toX, toY, cssWidth, time, PLAYER_COLOR, getCachedEquippedCosmetics(ownShipRef.ship.key), getRaidPlayerVisualShipKey(ownShipRef, progressRef.current), sameScreenIdentityAura ? PLAYER_COLOR : null, journeyRim, pixiBackground?.getEclipseAt(toX(ownShipRef.x), toY(ownShipRef.y)), sunlight, reducedMotion, landscapeRef.current)
-    if (allyShipRef && !hideAllyShipForBarrage) drawRaidPlayer(ctx, allyShipRef, phaseRef.current, toX, toY, cssWidth, time, ALLY_PLAYER_COLOR, getCachedEquippedCosmetics(allyShipRef.ship.key), getRaidPlayerVisualShipKey(allyShipRef, progressRef.current), sameScreenIdentityAura ? ALLY_PLAYER_COLOR : null, journeyRim, pixiBackground?.getEclipseAt(toX(allyShipRef.x), toY(allyShipRef.y)), sunlight, reducedMotion, landscapeRef.current)
-    if (devilAssistShipRef && !hideDevilAssistForBarrage) drawRaidPlayer(ctx, devilAssistShipRef, phaseRef.current, toX, toY, cssWidth, time, '#facc15', getCachedEquippedCosmetics(devilAssistShipRef.ship.key), getRaidPlayerVisualShipKey(devilAssistShipRef, progressRef.current), null, journeyRim, pixiBackground?.getEclipseAt(toX(devilAssistShipRef.x), toY(devilAssistShipRef.y)), sunlight, reducedMotion, landscapeRef.current)
+    if (ownShipRef && !hideOwnShipForBarrage) drawRaidPlayer(ctx, ownShipRef, phaseRef.current, toX, toY, cssWidth, time, PLAYER_COLOR, getCachedEquippedCosmetics(ownShipRef.ship.key), getRaidPlayerVisualShipKey(ownShipRef, progressRef.current), sameScreenIdentityAura ? PLAYER_COLOR : null, journeyRim, pixiBackground?.getEclipseAt(toX(ownShipRef.x), toY(ownShipRef.y)), sunlight, reducedMotion, landscapeRef.current, undefined, projectileGlow)
+    if (allyShipRef && !hideAllyShipForBarrage) drawRaidPlayer(ctx, allyShipRef, phaseRef.current, toX, toY, cssWidth, time, ALLY_PLAYER_COLOR, getCachedEquippedCosmetics(allyShipRef.ship.key), getRaidPlayerVisualShipKey(allyShipRef, progressRef.current), sameScreenIdentityAura ? ALLY_PLAYER_COLOR : null, journeyRim, pixiBackground?.getEclipseAt(toX(allyShipRef.x), toY(allyShipRef.y)), sunlight, reducedMotion, landscapeRef.current, undefined, projectileGlow)
+    if (devilAssistShipRef && !hideDevilAssistForBarrage) drawRaidPlayer(ctx, devilAssistShipRef, phaseRef.current, toX, toY, cssWidth, time, '#facc15', getCachedEquippedCosmetics(devilAssistShipRef.ship.key), getRaidPlayerVisualShipKey(devilAssistShipRef, progressRef.current), null, journeyRim, pixiBackground?.getEclipseAt(toX(devilAssistShipRef.x), toY(devilAssistShipRef.y)), sunlight, reducedMotion, landscapeRef.current, undefined, projectileGlow)
+    const flashes = muzzleFlashesRef.current
+    for (let i = flashes.length - 1; i >= 0; i--) {
+      const flash = flashes[i]
+      const progress = sampleRaidMuzzleFlash(time, flash)
+      if (progress >= 1 || flash.owner.hp <= 0) {
+        flashes.splice(i, 1)
+        continue
+      }
+      if (!playing || (flash.owner === ownShipRef ? hideOwnShipForBarrage
+        : flash.owner === allyShipRef ? hideAllyShipForBarrage
+          : flash.owner !== devilAssistShipRef || hideDevilAssistForBarrage)) continue
+      drawRaidMuzzleBloom(ctx, flash, toX(flash.owner.x + flash.x), toY(flash.owner.y + flash.y),
+        visualScale, progress, projectileGlow, reducedMotion)
+    }
     shipsRef.current?.present()
 
     if (gfxProfile.drawDecorativeOverlays && !(landscapeRef.current && (isWateryWorldTheme(backgroundStageTheme) || isVolcanicWorldTheme(backgroundStageTheme)))) {
@@ -3451,7 +3451,6 @@ export function GradiusRaid({
     godBarrageRef.current = null
     godMeleeStrikesRef.current = []
     muzzleFlashesRef.current = []
-    lastMuzzleFlashRef.current = new WeakMap()
     nearMissCooldownRef.current = 0
     specialWasCoolingRef.current = false
     leaderboardSubmittedRef.current = false
@@ -3598,15 +3597,6 @@ export function GradiusRaid({
   const pushShot = useCallback((shot: Omit<Shot, 'id'>) => {
     // In capture mode (local prediction), redirect to the capture buffer instead of the shared shot list
     const target = fireCaptureRef.current ?? shotsRef.current
-    // Attach ignition to its pilot rather than leaving a flash at an old position.
-    const now = performance.now()
-    const owner = activeShotOwnerRef.current
-    if (owner && graphicsQualityRef.current !== 'low' && now - (lastMuzzleFlashRef.current.get(owner) ?? -Infinity) >= 75) {
-      lastMuzzleFlashRef.current.set(owner, now)
-      const flashes = muzzleFlashesRef.current
-      if (flashes.length >= 6) flashes.shift()
-      flashes.push({ owner, x: shot.x - owner.x, y: shot.y - owner.y, kind: shot.kind, at: now })
-    }
     const scale = missileLaunchScale(shot.kind)
     target.push({ ...shot, vx: shot.vx * scale, vy: shot.vy * scale, id: shotId++ })
   }, [])
@@ -3617,7 +3607,6 @@ export function GradiusRaid({
 
   const firePlayer = useCallback((sourcePlayer = playerRef.current) => {
     const player = sourcePlayer
-    activeShotOwnerRef.current = player
     if (isGodGundamBarragePilot(player, progressRef.current) && (player.godMeleeCloak ?? 0) > 0) return
     const stacks = player.weapons
     let totalStacks = 0
@@ -3642,11 +3631,16 @@ export function GradiusRaid({
     const firingPose = canFireMain && viewport && !coreLanderCombatModel && (bank !== 0 || shipKey === 'xwing')
       ? getRaidBankingFrame(getRaidPlayerVisualShipKey(player, progressRef.current), bank, landscapeRef.current, reducedFlightMotion)
       : null
+    const muzzleTime = canFireMain ? performance.now() : 0
+    const pushMainShot = (shot: Omit<Shot, 'id'>) => {
+      recordRaidMuzzleFlash(muzzleFlashesRef.current, player, shot, muzzleTime, viewport?.cssWidth ?? WIDTH, viewport?.cssHeight ?? HEIGHT)
+      pushShot(shot)
+    }
     const emitMainShot = canFireMain && viewport
-      ? createRaidMainShotEmitter(pushShot, player, shipKey, Boolean(coreLanderCombatModel),
+      ? createRaidMainShotEmitter(pushMainShot, player, shipKey, Boolean(coreLanderCombatModel),
         viewport.cssWidth, viewport.cssHeight, firingPose || reducedFlightMotion ? 0 : bank, landscapeRef.current,
         player.sizeScale, coreLanderCombatModel, firingPose?.wing)
-      : pushShot
+      : pushMainShot
     const defaultScoutOffset = isArk
       ? (isSmallViewport ? 14 : 7.4)
       : (isSmallViewport ? 12 : 5.6)

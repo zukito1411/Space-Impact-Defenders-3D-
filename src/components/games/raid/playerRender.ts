@@ -1,4 +1,5 @@
 import { updateScoutFlight } from './scoutFlight'
+import { drawRaidExhaustBloom, warmRaidWeaponGlows } from './weaponPresentation'
 import { isRaid2DMech } from './mechArtwork'
 import { CARRIER_EXIT_SECONDS } from './carrierLaunch'
 import { prepareLiveProtection, sampleLiveProtection } from './liveProtection'
@@ -385,6 +386,7 @@ const EXHAUST_ORIGIN_X = .452
 const EXHAUST_ORIGIN_Y = .25
 
 export function warmRaidEngineExhaust() {
+  warmRaidWeaponGlows()
   if (engineHeatSprites || typeof document === 'undefined') return
   const texture = getRaidCombatFrame(COMBAT_TILE.exhaust)
   if (!texture?.source?.resource) return
@@ -878,6 +880,7 @@ export function drawRaidPlayer(
   reducedMotion = false,
   landscape = false,
   presentation?: { scale: number; engine: number; hideCombatFx: boolean; carrierAge?: number; dock?: number },
+  exhaustBloom = false,
 ) {
   const x = toX(player.x)
   const y = toY(player.y)
@@ -1187,6 +1190,9 @@ export function drawRaidPlayer(
       drawHullExhaust(ctx, x, y, renderSize, time, engineBoost, sideVisualKey, undefined, trailColor, cosmeticShipKey)
     }
     ctx.restore()
+  }
+  if (exhaustBloom && !isDown && !presentation && (phase === 'playing' || phase === 'paused')) {
+    drawRaidExhaustBloom(ctx, x, y, renderSize, engineBoost / 1.35, coreLanderBurning, nozzles)
   }
   if (conditionHull) drawPlayerCondition(ctx, player, phase, x, conditionY, conditionSize, time, color, conditionHull, reducedMotion)
   } finally { ctx.restore() }

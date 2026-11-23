@@ -1,11 +1,13 @@
 import type { DestructionParticle } from './destructionEffects'
 import { Color, type MeshStandardMaterial } from 'three'
 import type { Player, Ripple, Shot } from './types'
+import { getWeaponIgnition, sampleRaidMuzzleFlash, type RaidMuzzleFlash } from './weaponPresentation'
 
 export type CombatLightInput = {
   destructionEffects?: readonly DestructionParticle[]
   time: number; paused: boolean; ripples: readonly Ripple[]; shots: readonly Shot[]
-  muzzles: readonly { owner: Player; x: number; y: number; kind: Shot['kind']; at: number }[]
+  muzzles: readonly RaidMuzzleFlash[]
+  deepSpace?: boolean
 }
 /** Four analytic light lobes, evaluated inside existing hull draws. No shadow
  * maps, extra light objects, postprocessing or light-dependent shader variants. */
@@ -19,6 +21,29 @@ export class CombatLightField {
   update(width: number, height: number, input?: CombatLightInput) {
     this.count=0;this.positions.value.fill(0);this.colors.value.fill(0)
     if (!input) return
+    // Delayed core/partial failures light nearby hulls at the actual blast,
+    // rather than emitting an early explosion just to drive the lighting.
+    let blast:DestructionParticle|undefined,blastScore=0
+    for(const particle of input.destructionEffects ?? []) {
+      if(particle.kind!=='explosion')continue
+      const score=particle.width*(1-particle.progress)**2
+      if(score>blastScore){blast=particle;blastScore=score}
+    }
+    if(blast && this.count<4)this.add(blast.x*width/100,height-blast.y*height/100,30,
+      Math.max(65,Math.min(300,blast.width*1.25)),1,.42,.12,2.6*(1-blast.progress)**2)
+    // Reserve up to two of the existing four lights for firing pilots.
+    let firstPilot: Player | undefined
+    if (!input.paused) for (let i = input.muzzles.length - 1; i >= 0; i--) {
+      const muzzle = input.muzzles[i]
+      const age = sampleRaidMuzzleFlash(input.time, muzzle)
+      if (age >= 1 || muzzle.owner.hp <= 0 || muzzle.owner === firstPilot) continue
+      const style = getWeaponIgnition(muzzle.kind)
+      const [red, green, blue] = style.rgb
+      this.add((muzzle.owner.x + muzzle.x) * width / 100, height - (muzzle.owner.y + muzzle.y) * height / 100,
+        20, style.size * 1.35, red, green, blue, (1 - age) ** 1.5 * (input.deepSpace ? 3.4 : 1.9))
+      if (firstPilot) break
+      firstPilot = muzzle.owner
+    }
     this.selected.fill(-1);this.scores.fill(0)
     for(let i=input.ripples.length-1;i>=0;i--){
       const r=input.ripples[i],age=1-r.life/Math.max(.001,r.maxLife)
@@ -30,28 +55,11 @@ export class CombatLightField {
       }
     }
     for(const index of this.selected){
-      if(index<0)continue
+      if(index<0 || this.count>=4)break
       const r=input.ripples[index],age=1-r.life/Math.max(.001,r.maxLife)
       this.color.set(r.color)
       this.add(r.x*width/100,height-r.y*height/100,36,Math.max(65,Math.min(270,r.size*12)),
         this.color.r,this.color.g,this.color.b,2.5*Math.exp(-age*6))
-    }
-    // Delayed core/partial failures light nearby hulls at the actual blast,
-    // rather than emitting an early explosion just to drive the lighting.
-    let blast:DestructionParticle|undefined,blastScore=0
-    for(const particle of input.destructionEffects ?? []) {
-      if(particle.kind!=='explosion')continue
-      const score=particle.width*(1-particle.progress)**2
-      if(score>blastScore){blast=particle;blastScore=score}
-    }
-    if(blast && this.count<4)this.add(blast.x*width/100,height-blast.y*height/100,30,
-      Math.max(65,Math.min(300,blast.width*1.25)),1,.42,.12,2.6*(1-blast.progress)**2)
-    for (let i=input.muzzles.length-1;i>=0 && this.count<4;i--) {
-      const m=input.muzzles[i],age=(input.time-m.at)/1000
-      if (age<0 || age>.11 || m.owner.hp<=0) continue
-      const warm=m.kind==='rocket'
-      this.add((m.owner.x+m.x)*width/100,height-(m.owner.y+m.y)*height/100,20,85,
-        warm?1:.23,warm?.48:.65,warm?.1:1,(1-age/.11)*1.3)
     }
     for (let i=input.shots.length-1;i>=0 && this.count<4;i--) {
       const s=input.shots[i]
