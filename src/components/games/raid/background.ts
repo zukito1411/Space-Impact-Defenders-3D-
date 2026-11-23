@@ -290,6 +290,8 @@ export const RAID_BOSS_BACKGROUND_THEME_SNAKE = 9102
 
 export const RAID_BOSS_BACKGROUND_THEME_FINAL = 9103
 
+const ADRIAN_PLANET_SLOT = 2
+
 export const RAID_BACKGROUND_SCENES: RaidBackgroundScene[] = [
   {
     nebulaShiftX: -0.08,
@@ -1109,7 +1111,8 @@ export class PixiRaidBackground {
       host.appendChild(canvas)
       await this.loadAssets()
       if (this.destroyed || this.app !== app) return false
-      await app.renderer.prepare.upload([...this.paintedStarMaps.values()])
+      const adrian = this.assetTextures.get('planetAdrian')
+      await app.renderer.prepare.upload(adrian ? [...this.paintedStarMaps.values(), adrian] : [...this.paintedStarMaps.values()])
       if (this.destroyed || this.app !== app) return false
       this.backdrop.prepare(app.renderer)
       this.asteroidBelt.prepare(app.renderer,this.assetTextures.get('asteroid') ?? Texture.WHITE)
@@ -1263,6 +1266,8 @@ export class PixiRaidBackground {
         this.height = height
         this.dpr = dpr
         app.renderer.resize(width, height, dpr)
+        const adrianPlacement = this.projected.get(this.planetSprites[ADRIAN_PLANET_SLOT])?.world
+        if (adrianPlacement && adrianPlacement.texture === this.assetTextures.get('planetAdrian')?.uid) adrianPlacement.admitted = false
         const canvas = app.canvas as HTMLCanvasElement
         canvas.style.width = `${width}px`
         canvas.style.height = `${height}px`
@@ -1383,10 +1388,14 @@ export class PixiRaidBackground {
         for (const volume of this.gasVolumes) volume.update(width, height, this.orbitalCamera, this.orbitalSkyReady,starSeconds,this.paintedStarMaps.get(volume.anchor.texture))
       }
       this.updateSceneryBloom(stageTheme, isLow, isMedium)
-      for (let i=0;i<this.moonSystems.length;i++) this.moonSystems[i].update(this.assetTextures.get('asteroid'),
-        this.globeStyle(this.planetSprites[i].texture),this.orbitalCamera,
-        this.projected.get(this.planetSprites[i])?.world.distanceKm ?? 0,celestialSeconds,
-        this.orbitalBodiesReady && space && this.journey.worldAlpha < .99 && Boolean(this.projected.get(this.planetSprites[i])?.active))
+      for (let i=0;i<this.moonSystems.length;i++) {
+        const sprite = this.planetSprites[i]
+        const style = this.globeStyle(sprite.texture)
+        const pose = this.projected.get(sprite)
+        this.moonSystems[i].update(this.assetTextures.get('asteroid'),style,this.orbitalCamera,
+          pose?.world.distanceKm ?? 0,celestialSeconds,
+          this.orbitalBodiesReady && space && this.journey.worldAlpha < .99 && Boolean(pose?.active) && style !== globeStyles.adrian)
+      }
       for (const globe of this.globes) globe.update(celestialSeconds, this.globeStyle, this.orbitalBodiesReady,
         this.projected.get(globe.anchor)?.world.distanceKm ?? 0, this.orbitalCamera ?? undefined, this.assetTextures.get('clouds'))
       for (const rock of this.sceneryRocks) rock.update(this.orbitalBodiesReady ? this.assetTextures.get('asteroid') : undefined, celestialSeconds, this.orbitalCamera?.focal ?? 1, width, height, this.orbitalCamera?.sunDirection)
@@ -2333,6 +2342,7 @@ export class PixiRaidBackground {
     if (texture === getJourneyPlanet(1)) return globeStyles.volcanic
     if (texture === getCosmosLandmark(0)) return globeStyles.blue
     if (texture === getCosmosLandmark(1)) return globeStyles.ringLandmark
+    if (texture === this.assetTextures.get('planetAdrian')) return globeStyles.adrian
     if (texture === this.assetTextures.get('planet1')) return globeStyles.earth
     if (texture === this.assetTextures.get('planet2')) return globeStyles.ring
     if (texture === this.assetTextures.get('planet3')) return globeStyles.violet
@@ -2368,6 +2378,17 @@ export class PixiRaidBackground {
           sprite.zIndex = departing ? 30 : this.journey.departing >= 0 ? 20 : 30
         }
         continue
+      }
+      if (index === ADRIAN_PLANET_SLOT && stageTheme === 3 && this.journeyInput.stageNumber === 3
+        && this.journeyInput.raidMode === 'campaign') {
+        const adrian = this.assetTextures.get('planetAdrian')
+        if (adrian) {
+          // A small angular diameter puts Adrian well behind the journey's destination.
+          const diameter = Math.min(width, height) * .19
+          setPixiSpriteContain(sprite, adrian, width * .24, height * .55, diameter, diameter, .96, -.16)
+          sprite.tint = 0xffffff
+          continue
+        }
       }
       const planet = scene.planets[index]
       const region = COSMIC_REGIONS[this.cosmosRegion < 0 ? 0 : this.cosmosRegion]

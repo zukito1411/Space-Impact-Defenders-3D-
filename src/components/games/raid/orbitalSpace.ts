@@ -82,7 +82,7 @@ void main() {
   gl_FragColor = texture2D(uArt,uFrame.xy+uv*uFrame.zw)*tint;
 }`
 
-type GlobeStyle = { radiusKm: number; radius: number; air: number[]; swing: number; weather?: number; lava?: boolean }
+type GlobeStyle = { radiusKm: number; radius: number; air: number[]; swing: number; weather?: number; lava?: boolean; astrophage?: boolean }
 export const globeStyles = {
   ocean: { radiusKm: 6400, radius: .481, air: [.42,.40,1.], swing: .42, weather: .72 },
   volcanic: { radiusKm: 5100, radius: .482, air: [1.,.31,.10], swing: .36, lava: true },
@@ -94,6 +94,7 @@ export const globeStyles = {
   violet: { radiusKm: 4600, radius: .478, air: [.72,.39,1.], swing: .33 },
   green: { radiusKm: 8800, radius: .488, air: [.38,.78,.95], swing: .32, weather: .42 },
   gold: { radiusKm: 7200, radius: .492, air: [1.,.53,.12], swing: .28, lava: true },
+  adrian: { radiusKm: 10700, radius: .478, air: [.36,.82,.66], swing: .31, astrophage: true },
   nebula: { radiusKm: 6100, radius: .476, air: [.34,.62,1.], swing: .30 },
 } satisfies Record<string, GlobeStyle>
 
@@ -140,6 +141,7 @@ export class OrbitalGlobe {
     }
     const rx = this.style.radius, ry = rx * texture.width / texture.height
     this.surface.setWeather(weather, seconds, this.style.weather ?? 0)
+    this.surface.setAstrophage(this.style.astrophage ? .92 + .08 * Math.sin(seconds * 1.12) : 0)
     if (camera) this.surface.setLight(camera.sunDirection)
     this.surface.setPerspective(distanceKm > 0 ? Math.min(.975, this.style.radiusKm / distanceKm) : 0,
       camera ? (sprite.x - camera.width * .5) / camera.focal : 0,

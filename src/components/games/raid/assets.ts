@@ -69,6 +69,7 @@ export const RAID_OTHER_ASSET_PATHS = {
   planet4: 'assets/others/planet_4.webp',
   planet5: 'assets/others/planet_5.webp',
   planetNebula: 'assets/others/planet__3.webp',
+  planetAdrian: 'assets/others/planet-adrian-v1.webp',
   spaceStation: 'assets/others/space_station.webp',
   sun: 'assets/others/sun.webp',
   clouds: 'assets/others/clouds.png',

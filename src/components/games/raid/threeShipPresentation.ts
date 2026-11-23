@@ -49,11 +49,12 @@ export class ThreeShipPresentation implements LiveHullSink {
   private readonly reflectionAxis = new Vector3(-.61, .49, .62).normalize()
   private readonly reflectionTurn = new Quaternion()
   private readonly viewTurn = new Quaternion()
-  private readonly flightViewTurn = new Quaternion().setFromAxisAngle(new Vector3(0,1,0),hullViewYaw(true))
-  private readonly parkedViewTurn = new Quaternion().setFromAxisAngle(new Vector3(0,1,0),hullViewYaw(true,1))
+  private readonly flightAxis = new Vector3(0,1,0)
+  private readonly flightViewTurn = new Quaternion().setFromAxisAngle(this.flightAxis,hullViewYaw(true))
+  private readonly parkedViewTurn = new Quaternion().setFromAxisAngle(this.flightAxis,hullViewYaw(true,1))
   // Upright organic anatomy faces the combat camera rather than the flight
   // plane's wing-bank basis. Keep depth while retaining the eyes and fangs.
-  private readonly organicViewTurn = new Quaternion().setFromAxisAngle(new Vector3(0,1,0), ORGANIC_BOSS_VIEW_YAW)
+  private readonly organicViewTurn = new Quaternion().setFromAxisAngle(this.flightAxis, ORGANIC_BOSS_VIEW_YAW)
   private readonly headingTurn = new Quaternion()
   private readonly headingAxis = new Vector3(0,0,1)
   private readonly preparedTextures = new WeakSet<Texture>()
@@ -425,11 +426,13 @@ export class ThreeShipPresentation implements LiveHullSink {
     // Bank in the hull's local flight frame, then turn that frame on screen.
     // This matches the Canvas hardpoints and keeps a sideways enemy's length.
     const dock = Math.max(0,Math.min(1,draw.dock ?? 0))
-    if (draw.landscape) {
+    group.quaternion.copy(this.headingTurn)
+    if (draw.viewYaw !== undefined) group.quaternion.multiply(this.viewTurn.setFromAxisAngle(this.flightAxis, draw.viewYaw))
+    else if (draw.landscape) {
       const view = draw.bossPose ? this.organicViewTurn : dock > 0
         ? this.viewTurn.copy(this.flightViewTurn).slerp(this.parkedViewTurn,dock) : this.flightViewTurn
-      group.quaternion.copy(this.headingTurn).multiply(view)
-    } else group.quaternion.copy(this.headingTurn)
+      group.quaternion.multiply(view)
+    }
     group.scale.set(draw.size*sx/448, draw.size*sy/448, draw.size*sx/448)
     node.object.position.set((144*sx+ox-224)/sx,(224-144*sy-oy)/sy,0)
     let bank = draw.bank*(1-dock)

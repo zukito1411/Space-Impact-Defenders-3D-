@@ -104,7 +104,7 @@ uniform sampler2D uWeather;
 uniform vec4 uWeatherFrame;
 uniform vec2 uWeatherTurn;
 uniform float uWeatherAmount;
-uniform float uRock, uLava;
+uniform float uRock, uLava, uAstrophage;
 uniform vec4 uOccluder0, uOccluder1;
 varying vec3 normal;
 varying vec2 paint;
@@ -159,6 +159,11 @@ void main() {
     float specular = pow(max(0.,dot(n,uHalfLight)),64.);
     color += vec3(.38,.57,.68)*specular*ocean*day;
   }
+  if (uAstrophage > 0.) {
+    // Crimson filaments in Adrian's paint pick up a little emission without a second layer.
+    float traces = smoothstep(.29,.66,pigment.r-pigment.g);
+    color += pigment*.23*(1.-day) + vec3(1.,.105,.043)*traces*.88*uAstrophage;
+  }
   gl_FragColor = vec4(color,1.)*tint;
 }`
 
@@ -179,6 +184,7 @@ export class OrbitalSurface {
     uWeatherTurn: { value: new Float32Array([1, 0]), type: 'vec2<f32>' },
     uWeatherAmount: { value: 0, type: 'f32' },
     uRock: { value: 0, type: 'f32' }, uLava: { value: 0, type: 'f32' },
+    uAstrophage: { value: 0, type: 'f32' },
     uPerspective: { value: .055, type: 'f32' },
   })
   private readonly shader: Shader
@@ -187,8 +193,8 @@ export class OrbitalSurface {
   constructor(private readonly variant = -1) {
     // Separate compiled programs remove weather work entirely from every rock.
     this.shader = new Shader({ glProgram: GlProgram.from({ vertex,
-      fragment: fragment.replace('uniform float uRock, uLava;',
-        `const float uRock = ${variant < 0 ? '0.' : '1.'}; uniform float uLava;`) }),
+      fragment: fragment.replace('uniform float uRock, uLava, uAstrophage;',
+        `const float uRock = ${variant < 0 ? '0.' : '1.'}; uniform float uLava, uAstrophage;`) }),
       resources: { body: this.params, uArt: Texture.WHITE.source, uWeather: Texture.WHITE.source } })
     this.mesh = new Mesh({ geometry: acquireGeometry(variant), shader: this.shader })
     this.mesh.pivot.set(.5)
@@ -219,6 +225,7 @@ export class OrbitalSurface {
     if (first) u.uOccluder0.set(first); else u.uOccluder0.fill(0)
     if (second) u.uOccluder1.set(second); else u.uOccluder1.fill(0)
   }
+  setAstrophage(strength: number) { this.params.uniforms.uAstrophage = strength }
   setWeather(texture: Texture | undefined, seconds: number, amount: number) {
     const u = this.params.uniforms
     u.uWeatherAmount = texture ? amount : 0

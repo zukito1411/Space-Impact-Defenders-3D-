@@ -295,7 +295,24 @@ try {
         const {CRUISE_FLYBY_START:rocky,GRACE_FLYBY_START:grace,ASTROPHAGE_START:dust,ASTROPHAGE_DURATION:duration}=
           await import('/src/components/games/raid/cruiseTiming.ts')
         const keys=['rockyFlyby','graceFlyby']
-        const drawing=(age)=>{
+        const footprint=(node,cssWidth,cssHeight)=>{
+          const point=node.group.position.clone()
+          let left=Infinity,right=-Infinity,top=Infinity,bottom=-Infinity
+          node.group.updateMatrixWorld(true)
+          node.object.traverse(mesh=>{
+            const positions=mesh.geometry?.attributes.position
+            if(!positions)return
+            for(let i=0;i<positions.count;i++) {
+              point.fromBufferAttribute(positions,i).applyMatrix4(mesh.matrixWorld).project(ships.camera)
+              left=Math.min(left,point.x)
+              right=Math.max(right,point.x)
+              top=Math.min(top,point.y)
+              bottom=Math.max(bottom,point.y)
+            }
+          })
+          return {left:(1+left)*.5,right:(1+right)*.5,length:(bottom-top)*.5*cssHeight/Math.min(cssWidth,cssHeight)}
+        }
+        const drawing=(age,measureFootprints=false)=>{
           r.journeyStageAgeRef.current=age
           actions.draw(40000+age*1000)
           const actors=keys.map(key=>ships.hulls.get('fx:'+key)).filter(node=>node?.group.visible)
@@ -304,7 +321,7 @@ try {
           const field=background.astrophage.root
           return {keys:actors.map(node=>node.key),depths:actors.map(node=>node.group.position.z),
             headings:actors.map(node=>node.group.rotation.z),
-            relativeSizes:actors.map(node=>node.lampSize/Math.min(cssWidth,cssHeight)),
+            footprints:measureFootprints?actors.map(node=>footprint(node,cssWidth,cssHeight)):[],
             draws:ships.getShipStats().drawCalls,astrophage:field.visible,
             redBounce:lighting.fillColor[0]*lighting.fillIntensity,
             particles:field.visible?field.children.filter(sprite=>sprite.visible).length:0,
@@ -316,7 +333,7 @@ try {
         const before=drawing(1)
         const earlyCruise=drawing(12)
         const leading=drawing(rocky+3.5)
-        const paired=drawing(grace+2.65)
+        const paired=drawing(grace+2.6,true)
         const following=drawing(grace+6.7)
         const after=drawing(dust-.1)
         const field=drawing(dust+4.3)
@@ -328,7 +345,7 @@ try {
         const boss=drawing(dust+4.3)
         reset(1,'waves')
         r.enemiesRef.current=[]
-        drawing(grace+2.65)
+        drawing(grace+2.6)
         actions.sync()
         return {before,earlyCruise,leading,paired,following,after,field,laterField,pastField,bossRush,boss}
       })
@@ -345,9 +362,12 @@ try {
       }
       assert.deepEqual(flyby.bossRush.keys,[])
       assert.deepEqual(flyby.boss.keys,[])
-      assert.ok(flyby.paired.depths.every(z=>z<0),'Cruise hulls must stay behind the combat lane')
+      assert.ok(flyby.paired.depths.every(z=>z<=-400),'Cruise hulls must stay in the distant plane')
       assert.ok(flyby.paired.headings.every(heading=>Math.abs(heading)<.001),'Cruise hulls must face along the pilot course')
-      assert.ok(flyby.paired.relativeSizes.every(size=>size>.6),'Cruise silhouettes are too small')
+      const [rockyFootprint,graceFootprint]=flyby.paired.footprints
+      assert.ok(rockyFootprint.length>.66&&graceFootprint.length>.71,'Cruise silhouettes shrank in perspective')
+      assert.ok(flyby.paired.footprints.every(({left,right})=>left>.015&&right<.44),
+        'Cruise silhouettes clipped the outer edge or drifted into the central flight lane: '+JSON.stringify(flyby.paired.footprints))
       assert.ok(flyby.field.particles>=250,'Astrophage missed its Max-quality particle budget')
       assert.notDeepEqual(flyby.field.sparkle,flyby.laterField.sparkle,'Astrophage should twinkle')
       assert.ok(flyby.field.redBounce>flyby.before.redBounce+.8,'Astrophage did not illuminate the ship lighting')
@@ -363,6 +383,41 @@ try {
       })
       await page.screenshot({path:output+'/stage-01-astrophage-'+view+'.png'})
       console.log('Verified Stage 1 ship flyby and Astrophage field in',view)
+      const adrian=await page.evaluate(()=>{
+        const {r,actions,background,reset}=window.campaignReview
+        const draw=(stage,time)=>{
+          reset(stage,'waves')
+          r.enemiesRef.current=[]
+          actions.draw(time)
+          const texture=background.assetTextures.get('planetAdrian')
+          const globe=background.globes.find(({anchor})=>anchor.texture===texture&&anchor.visible)
+          if(!globe)return null
+          const {anchor,mesh,surface}=globe
+          const {width,height}=background.orbitalCamera
+          const world=background.projected.get(anchor).world
+          return {mesh:mesh.visible,depth:world.distanceKm,diameter:anchor.width/Math.min(width,height),
+            x:anchor.x/width,y:anchor.y/height,traces:surface.params.uniforms.uAstrophage}
+        }
+        const stageTwo=draw(2,160000)
+        const visible=draw(3,161000)
+        r.graphicsQualityRef.current='low'
+        const low=draw(3,162000)
+        r.graphicsQualityRef.current='max'
+        const stageFour=draw(4,163000)
+        draw(3,164000)
+        actions.sync()
+        return {stageTwo,visible,low,stageFour}
+      })
+      assert.equal(adrian.stageTwo,null)
+      assert.equal(adrian.stageFour,null)
+      for(const planet of [adrian.visible,adrian.low]) {
+        assert.ok(planet?.mesh&&planet.traces>.8,'Stage 3 did not present Adrian with Astrophage')
+        assert.ok(planet.depth>85000&&planet.diameter>.17&&planet.diameter<.21,
+          'Adrian should be small and distant: '+JSON.stringify(planet))
+        assert.ok(Math.abs(planet.x-.24)<.02&&Math.abs(planet.y-.55)<.02,'Adrian drifted out of its background lane')
+      }
+      await page.screenshot({path:output+'/stage-03-adrian-'+view+'.png'})
+
     }
     if(verifyKeels) {
       const {checkBossKeels}=await import('./check-boss-keels.mjs')
