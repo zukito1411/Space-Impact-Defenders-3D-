@@ -8,7 +8,7 @@ import { getRaidPlayerHullSize } from './playerMuzzle'
 import { getRaidBankingFrame } from './bankingArt'
 import type { RaidBankingFrame } from './bankingArt'
 import { drawShipProtection, warmShipProtection } from './shipProtection'
-import { drawPlayerCondition } from './playerCondition'
+import { CRITICAL_HULL_FILTER, drawHullDamageSmoke, drawPlayerCondition } from './playerCondition'
 import type { ProtectionHull } from './shipProtection'
 import { drawMechAction, getMechActionAtlas, sampleMechAttack } from './mechAttack'
 import { drawMechDockPose, getMechDockAtlas, getMechDockNozzles, sampleMechDock } from './mechDock'
@@ -17,7 +17,7 @@ import { getRaidExhaustScale, getRaidShipBaseVisualKey, getRaidShipNozzles, uses
 import { updateFlightPose, type FlightPose } from './combatFeel'
 import { COMBAT_TILE, drawRaidCombatTexture, getRaidCombatFrame } from './combatArt'
 import type { ShipCosmeticEquipState } from '../../../progression'
-import { drawCanvasSprite, drawCanvasSpriteContain, drawSpriteGlow, getRaidSideShipCanvasSprite, getShipCanvasSprite } from './assets'
+import { drawCanvasSprite, drawCanvasSpriteContain, drawSpriteGlow, getRaidSideShipCanvasSprite, getShipCanvasSprite, warmCanvasSpriteFilter } from './assets'
 import type { CanvasSpriteEntry } from './assets'
 import { hexToRgba } from './bossRender'
 import { ALLY_PLAYER_COLOR, DEG, FORCE_FIELD_ARMOR, GOD_GUNDAM_BURNING_BODY_SCALE, GOD_GUNDAM_BURNING_BODY_Y_OFFSET, GOD_GUNDAM_BURNING_HALO_SCALE, GOD_GUNDAM_BURNING_HALO_Y_OFFSET, MESIAH_DRONE_HOME_OFFSET, MESIAH_DRONE_MAX_FIRE_RANGE, MESIAH_DRONE_MIN_FIRE_RANGE, MESIAH_DRONE_MOBILE_HOME_OFFSET, PLAYER_COLOR, SPACE_ET_PASSIVE_FORCE_FIELD_CHARGES, SPIEGEL_AFTERIMAGE_CAP, getShipSpriteSize } from './constants'
@@ -1006,9 +1006,15 @@ export function drawRaidPlayer(
     }
   }
 
+  const damaged = !isDown && !presentation?.hideCombatFx && player.hp <= 2 && (phase === 'playing' || phase === 'paused')
+  const critical = damaged && player.hp <= 1
+  const still = reducedMotion || phase === 'paused'
+  const damageBlink = critical && (still || time % 850 < 320)
+  if (damaged) drawHullDamageSmoke(ctx, x, y, renderSize * scale, time, critical, still)
+
   let conditionHull: ProtectionHull | null = null
   let conditionSize = renderSize, conditionY = y
-  if (!presentation?.hideCombatFx && (player.forceField > 0 || player.shield > 0 || player.feedback || player.hp <= player.maxHp * .35)) {
+  if (!presentation?.hideCombatFx && (player.forceField > 0 || player.shield > 0 || player.feedback)) {
     const capacity = player.ship.key === 'spaceEt' ? SPACE_ET_PASSIVE_FORCE_FIELD_CHARGES : FORCE_FIELD_ARMOR
     let protectionSize = renderSize, protectionY = y
     let protectionHull: ProtectionHull = sideSprite?.loaded
@@ -1046,7 +1052,7 @@ export function drawRaidPlayer(
     ? getShipFrameSpriteFilter(cosmeticShipKey)
     : 'brightness(1.12) contrast(1.14) saturate(1.26)'
   const eclipseFilter = eclipse > .65 ? 'brightness(.76)' : eclipse > .29 ? 'brightness(.88)' : eclipse > .10 ? 'brightness(.95)' : ''
-  const normalSpriteFilter = eclipseFilter ? (normalFilter === 'none' ? eclipseFilter : `${normalFilter} ${eclipseFilter}`) : normalFilter
+  const normalSpriteFilter = damageBlink ? CRITICAL_HULL_FILTER : eclipseFilter ? (normalFilter === 'none' ? eclipseFilter : `${normalFilter} ${eclipseFilter}`) : normalFilter
   const sprite = getShipCanvasSprite(sideVisualKey)
   const spriteGlow = presentation?.hideCombatFx ? null : coreLanderBurning
     ? coreLanderCombatModel
@@ -1056,7 +1062,7 @@ export function drawRaidPlayer(
       : 'rgba(251,191,36,0.28)'
     : player.forceField > 0 || player.shield > 0 ? null : player.invuln > 0 ? 'rgba(226,232,240,0.1)' : null
   const liveHullDrawn = !coreLanderCombatModel && drawLiveHull(ctx, bankingKey, x, y, renderSize * scale, liveBank, alpha,
-    landscape, color, { attack, crouch, dock:presentation?.dock })
+    landscape, color, { attack, crouch, damageBlink, dock:presentation?.dock })
   if (spriteGlow && (!liveHullDrawn || coreLanderBurning)) drawSpriteGlow(ctx, x, y, renderSize, spriteGlow, .68)
   // Dock exhaust remains the original 2D effect for live and fallback bodies.
   if(dockReady&&dockPose&&coreLanderCombatModel){
@@ -1076,7 +1082,7 @@ export function drawRaidPlayer(
     const attackPose = protectionAttackPose
     // Pick one form and one registered pose. Alpha crossfades between displaced arms
     // would draw a ghost arm, and would not correspond to the actual release point.
-    const actionDrawn = coreLanderCombatModel && attackPose && drawMechAction(ctx, coreLanderCombatModel, coreLanderBurning, attackPose.frame, x, y, renderSize, alpha, rotation, scale)
+    const actionDrawn = coreLanderCombatModel && attackPose && drawMechAction(ctx, coreLanderCombatModel, coreLanderBurning, attackPose.frame, x, y, renderSize, alpha, rotation, scale, damageBlink)
     if (actionDrawn && attackPose && ctx.canvas?.dataset) {
       ctx.canvas.dataset.mechActionModel = coreLanderCombatModel ?? ''
       ctx.canvas.dataset.mechActionStage = attackPose.stage
@@ -1084,9 +1090,10 @@ export function drawRaidPlayer(
     }
     if (!actionDrawn) {
       const burningBlend = sideBurningSprite?.loaded ? coreLanderBurningBlend : 0
-      if (burningBlend < .99) drawCanvasSpriteContain(ctx, sideSprite, x, y, renderSize, 'none', alpha * (1 - burningBlend), rotation - Math.PI / 2, scale, masteryPaintColor)
+      const sideFilter = damageBlink ? CRITICAL_HULL_FILTER : 'none'
+      if (burningBlend < .99) drawCanvasSpriteContain(ctx, sideSprite, x, y, renderSize, sideFilter, alpha * (1 - burningBlend), rotation - Math.PI / 2, scale, masteryPaintColor)
       if (sideBurningSprite?.loaded && burningBlend > 0) {
-        drawCanvasSpriteContain(ctx, sideBurningSprite, x, y, renderSize, 'none', alpha * burningBlend, rotation - Math.PI / 2, scale, masteryPaintColor)
+        drawCanvasSpriteContain(ctx, sideBurningSprite, x, y, renderSize, sideFilter, alpha * burningBlend, rotation - Math.PI / 2, scale, masteryPaintColor)
       }
     }
   } else if (coreLanderCombatModel && coreLanderBurningBlend > 0.01) {
@@ -1143,7 +1150,7 @@ export function drawRaidPlayer(
         x,
         burningY,
         burningRenderSize,
-        getGodGundamBurningSpriteFilter(coreLanderBurningBlend, coreLanderBurningRage),
+        damageBlink ? CRITICAL_HULL_FILTER : getGodGundamBurningSpriteFilter(coreLanderBurningBlend, coreLanderBurningRage),
         alpha * coreLanderBurningBlend,
         rotation,
         scale,
@@ -1513,11 +1520,15 @@ export function warmRaidSideCosmetics(visualShipKey: string, aura = true) {
     return
   }
   const portrait = getShipCanvasSprite(visualShipKey)
-  void portrait.ready.then(() => { warmShipProtection({ sprite: portrait }) })
+  void portrait.ready.then(() => {
+    warmShipProtection({ sprite: portrait })
+    warmCanvasSpriteFilter(portrait, CRITICAL_HULL_FILTER)
+  })
   const model = visualShipKey === 'spiegel' ? 'spiegel' : 'godGundam'
   const atlas = getMechActionAtlas(model, visualShipKey === 'godGundamBurning')
   getMechDockAtlas(model)
   void atlas.ready.then(() => {
+    warmCanvasSpriteFilter(atlas, CRITICAL_HULL_FILTER)
     const columns = model === 'godGundam' ? 3 : 2
     for (let frame = 0; frame < columns * 2; frame++) warmShipProtection({
       sprite: atlas, contain: true, rotation: -Math.PI / 2, columns, rows: 2, frame,
@@ -1525,6 +1536,7 @@ export function warmRaidSideCosmetics(visualShipKey: string, aura = true) {
   })
   const side = getRaidSideShipCanvasSprite(visualShipKey)
   if (side) void side.ready.then(() => {
+    warmCanvasSpriteFilter(side, CRITICAL_HULL_FILTER)
     warmShipProtection({ sprite: side, contain: true, rotation: -Math.PI / 2 })
     if (aura) getSideAuraSprite(side)
   })

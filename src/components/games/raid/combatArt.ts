@@ -59,6 +59,7 @@ let bossFrames: Texture[] = []
 let missileLoaded = false
 const bossMaterials: Partial<Record<Shot['kind'], CombatProjectileMaterial>> = {}
 const rootTextures: Texture[] = []
+const glowFrames = new WeakMap<Texture, Texture>()
 const playerMaterials: Partial<Record<Shot['kind'], CombatProjectileMaterial>> = {}
 const enemyMaterials: Partial<Record<Shot['kind'], CombatProjectileMaterial>> = {}
 let warmPromise: Promise<void> | null = null
@@ -104,6 +105,50 @@ function buildMaterials(specs: Partial<Record<Shot['kind'], MaterialSpec>>, targ
   }
 }
 
+/** Bake the halo into each cell so both renderers still draw one sprite per shot. */
+function bakeProjectileGlow(root: Texture, frames: readonly Texture[], solidFrames: readonly Texture[] = []) {
+  const image = root.source.resource as CanvasImageSource | undefined
+  if (!image) return
+  const canvas = document.createElement('canvas')
+  canvas.width = root.source.pixelWidth
+  canvas.height = root.source.pixelHeight
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  const resolution = root.source.resolution
+  for (const texture of frames) {
+    const { x, y, width, height } = texture.frame
+    const left = x * resolution, top = y * resolution, w = width * resolution, h = height * resolution
+    const solid = solidFrames.includes(texture)
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(left, top, w, h)
+    ctx.clip()
+    ctx.filter = 'blur(' + Math.max(2, Math.min(w, h) * .035) + 'px)'
+    ctx.globalAlpha = solid ? .62 : .9
+    ctx.drawImage(image, left, top, w, h, left, top, w, h)
+    ctx.filter = 'none'
+    ctx.globalAlpha = 1
+    ctx.globalCompositeOperation = solid ? 'source-over' : 'lighter'
+    ctx.drawImage(image, left, top, w, h, left, top, w, h)
+    if (!solid) {
+      ctx.globalAlpha = .3
+      ctx.drawImage(image, left, top, w, h, left, top, w, h)
+    }
+    ctx.restore()
+  }
+  const atlas = Texture.from(canvas, true)
+  rootTextures.push(atlas)
+  for (const texture of frames) {
+    const { x, y, width, height } = texture.frame
+    glowFrames.set(texture, new Texture({ source: atlas.source,
+      frame: new Rectangle(x * resolution, y * resolution, width * resolution, height * resolution) }))
+  }
+}
+
+export function getRaidProjectileTexture(texture: Texture, glow: boolean) {
+  return glow ? glowFrames.get(texture) ?? texture : texture
+}
+
 /** Decode once in the loading screen. Frames share their atlas GPU texture sources. */
 export function preloadRaidCombatArt(): Promise<void> {
   if (!warmPromise) {
@@ -113,6 +158,9 @@ export function preloadRaidCombatArt(): Promise<void> {
         rootTextures.push(texture)
         buildMaterials(PLAYER_MATERIALS, playerMaterials)
         buildMaterials(ENEMY_MATERIALS, enemyMaterials)
+        const tiles = [COMBAT_TILE.plasma, COMBAT_TILE.hotBolt, COMBAT_TILE.ionNeedle, COMBAT_TILE.alienOrb,
+          COMBAT_TILE.fireImpact, COMBAT_TILE.missile]
+        bakeProjectileGlow(texture, tiles.map(tile => combatFrames[tile]), [combatFrames[COMBAT_TILE.missile]])
       }).catch((error: unknown) => { console.warn('Raid projectile artwork failed to load:', RAID_COMBAT_ATLAS_URL, error) })),
       (explosionFrames.length ? Promise.resolve() : Assets.load<Texture>(RAID_EXPLOSION_ATLAS_URL).then((texture) => {
         explosionFrames = splitAtlas(texture, false, true)
@@ -130,6 +178,7 @@ export function preloadRaidCombatArt(): Promise<void> {
           const [tile, width, height, directional, solid] = spec
           bossMaterials[kind as Shot['kind']] = { texture: bossFrames[tile], width, height, directional, solid }
         }
+        bakeProjectileGlow(texture, bossFrames.slice(0, 10), [bossFrames[2], bossFrames[3], bossFrames[5]])
       }).catch((error: unknown) => { console.warn('Raid boss artwork failed to load:', RAID_BOSS_ATLAS_URL, error) })),
       (bossFxFrames.length ? Promise.resolve() : Assets.load<Texture>(RAID_BOSS_FX_ATLAS_URL).then((texture) => {
         bossFxFrames = splitAtlas(texture, false, false, 3)
@@ -139,6 +188,7 @@ export function preloadRaidCombatArt(): Promise<void> {
         texture.source.autoGenerateMipmaps = false
         bossBeam = texture
         rootTextures.push(texture)
+        bakeProjectileGlow(texture, [texture])
       }).catch((error: unknown) => { console.warn('Boss beam artwork unavailable:', error) })),
       (missileLoaded ? Promise.resolve() : Assets.load<Texture>(RAID_MISSILE_ATLAS_URL).then((texture) => {
         texture.source.scaleMode = 'linear'
@@ -149,6 +199,8 @@ export function preloadRaidCombatArt(): Promise<void> {
             frame: new Rectangle(2, index * texture.height / 2 + 2, texture.width - 4, texture.height / 2 - 4)}),
             width:width*missileVisualScale(kind), height:height*missileVisualScale(kind), directional: true, solid: true}
         }
+        const missiles = [playerMaterials.rocket!.texture, playerMaterials.homing!.texture]
+        bakeProjectileGlow(texture, missiles, missiles)
         missileLoaded = true
       }).catch((error: unknown) => {console.warn('Missile art unavailable:',error)})),
     ]).then(() => {

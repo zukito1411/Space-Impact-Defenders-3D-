@@ -5,9 +5,10 @@ import { prepareBossArmor } from './bossHullMaterials'
 import { rigMechHull } from './mechHullRig'
 import { prepareOrganicRig } from './specialBossGeometry'
 import { prepareMobHullSurface } from './mobHullDetail'
+import { ENEMY_HULL_SPECS } from './enemyHulls'
 
 export const isMechHull = (key: string) => key === 'godGundam' || key === 'godGundamBurning' || key === 'spiegel'
-export type HullSurfaceBinding = { material: MeshStandardMaterial; opacity: number; emissiveIntensity: number; sunVisibility: { value: number } }
+export type HullSurfaceBinding = { material: MeshStandardMaterial; opacity: number; emissiveIntensity: number; sunVisibility: { value: number }; damageBlink?: { value: boolean } }
 
 /** Own material instances, sharing the original mesh buffers and paint. */
 export function prepareHullSurfaces(object: Object3D, key: string, renderer: WebGLRenderer,
@@ -45,6 +46,7 @@ export function prepareHullSurfaces(object: Object3D, key: string, renderer: Web
       renderer.initTexture(texture)
       preparedTextures.add(texture)
     }
+    const damageBlink = ENEMY_HULL_SPECS[key] ? undefined : { value: false }
     const sunVisibility = { value: 1 }, previousCompile = material.onBeforeCompile
     const baseKey = material.customProgramCacheKey()
     material.onBeforeCompile = (shader, context) => {
@@ -81,7 +83,7 @@ varying vec3 raidCondition;
       `).replace('vec3 totalEmissiveRadiance = emissive;', `
         vec3 totalEmissiveRadiance = emissive;
         #ifdef USE_INSTANCING
-        totalEmissiveRadiance += vec3(raidCondition.z * .38);
+        totalEmissiveRadiance += vec3(max(0., raidCondition.z) * .38);
         #endif
       `).replace('#include <alphahash_fragment>', `
         #ifdef USE_ALPHAHASH
@@ -109,10 +111,23 @@ varying vec3 raidCondition;
         reflectedLight.indirectDiffuse *= raidCavity;
         reflectedLight.indirectSpecular *= mix(.8, 1., raidCavity);
       `)
+      if (damageBlink) {
+        shader.uniforms.raidDamageBlink = damageBlink
+        shader.fragmentShader = 'uniform bool raidDamageBlink;\n' + shader.fragmentShader
+        shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `
+          #ifdef USE_INSTANCING
+          bool raidFlash = raidCondition.z < 0.;
+          #else
+          bool raidFlash = raidDamageBlink;
+          #endif
+          if (raidFlash) outgoingLight = mix(outgoingLight * vec3(1., .06, .04), vec3(.82, .009, .006), .42);
+          #include <opaque_fragment>
+        `)
+      }
     }
-    material.customProgramCacheKey = () => 'sid-hull-light-cavity-v1:' + baseKey
+    material.customProgramCacheKey = () => 'sid-hull-light-cavity-v2:' + (damageBlink ? 'pilot:' : '') + baseKey
     if (combatLights) bindCombatLighting(material,combatLights)
-    bindings.push({ material, opacity: material.opacity, emissiveIntensity: material.emissiveIntensity, sunVisibility })
+    bindings.push({ material, opacity: material.opacity, emissiveIntensity: material.emissiveIntensity, sunVisibility, damageBlink })
   }
   return { owned, bindings }
 }
