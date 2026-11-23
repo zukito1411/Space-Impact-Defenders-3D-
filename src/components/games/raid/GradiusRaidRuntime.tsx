@@ -74,7 +74,7 @@ import { createRaidVisibilityBounds, raidObjectInView } from './visibility'
 import { isGpuEnemyShot, isGpuPlayerShot } from './gpuForeground'
 import { getGpuBossProjectileSpec } from './gpuBossProjectiles'
 import type { GpuBossProjectileSpec } from './gpuBossProjectiles'
-import { applyRaidBossArtwork, isRaidBossArtSolid, COMBAT_TILE, drawRaidCombatTexture, getRaidCombatFrame, getRaidExplosionFrame, getRaidProjectileMaterial, isWarmRaidEffectColor } from './combatArt'
+import { applyRaidBossArtwork, isRaidBossArtSolid, COMBAT_TILE, drawRaidCombatTexture, getRaidCombatFrame, getRaidExplosionFrame, getRaidProjectileMaterial, getRaidProjectileTexture, isWarmRaidEffectColor } from './combatArt'
 import { clearRaidSpatialHash, createRaidSpatialHash, insertRaidSpatialHash, queryRaidSpatialHash } from './spatialHash'
 import type { RaidViewportMetrics } from './graphics'
 import { clearPickupLoadout, extendLoadoutForSuperBoss, getPowerScore, resetStageLoadout } from './loadout'
@@ -1830,6 +1830,7 @@ export function GradiusRaid({
         activeBoss?.bossKind === 'snake' ? RAID_BOSS_BACKGROUND_THEME_SNAKE :
           activeBoss?.bossKind === 'final' || activeBoss?.bossKind === 'devil' ? RAID_BOSS_BACKGROUND_THEME_FINAL :
             campaignBackgroundStageTheme
+    const projectileGlow = !isWateryWorldTheme(backgroundStageTheme) && !isVolcanicWorldTheme(backgroundStageTheme)
 
     const measured = showPerfHudRef.current
     const costs = drawCostsRef.current
@@ -1916,6 +1917,7 @@ export function GradiusRaid({
       measureGpu: measured,
       bounds: drawBounds,
       drawAdvancedShotFx: gfxProfile.drawAdvancedShotFx,
+      projectileGlow,
       drawRipples: gfxProfile.drawRipples,
       maxRipples: gfxProfile.maxRipples,
       maxSparks: gfxProfile.maxSparks,
@@ -2303,7 +2305,7 @@ export function GradiusRaid({
       ctx.globalCompositeOperation = 'lighter'
       const trail = ctx.createLinearGradient(0, radius * 1.9, 0, -radius * 0.2)
       trail.addColorStop(0, 'rgba(15,23,42,0)')
-      trail.addColorStop(0.38, 'rgba(148,163,184,0.2)')
+      trail.addColorStop(0.38, projectileGlow ? 'rgba(248,113,113,0.43)' : 'rgba(148,163,184,0.2)')
       trail.addColorStop(1, 'rgba(248,250,252,0.62)')
       ctx.strokeStyle = trail
       ctx.lineWidth = Math.max(1.1, radius * 0.22)
@@ -2313,8 +2315,9 @@ export function GradiusRaid({
       ctx.lineTo(0, -radius * 0.2)
       ctx.stroke()
 
-      ctx.shadowBlur = Math.max(6, radius * 0.8)
-      ctx.shadowColor = 'rgba(248,113,113,0.24)'
+      const halo = getRaidCombatFrame(COMBAT_TILE.fireImpact)
+      if (halo) drawRaidCombatTexture(ctx, halo, 0, -radius * .42,
+        radius * 2.2, radius * 3.9, 0, true, projectileGlow ? .62 : .32)
       ctx.fillStyle = 'rgba(226,232,240,0.92)'
       ctx.strokeStyle = 'rgba(239,68,68,0.78)'
       ctx.lineWidth = Math.max(1, radius * 0.12)
@@ -2327,7 +2330,6 @@ export function GradiusRaid({
       ctx.fill()
       ctx.stroke()
 
-      ctx.shadowBlur = 0
       ctx.fillStyle = 'rgba(15,23,42,0.86)'
       ctx.fillRect(-radius * 0.13, radius * 0.08, radius * 0.26, radius * 0.74)
       ctx.strokeStyle = 'rgba(250,204,21,0.58)'
@@ -2554,7 +2556,8 @@ export function GradiusRaid({
       ctx.translate(x, y)
       ctx.rotate(angle)
       ctx.globalCompositeOperation = 'lighter'
-      drawRadialEllipse(ctx, 0, size * 0.04, size * 0.38, size * 0.54, RAID_DEVIL_MASTER_PROJECTILE_GLOW_STOPS)
+      const aura = projectileGlow ? 1.2 : 1
+      drawRadialEllipse(ctx, 0, size * 0.04, size * 0.38 * aura, size * 0.54 * aura, RAID_DEVIL_MASTER_PROJECTILE_GLOW_STOPS)
       drawCanvasSpriteContain(ctx, sprite, 0, 0, size, RAID_DEVIL_MASTER_PROJECTILE_FILTER, 1, 0, 1, '#ef4444')
       ctx.restore()
     }
@@ -2624,7 +2627,7 @@ export function GradiusRaid({
       const material = getRaidProjectileMaterial(shot.kind, enemy)
       if (!material) return false
       const heading = Math.atan2(shot.vy * cssHeight, shot.vx * cssWidth)
-      return drawRaidCombatTexture(ctx, material.texture, toX(shot.x), toY(shot.y),
+      return drawRaidCombatTexture(ctx, getRaidProjectileTexture(material.texture, projectileGlow), toX(shot.x), toY(shot.y),
         material.width * visualScale, material.height * visualScale,
         material.directional ? heading : time * 0.0003 + shot.id, !material.solid)
     }
@@ -2771,7 +2774,7 @@ export function GradiusRaid({
         if (texture && spec) {
           ctx.save()
           ctx.globalAlpha = spec.alpha
-          const drawn = drawRaidCombatTexture(ctx, texture, spec.x, spec.y, spec.width, spec.height,
+          const drawn = drawRaidCombatTexture(ctx, getRaidProjectileTexture(texture, projectileGlow), spec.x, spec.y, spec.width, spec.height,
             spec.rotation, !isRaidBossArtSolid(spec.kind))
           ctx.restore()
           if (drawn) continue

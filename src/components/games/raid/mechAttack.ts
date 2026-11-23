@@ -1,6 +1,7 @@
 import type { CoreLanderCombatModel } from './types'
 import { getPublicAssetUrl } from '../sound'
-import { getCanvasSpriteDimensions, makeImageCanvasSprite } from './assets'
+import { CRITICAL_HULL_FILTER } from './playerCondition'
+import { getCanvasSpriteDimensions, getFilteredCanvasSpriteSource, makeImageCanvasSprite } from './assets'
 
 export const MECH_ACTION_PATHS = {
   godGundam: 'assets/ships/sideview/god-gundam-two-palm-v1.webp',
@@ -33,10 +34,11 @@ export function getMechActionAtlas(model: CoreLanderCombatModel, burning = false
 }
 
 /** One registered atlas cell replaces the hull; consecutive poses never overlap as ghosts. */
-export function drawMechAction(ctx: CanvasRenderingContext2D, model: CoreLanderCombatModel, burning: boolean, frame: number, x: number, y: number, size: number, alpha: number, rotation: number, scale: number) {
+export function drawMechAction(ctx: CanvasRenderingContext2D, model: CoreLanderCombatModel, burning: boolean, frame: number, x: number, y: number, size: number, alpha: number, rotation: number, scale: number, damageBlink = false) {
   const atlas = getMechActionAtlas(model, burning)
   if (!atlas.loaded) return false
   const { source, width, height } = getCanvasSpriteDimensions(atlas)
+  const tinted = damageBlink ? getFilteredCanvasSpriteSource(atlas, source, width, height, CRITICAL_HULL_FILTER) : null
   const columns = model === 'godGundam' ? 3 : 2
   const cellWidth = width / columns
   const cellHeight = height / 2
@@ -47,7 +49,7 @@ export function drawMechAction(ctx: CanvasRenderingContext2D, model: CoreLanderC
   ctx.rotate(rotation - Math.PI / 2)
   ctx.scale(scale, scale)
   ctx.globalAlpha *= alpha
-  ctx.drawImage(source, cell % columns * cellWidth, Math.floor(cell / columns) * cellHeight,
+  ctx.drawImage(tinted ?? source, cell % columns * cellWidth, Math.floor(cell / columns) * cellHeight,
     cellWidth, cellHeight, -size / 2, -drawHeight / 2, size, drawHeight)
   ctx.restore()
   return true

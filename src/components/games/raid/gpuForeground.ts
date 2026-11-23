@@ -21,7 +21,7 @@ import { createGpuBossProjectileCanvas, getGpuBossProjectileSpec } from './gpuBo
 import type { GpuBossProjectileSpec } from './gpuBossProjectiles'
 import { RaidGpuBossBodies } from './gpuBossBodies'
 import type { RaidVisibilityBounds } from './visibility'
-import { COMBAT_TILE, applyRaidBossArtwork, isRaidBossArtSolid, getRaidCombatFrame, getRaidCombatRootTextures, getRaidExplosionFrame, getRaidProjectileMaterial, preloadRaidCombatArt } from './combatArt'
+import { COMBAT_TILE, applyRaidBossArtwork, isRaidBossArtSolid, getRaidCombatFrame, getRaidCombatRootTextures, getRaidExplosionFrame, getRaidProjectileMaterial, getRaidProjectileTexture, preloadRaidCombatArt } from './combatArt'
 
 export type RaidGpuForegroundFrame = {
   width: number
@@ -34,6 +34,7 @@ export type RaidGpuForegroundFrame = {
   measureGpu: boolean
   bounds: RaidVisibilityBounds
   drawAdvancedShotFx: boolean
+  projectileGlow: boolean
   drawRipples: boolean
   maxSparks: number
   maxRipples: number
@@ -371,7 +372,7 @@ export class RaidGpuForeground {
     const sx = frame.width / 100
     const sy = frame.height / 100
     const heading = Math.atan2(shot.vy * sy, shot.vx * sx)
-    node.texture = material.texture
+    node.texture = getRaidProjectileTexture(material.texture, frame.projectileGlow)
     node.anchor.set(0.5)
     node.position.set(shot.x * sx, shot.y * sy)
     node.width = material.width * frame.visualScale
@@ -435,7 +436,7 @@ export class RaidGpuForeground {
     if (spec.kind !== 'beam' && !raidObjectInView(frame.bounds, shot.x, shot.y,
       spec.width * 50 / Math.max(1, frame.width), spec.height * 50 / Math.max(1, frame.height))) return true
     const key = 'boss-bullet:' + spec.kind
-    let texture = illustrated ?? this.textures.get(key)?.texture
+    let texture = illustrated ? getRaidProjectileTexture(illustrated, frame.projectileGlow) : this.textures.get(key)?.texture
     if (!texture) {
       const canvas = createGpuBossProjectileCanvas(spec.kind)
       texture = this.cachedTexture(key, canvas, true)

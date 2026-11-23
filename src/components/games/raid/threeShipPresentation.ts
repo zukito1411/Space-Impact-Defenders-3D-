@@ -447,11 +447,13 @@ export class ThreeShipPresentation implements LiveHullSink {
     // Saucer spin belongs inside the inclined flight plane. Rotating the
     // projected heading instead makes the disc stand up like a wheel.
     node.object.rotation.z = this.reduced.matches ? 0 : draw.spin ?? 0
-    node.hit = Math.max(0, Math.min(1, draw.hit ?? 0))
+    // The existing instance state uses negative hit values for the pilot's red flash.
+    node.hit = draw.damageBlink ? -1 : Math.max(0, Math.min(1, draw.hit ?? 0))
     const eclipse = Math.max(0, Math.min(1, this.eclipseAt?.(draw.x,draw.y) ?? 0)) * (1-this.dockBlend)
     for (const surface of node.surfaces) {
       surface.material.opacity = draw.alpha * surface.opacity
-      surface.material.emissiveIntensity = surface.emissiveIntensity + node.hit * .38
+      surface.material.emissiveIntensity = surface.emissiveIntensity + Math.max(0, node.hit) * .38
+      if (surface.damageBlink) surface.damageBlink.value = node.hit < 0
       // Shadow the incident light, leaving the painted albedo and weak
       // environment reflection intact on the night side.
       surface.sunVisibility.value = 1-.92*eclipse

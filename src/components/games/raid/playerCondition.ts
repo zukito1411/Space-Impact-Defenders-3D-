@@ -33,95 +33,85 @@ export function drawPlayerCondition(ctx: CanvasRenderingContext2D, player: Playe
   const delta = Math.max(0, Math.min(.05, (time - state.previous) / 1000))
   state.previous = time
   if (phase !== 'paused' && phase !== 'briefing' && phase !== 'select') state.age += delta
-  const feedback = validPlayerFeedback(player.feedback) ? player.feedback : undefined
-  if (feedback && feedback.serial !== state.serial) { state.serial = feedback.serial; state.age = 0 }
-  const critical = player.hp > 0 && player.hp <= player.maxHp * .35
-  if ((!feedback || state.age > 1.15) && !critical) return
+  const feedback = player.feedback
+  if (!validPlayerFeedback(feedback)) return
+  if (feedback.serial !== state.serial) { state.serial = feedback.serial; state.age = 0 }
+  const repair = feedback.kind === 'repair'
+  const broken = feedback.kind.endsWith('break')
+  const duration = repair ? 1.15 : broken ? .8 : .38
+  const progress = Math.max(0, Math.min(1, state.age / duration))
+  if (progress >= 1) return
   const art = warmShipProtection(hull)
   if (!art) return
   ctx.save()
   ctx.translate(x, y)
   ctx.scale(size / 192, size / 192)
   ctx.globalCompositeOperation = 'lighter'
-  if (feedback && state.age <= 1.15) {
-    const repair = feedback.kind === 'repair'
-    const broken = feedback.kind.endsWith('break')
-    const duration = repair ? 1.15 : broken ? .8 : .38
-    const progress = Math.max(0, Math.min(1, state.age / duration))
-    if (progress < 1) {
-      const path = hull.contours
-        ? feedback.kind.startsWith('shield') ? hull.contours.shield : hull.contours.field
-        : feedback.kind.startsWith('shield') ? art.shieldPath : art.fieldPath
-      const coordinates = hull.contours ? 192 : 1
-      let contact = 0, best = -Infinity
-      for (let i = 0; i < 256; i++) {
-        const px = path.points[i * 2]*coordinates, py = path.points[i * 2 + 1]*coordinates
-        const score = (px * feedback.dx + py * feedback.dy) / Math.max(1, Math.hypot(px, py))
-        if (score > best) { contact = i; best = score }
+  ctx.globalAlpha *= (1 - progress) ** .75
+  if (repair) {
+    if (!reducedMotion) {
+      ctx.beginPath()
+      ctx.rect(-128, 110 - progress * 260, 256, 62)
+      ctx.clip()
+    }
+    ctx.drawImage(art.repair, -128, -128)
+  } else {
+    const shield = feedback.kind.startsWith('shield')
+    const combined = feedback.kind.startsWith('combined')
+    const path = hull.contours
+      ? shield ? hull.contours.shield : hull.contours.field
+      : shield ? art.shieldPath : art.fieldPath
+    const coordinates = hull.contours ? 192 : 1
+    let contact = 0, best = -Infinity
+    for (let i = 0; i < 256; i++) {
+      const px = path.points[i * 2] * coordinates, py = path.points[i * 2 + 1] * coordinates
+      const score = (px * feedback.dx + py * feedback.dy) / Math.max(1, Math.hypot(px, py))
+      if (score > best) { contact = i; best = score }
+    }
+    ctx.strokeStyle = feedback.kind === 'hull-hit' ? '#fda4af' : combined ? '#ddd6fe' : shield ? '#fef3c7' : '#cffafe'
+    ctx.lineWidth = (broken ? 3.3 : 2.8) * (1 - progress * .65)
+    for (const direction of [-1, 1]) {
+      ctx.beginPath()
+      const travel = reducedMotion ? 0 : Math.round(progress * (broken ? 72 : 47))
+      for (let step = 0; step < 18; step++) {
+        const index = ((contact + direction * (travel + step)) % 256 + 256) % 256 * 2
+        if (!step) ctx.moveTo(path.points[index] * coordinates, path.points[index + 1] * coordinates)
+        else ctx.lineTo(path.points[index] * coordinates, path.points[index + 1] * coordinates)
       }
-      ctx.globalAlpha *= (1 - progress) ** .75
-      if (repair) {
-        ctx.save()
-        if (!reducedMotion) {
-          ctx.beginPath()
-          ctx.rect(-128, 110 - progress * 260, 256, 62)
-          ctx.clip()
-        }
-        ctx.drawImage(art.repair, -128, -128)
-        ctx.restore()
-      } else {
-        const gold = feedback.kind.startsWith('shield'), combined = feedback.kind.startsWith('combined')
-        ctx.strokeStyle = feedback.kind === 'hull-hit' ? '#fda4af' : combined ? '#ddd6fe' : gold ? '#fef3c7' : '#cffafe'
-        ctx.lineWidth = (broken ? 3.3 : 2.8) * (1 - progress * .65)
-        for (const direction of [-1, 1]) {
-          ctx.beginPath()
-          const travel = reducedMotion ? 0 : Math.round(progress * (broken ? 72 : 47))
-          for (let step = 0; step < 18; step++) {
-            const index = ((contact + direction * (travel + step)) % 256 + 256) % 256 * 2
-            if (!step) ctx.moveTo(path.points[index]*coordinates, path.points[index + 1]*coordinates)
-            else ctx.lineTo(path.points[index]*coordinates, path.points[index + 1]*coordinates)
-          }
-          ctx.stroke()
-        }
-        if (broken && !reducedMotion) for (let shard = 0; shard < 6; shard++) {
-          const index = ((contact + shard * 9 - 23) % 256 + 256) % 256 * 2
-          const px = path.points[index]*coordinates, py = path.points[index + 1]*coordinates
-          const length = Math.hypot(px, py) || 1
-          const drift = progress * (12 + shard * 2)
-          const sx = px + px / length * drift, sy = py + py / length * drift
-          ctx.fillStyle = shard % 2 ? (gold ? '#fbbf24' : combined ? '#a78bfa' : '#22d3ee') : '#ecfeff'
-          ctx.beginPath()
-          ctx.moveTo(sx, sy - 3.8)
-          ctx.lineTo(sx + 2.8, sy + 2)
-          ctx.lineTo(sx - 2, sy + 3)
-          ctx.closePath()
-          ctx.fill()
-        }
-      }
+      ctx.stroke()
+    }
+    if (broken && !reducedMotion) for (let shard = 0; shard < 6; shard++) {
+      const index = ((contact + shard * 9 - 23) % 256 + 256) % 256 * 2
+      const px = path.points[index] * coordinates, py = path.points[index + 1] * coordinates
+      const length = Math.hypot(px, py) || 1
+      const drift = progress * (12 + shard * 2)
+      const sx = px + px / length * drift, sy = py + py / length * drift
+      ctx.fillStyle = shard % 2 ? (shield ? '#fbbf24' : combined ? '#a78bfa' : '#22d3ee') : '#ecfeff'
+      ctx.beginPath()
+      ctx.moveTo(sx, sy - 3.8)
+      ctx.lineTo(sx + 2.8, sy + 2)
+      ctx.lineTo(sx - 2, sy + 3)
+      ctx.closePath()
+      ctx.fill()
     }
   }
   ctx.restore()
-  // Two atlas wisps and a brief electrical fault, attached to the aft hull.
-  if (critical && !reducedMotion && phase === 'playing') {
-    const smoke = getRaidCombatFrame(COMBAT_TILE.smoke)
-    if (smoke) for (let i = 0; i < 2; i++) {
-      const drift = (time / 1300 + i * .5) % 1
-      drawRaidCombatTexture(ctx, smoke, x + size * Math.sin(i * 2.7) * .1,
-        y + size * (.36 + drift * .35), size * (.18 + drift * .2), size * (.2 + drift * .24),
-        i * .8, false, (1 - drift) * .18)
-    }
-    const flash = time % 1150 / 1150
-    if (flash < .08) {
-      ctx.save()
-      ctx.globalCompositeOperation = 'lighter'
-      ctx.strokeStyle = '#fcd34d'
-      ctx.lineWidth = 1
-      ctx.beginPath()
-      ctx.moveTo(x - size * .08, y + size * .28)
-      ctx.lineTo(x + size * .02, y + size * .36)
-      ctx.lineTo(x - size * .035, y + size * .39)
-      ctx.stroke()
-      ctx.restore()
-    }
+}
+
+export const CRITICAL_HULL_FILTER = 'grayscale(1) brightness(1.25) sepia(1) saturate(12) hue-rotate(315deg)'
+
+export function drawHullDamageSmoke(ctx: CanvasRenderingContext2D, x: number, y: number,
+  size: number, time: number, critical: boolean, still: boolean) {
+  const smoke = getRaidCombatFrame(COMBAT_TILE.smoke)
+  if (!smoke) return
+  const count = critical ? 5 : 2
+  const cycle = still ? .25 : time / 1050
+  for (let i = 0; i < count; i++) {
+    const drift = (cycle + i / count) % 1
+    const side = i % 2 === 0 ? -1 : 1
+    const width = size * (.22 + drift * .35)
+    drawRaidCombatTexture(ctx, smoke, x + side * size * (.07 + drift * .17),
+      y + size * (.19 + drift * .57), width, width * 1.12,
+      side * (drift * 1.4 + i * .4), false, (1 - drift) * (critical ? .68 : .53))
   }
 }
