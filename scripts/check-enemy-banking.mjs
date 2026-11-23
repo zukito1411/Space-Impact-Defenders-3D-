@@ -8,6 +8,9 @@ export async function bankEnemyForCapture(page,stage,elite){
   review.reset(stage,elite===undefined?'capture':'waves')
   let enemy=review.r.enemiesRef.current[0]
   if(elite!==undefined){
+   // Keep the draw budget scoped to the elite and player. At the default
+   // review age, the Stage 1 convoy still submits a carrier and its escorts.
+   review.r.journeyStageAgeRef.current=1
    Object.assign(enemy,{isBoss:false,isMiniBoss:true,bossKind:null,bossArtStage:undefined,variant:elite,x:50,y:28,hp:1000,maxHp:1000})
    review.r.enemiesRef.current=[enemy]
   }
@@ -28,11 +31,16 @@ export async function bankEnemyForCapture(page,stage,elite){
   review.actions.sync()
   const node=scene.hulls.get(id)
   if(!node)throw Error('Enemy hull not drawn: '+key)
+  const {lampDraws,drawCalls:draws}=scene.getShipStats()
+  const hulls=[...scene.hulls].filter(([,hull])=>hull.group.visible).map(([id])=>id)
   return {stage,elite,key,angle:node.object.rotation.y,bank:node.bankPose?.bank,
-    spin:node.object.rotation.z,lampDraws:scene.getShipStats().lampDraws,draws:scene.getShipStats().drawCalls}
+    spin:node.object.rotation.z,lampDraws,draws,hulls}
  },{stage,elite})
  if(result.excluded)assert.equal(result.key,null,'Devil entered the live banking renderer')
- else {assert.ok(result.angle>.01&&result.angle<.43,'Enemy did not bank within its limit: '+JSON.stringify(result));assert.ok(result.draws<=3+(result.lampDraws??0))}
+ else {
+  assert.ok(result.angle>.01&&result.angle<.43,'Enemy did not bank within its limit: '+JSON.stringify(result))
+  assert.ok(result.draws<=3+(result.lampDraws??0),'Banking scene exceeded its draw budget: '+JSON.stringify(result))
+ }
  return result
 }
 
