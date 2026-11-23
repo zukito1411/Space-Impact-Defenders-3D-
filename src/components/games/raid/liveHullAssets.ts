@@ -52,6 +52,7 @@ export function loadHull(key: string): Promise<HullAsset> {
   if (existing) { existing.lastUse = performance.now(); return Promise.resolve(existing) }
   const request = pending.get(key)
   if (request) return request
+  const cruise = isCruiseHull(key)
   const operation = admittedLoad(async () => {
     const object = new Group()
     let registration: HullRegistration
@@ -85,18 +86,20 @@ export function loadHull(key: string): Promise<HullAsset> {
       }
       registration = { registration: [448/288,448/288,0,0], nozzles: [], wing: [] }
     } else {
-      manifest ??= fetch(getPublicAssetUrl('assets/ships/models/v1/manifest.json')).then(response => {
+      if (!cruise) manifest ??= fetch(getPublicAssetUrl('assets/ships/models/v1/manifest.json')).then(response => {
         if (!response.ok) throw new Error('Live hull manifest unavailable')
         return response.json() as Promise<Record<string, HullRegistration>>
       }).catch(error => { manifest = null; throw error })
+      const folder = cruise ? 'assets/ships/scenery/' : 'assets/ships/models/v1/'
       const [gltf, registrations] = await Promise.all([
-        loader.loadAsync(getPublicAssetUrl('assets/ships/models/v1/' + key + '.glb')), manifest,
+        loader.loadAsync(getPublicAssetUrl(folder + key + '.glb')), cruise ? null : manifest,
       ])
       // glTF uses Y-up. Restore the authored flight X/Y plane and Z elevation.
       gltf.scene.rotation.x = Math.PI / 2
       object.add(gltf.scene)
-      registration = registrations[key]
-      if (!registration) throw new Error('Missing live hull registration for ' + key)
+      const registered = cruise ? { registration: [448/288,448/288,0,0], nozzles: [], wing: [] } : registrations?.[key]
+      if (!registered) throw new Error('Missing live hull registration for ' + key)
+      registration = registered
       object.traverse(child => {
         if (child instanceof Mesh && child.material instanceof MeshStandardMaterial) {
           child.material.emissive.setHex(0xffffff)
@@ -105,9 +108,9 @@ export function loadHull(key: string): Promise<HullAsset> {
         }
       })
     }
-    prepareHullLampAnchors(object,key)
+    if (!cruise) prepareHullLampAnchors(object,key)
     await prepareHullOcclusion(object)
-    const docking = enemy || isCruiseHull(key) ? undefined : prepareHullDocking(object,key,registration)
+    const docking = enemy || cruise ? undefined : prepareHullDocking(object,key,registration)
     const asset = { object, registration, docking, references: 0, lastUse: performance.now() }
     assets.set(key, asset)
     return asset

@@ -3,7 +3,7 @@ import { isOrganicBoss } from './destructionProfile'
 import { drawDestructionEffects } from './destructionEffects'
 import { EnemyTactics } from './enemyTactics'
 import { drawHailMaryFlyby, WorldStories } from './worldStories'
-import { ASTROPHAGE_DURATION, ASTROPHAGE_START } from './astrophage'
+import { ASTROPHAGE_DURATION, ASTROPHAGE_START, CRUISE_FLYBY_START } from './cruiseTiming'
 import { isRaid2DMech } from './mechArtwork'
 import { enemyHullKey } from './enemyHulls'
 import { ThreeShipPresentation } from './threeShipPresentation'
@@ -2696,9 +2696,9 @@ export function GradiusRaid({
     worldStories.draw(ctx,time,journeyStageAgeRef.current,stageRef.current,sceneryRunTokenRef.current,
       landscapeRef.current,phaseRef.current==='paused',playing && !activeBoss && stageClearRef.current<=0 && raidModeRef.current!=='bossRush'
         && !isWateryWorldTheme(backgroundStageTheme) && !isVolcanicWorldTheme(backgroundStageTheme),
-      cssWidth,cssHeight,reducedMotion,stageOneCruise ? ASTROPHAGE_DURATION + 1 : 0)
+      cssWidth,cssHeight,reducedMotion)
     const battle = playing && !activeBoss && gfxProfile.drawDecorativeOverlays && !reducedMotion
-      && !(stageOneCruise && cruiseAge < ASTROPHAGE_START + ASTROPHAGE_DURATION)
+      && !(cruiseAge >= CRUISE_FLYBY_START && cruiseAge < ASTROPHAGE_START + ASTROPHAGE_DURATION)
       && !isWateryWorldTheme(backgroundStageTheme) && !isVolcanicWorldTheme(backgroundStageTheme)
       ? sampleDistantBattle(journeyStageAgeRef.current, stageRef.current) : -1
     if (battle >= 0) {

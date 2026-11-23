@@ -290,54 +290,76 @@ try {
       await checkEnemyBanking(page,output,landscape)
       const {checkPilotWeaponGlows}=await import('./check-combat-lighting.mjs')
       await checkPilotWeaponGlows(page,output,landscape)
-      const flyby=await page.evaluate(()=>{
+      const flyby=await page.evaluate(async()=>{
         const {r,actions,ships,background,reset}=window.campaignReview
+        const {CRUISE_FLYBY_START:rocky,GRACE_FLYBY_START:grace,ASTROPHAGE_START:dust,ASTROPHAGE_DURATION:duration}=
+          await import('/src/components/games/raid/cruiseTiming.ts')
         const keys=['rockyFlyby','graceFlyby']
         const drawing=(age)=>{
           r.journeyStageAgeRef.current=age
           actions.draw(40000+age*1000)
           const actors=keys.map(key=>ships.hulls.get('fx:'+key)).filter(node=>node?.group.visible)
+          const {cssWidth,cssHeight}=r.viewportMetricsRef.current
+          const lighting=background.getShipLighting()
+          const field=background.astrophage.root
           return {keys:actors.map(node=>node.key),depths:actors.map(node=>node.group.position.z),
-            draws:ships.getShipStats().drawCalls,astrophage:background.astrophage.root.visible}
+            headings:actors.map(node=>node.group.rotation.z),
+            relativeSizes:actors.map(node=>node.lampSize/Math.min(cssWidth,cssHeight)),
+            draws:ships.getShipStats().drawCalls,astrophage:field.visible,
+            redBounce:lighting.fillColor[0]*lighting.fillIntensity,
+            particles:field.visible?field.children.filter(sprite=>sprite.visible).length:0,
+            sparkle:field.visible?field.children.slice(6,20).map(sprite=>sprite.alpha):[]}
+
         }
         reset(1,'waves')
         r.enemiesRef.current=[]
         const before=drawing(1)
-        const leading=drawing(5.9)
-        const paired=drawing(9.1)
-        const following=drawing(12.2)
-        const after=drawing(16.1)
-        const field=drawing(21)
-        const pastField=drawing(27.4)
+        const earlyCruise=drawing(12)
+        const leading=drawing(rocky+3.5)
+        const paired=drawing(grace+2.65)
+        const following=drawing(grace+6.7)
+        const after=drawing(dust-.1)
+        const field=drawing(dust+4.3)
+        const laterField=drawing(dust+4.7)
+        const pastField=drawing(dust+duration+.2)
         r.raidModeRef.current='bossRush'
-        const bossRush=drawing(21)
+        const bossRush=drawing(dust+4.3)
         reset(1,'capture')
-        const boss=drawing(21)
+        const boss=drawing(dust+4.3)
         reset(1,'waves')
         r.enemiesRef.current=[]
-        drawing(9.1)
+        drawing(grace+2.65)
         actions.sync()
-        return {before,leading,paired,following,after,field,pastField,bossRush,boss}
+        return {before,earlyCruise,leading,paired,following,after,field,laterField,pastField,bossRush,boss}
       })
       assert.deepEqual(flyby.before.keys,[])
+      assert.deepEqual(flyby.earlyCruise.keys,[])
       assert.deepEqual(flyby.leading.keys,['rockyFlyby'])
       assert.deepEqual(flyby.paired.keys,['rockyFlyby','graceFlyby'])
       assert.deepEqual(flyby.following.keys,['graceFlyby'])
       assert.deepEqual(flyby.after.keys,[])
       assert.deepEqual(flyby.field.keys,[])
       assert.ok(flyby.field.astrophage,'Astrophage should appear after Grace passes')
-      for(const phase of ['before','leading','paired','following','after','pastField','bossRush','boss']){
+      for(const phase of ['before','earlyCruise','leading','paired','following','after','pastField','bossRush','boss']){
         assert.equal(flyby[phase].astrophage,false,'Astrophage leaked into '+phase)
       }
       assert.deepEqual(flyby.bossRush.keys,[])
       assert.deepEqual(flyby.boss.keys,[])
       assert.ok(flyby.paired.depths.every(z=>z<0),'Cruise hulls must stay behind the combat lane')
+      assert.ok(flyby.paired.headings.every(heading=>Math.abs(heading)<.001),'Cruise hulls must face along the pilot course')
+      assert.ok(flyby.paired.relativeSizes.every(size=>size>.6),'Cruise silhouettes are too small')
+      assert.ok(flyby.field.particles>=250,'Astrophage missed its Max-quality particle budget')
+      assert.notDeepEqual(flyby.field.sparkle,flyby.laterField.sparkle,'Astrophage should twinkle')
+      assert.ok(flyby.field.redBounce>flyby.before.redBounce+.8,'Astrophage did not illuminate the ship lighting')
+      assert.ok(Math.abs(flyby.pastField.redBounce-flyby.before.redBounce)<.1,'Astrophage lighting outlasted the field')
       assert.equal(flyby.paired.draws-flyby.before.draws,2,'Each cruise hull should submit one draw')
       await page.screenshot({path:output+'/stage-01-cruise-flyby-'+view+'.png'})
-      await page.evaluate(()=>{
+      await page.evaluate(async()=>{
         const {r,actions}=window.campaignReview
-        r.journeyStageAgeRef.current=21
-        actions.draw(61000)
+        const {ASTROPHAGE_START}=await import('/src/components/games/raid/cruiseTiming.ts')
+        r.journeyStageAgeRef.current=ASTROPHAGE_START+4
+        // Let the native ship lighting interpolate into the dense part of the cloud.
+        for(let frame=0;frame<10;frame++)actions.draw(100000+frame*50)
       })
       await page.screenshot({path:output+'/stage-01-astrophage-'+view+'.png'})
       console.log('Verified Stage 1 ship flyby and Astrophage field in',view)

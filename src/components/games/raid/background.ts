@@ -1181,6 +1181,7 @@ export class PixiRaidBackground {
     this.sceneryShipKeys.clear()
     this.backdrop.destroy()
     this.asteroidBelt.destroy()
+    this.astrophage.destroy()
     this.orbitalStars?.destroy()
     this.projected.clear()
     this.gpuForeground.destroy()
@@ -1365,6 +1366,7 @@ export class PixiRaidBackground {
           this.projectScenery(sprite, width, height)
         }
       }
+      this.astrophage.update(frame.cruiseAge ?? -1, width, height, isLow, this.reducedMotion)
       if (this.orbitalCamera) {
         // Light uses the same projected sun position as the rest of the scenery.
         let sun: Sprite | undefined
@@ -1375,6 +1377,7 @@ export class PixiRaidBackground {
         const surface = isWateryWorldTheme(groundTheme) ? 1 : isVolcanicWorldTheme(groundTheme) ? 2 : 0
         sampleShipLighting(this.shipLighting, this.orbitalCamera.sunDirection, this.cosmosRegion,
           surface, this.journey.enabled ? this.journey.worldAlpha : surface ? 1 : 0, celestialSeconds)
+        this.astrophage.illuminate(this.shipLighting)
         this.asteroidBelt.update(this.orbitalCamera,this.assetTextures.get('asteroid'),this.shipLighting,
           frame.stageNumber ?? 1,frame.runToken ?? 0,space && this.journey.worldAlpha < .1,celestialSeconds)
         for (const volume of this.gasVolumes) volume.update(width, height, this.orbitalCamera, this.orbitalSkyReady,starSeconds,this.paintedStarMaps.get(volume.anchor.texture))
@@ -1387,7 +1390,6 @@ export class PixiRaidBackground {
       for (const globe of this.globes) globe.update(celestialSeconds, this.globeStyle, this.orbitalBodiesReady,
         this.projected.get(globe.anchor)?.world.distanceKm ?? 0, this.orbitalCamera ?? undefined, this.assetTextures.get('clouds'))
       for (const rock of this.sceneryRocks) rock.update(this.orbitalBodiesReady ? this.assetTextures.get('asteroid') : undefined, celestialSeconds, this.orbitalCamera?.focal ?? 1, width, height, this.orbitalCamera?.sunDirection)
-      this.astrophage.update(frame.cruiseAge ?? -1, width, height, isLow, this.reducedMotion)
       this.updateOrbitalEffects(width, height, frame.stageNumber ?? 1, frame.stageAge ?? 0, frame.stageRush,
         bossIntensity, isLow, isMedium, !space)
       if (space && this.orbitalCamera) {

@@ -3,15 +3,18 @@
 Run from the repository root:
     blender -b --python scripts/build-raid-cruise-models.py
 """
+import json
 from math import cos, pi, sin
 from pathlib import Path
 from random import Random
 from tempfile import TemporaryDirectory
+from struct import unpack_from
 import bpy
 import numpy as np
 
-OUTPUT = Path("public/assets/ships/models/v1")
-TILE = 64
+PLAYER_HULLS = Path("public/assets/ships/models/v1")
+OUTPUT = PLAYER_HULLS.parent.parent / "scenery"
+TILE = 128
 ATLAS = TILE * 4
 UV_BOX = ((0, 0), (1, 0), (1, 1), (0, 1))
 
@@ -88,7 +91,35 @@ class Hull:
         return model
 
 
-def paint_atlas(name, tiles, scratch):
+def read_hull_paint(key, scratch):
+    """Use the existing ship's embedded albedo rather than synthesizing its wear pattern."""
+    raw = (PLAYER_HULLS / (key + ".glb")).read_bytes()
+    size, = unpack_from("<I", raw, 12)
+    document = json.loads(raw[20:20+size])
+    view = document["bufferViews"][document["images"][0]["bufferView"]]
+    offset = 28 + size + view.get("byteOffset", 0)
+    path = scratch / (key + "-paint.png")
+    path.write_bytes(raw[offset:offset+view["byteLength"]])
+    image = bpy.data.images.load(str(path), check_existing=False)
+    width, height = image.size
+    pixels = np.empty(width * height * 4, dtype=np.float32)
+    image.pixels.foreach_get(pixels)
+    pixels = pixels.reshape((height, width, 4))
+    # Patch coordinates refer to a 440px atlas proof. Read shared bolt, bevel and seam detail.
+    samples = ((258,356),(170,140)) if key=="dreadnought" else ((90,332),(342,124))
+    panels = []
+    for x, y in samples:
+        column = np.linspace(x, x+23, TILE) * width / 440
+        row = (440 - np.linspace(y+23, y, TILE)) * height / 440
+        panel = pixels[row.astype(int)[:, None], column.astype(int), :3]
+        luma = panel @ np.array((.2126, .7152, .0722))
+        variation = (luma - np.median(luma)) / max(.05, np.std(luma))
+        panels.append(np.clip(1 + variation * .29, .40, 1.53).astype(np.float32))
+    bpy.data.images.remove(image)
+    return panels
+
+
+def paint_atlas(name, tiles, scratches, scratch):
     rng = np.random.default_rng(11)
     y, x = np.mgrid[:TILE, :TILE]
     pixels = np.ones((ATLAS, ATLAS, 4), dtype=np.float32)
@@ -100,12 +131,14 @@ def paint_atlas(name, tiles, scratch):
             brush -= seam*.14
             brush += ((x % 29 == 8) | (y % 28 == 11))*.05
             brush += ((x//29+y//28) % 3)*.035
+            brush *= np.rot90(scratches[i % len(scratches)], i // 2)
         elif pattern == "ribs":
             brush -= (y % 9 < 2)*.23
             brush += (y % 9 == 2)*.11
+            brush *= .38 + scratches[i % len(scratches)] * .62
         elif pattern == "cells":
-            brush = 1 + .18*np.sin(x*.33 + y*.04) - ((x % 12 < 1) | (y % 15 < 1))*.52
-            brush += ((x % 12 == 1) | (y % 15 == 1))*.28
+            brush = 1 + .18*np.sin(x*.33 + y*.04) - ((x % 23 < 2) | (y % 28 < 2))*.52
+            brush += ((x % 23 == 2) | (y % 28 == 2))*.28
         sx, sy = (i % 4)*TILE, (i // 4)*TILE
         pixels[sy:sy+TILE, sx:sx+TILE, :3] = np.clip(brush[...,None] * rgb, 0, 1)
     generated = bpy.data.images.new(name, width=ATLAS, height=ATLAS, alpha=False)
@@ -199,9 +232,12 @@ def grace():
 def main():
     OUTPUT.mkdir(parents=True, exist_ok=True)
     with TemporaryDirectory() as tmp:
-        for key, shape, palette in (("rockyFlyby", rocky, ROCKY), ("graceFlyby", grace, GRACE)):
+        for key, shape, palette, reference in (
+            ("rockyFlyby", rocky, ROCKY, "dreadnought"),
+            ("graceFlyby", grace, GRACE, "mesiahWhite"),
+        ):
             bpy.ops.wm.read_factory_settings(use_empty=True)
-            atlas = paint_atlas(key, palette, Path(tmp))
+            atlas = paint_atlas(key, palette, read_hull_paint(reference, Path(tmp)), Path(tmp))
             model = shape().build(key, atlas)
             model.select_set(True)
             bpy.context.view_layer.objects.active = model

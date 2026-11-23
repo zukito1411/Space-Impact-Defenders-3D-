@@ -1,14 +1,15 @@
 import { SampleScene } from '../presentationAudio'
 import { drawLiveHull } from './liveHullBridge'
 import { CRUISE_HULL_KEYS } from './liveHullAssets'
+import { CRUISE_FLYBY_START, GRACE_FLYBY_START, GRACE_FLYBY_LENGTH } from './cruiseTiming'
 import { COMBAT_TILE, drawRaidCombatTexture, getRaidCombatFrame } from './combatArt'
 import { raidStereoPan } from './flightEffects'
 
 const clamp=(n:number)=>Math.max(0,Math.min(1,n))
 // The leading contact is followed by a research ship in the same distant flight lane.
 const HAIL_MARY_PASS = [
-  { key: CRUISE_HULL_KEYS[0], start: 2.5, length: 9, lane: 31, size: .47, heading: -.17 },
-  { key: CRUISE_HULL_KEYS[1], start: 6.5, length: 9.5, lane: 27, size: .44, heading: -.12 },
+  { key: CRUISE_HULL_KEYS[0], start: CRUISE_FLYBY_START, length: 9.2, lane: 30, size: .65 },
+  { key: CRUISE_HULL_KEYS[1], start: GRACE_FLYBY_START, length: GRACE_FLYBY_LENGTH, lane: 28, size: .68 },
 ] as const
 
 export function drawHailMaryFlyby(ctx: CanvasRenderingContext2D, stageAge: number, width: number,
@@ -17,13 +18,14 @@ export function drawHailMaryFlyby(ctx: CanvasRenderingContext2D, stageAge: numbe
   for (const ship of HAIL_MARY_PASS) {
     const progress = (stageAge - ship.start) / ship.length
     if (progress < 0 || progress >= 1) continue
-    const x = (ship.lane + 3 * progress) * width / 100
-    const y = (-27 + 154 * progress) * height / 100
-    const bank = (landscape ? .21 : .12) + (reducedMotion ? 0 : .045 * Math.sin(progress * Math.PI))
+    const x = ship.lane * width / 100
+    const margin = span * ship.size * .65
+    const y = -margin + (height + margin * 2) * progress
+    // Bank around the flight axis while both noses stay aligned to the player's course.
+    const bank = (landscape ? .16 : .07) + (reducedMotion ? 0 : .026 * Math.sin(progress * Math.PI))
     ctx.save()
     ctx.translate(x, y)
-    ctx.rotate(ship.heading)
-    drawLiveHull(ctx, ship.key, 0, 0, span * ship.size, bank, 1, landscape, 'fx:' + ship.key, { depth: 430 })
+    drawLiveHull(ctx, ship.key, 0, 0, span * ship.size, bank, 1, landscape, 'fx:' + ship.key, { depth: 235 })
     ctx.restore()
   }
 }
@@ -38,11 +40,11 @@ export class WorldStories {
   private stage=0
   private run=-1
   draw(ctx:CanvasRenderingContext2D,time:number,stageAge:number,stage:number,run:number,landscape:boolean,
-    paused:boolean,enabled:boolean,width:number,height:number,reduced:boolean,delay=0) {
+    paused:boolean,enabled:boolean,width:number,height:number,reduced:boolean) {
     if(this.stage!==stage || this.run!==run){this.visibility=0;this.cue='';this.stage=stage;this.run=run;this.sounds.stop()}
     const dt=this.last ? Math.max(0,Math.min(.05,(time-this.last)/1000)) : 0
     this.last=time
-    const start=14+(stage%3)*3+delay,age=stageAge-start,inside=age>=0 && age<23
+    const start=14+(stage%3)*3,age=stageAge-start,inside=age>=0 && age<23
     const target=enabled && inside ? 1 : 0
     if(!paused)this.visibility+=(target-this.visibility)*Math.min(1,dt*3)
     if(paused)this.sounds.stopLoops()
