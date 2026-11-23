@@ -290,6 +290,57 @@ try {
       await checkEnemyBanking(page,output,landscape)
       const {checkPilotWeaponGlows}=await import('./check-combat-lighting.mjs')
       await checkPilotWeaponGlows(page,output,landscape)
+      const flyby=await page.evaluate(()=>{
+        const {r,actions,ships,background,reset}=window.campaignReview
+        const keys=['rockyFlyby','graceFlyby']
+        const drawing=(age)=>{
+          r.journeyStageAgeRef.current=age
+          actions.draw(40000+age*1000)
+          const actors=keys.map(key=>ships.hulls.get('fx:'+key)).filter(node=>node?.group.visible)
+          return {keys:actors.map(node=>node.key),depths:actors.map(node=>node.group.position.z),
+            draws:ships.getShipStats().drawCalls,astrophage:background.astrophage.root.visible}
+        }
+        reset(1,'waves')
+        r.enemiesRef.current=[]
+        const before=drawing(1)
+        const leading=drawing(5.9)
+        const paired=drawing(9.1)
+        const following=drawing(12.2)
+        const after=drawing(16.1)
+        const field=drawing(21)
+        const pastField=drawing(27.4)
+        r.raidModeRef.current='bossRush'
+        const bossRush=drawing(21)
+        reset(1,'capture')
+        const boss=drawing(21)
+        reset(1,'waves')
+        r.enemiesRef.current=[]
+        drawing(9.1)
+        actions.sync()
+        return {before,leading,paired,following,after,field,pastField,bossRush,boss}
+      })
+      assert.deepEqual(flyby.before.keys,[])
+      assert.deepEqual(flyby.leading.keys,['rockyFlyby'])
+      assert.deepEqual(flyby.paired.keys,['rockyFlyby','graceFlyby'])
+      assert.deepEqual(flyby.following.keys,['graceFlyby'])
+      assert.deepEqual(flyby.after.keys,[])
+      assert.deepEqual(flyby.field.keys,[])
+      assert.ok(flyby.field.astrophage,'Astrophage should appear after Grace passes')
+      for(const phase of ['before','leading','paired','following','after','pastField','bossRush','boss']){
+        assert.equal(flyby[phase].astrophage,false,'Astrophage leaked into '+phase)
+      }
+      assert.deepEqual(flyby.bossRush.keys,[])
+      assert.deepEqual(flyby.boss.keys,[])
+      assert.ok(flyby.paired.depths.every(z=>z<0),'Cruise hulls must stay behind the combat lane')
+      assert.equal(flyby.paired.draws-flyby.before.draws,2,'Each cruise hull should submit one draw')
+      await page.screenshot({path:output+'/stage-01-cruise-flyby-'+view+'.png'})
+      await page.evaluate(()=>{
+        const {r,actions}=window.campaignReview
+        r.journeyStageAgeRef.current=21
+        actions.draw(61000)
+      })
+      await page.screenshot({path:output+'/stage-01-astrophage-'+view+'.png'})
+      console.log('Verified Stage 1 ship flyby and Astrophage field in',view)
     }
     if(verifyKeels) {
       const {checkBossKeels}=await import('./check-boss-keels.mjs')

@@ -4,6 +4,7 @@ import { SpaceBackdrop } from './spaceBackdrop'
 import { OrbitalMoons } from './orbitalMoons'
 import { createPaintedStarMap } from './paintedStars'
 import { AsteroidBelt } from './asteroidBelt'
+import { AstrophageField } from './astrophage'
 import { createShipLightingFrame, sampleShipLighting } from './shipLighting'
 import { SceneryHulls } from './sceneryHulls'
 import { createSpacePlacement, SPACE_DISTANCES } from './spaceWorld'
@@ -796,6 +797,7 @@ export type PixiRaidBackgroundFrame = RaidJourneyInput & {
   playerX?: number
   playerY?: number
   finalBattleIntensity?: number
+  cruiseAge?: number
   runToken?: number
 }
 
@@ -862,6 +864,7 @@ export class PixiRaidBackground {
   private readonly moonSystems: OrbitalMoons[] = []
   private readonly sceneryRocks: OrbitalSceneryRock[] = []
   private readonly asteroidBelt = new AsteroidBelt()
+  private readonly astrophage = new AstrophageField()
   private readonly combatRocks = new OrbitalCombatRocks()
   private orbitalBodiesReady = false
   private orbitalSkyReady = false
@@ -1010,6 +1013,7 @@ export class PixiRaidBackground {
         starContext.fillRect(0,0,64,64)
         this.depthStarTexture = Texture.from(starCanvas)
         this.depthStarTexture.source.scaleMode = 'linear'
+        this.astrophage.prepare(this.depthStarTexture)
       }
       this.farStarSprites.forEach(sprite => {
         sprite.texture = this.depthStarTexture ?? Texture.WHITE
@@ -1059,6 +1063,7 @@ export class PixiRaidBackground {
         sprite.visible = false
         this.scene.addChild(sprite)
       }
+      this.scene.addChild(this.astrophage.root)
       this.scene.addChild(this.explosionGraphics)
 
       for (const [index, fighter] of FINAL_BATTLE_FIGHTERS.entries()) {
@@ -1382,6 +1387,7 @@ export class PixiRaidBackground {
       for (const globe of this.globes) globe.update(celestialSeconds, this.globeStyle, this.orbitalBodiesReady,
         this.projected.get(globe.anchor)?.world.distanceKm ?? 0, this.orbitalCamera ?? undefined, this.assetTextures.get('clouds'))
       for (const rock of this.sceneryRocks) rock.update(this.orbitalBodiesReady ? this.assetTextures.get('asteroid') : undefined, celestialSeconds, this.orbitalCamera?.focal ?? 1, width, height, this.orbitalCamera?.sunDirection)
+      this.astrophage.update(frame.cruiseAge ?? -1, width, height, isLow, this.reducedMotion)
       this.updateOrbitalEffects(width, height, frame.stageNumber ?? 1, frame.stageAge ?? 0, frame.stageRush,
         bossIntensity, isLow, isMedium, !space)
       if (space && this.orbitalCamera) {

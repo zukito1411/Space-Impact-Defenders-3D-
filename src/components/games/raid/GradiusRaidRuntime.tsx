@@ -2,7 +2,8 @@ import { CoopLink, readCoopInput } from './coopLink'
 import { isOrganicBoss } from './destructionProfile'
 import { drawDestructionEffects } from './destructionEffects'
 import { EnemyTactics } from './enemyTactics'
-import { WorldStories } from './worldStories'
+import { drawHailMaryFlyby, WorldStories } from './worldStories'
+import { ASTROPHAGE_DURATION, ASTROPHAGE_START } from './astrophage'
 import { isRaid2DMech } from './mechArtwork'
 import { enemyHullKey } from './enemyHulls'
 import { ThreeShipPresentation } from './threeShipPresentation'
@@ -1812,6 +1813,9 @@ export function GradiusRaid({
       cameraShakeAppliedRef.current = false
     }
     const activeBoss = carrierActive ? undefined : enemiesRef.current.find((enemy) => enemy.isBoss && enemy.hp > 0)
+    const stageOneCruise = stageRef.current === 1 && raidModeRef.current === 'campaign'
+    const cruiseAge = stageOneCruise && !carrierActive && !activeBoss && stageEntryRef.current <= 0 &&
+      stageClearRef.current <= 0 && (playing || phaseRef.current === 'paused') ? journeyStageAgeRef.current : -1
     const departingFromDock = Boolean(stop && initialLaunchRef.current && stageRef.current !== stop.sourceStage)
     const sceneryStage = departingFromDock && stop && carrierAge < (underway ? 0 : CARRIER_DEPARTURE_START)
       ? stop.sourceStage : stageRef.current
@@ -1874,6 +1878,7 @@ export function GradiusRaid({
         paused: phaseRef.current === 'paused',
         runToken: sceneryRunTokenRef.current,
         stageNumber: sceneryStage,
+        cruiseAge,
         raidMode: raidModeRef.current,
         stageAge: briefing && !stop ? 0 : journeyStageAgeRef.current,
         clearRemaining: carrierActive || recoveryPending ? 0 : stageClearRef.current,
@@ -2687,11 +2692,13 @@ export function GradiusRaid({
       drawDerelictWreck(ctx, wreck, toX, toY, cssWidth, time)
     }
 
+    if (cruiseAge >= 0) drawHailMaryFlyby(ctx, cruiseAge, cssWidth, cssHeight, landscapeRef.current, reducedMotion)
     worldStories.draw(ctx,time,journeyStageAgeRef.current,stageRef.current,sceneryRunTokenRef.current,
       landscapeRef.current,phaseRef.current==='paused',playing && !activeBoss && stageClearRef.current<=0 && raidModeRef.current!=='bossRush'
         && !isWateryWorldTheme(backgroundStageTheme) && !isVolcanicWorldTheme(backgroundStageTheme),
-      cssWidth,cssHeight,reducedMotion)
+      cssWidth,cssHeight,reducedMotion,stageOneCruise ? ASTROPHAGE_DURATION + 1 : 0)
     const battle = playing && !activeBoss && gfxProfile.drawDecorativeOverlays && !reducedMotion
+      && !(stageOneCruise && cruiseAge < ASTROPHAGE_START + ASTROPHAGE_DURATION)
       && !isWateryWorldTheme(backgroundStageTheme) && !isVolcanicWorldTheme(backgroundStageTheme)
       ? sampleDistantBattle(journeyStageAgeRef.current, stageRef.current) : -1
     if (battle >= 0) {

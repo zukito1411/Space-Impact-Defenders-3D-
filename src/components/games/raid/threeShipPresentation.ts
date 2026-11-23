@@ -17,7 +17,7 @@ import { ENEMY_HULL_KEYS, ENEMY_HULL_SPECS } from './enemyHulls'
 import { createShipLightingFrame, SHIP_LIGHTING_PALETTES, type ShipLightingFrame } from './shipLighting'
 import { prepareShipReflections } from './shipReflections'
 import { prepareHullSurfaces, type HullSurfaceBinding } from './shipSurface'
-import { acquireHull, getHullRegistration, hullKey, loadHull, releaseHull, trimHullAssets } from './liveHullAssets'
+import { acquireHull, CRUISE_HULL_KEYS, getHullRegistration, hullKey, isCruiseHull, loadHull, releaseHull, trimHullAssets } from './liveHullAssets'
 import { bindLiveHulls, unbindLiveHulls, type LiveHullDraw, type LiveHullDestruction, type LiveHullSink } from './liveHullBridge'
 
 type HullNode = { lamps: HullLampBinding[]; lampSize: number; lampOpacity: number; bankPose?: EnemyBankPose; body?: Mesh; hit: number; key: string; group: Group; object: Object3D; used: number; materials: Material[]; surfaces: HullSurfaceBinding[]; transient?: boolean }
@@ -138,7 +138,7 @@ export class ThreeShipPresentation implements LiveHullSink {
     let compiled = false
     try {
       await Promise.all([renderer.compileAsync(warmup, this.camera, this.world),
-        ENEMY_HULL_SPECS[key] ? Promise.resolve() : prepareLiveProtection(key === 'mesiah' ? 'mesiahBlack' : key,source)])
+        ENEMY_HULL_SPECS[key] || isCruiseHull(key) ? Promise.resolve() : prepareLiveProtection(key === 'mesiah' ? 'mesiahBlack' : key,source)])
       compiled = !this.disposed
     } finally {
       if (compiled) {
@@ -146,7 +146,7 @@ export class ThreeShipPresentation implements LiveHullSink {
         this.warmedMaterials.delete(key)
         this.warmedMaterials.set(key,prepared.owned)
         if (this.warmedMaterials.size > 48) {
-          const oldest = [...this.warmedMaterials.keys()].find(candidate => !ENEMY_HULL_SPECS[candidate] && candidate!=='rocket' && candidate!=='mesiahBlack'
+          const oldest = [...this.warmedMaterials.keys()].find(candidate => !ENEMY_HULL_SPECS[candidate] && !isCruiseHull(candidate) && candidate!=='rocket' && candidate!=='mesiahBlack'
             && ![...this.hulls.values()].some(node => node.key === candidate))
           if (oldest) {
             const retired = this.nodePools.get(oldest)
@@ -163,7 +163,7 @@ export class ThreeShipPresentation implements LiveHullSink {
       releaseHull(key, asset.object)
     }
     const pool: HullNode[] = []
-    const reserve=ENEMY_HULL_SPECS[key]?.family === 'boss' ? 1 : ENEMY_HULL_SPECS[key]?.family === 'elite' ? 2 : 4
+    const reserve=isCruiseHull(key) || ENEMY_HULL_SPECS[key]?.family === 'boss' ? 1 : ENEMY_HULL_SPECS[key]?.family === 'elite' ? 2 : 4
     while(!this.disposed&&pool.length<reserve){
       const node=this.createNode(key)
       if(!node)break
@@ -173,7 +173,7 @@ export class ThreeShipPresentation implements LiveHullSink {
     // Shader compilation alone does not upload vertex/index buffers or create
     // the vertex-array bindings used by the actual pooled material instances.
     // Do that before admitting this hull to a visible frame.
-    if (ENEMY_HULL_SPECS[key]?.family !== 'boss' && !this.batches.has(key)) {
+    if (!isCruiseHull(key) && ENEMY_HULL_SPECS[key]?.family !== 'boss' && !this.batches.has(key)) {
       const owner = this.createNode(key)
       const instances = owner ? HullInstances.create(owner.object) : null
       if (instances && owner) this.batches.set(key, { instances, owner, count: 0 })
@@ -275,6 +275,7 @@ export class ThreeShipPresentation implements LiveHullSink {
           await this.prepareHull(ENEMY_HULL_KEYS[nextEnemy++])
         }
       }))
+      await Promise.allSettled(CRUISE_HULL_KEYS.map(key => this.prepareHull(key)))
       if (this.disposed) return false
       await renderer.compileAsync(this.world, this.camera)
       return !this.disposed
@@ -385,6 +386,7 @@ export class ThreeShipPresentation implements LiveHullSink {
     if (isRaid2DMech(draw.key)) return false
     if (!this.renderer || this.disposed || this.contextLost) return false
     const key=hullKey(draw.key)
+    if (isCruiseHull(key) && !this.warmedMaterials.has(key)) return false
     let node = this.hulls.get(draw.id)
     if (node && node.key !== key) {
       this.releaseNode(node)

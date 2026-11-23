@@ -40,6 +40,9 @@ function admittedLoad<T>(work: () => Promise<T>): Promise<T> {
   })
 }
 
+export const CRUISE_HULL_KEYS = ['rockyFlyby', 'graceFlyby'] as const
+export const isCruiseHull = (key: string) => key === CRUISE_HULL_KEYS[0] || key === CRUISE_HULL_KEYS[1]
+
 export function hullKey(key: string) { return key === 'mesiah' ? 'mesiahBlack' : key }
 
 export function loadHull(key: string): Promise<HullAsset> {
@@ -104,7 +107,7 @@ export function loadHull(key: string): Promise<HullAsset> {
     }
     prepareHullLampAnchors(object,key)
     await prepareHullOcclusion(object)
-    const docking = enemy ? undefined : prepareHullDocking(object,key,registration)
+    const docking = enemy || isCruiseHull(key) ? undefined : prepareHullDocking(object,key,registration)
     const asset = { object, registration, docking, references: 0, lastUse: performance.now() }
     assets.set(key, asset)
     return asset
