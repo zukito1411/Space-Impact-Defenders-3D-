@@ -2,7 +2,7 @@ import { CoopLink, readCoopInput } from './coopLink'
 import { isOrganicBoss } from './destructionProfile'
 import { drawDestructionEffects } from './destructionEffects'
 import { EnemyTactics } from './enemyTactics'
-import { drawHailMaryFlyby, WorldStories } from './worldStories'
+import { WorldStories } from './worldStories'
 import { ASTROPHAGE_DURATION, ASTROPHAGE_START, CRUISE_FLYBY_START } from './cruiseTiming'
 import { isRaid2DMech } from './mechArtwork'
 import { enemyHullKey } from './enemyHulls'
@@ -2692,7 +2692,6 @@ export function GradiusRaid({
       drawDerelictWreck(ctx, wreck, toX, toY, cssWidth, time)
     }
 
-    if (cruiseAge >= 0) drawHailMaryFlyby(ctx, cruiseAge, cssWidth, cssHeight, landscapeRef.current, reducedMotion)
     worldStories.draw(ctx,time,journeyStageAgeRef.current,stageRef.current,sceneryRunTokenRef.current,
       landscapeRef.current,phaseRef.current==='paused',playing && !activeBoss && stageClearRef.current<=0 && raidModeRef.current!=='bossRush'
         && !isWateryWorldTheme(backgroundStageTheme) && !isVolcanicWorldTheme(backgroundStageTheme),

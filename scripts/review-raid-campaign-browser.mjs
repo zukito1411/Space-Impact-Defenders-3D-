@@ -294,46 +294,44 @@ try {
         const {r,actions,ships,background,reset}=window.campaignReview
         const {CRUISE_FLYBY_START:rocky,GRACE_FLYBY_START:grace,ASTROPHAGE_START:dust,ASTROPHAGE_DURATION:duration}=
           await import('/src/components/games/raid/cruiseTiming.ts')
-        const keys=['rockyFlyby','graceFlyby']
-        const footprint=(node,cssWidth,cssHeight)=>{
-          const point=node.group.position.clone()
-          let left=Infinity,right=-Infinity,top=Infinity,bottom=-Infinity
-          node.group.updateMatrixWorld(true)
-          node.object.traverse(mesh=>{
-            const positions=mesh.geometry?.attributes.position
-            if(!positions)return
-            for(let i=0;i<positions.count;i++) {
-              point.fromBufferAttribute(positions,i).applyMatrix4(mesh.matrixWorld).project(ships.camera)
-              left=Math.min(left,point.x)
-              right=Math.max(right,point.x)
-              top=Math.min(top,point.y)
-              bottom=Math.max(bottom,point.y)
-            }
-          })
-          return {left:(1+left)*.5,right:(1+right)*.5,length:(bottom-top)*.5*cssHeight/Math.min(cssWidth,cssHeight)}
-        }
-        const drawing=(age,measureFootprints=false)=>{
+        const flybySlots=background.sceneryHulls.slots.filter(slot=>background.cruiseFlybys.includes(slot.anchor))
+        const stage=background.app.stage
+        const pixiZ=Number(getComputedStyle(document.querySelector('.raid__pixi-background')).zIndex)
+        const effectsZ=Number(getComputedStyle(document.querySelector('.raid__fx-canvas')).zIndex)
+        const beforeGpuWeapons=stage.getChildIndex(background.scene)<stage.getChildIndex(background.gpuForeground.root)
+        const drawing=age=>{
           r.journeyStageAgeRef.current=age
           actions.draw(40000+age*1000)
-          const actors=keys.map(key=>ships.hulls.get('fx:'+key)).filter(node=>node?.group.visible)
+          const actors=flybySlots.filter(slot=>slot.parts.some(part=>part.mesh.visible))
           const {cssWidth,cssHeight}=r.viewportMetricsRef.current
           const lighting=background.getShipLighting()
           const field=background.astrophage.root
-          return {keys:actors.map(node=>node.key),depths:actors.map(node=>node.group.position.z),
-            headings:actors.map(node=>node.group.rotation.z),
-            footprints:measureFootprints?actors.map(node=>footprint(node,cssWidth,cssHeight)):[],
-            draws:ships.getShipStats().drawCalls,astrophage:field.visible,
+          return {keys:actors.map(slot=>slot.key),hulls:actors.map(({anchor,key,parts})=>{
+            const {mesh,params}=parts[0]
+            const u=params.uniforms
+            return {depth:u.uDistanceKm,scale:anchor.width/Math.min(cssWidth,cssHeight),lane:anchor.x/cssWidth,
+              heading:u.uRoll[1],shadow:u.uSunVisibility,
+              aheadOfShots:!beforeGpuWeapons||pixiZ>=effectsZ||mesh.parent!==background.solidScenery
+                ||ships.hulls.has('fx:'+key),
+              sharedSun:u.uSun.every((v,i)=>v===lighting.sun[i]),
+              exposure:u.uLightGain[0]/lighting.sunIntensity}
+          }),draws:ships.getShipStats().drawCalls,astrophage:field.visible,
             redBounce:lighting.fillColor[0]*lighting.fillIntensity,
             particles:field.visible?field.children.filter(sprite=>sprite.visible).length:0,
             sparkle:field.visible?field.children.slice(6,20).map(sprite=>sprite.alpha):[]}
-
         }
+
         reset(1,'waves')
         r.enemiesRef.current=[]
         const before=drawing(1)
         const earlyCruise=drawing(12)
         const leading=drawing(rocky+3.5)
-        const paired=drawing(grace+2.6,true)
+        const paired=drawing(grace+2.6)
+        const eclipse=background.getEclipseAt
+        background.getEclipseAt=()=>.8
+        let shadowed
+        try { shadowed=drawing(grace+2.65) }
+        finally { background.getEclipseAt=eclipse }
         const following=drawing(grace+6.7)
         const after=drawing(dust-.1)
         const field=drawing(dust+4.3)
@@ -347,7 +345,7 @@ try {
         r.enemiesRef.current=[]
         drawing(grace+2.6)
         actions.sync()
-        return {before,earlyCruise,leading,paired,following,after,field,laterField,pastField,bossRush,boss}
+        return {before,earlyCruise,leading,paired,shadowed,following,after,field,laterField,pastField,bossRush,boss}
       })
       assert.deepEqual(flyby.before.keys,[])
       assert.deepEqual(flyby.earlyCruise.keys,[])
@@ -362,17 +360,18 @@ try {
       }
       assert.deepEqual(flyby.bossRush.keys,[])
       assert.deepEqual(flyby.boss.keys,[])
-      assert.ok(flyby.paired.depths.every(z=>z<=-400),'Cruise hulls must stay in the distant plane')
-      assert.ok(flyby.paired.headings.every(heading=>Math.abs(heading)<.001),'Cruise hulls must face along the pilot course')
-      const [rockyFootprint,graceFootprint]=flyby.paired.footprints
-      assert.ok(rockyFootprint.length>.66&&graceFootprint.length>.71,'Cruise silhouettes shrank in perspective')
-      assert.ok(flyby.paired.footprints.every(({left,right})=>left>.015&&right<.44),
-        'Cruise silhouettes clipped the outer edge or drifted into the central flight lane: '+JSON.stringify(flyby.paired.footprints))
+      for(const hull of flyby.paired.hulls) {
+        assert.ok(hull.depth>=150&&hull.scale>.39&&hull.scale<.49&&hull.lane<.25,'Cruise hull escaped the distant lane')
+        assert.ok(Math.abs(hull.heading)<.001,'Cruise hull must face along the pilot course')
+        assert.equal(hull.aheadOfShots,false,'Cruise hull covered a projectile layer')
+        assert.ok(hull.sharedSun&&hull.exposure<.6,'Cruise hull missed the scene light or distance shading')
+      }
+      assert.ok(flyby.shadowed.hulls.every(hull=>hull.shadow<.3),'Cruise hull missed orbital shadows')
       assert.ok(flyby.field.particles>=250,'Astrophage missed its Max-quality particle budget')
       assert.notDeepEqual(flyby.field.sparkle,flyby.laterField.sparkle,'Astrophage should twinkle')
       assert.ok(flyby.field.redBounce>flyby.before.redBounce+.8,'Astrophage did not illuminate the ship lighting')
       assert.ok(Math.abs(flyby.pastField.redBounce-flyby.before.redBounce)<.1,'Astrophage lighting outlasted the field')
-      assert.equal(flyby.paired.draws-flyby.before.draws,2,'Each cruise hull should submit one draw')
+      assert.equal(flyby.paired.draws,flyby.before.draws,'Flybys must not submit foreground hull draws')
       await page.screenshot({path:output+'/stage-01-cruise-flyby-'+view+'.png'})
       await page.evaluate(async()=>{
         const {r,actions}=window.campaignReview
@@ -396,7 +395,8 @@ try {
           const {width,height}=background.orbitalCamera
           const world=background.projected.get(anchor).world
           return {mesh:mesh.visible,depth:world.distanceKm,diameter:anchor.width/Math.min(width,height),
-            x:anchor.x/width,y:anchor.y/height,traces:surface.params.uniforms.uAstrophage}
+            x:anchor.x/width,y:anchor.y/height,traces:surface.params.uniforms.uAstrophage,
+            sunZ:surface.params.uniforms.uSun[2],rimSunZ:globe.atmosphere.params.uniforms.uSun[2],tint:mesh.tint}
         }
         const stageTwo=draw(2,160000)
         const visible=draw(3,161000)
@@ -412,8 +412,10 @@ try {
       assert.equal(adrian.stageFour,null)
       for(const planet of [adrian.visible,adrian.low]) {
         assert.ok(planet?.mesh&&planet.traces>.8,'Stage 3 did not present Adrian with Astrophage')
-        assert.ok(planet.depth>85000&&planet.diameter>.17&&planet.diameter<.21,
+        assert.ok(planet.depth>150000&&planet.diameter>.105&&planet.diameter<.125,
           'Adrian should be small and distant: '+JSON.stringify(planet))
+        assert.ok(planet.sunZ<-.2&&planet.rimSunZ===planet.sunZ&&planet.tint!==0xffffff,
+          'Adrian missed its dark hemisphere or dim atmosphere')
         assert.ok(Math.abs(planet.x-.24)<.02&&Math.abs(planet.y-.55)<.02,'Adrian drifted out of its background lane')
       }
       await page.screenshot({path:output+'/stage-03-adrian-'+view+'.png'})

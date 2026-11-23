@@ -5,6 +5,8 @@ import { OrbitalMoons } from './orbitalMoons'
 import { createPaintedStarMap } from './paintedStars'
 import { AsteroidBelt } from './asteroidBelt'
 import { AstrophageField } from './astrophage'
+import { CRUISE_FLYBY_START, GRACE_FLYBY_START, GRACE_FLYBY_LENGTH } from './cruiseTiming'
+import { CRUISE_HULL_KEYS } from './liveHullAssets'
 import { createShipLightingFrame, sampleShipLighting } from './shipLighting'
 import { SceneryHulls } from './sceneryHulls'
 import { createSpacePlacement, SPACE_DISTANCES } from './spaceWorld'
@@ -291,6 +293,11 @@ export const RAID_BOSS_BACKGROUND_THEME_SNAKE = 9102
 export const RAID_BOSS_BACKGROUND_THEME_FINAL = 9103
 
 const ADRIAN_PLANET_SLOT = 2
+const CRUISE_SCENERY_DISTANCE_KM = 180
+const CRUISE_FLYBYS = [
+  { key: CRUISE_HULL_KEYS[0], start: CRUISE_FLYBY_START, length: 9.2, lane: .205, size: .42, yaw: -.54 },
+  { key: CRUISE_HULL_KEYS[1], start: GRACE_FLYBY_START, length: GRACE_FLYBY_LENGTH, lane: .225, size: .46, yaw: -1.08 },
+] as const
 
 export const RAID_BACKGROUND_SCENES: RaidBackgroundScene[] = [
   {
@@ -871,6 +878,7 @@ export class PixiRaidBackground {
   private orbitalBodiesReady = false
   private orbitalSkyReady = false
   private readonly sceneryHulls = new SceneryHulls()
+  private readonly cruiseFlybys = CRUISE_FLYBYS.map(() => new Sprite(Texture.WHITE))
   private readonly shipLighting = createShipLightingFrame()
   private readonly sceneryShipKeys = new Map<Sprite, string>()
   private readonly sceneryEclipse = (x: number, y: number) => this.getEclipseAt(x,y)
@@ -1045,6 +1053,15 @@ export class PixiRaidBackground {
       this.scene.addChild(this.finalBattleBackdropGraphics)
       this.scene.addChild(this.solidScenery)
       this.solidScenery.addChild(this.asteroidBelt.mesh)
+      for (const [index, flyby] of CRUISE_FLYBYS.entries()) {
+        const sprite = this.cruiseFlybys[index]
+        sprite.visible = false
+        sprite.renderable = false
+        sprite.zIndex = -CRUISE_SCENERY_DISTANCE_KM
+        sprite.tint = 0x9fb2c5
+        this.solidScenery.addChild(sprite)
+        this.sceneryHulls.add(sprite, flyby.key, false, { distanceKm: CRUISE_SCENERY_DISTANCE_KM, yaw: flyby.yaw, exposure: .52 })
+      }
       this.sceneryBloomSprites.forEach((sprite) => { sprite.blendMode = 'add'; sprite.visible = false; this.solidScenery.addChild(sprite) })
       this.planetSprites.forEach((sprite, index) => { sprite.zIndex = PLANET_DEPTH[index]; this.solidScenery.addChild(sprite) })
       this.wreckSprites.forEach((sprite, index) => { sprite.zIndex = 35 + index * 0.01; this.solidScenery.addChild(sprite) })
@@ -1371,7 +1388,9 @@ export class PixiRaidBackground {
           this.projectScenery(sprite, width, height)
         }
       }
-      this.astrophage.update(frame.cruiseAge ?? -1, width, height, isLow, this.reducedMotion)
+      const cruiseAge = frame.cruiseAge ?? -1
+      this.updateCruiseFlybys(cruiseAge, width, height)
+      this.astrophage.update(cruiseAge, width, height, isLow, this.reducedMotion)
       if (this.orbitalCamera) {
         // Light uses the same projected sun position as the rest of the scenery.
         let sun: Sprite | undefined
@@ -2384,9 +2403,9 @@ export class PixiRaidBackground {
         const adrian = this.assetTextures.get('planetAdrian')
         if (adrian) {
           // A small angular diameter puts Adrian well behind the journey's destination.
-          const diameter = Math.min(width, height) * .19
-          setPixiSpriteContain(sprite, adrian, width * .24, height * .55, diameter, diameter, .96, -.16)
-          sprite.tint = 0xffffff
+          const diameter = Math.min(width, height) * .115
+          setPixiSpriteContain(sprite, adrian, width * .24, height * .55, diameter, diameter, 1, -.16)
+          sprite.tint = 0x9fb2bf
           continue
         }
       }
@@ -2413,6 +2432,19 @@ export class PixiRaidBackground {
       const y = getRaidScenePlanetY(planet, height, seconds * (index === 0 ? 0.75 : index === 1 ? 0.12 : 0.05), radius * 2)
       const size = radius * getRaidScenePlanetDrawScale(planet.asset) * depth
       setPixiSpriteContain(sprite, texture, width * planet.x, y, size, size, 1, planet.rotation)
+    }
+  }
+
+  private updateCruiseFlybys(age: number, width: number, height: number) {
+    const span = Math.min(width, height)
+    for (let i = 0; i < CRUISE_FLYBYS.length; i++) {
+      const flyby = CRUISE_FLYBYS[i], sprite = this.cruiseFlybys[i]
+      const progress = (age - flyby.start) / flyby.length
+      sprite.visible = progress >= 0 && progress < 1
+      if (!sprite.visible) continue
+      const size = span * flyby.size, margin = size * .7
+      sprite.position.set(width * flyby.lane, -margin + (height + margin * 2) * progress)
+      sprite.scale.set(size)
     }
   }
 

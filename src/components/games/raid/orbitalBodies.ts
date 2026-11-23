@@ -162,7 +162,7 @@ void main() {
   if (uAstrophage > 0.) {
     // Crimson filaments in Adrian's paint pick up a little emission without a second layer.
     float traces = smoothstep(.29,.66,pigment.r-pigment.g);
-    color += pigment*.23*(1.-day) + vec3(1.,.105,.043)*traces*.88*uAstrophage;
+    color += vec3(1.,.105,.043)*traces*.24*uAstrophage;
   }
   gl_FragColor = vec4(color,1.)*tint;
 }`

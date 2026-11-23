@@ -100,7 +100,8 @@ function createHullUniforms(registration: number[], paint: Float32Array, key: st
 type HullBuffers = { geometry: Geometry; texture: Texture; paint: Float32Array }
 type HullModel = { object: Object3D; registration: number[]; parts: HullBuffers[] }
 type HullPart = { mesh: Mesh<Geometry, Shader>; params: ReturnType<typeof createHullUniforms> }
-type HullSlot = { anchor: Sprite; key: string; parts: HullPart[]; dynamic: boolean }
+type DistantHullView = { distanceKm: number; yaw: number; exposure: number }
+type HullSlot = { anchor: Sprite; key: string; parts: HullPart[]; dynamic: boolean; distantView?: DistantHullView }
 
 /** Shared live ship/hostile hulls and original paint, inside the existing scenery pass. */
 export class SceneryHulls {
@@ -110,7 +111,9 @@ export class SceneryHulls {
   private destroyed = false
   private readonly hiddenAnchors = new Set<Sprite>()
 
-  add(anchor: Sprite, key: string, dynamic = false) { this.slots.push({ anchor, key: hullKey(key), parts: [], dynamic }) }
+  add(anchor: Sprite, key: string, dynamic = false, distantView?: DistantHullView) {
+    this.slots.push({ anchor, key: hullKey(key), parts: [], dynamic, distantView })
+  }
 
   async prepare(renderer: Renderer) {
     const prepared=await Promise.allSettled([...new Set(this.slots.map(slot => slot.key))].map(async key => {
@@ -212,7 +215,7 @@ export class SceneryHulls {
 
   update(width: number, height: number, focal: number, landscape: boolean,
     distanceFor: (anchor: Sprite) => number, keyFor: (anchor: Sprite) => string | undefined, lighting?: ShipLightingFrame, eclipseAt?: (x: number, y: number) => number) {
-    const yaw = landscape ? LANDSCAPE_VIEW_YAW : 0, c = Math.cos(yaw), s = Math.sin(yaw)
+    const defaultYaw = landscape ? LANDSCAPE_VIEW_YAW : 0, c = Math.cos(defaultYaw), s = Math.sin(defaultYaw)
     for (const slot of this.slots) {
       const sprite = slot.anchor, active = hullKey(keyFor(sprite) ?? (slot.dynamic ? '' : slot.key)) === slot.key
       const visible = active && sprite.visible && slot.parts.length > 0
@@ -222,21 +225,27 @@ export class SceneryHulls {
       }
       const roll = sprite.rotation, rc = Math.cos(roll), rs = Math.sin(roll)
       const slopeX = (sprite.x - width * .5) / focal, slopeY = (sprite.y - height * .5) / focal
-      const distance = Math.max(.1, distanceFor(sprite)), size = Math.max(sprite.width, sprite.height)
+      if (!visible) {
+        for (const { mesh } of slot.parts) mesh.visible = false
+        continue
+      }
+      const view = slot.distantView
+      const distance = view?.distanceKm ?? Math.max(.1, distanceFor(sprite)), size = Math.max(sprite.width, sprite.height)
+      const exposure = view?.exposure ?? 1
+      const yawCos = view ? Math.cos(view.yaw) : c, yawSin = view ? Math.sin(view.yaw) : s
       for (const part of slot.parts) {
         const mesh = part.mesh
-        mesh.visible = visible
-        if (!visible) continue
+        mesh.visible = true
         const u = part.params.uniforms
         if (lighting) {
           u.uSun.set(lighting.sun); u.uFillDirection.set(lighting.fillDirection)
           u.uKeyColor.set(lighting.keyColor); u.uFillColor.set(lighting.fillColor)
           u.uSkyColor.set(lighting.skyColor); u.uGroundColor.set(lighting.groundColor)
-          u.uLightGain[0] = lighting.sunIntensity; u.uLightGain[1] = lighting.fillIntensity
-          u.uLightGain[2] = lighting.ambientIntensity; u.uLightGain[3] = lighting.reflectionIntensity
+          u.uLightGain[0] = lighting.sunIntensity * exposure; u.uLightGain[1] = lighting.fillIntensity * exposure
+          u.uLightGain[2] = lighting.ambientIntensity * exposure; u.uLightGain[3] = lighting.reflectionIntensity * exposure
         }
         u.uSunVisibility = 1 - .92 * Math.max(0, Math.min(1, eclipseAt?.(sprite.x, sprite.y) ?? 0))
-        u.uYaw[0] = c; u.uYaw[1] = s; u.uRoll[0] = rc; u.uRoll[1] = rs
+        u.uYaw[0] = yawCos; u.uYaw[1] = yawSin; u.uRoll[0] = rc; u.uRoll[1] = rs
         u.uSlope[0] = slopeX; u.uSlope[1] = slopeY
         u.uSpanRatio = size / focal; u.uDistanceKm = distance; u.uWidthKm = size * distance / focal
         mesh.position.copyFrom(sprite.position); mesh.scale.set(size)
