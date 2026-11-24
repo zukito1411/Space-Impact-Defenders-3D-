@@ -124,6 +124,21 @@ float sunlightPast(vec4 body, vec3 light) {
   float spread = .006*along+.002;
   return smoothstep(max(0.,body.w-spread),body.w+spread,separation);
 }
+// Planet-fixed, seamless 3D value noise. Used only in the AT-5 material branch.
+float at5Hash(vec3 p) {
+  p = fract(p*.1031);
+  p += dot(p,p.yzx+33.33);
+  return fract((p.x+p.y)*p.z);
+}
+float at5Noise(vec3 p) {
+  vec3 i = floor(p), f = fract(p);
+  f = f*f*(3.-2.*f);
+  return mix(
+    mix(mix(at5Hash(i),at5Hash(i+vec3(1,0,0)),f.x),
+        mix(at5Hash(i+vec3(0,1,0)),at5Hash(i+vec3(1,1,0)),f.x),f.y),
+    mix(mix(at5Hash(i+vec3(0,0,1)),at5Hash(i+vec3(1,0,1)),f.x),
+        mix(at5Hash(i+vec3(0,1,1)),at5Hash(i+vec3(1,1,1)),f.x),f.y),f.z);
+}
 void main() {
   if (facing < 0.) discard;
   vec4 texel = texture2D(uArt,uFrame.xy+clamp(paint,.002,.998)*uFrame.zw);
@@ -136,22 +151,38 @@ void main() {
   float visibility = sunlightPast(uOccluder0,light)*sunlightPast(uOccluder1,light);
   float incidence = dot(n,light), day = max(0.,incidence)*visibility;
   if (uBloodOcean > .5) {
-    // AT-5 reuses the existing painted planetary atlas and the same lit sphere.
-    // Broad irregular basins use source relief and planet-fixed coordinates;
-    // no extra texture, render pass, or per-frame procedural geometry.
+    // AT-5: one mostly continuous blood ocean with rugged islands and shelves.
+    // A stable sea level covers about 75% of the sphere, independent of rotation
+    // and source-atlas brightness. All material detail stays in this same pass.
+    vec3 p = normalize(terrain);
+    float continent = at5Noise(p*3.1+vec3(11.3,7.1,-4.8));
+    float broken = at5Noise(p*8.4+vec3(-6.2,14.7,9.1));
+    float fine = at5Noise(p*24.5+vec3(17.4,-5.3,2.9));
+    float grain = at5Noise(p*57.0+vec3(-8.1,3.4,21.6));
+    float elevation = .64*continent+.25*broken+.11*fine;
+    float ocean = 1.-smoothstep(.623,.643,elevation);
     float relief = dot(pigment,vec3(.26,.62,.12));
-    float basin = .37*sin(terrain.x*7.2+terrain.z*4.7)
-      + .24*cos(terrain.y*8.6-terrain.z*3.4)
-      + .15*sin(terrain.x*22.+terrain.y*16.)
-      + .14*(relief-0.5);
-    float ocean = smoothstep(-.09,.12,basin);
-    float stoneDetail = clamp(relief*.78+.12+.12*sin(terrain.y*23.+terrain.x*26.),0.,1.);
-    vec3 stone = mix(vec3(.035,.036,.043),vec3(.215,.193,.197),stoneDetail);
-    vec3 blood = mix(vec3(.065,.002,.010),vec3(.35,.018,.037),clamp(relief*.74+.18,0.,1.));
+    float depth = 1.-smoothstep(.30,.633,elevation);
+    float shelf = ocean*smoothstep(.54,.632,elevation);
+    float ridge = 1.-abs(2.*fine-1.);
+    float highland = smoothstep(.64,.85,elevation);
+    // Irregular eroded rock, exposed ridges, fine mineral variation, no glow.
+    float stoneDetail = clamp(.24*relief+.28*broken+.27*ridge+.13*grain+.15*highland,0.,1.);
+    vec3 stone = mix(vec3(.028,.029,.035),vec3(.32,.30,.29),stoneDetail);
+    stone *= .74+.26*smoothstep(.18,.70,fine);
+    // Subtle dark maroon currents and brighter crimson shallows. The source
+    // texture supplies additional fine structure without a texture upload.
+    float current = smoothstep(.22,.78,.56*broken+.30*fine+.14*relief);
+    vec3 blood = mix(vec3(.075,.003,.012),vec3(.42,.019,.038),1.-depth);
+    blood *= .75+.40*current+.10*grain;
+    blood = mix(blood,vec3(.47,.037,.050),shelf*.24);
+    // A narrow broken coastline reads as rock meeting liquid, not lava.
+    float shore = 1.-smoothstep(.006,.025,abs(elevation-.633));
+    stone = mix(stone,vec3(.18,.069,.065),shore*.45);
     vec3 surfaceColor = mix(stone,blood,ocean);
     vec3 color = surfaceColor*mix(vec3(.035,.037,.045),vec3(1.18,1.08,1.04),day);
     float glint = pow(max(0.,dot(n,uHalfLight)),76.)*day*ocean;
-    color += vec3(.46,.045,.061)*glint;
+    color += vec3(.46,.045,.061)*glint*(.75+.25*current);
     gl_FragColor = vec4(color,1.)*tint;
     return;
   }

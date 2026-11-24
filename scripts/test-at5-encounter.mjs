@@ -35,4 +35,42 @@ assert.match(source('orbitalSpace.ts'), /this\.surface\.setBloodOcean\(Boolean\(
 assert.match(source('orbitalBodies.ts'), /uBloodOcean > \.5/)
 assert.match(source('worldStories.ts'), /isAt5Campaign\(stage, campaign \? 'campaign'/)
 assert.match(source('worldStories.ts'), /this\.cue !== 'at5:sm8'/)
-console.log('Stage 13 AT-5 encounter assertions passed')
+// Sample the same GLSL height field over an equal-area Fibonacci sphere.
+const fract = v => v - Math.floor(v)
+const mix = (a,b,t) => a+(b-a)*t
+function hash(x,y,z) {
+  x=fract(x*.1031); y=fract(y*.1031); z=fract(z*.1031)
+  const d=x*(y+33.33)+y*(z+33.33)+z*(x+33.33)
+  x+=d; y+=d; z+=d
+  return fract((x+y)*z)
+}
+function noise(x,y,z) {
+  const i=Math.floor(x),j=Math.floor(y),k=Math.floor(z)
+  let a=fract(x),b=fract(y),c=fract(z)
+  a=a*a*(3-2*a); b=b*b*(3-2*b); c=c*c*(3-2*c)
+  return mix(
+    mix(mix(hash(i,j,k),hash(i+1,j,k),a),mix(hash(i,j+1,k),hash(i+1,j+1,k),a),b),
+    mix(mix(hash(i,j,k+1),hash(i+1,j,k+1),a),mix(hash(i,j+1,k+1),hash(i+1,j+1,k+1),a),b),c)
+}
+const material=source('orbitalBodies.ts')
+for (const expression of [
+  'at5Noise(p*3.1+vec3(11.3,7.1,-4.8))',
+  'at5Noise(p*8.4+vec3(-6.2,14.7,9.1))',
+  'at5Noise(p*24.5+vec3(17.4,-5.3,2.9))',
+  '.64*continent+.25*broken+.11*fine',
+  '1.-smoothstep(.623,.643,elevation)',
+]) assert.ok(material.includes(expression),'coverage model must match GLSL: '+expression)
+const samples=18000
+let oceanArea=0
+for(let i=0;i<samples;i++){
+  const z=1-2*(i+.5)/samples,r=Math.sqrt(1-z*z),a=i*2.399963229728653
+  const x=r*Math.cos(a),y=r*Math.sin(a)
+  const elevation=.64*noise(x*3.1+11.3,y*3.1+7.1,z*3.1-4.8)
+    +.25*noise(x*8.4-6.2,y*8.4+14.7,z*8.4+9.1)
+    +.11*noise(x*24.5+17.4,y*24.5-5.3,z*24.5+2.9)
+  const blend=Math.max(0,Math.min(1,(elevation-.623)/.020))
+  oceanArea+=1-blend*blend*(3-2*blend)
+}
+const coverage=oceanArea/samples
+assert.ok(coverage>=.70 && coverage<=.80,'AT-5 ocean fraction: '+coverage)
+console.log('Stage 13 AT-5 encounter assertions passed; sampled ocean coverage '+(coverage*100).toFixed(1)+'%')
