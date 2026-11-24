@@ -82,7 +82,7 @@ void main() {
   gl_FragColor = texture2D(uArt,uFrame.xy+uv*uFrame.zw)*tint;
 }`
 
-type GlobeStyle = { radiusKm: number; radius: number; air: number[]; swing: number; weather?: number; lava?: boolean; astrophage?: boolean; phaseZ?: number; bloodOcean?: boolean }
+type GlobeStyle = { radiusKm: number; radius: number; air: number[]; swing: number; weather?: number; lava?: boolean; astrophage?: boolean; phaseZ?: number; bloodOcean?: boolean; thinAtmosphere?: boolean }
 export const globeStyles = {
   ocean: { radiusKm: 6400, radius: .481, air: [.42,.40,1.], swing: .42, weather: .72 },
   volcanic: { radiusKm: 5100, radius: .482, air: [1.,.31,.10], swing: .36, lava: true },
@@ -95,7 +95,7 @@ export const globeStyles = {
   green: { radiusKm: 8800, radius: .488, air: [.38,.78,.95], swing: .32, weather: .42 },
   gold: { radiusKm: 7200, radius: .492, air: [1.,.53,.12], swing: .28, lava: true },
   adrian: { radiusKm: 10700, radius: .478, air: [.26,.56,.48], swing: .31, astrophage: true, phaseZ: -.28 },
-  at5: { radiusKm: 1800, radius: .478, air: [0,0,0], swing: .16, bloodOcean: true },
+  at5: { radiusKm: 1800, radius: .478, air: [.55,.14,.18], swing: .16, bloodOcean: true, thinAtmosphere: true },
   nebula: { radiusKm: 6100, radius: .476, air: [.34,.62,1.], swing: .30 },
 } satisfies Record<string, GlobeStyle>
 
@@ -168,7 +168,7 @@ export class OrbitalGlobe {
     const halo = this.atmosphere.mesh
     this.atmosphere.pose(rx, ry, distanceKm > 0 ? this.style.radiusKm / distanceKm : 0,
       camera ? (sprite.x-camera.width*.5)/camera.focal : 0,
-      camera ? (sprite.y-camera.height*.5)/camera.focal : 0, sprite.rotation, this.style.air, light)
+      camera ? (sprite.y-camera.height*.5)/camera.focal : 0, sprite.rotation, this.style.air, light, this.style.thinAtmosphere ?? false)
     halo.position.copyFrom(sprite.position); halo.scale.set(sprite.width, sprite.height)
     halo.rotation = sprite.rotation; halo.alpha = sprite.alpha; halo.tint = sprite.tint
     halo.zIndex = sprite.zIndex + .0005

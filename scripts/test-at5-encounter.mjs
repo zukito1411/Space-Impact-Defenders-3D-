@@ -53,6 +53,14 @@ function noise(x,y,z) {
     mix(mix(hash(i,j,k+1),hash(i+1,j,k+1),a),mix(hash(i,j+1,k+1),hash(i+1,j+1,k+1),a),b),c)
 }
 const material=source('orbitalBodies.ts')
+const globeSource=source('orbitalSpace.ts')
+assert.match(globeSource,/at5: \{[^\n]*air: \[\.55,\.14,\.18\][^\n]*thinAtmosphere: true/)
+assert.equal((globeSource.match(/thinAtmosphere: true/g) ?? []).length,1,'only AT-5 receives the thin atmosphere')
+assert.match(globeSource,/this\.style\.thinAtmosphere \?\? false/)
+assert.ok(material.includes('mix(1.018,1.012,uThinAtmosphere)'))
+assert.ok(material.includes('r = thinAtmosphere ? 1.012 : 1.018'))
+assert.ok(material.includes('.55*smoothstep(0.,.75,incidence)'))
+assert.ok(material.includes('u.uThinAtmosphere = thinAtmosphere ? 1 : 0'))
 for (const expression of [
   'at5Noise(p*3.1+vec3(11.3,7.1,-4.8))',
   'at5Noise(p*8.4+vec3(-6.2,14.7,9.1))',

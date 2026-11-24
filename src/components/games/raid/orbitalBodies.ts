@@ -330,7 +330,7 @@ void main() {
 const atmosphereFragment = `
 precision highp float;
 uniform vec2 uSlope, uRoll;
-uniform float uPerspective;
+uniform float uPerspective, uThinAtmosphere;
 uniform vec3 uAir, uSun;
 varying vec2 shellPoint;
 varying vec4 tint;
@@ -339,17 +339,21 @@ void main() {
   vec3 towardEye = normalize(vec3(-shellPoint*uPerspective-uSlope,1.));
   float along = dot(point,towardEye);
   float closest2 = max(0.,dot(point,point)-along*along);
-  const float outer = 1.018;
+  float outer = mix(1.018,1.012,uThinAtmosphere);
   if (closest2 >= outer*outer) discard;
   float shell = sqrt(max(0.,outer*outer-closest2));
   float ground = sqrt(max(0.,1.-closest2));
   float path = closest2 < 1. ? shell-ground : shell*2.;
   vec3 n = normalize(point+towardEye*(shell-along));
   n.xy = mat2(uRoll.x,uRoll.y,-uRoll.y,uRoll.x)*n.xy;
-  float day = smoothstep(-.22,.7,dot(n,uSun));
+  float incidence = dot(n,uSun);
+  float day = smoothstep(-.22,.7,incidence);
   float optical = 1.-exp(-path*5.);
   float coverage = 1.-smoothstep(outer*outer-.004,outer*outer,closest2);
-  float alpha = optical*(.12+.6*day)*coverage;
+  // AT-5's tenuous crimson haze is visible only where sunlight reaches it.
+  // Preserve the original twilight and optical depth for every other globe.
+  float scattering = mix(.12+.6*day,.55*smoothstep(0.,.75,incidence),uThinAtmosphere);
+  float alpha = optical*scattering*coverage;
   vec3 color = mix(uAir*.45,uAir*1.3,day);
   gl_FragColor = vec4(color*alpha,alpha)*tint;
 }`
@@ -361,6 +365,7 @@ export class OrbitalAtmosphere {
     uSlope: { value: new Float32Array(2), type: 'vec2<f32>' },
     uRoll: { value: new Float32Array([1, 0]), type: 'vec2<f32>' },
     uPerspective: { value: 0, type: 'f32' },
+    uThinAtmosphere: { value: 0, type: 'f32' },
     uAir: { value: new Float32Array(3), type: 'vec3<f32>' },
     uSun: { value: new Float32Array([-.61, -.49, .62]), type: 'vec3<f32>' },
   })
@@ -372,10 +377,11 @@ export class OrbitalAtmosphere {
     writeOrbitalLight(this.params.uniforms.uSun,this.params.uniforms.uSun)
   }
   pose(rx: number, ry: number, perspective: number, slopeX: number, slopeY: number,
-    roll: number, air: readonly number[], light?: Float32Array) {
+    roll: number, air: readonly number[], light?: Float32Array, thinAtmosphere = false) {
     const u = this.params.uniforms, c = Math.cos(roll), s = Math.sin(roll)
     const sx = slopeX*c+slopeY*s, sy = -slopeX*s+slopeY*c
-    const k = Math.max(0,Math.min(.975,perspective)), r = 1.018, r2 = r*r
+    // Match the analytic shell's radius so its projected quad never clips.
+    const k = Math.max(0,Math.min(.975,perspective)), r = thinAtmosphere ? 1.012 : 1.018, r2 = r*r
     const denominator = 1-r2*k*k
     const cx = r2*k*sx/denominator, cy = r2*k*sy/denominator
     const ex = r*Math.sqrt(denominator+sx*sx)/denominator
@@ -386,6 +392,7 @@ export class OrbitalAtmosphere {
     u.uSlope[0] = sx; u.uSlope[1] = sy
     u.uRoll[0] = c; u.uRoll[1] = s
     u.uPerspective = k; u.uAir.set(air)
+    u.uThinAtmosphere = thinAtmosphere ? 1 : 0
     if (light) writeOrbitalLight(u.uSun,light)
   }
   destroy() { this.mesh.geometry.destroy(true); this.shader.destroy(); this.mesh.destroy() }
