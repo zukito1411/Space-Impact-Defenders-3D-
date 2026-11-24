@@ -2695,7 +2695,7 @@ export function GradiusRaid({
     worldStories.draw(ctx,time,journeyStageAgeRef.current,stageRef.current,sceneryRunTokenRef.current,
       landscapeRef.current,phaseRef.current==='paused',playing && !activeBoss && stageClearRef.current<=0 && raidModeRef.current!=='bossRush'
         && !isWateryWorldTheme(backgroundStageTheme) && !isVolcanicWorldTheme(backgroundStageTheme),
-      cssWidth,cssHeight,reducedMotion)
+      cssWidth,cssHeight,reducedMotion,raidModeRef.current==='campaign')
     const battle = playing && !activeBoss && gfxProfile.drawDecorativeOverlays && !reducedMotion
       && !(cruiseAge >= CRUISE_FLYBY_START && cruiseAge < ASTROPHAGE_START + ASTROPHAGE_DURATION)
       && !isWateryWorldTheme(backgroundStageTheme) && !isVolcanicWorldTheme(backgroundStageTheme)

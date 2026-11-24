@@ -2,6 +2,7 @@ import { SampleScene } from '../presentationAudio'
 import { drawLiveHull } from './liveHullBridge'
 import { COMBAT_TILE, drawRaidCombatTexture, getRaidCombatFrame } from './combatArt'
 import { raidStereoPan } from './flightEffects'
+import { AT5_SIGNAL_LINES, AT5_SIGNAL_START, AT5_SIGNAL_DURATION, at5SignalOpacity, isAt5Campaign } from './stage13At5'
 
 const clamp=(n:number)=>Math.max(0,Math.min(1,n))
 /** Three finite, deterministic background encounters. Every hull enters beyond
@@ -14,10 +15,37 @@ export class WorldStories {
   private stage=0
   private run=-1
   draw(ctx:CanvasRenderingContext2D,time:number,stageAge:number,stage:number,run:number,landscape:boolean,
-    paused:boolean,enabled:boolean,width:number,height:number,reduced:boolean) {
+    paused:boolean,enabled:boolean,width:number,height:number,reduced:boolean,campaign=false) {
     if(this.stage!==stage || this.run!==run){this.visibility=0;this.cue='';this.stage=stage;this.run=run;this.sounds.stop()}
     const dt=this.last ? Math.max(0,Math.min(.05,(time-this.last)/1000)) : 0
     this.last=time
+    if (isAt5Campaign(stage, campaign ? 'campaign' : undefined)
+      && stageAge >= AT5_SIGNAL_START && stageAge < AT5_SIGNAL_START + AT5_SIGNAL_DURATION) {
+      const alpha = enabled && !paused ? at5SignalOpacity(stageAge) : 0
+      if (alpha > 0) {
+        if (this.cue !== 'at5:sm8') {
+          this.cue = 'at5:sm8'
+          this.sounds.play('radio-fragment', .12, raidStereoPan(73, 49, landscape), 'bgm', 1, 0, 6000)
+        }
+        // The existing story/event caption canvas, not a new HUD or renderer.
+        ctx.save()
+        if (landscape) { ctx.translate(0,height); ctx.rotate(-Math.PI/2) }
+        const w=landscape?height:width,h=landscape?width:height
+        const x=w*.035,y=h*.17,boxW=Math.min(w*.69,265),fontSize=Math.max(10,Math.min(12,w*.033))
+        const lineHeight=fontSize+6,pad=10
+        ctx.globalAlpha=alpha
+        ctx.fillStyle='rgba(3,15,24,.75)'
+        ctx.fillRect(x,y,boxW,pad*2+lineHeight*AT5_SIGNAL_LINES.length)
+        ctx.fillStyle='#9bcedd'
+        ctx.font='bold '+fontSize+'px sans-serif'
+        ctx.fillText(AT5_SIGNAL_LINES[0],x+pad,y+pad+fontSize,boxW-pad*2)
+        ctx.font=fontSize+'px sans-serif'
+        for(let i=1;i<AT5_SIGNAL_LINES.length;i++)
+          ctx.fillText(AT5_SIGNAL_LINES[i],x+pad,y+pad+fontSize+lineHeight*i,boxW-pad*2)
+        ctx.restore()
+      }
+      return
+    }
     const start=14+(stage%3)*3,age=stageAge-start,inside=age>=0 && age<23
     const target=enabled && inside ? 1 : 0
     if(!paused)this.visibility+=(target-this.visibility)*Math.min(1,dt*3)

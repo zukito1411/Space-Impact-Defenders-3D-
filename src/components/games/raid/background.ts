@@ -6,6 +6,7 @@ import { createPaintedStarMap } from './paintedStars'
 import { AsteroidBelt } from './asteroidBelt'
 import { AstrophageField } from './astrophage'
 import { CRUISE_FLYBY_START, GRACE_FLYBY_START, GRACE_FLYBY_LENGTH } from './cruiseTiming'
+import { AT5_PASS_START, AT5_PASS_DURATION, AT5_RADIUS_KM, at5DistanceKm, at5PassProgress, isAt5Campaign } from './stage13At5'
 import { CRUISE_HULL_KEYS } from './liveHullAssets'
 import { createShipLightingFrame, sampleShipLighting } from './shipLighting'
 import { SceneryHulls } from './sceneryHulls'
@@ -1413,7 +1414,7 @@ export class PixiRaidBackground {
         const pose = this.projected.get(sprite)
         this.moonSystems[i].update(this.assetTextures.get('asteroid'),style,this.orbitalCamera,
           pose?.world.distanceKm ?? 0,celestialSeconds,
-          this.orbitalBodiesReady && space && this.journey.worldAlpha < .99 && Boolean(pose?.active) && style !== globeStyles.adrian)
+          this.orbitalBodiesReady && space && this.journey.worldAlpha < .99 && Boolean(pose?.active) && style !== globeStyles.adrian && style !== globeStyles.at5)
       }
       for (const globe of this.globes) globe.update(celestialSeconds, this.globeStyle, this.orbitalBodiesReady,
         this.projected.get(globe.anchor)?.world.distanceKm ?? 0, this.orbitalCamera ?? undefined, this.assetTextures.get('clouds'))
@@ -2346,7 +2347,10 @@ export class PixiRaidBackground {
       physicalWidthKm = radiusKm / style.radius
       // The campaign's compressed approach is a 3D trajectory with a fixed
       // planet radius; the sampled composition specifies distance keyframes.
-      scripted = this.journey.enabled && (sprite === this.planetSprites[0] || sprite === this.planetSprites[1])
+      scripted = this.journey.enabled && (sprite === this.planetSprites[0] || sprite === this.planetSprites[1]
+        || (sprite === this.planetSprites[ADRIAN_PLANET_SLOT]
+          && isAt5Campaign(this.journeyInput.stageNumber ?? 0, this.journeyInput.raidMode)
+          && sprite.texture === this.assetTextures.get('planetAdrian')))
     } else if (fixed) {
       physicalWidthKm = 1400000
     }
@@ -2361,7 +2365,7 @@ export class PixiRaidBackground {
     if (texture === getJourneyPlanet(1)) return globeStyles.volcanic
     if (texture === getCosmosLandmark(0)) return globeStyles.blue
     if (texture === getCosmosLandmark(1)) return globeStyles.ringLandmark
-    if (texture === this.assetTextures.get('planetAdrian')) return globeStyles.adrian
+    if (texture === this.assetTextures.get('planetAdrian')) return isAt5Campaign(this.journeyInput.stageNumber ?? 0, this.journeyInput.raidMode) ? globeStyles.at5 : globeStyles.adrian
     if (texture === this.assetTextures.get('planet1')) return globeStyles.earth
     if (texture === this.assetTextures.get('planet2')) return globeStyles.ring
     if (texture === this.assetTextures.get('planet3')) return globeStyles.violet
@@ -2395,6 +2399,22 @@ export class PixiRaidBackground {
             this.reducedMotion ? Math.min(size, Math.max(width,height)) : size, 1, 0)
           sprite.tint = sceneryTint(0xffffff, departing ? 0.92 - Math.min(1, (this.journeyInput.stageAge ?? 0) / 14) * (this.journey.phase === 'ascent' ? 0 : 0.2) : 0.92)
           sprite.zIndex = departing ? 30 : this.journey.departing >= 0 ? 20 : 30
+        }
+        continue
+      }
+      if (index === ADRIAN_PLANET_SLOT && isAt5Campaign(this.journeyInput.stageNumber ?? 0, this.journeyInput.raidMode)) {
+        const at5 = this.assetTextures.get('planetAdrian')
+        const age = this.journeyInput.stageAge ?? -1
+        const progress = at5PassProgress(age)
+        sprite.visible = Boolean(at5 && age >= AT5_PASS_START && age < AT5_PASS_START + AT5_PASS_DURATION)
+        if (sprite.visible && at5) {
+          // Physical diameter and the same camera focal used by OrbitalCamera.
+          // camera.project() recovers the matching distance from this angular size.
+          const focal = this.orbitalCamera?.focal ?? Math.max(width,height)*.93
+          const size = AT5_RADIUS_KM * focal / (globeStyles.at5.radius * at5DistanceKm(age))
+          setPixiSpriteContain(sprite, at5, width * (.78 - .16 * progress),
+            height * (-.20 + 1.43 * progress), size, size, 1, -.11)
+          sprite.tint = 0xe4d9dc
         }
         continue
       }

@@ -105,6 +105,7 @@ uniform vec4 uWeatherFrame;
 uniform vec2 uWeatherTurn;
 uniform float uWeatherAmount;
 uniform float uRock, uLava, uAstrophage;
+uniform float uBloodOcean;
 uniform vec4 uOccluder0, uOccluder1;
 varying vec3 normal;
 varying vec2 paint;
@@ -134,6 +135,26 @@ void main() {
   }
   float visibility = sunlightPast(uOccluder0,light)*sunlightPast(uOccluder1,light);
   float incidence = dot(n,light), day = max(0.,incidence)*visibility;
+  if (uBloodOcean > .5) {
+    // AT-5 reuses the existing painted planetary atlas and the same lit sphere.
+    // Broad irregular basins use source relief and planet-fixed coordinates;
+    // no extra texture, render pass, or per-frame procedural geometry.
+    float relief = dot(pigment,vec3(.26,.62,.12));
+    float basin = .37*sin(terrain.x*7.2+terrain.z*4.7)
+      + .24*cos(terrain.y*8.6-terrain.z*3.4)
+      + .15*sin(terrain.x*22.+terrain.y*16.)
+      + .14*(relief-0.5);
+    float ocean = smoothstep(-.09,.12,basin);
+    float stoneDetail = clamp(relief*.78+.12+.12*sin(terrain.y*23.+terrain.x*26.),0.,1.);
+    vec3 stone = mix(vec3(.035,.036,.043),vec3(.215,.193,.197),stoneDetail);
+    vec3 blood = mix(vec3(.065,.002,.010),vec3(.35,.018,.037),clamp(relief*.74+.18,0.,1.));
+    vec3 surfaceColor = mix(stone,blood,ocean);
+    vec3 color = surfaceColor*mix(vec3(.035,.037,.045),vec3(1.18,1.08,1.04),day);
+    float glint = pow(max(0.,dot(n,uHalfLight)),76.)*day*ocean;
+    color += vec3(.46,.045,.061)*glint;
+    gl_FragColor = vec4(color,1.)*tint;
+    return;
+  }
   // Airless surfaces have a true night side; atmospheric twilight is separate.
   vec3 color = pigment * mix(vec3(.10,.13,.19),vec3(1.22,1.16,1.09),day);
   float rim = pow(1.-max(0.,n.z),3.1);
@@ -185,6 +206,7 @@ export class OrbitalSurface {
     uWeatherAmount: { value: 0, type: 'f32' },
     uRock: { value: 0, type: 'f32' }, uLava: { value: 0, type: 'f32' },
     uAstrophage: { value: 0, type: 'f32' },
+    uBloodOcean: { value: 0, type: 'f32' },
     uPerspective: { value: .055, type: 'f32' },
   })
   private readonly shader: Shader
@@ -226,6 +248,7 @@ export class OrbitalSurface {
     if (second) u.uOccluder1.set(second); else u.uOccluder1.fill(0)
   }
   setAstrophage(strength: number) { this.params.uniforms.uAstrophage = strength }
+  setBloodOcean(enabled: boolean) { this.params.uniforms.uBloodOcean = enabled ? 1 : 0 }
   setWeather(texture: Texture | undefined, seconds: number, amount: number) {
     const u = this.params.uniforms
     u.uWeatherAmount = texture ? amount : 0

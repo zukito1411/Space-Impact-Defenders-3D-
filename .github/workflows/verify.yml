@@ -25,6 +25,8 @@ jobs:
         run: python3 scripts/test-3d-android-identity.py
       - name: Verify authored Blender ship renderer and original 2D references
         run: python3 scripts/test-source-model-pipeline.py
+      - name: Test Stage 13 AT-5 encounter timing and presentation
+        run: node --experimental-strip-types scripts/test-at5-encounter.mjs
       - name: Typecheck and build
         run: npm run build
       - name: Verify Android media packaging with production assets

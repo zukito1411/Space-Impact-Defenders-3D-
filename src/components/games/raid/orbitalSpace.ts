@@ -82,7 +82,7 @@ void main() {
   gl_FragColor = texture2D(uArt,uFrame.xy+uv*uFrame.zw)*tint;
 }`
 
-type GlobeStyle = { radiusKm: number; radius: number; air: number[]; swing: number; weather?: number; lava?: boolean; astrophage?: boolean; phaseZ?: number }
+type GlobeStyle = { radiusKm: number; radius: number; air: number[]; swing: number; weather?: number; lava?: boolean; astrophage?: boolean; phaseZ?: number; bloodOcean?: boolean }
 export const globeStyles = {
   ocean: { radiusKm: 6400, radius: .481, air: [.42,.40,1.], swing: .42, weather: .72 },
   volcanic: { radiusKm: 5100, radius: .482, air: [1.,.31,.10], swing: .36, lava: true },
@@ -95,6 +95,7 @@ export const globeStyles = {
   green: { radiusKm: 8800, radius: .488, air: [.38,.78,.95], swing: .32, weather: .42 },
   gold: { radiusKm: 7200, radius: .492, air: [1.,.53,.12], swing: .28, lava: true },
   adrian: { radiusKm: 10700, radius: .478, air: [.26,.56,.48], swing: .31, astrophage: true, phaseZ: -.28 },
+  at5: { radiusKm: 1800, radius: .478, air: [0,0,0], swing: .16, bloodOcean: true },
   nebula: { radiusKm: 6100, radius: .476, air: [.34,.62,1.], swing: .30 },
 } satisfies Record<string, GlobeStyle>
 
@@ -138,10 +139,12 @@ export class OrbitalGlobe {
       this.rings.texture = texture
       this.shader.resources.uArt = texture.source
       writeFrame(this.params.uniforms.uFrame, texture)
-      this.style = styleFor(texture)
     }
+    // A shared texture can represent Adrian in Stage 3 and AT-5 in Stage 13.
+    this.style = styleFor(texture)
     const rx = this.style.radius, ry = rx * texture.width / texture.height
     this.surface.setWeather(weather, seconds, this.style.weather ?? 0)
+    this.surface.setBloodOcean(Boolean(this.style.bloodOcean))
     this.surface.setAstrophage(this.style.astrophage ? .92 + .08 * Math.sin(seconds * 1.12) : 0)
     let light = camera?.sunDirection
     if (light && this.style.phaseZ !== undefined) {
