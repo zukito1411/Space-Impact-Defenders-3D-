@@ -11,49 +11,8 @@ RELEASE = "android-3d-assets-v2"
 BASE_URL = f"https://github.com/zukito1411/Space-Impact-Defenders-3D-/releases/download/{RELEASE}/"
 MEDIA_METADATA_SUFFIXES = {".txt", ".json"}
 
-# The command deck, shared profile and Ship Defense use these named files.
-# Raid art and archived versions stay in the downloadable release.
-BUNDLED_MEDIA = {
-    "assets/brand/zuki-logo-v1.png",
-    "assets/ui/orbital-hangar-v1.png", "assets/ui/console-plate-v1.png", "assets/ui/space-door-v1.webp",
-    "assets/aliens/alien_v0.png", "assets/aliens/alien_v3.png", "assets/aliens/alien_v6.png",
-    "assets/aliens/elite_2.png", "assets/aliens/elite_3.png",
-    "assets/aliens/squid_boss.png", "assets/aliens/cobra_boss.png", "assets/aliens/final_boss.png",
-    "assets/bosses/stage-01-crimson-bastion-v1.webp", "assets/bosses/stage-02-amethyst-orrery-v1.webp",
-    "assets/bosses/stage-03-verdant-reaper-v1.webp", "assets/bosses/stage-04-tidal-razor-v1.webp",
-    "assets/bosses/stage-06-cinder-gate-v1.webp", "assets/bosses/stage-07-ashen-ark-v1.webp",
-    "assets/bosses/stage-08-prism-sovereign-v1.webp", "assets/bosses/stage-09-scythe-regent-v1.webp",
-    "assets/bosses/stage-11-triarch-hydra-v1.webp", "assets/bosses/stage-12-null-cathedral-v1.webp",
-    "assets/bosses/stage-13-eclipse-dreadnought-v1.webp", "assets/bosses/stage-14-eventide-nexus-v1.webp",
-    "assets/others/planet_1.webp", "assets/others/space_station.webp", "assets/others/sun.webp",
-    "assets/others/asteroid.webp", "assets/others/comet.webp", "assets/others/galaxy.webp",
-    "assets/GundamEnemy/devil-rage.png", "assets/GundamEnemy/master-gundam.png",
-    "assets/ships/god-gundam.png", "assets/ships/god-gundam-burning.png", "assets/ships/spiegel.png",
-    "assets/ships/sideview/god-gundam-flight-v4.webp", "assets/ships/sideview/god-gundam-burning-flight-v5.webp",
-    "assets/ships/sideview/spiegel-flight-v2.webp",
-    "assets/ships/previews/mesiahRaptorBlack-portrait-v5.webp",
-    "audio/bgm_shelter.wav", "audio/bgm_scifi_loop.ogg",
-    "audio/immersion/sector-station.ogg",
-    "audio/immersion/deploy.ogg", "audio/immersion/synergy.ogg", "audio/immersion/hq-warning.ogg",
-    "audio/immersion/fighter-death.ogg", "audio/immersion/armored-death.ogg",
-    "audio/immersion/capital-death.ogg",
-    "audio/immersion/fleet-motif.ogg", "audio/immersion/fleet-defense-orders.ogg", "audio/immersion/fleet-deployed.ogg",
-    "audio/sfx_cannon.wav", "audio/sfx_combo.wav", "audio/sfx_countdown.wav", "audio/sfx_damage.wav",
-    "audio/sfx_explosion_big.wav", "audio/sfx_explosion_small.wav", "audio/sfx_gameover.wav", "audio/sfx_laser.wav",
-    "audio/sfx_levelup.wav", "audio/sfx_rocket.wav", "audio/sfx_score.wav", "audio/sfx_shoot.wav",
-    "audio/sfx_ui_select.wav", "audio/sfx_ui_swap.wav",
-}
-
-# Only the current profile and fleet previews are needed outside Raid. Use the
-# explicitly selected version per orientation from the ship picker.
-for ship, portrait, landscape in (
-    ("coreLander", 5, 7), ("coreLanderBurning", 5, 7), ("dreadnought", 5, 7),
-    ("fast", 10, 10), ("gatling", 12, 12), ("laser", 5, 7), ("mesiahBlack", 5, 7),
-    ("mesiahWhite", 5, 7), ("rocket", 5, 7), ("spaceEt", 5, 7), ("xwing", 9, 9),
-):
-    for key in (ship, ship + "Elite"):
-        BUNDLED_MEDIA.add(f"assets/ships/previews/{key}-portrait-v{portrait}.webp")
-        BUNDLED_MEDIA.add(f"assets/ships/previews/{key}-landscape-v{landscape}.webp")
+# The studio logo displays while the app downloads the game files.
+STARTUP_LOGO = "assets/brand/zuki-logo-v1.png"
 
 
 def package(public, dist, output):
@@ -66,7 +25,7 @@ def package(public, dist, output):
             name = source.relative_to(public).as_posix()
             if not source.is_file() or source.suffix.lower() in MEDIA_METADATA_SUFFIXES:
                 continue
-            if name in BUNDLED_MEDIA:
+            if name == STARTUP_LOGO:
                 bundled_bytes += (dist / name).stat().st_size
                 continue
             if source.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp", ".svg", ".glb", ".mp3", ".wav", ".ogg"}:

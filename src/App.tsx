@@ -5,8 +5,6 @@ import { getDefaultPlayerVisualShipKey, getRaidGundamName } from './components/g
 import { useDoorState } from './components/ui/SpaceDoor'
 import { startStudioSplash } from './startupSplash'
 import { getCommandText } from './commandText'
-import { getAndroidRaidAssetsStatus, needsNativeRaidAssets } from './androidAssetDownload'
-import { AndroidRaidDownloadDialog } from './components/AndroidRaidDownloadDialog'
 import './App.css'
 import { GameButton, GameMenuAction } from './components/ui/GameButton'
 import { GameDialog } from './components/ui/GameDialog'
@@ -217,9 +215,6 @@ function App() {
   const [lastRunUpdate, setLastRunUpdate] = useState<{ result: RunResult; update: ProgressUpdate; retry?: () => void } | null>(null)
   const [cloudSyncStatus, setCloudSyncStatus] = useState<'offline' | 'connected' | 'conflict'>('offline')
   const [homeSettingsOpen, setHomeSettingsOpen] = useState(false)
-  const [nativeRaidReady, setNativeRaidReady] = useState(() => !needsNativeRaidAssets())
-  const [showRaidDownload, setShowRaidDownload] = useState(false)
-  const pendingRaidAction = useRef<(() => void) | null>(null)
   useEffect(() => { restoreDisplayOrientation() }, [])
   const cloudConnectedRef = useRef(false)
   const cloudSyncInFlightRef = useRef(false)
@@ -347,36 +342,8 @@ function App() {
   }, [sameScreenGuestShipKey, sameScreenShipOptions])
 
   useEffect(() => {
-    if (!startupReady || nativeRaidReady) return
-    let active = true
-    void getAndroidRaidAssetsStatus().then(({ ready }) => {
-      if (active && ready) setNativeRaidReady(true)
-    }).catch(() => {})
-    return () => { active = false }
-  }, [startupReady, nativeRaidReady])
-
-  useEffect(() => {
-    if (startupReady && nativeRaidReady) void preloadGradiusRaidAssets().catch(error => console.warn('Raid background preparation failed:', error))
-  }, [startupReady, nativeRaidReady])
-
-  const withRaidAssets = (action: () => void) => {
-    if (nativeRaidReady) { action(); return }
-    pendingRaidAction.current = action
-    setShowRaidDownload(true)
-  }
-
-  const raidDownloadDialog = showRaidDownload ? (
-    <AndroidRaidDownloadDialog language={language} onClose={() => {
-      pendingRaidAction.current = null
-      setShowRaidDownload(false)
-    }} onReady={() => {
-      const action = pendingRaidAction.current
-      pendingRaidAction.current = null
-      setNativeRaidReady(true)
-      setShowRaidDownload(false)
-      action?.()
-    }} />
-  ) : null
+    if (startupReady) void preloadGradiusRaidAssets().catch(error => console.warn('Raid background preparation failed:', error))
+  }, [startupReady])
 
   useEffect(() => () => {
     if (raidStoryTransitionTimerRef.current !== null) {
@@ -847,10 +814,10 @@ function App() {
     setScreen('game')
   }
 
-  const startRocketRaid = () => withRaidAssets(() => {
+  const startRocketRaid = () => {
     setCodexCutsceneMode(null)
     setScreen('rocketMode')
-  })
+  }
 
   const startRocketRaidSingle = (mode: RaidLaunchMode = 'campaign', quickLaunch = false) => {
     if ((mode === 'endless' || mode === 'bossRush') && !canPlayGradiusEndless) return
@@ -879,25 +846,21 @@ function App() {
   }
 
   const startCodexCutscenePlayback = (mode: Exclude<CodexCutsceneMode, null>) => {
-    const play = () => {
-      setCodexCutsceneMode(mode)
-      setCodexEndingIndex(0)
-      setCodexEndingFading(false)
-      setLastRunUpdate(null)
-      if (mode === 'raid') {
-        setActiveGame('rocketRaid')
-        setRaidStoryIndex(0)
-        setRaidStoryFading(false)
-        setScreen('raidStory')
-        return
-      }
-      setActiveGame('towerDefense')
-      setGameMode('normal')
-      setCutsceneIndex(0)
-      setScreen('cutscene')
+    setCodexCutsceneMode(mode)
+    setCodexEndingIndex(0)
+    setCodexEndingFading(false)
+    setLastRunUpdate(null)
+    if (mode === 'raid') {
+      setActiveGame('rocketRaid')
+      setRaidStoryIndex(0)
+      setRaidStoryFading(false)
+      setScreen('raidStory')
+      return
     }
-    if (mode === 'raid') withRaidAssets(play)
-    else play()
+    setActiveGame('towerDefense')
+    setGameMode('normal')
+    setCutsceneIndex(0)
+    setScreen('cutscene')
   }
 
   const handleRunComplete = (result: RunResult, retry?: () => void) => {
@@ -1071,7 +1034,7 @@ function App() {
                 primary data-menu-default
                 label={command.launch}
                 detail={command.launchDetail}
-                onClick={() => withRaidAssets(() => startRocketRaidSingle('campaign', true))}
+                onClick={() => startRocketRaidSingle('campaign', true)}
               />
               <GameMenuAction label={command.defense} detail={command.defenseDetail} onClick={startCutscene} />
               {canPlayEndless && <GameMenuAction label={text.title.endlessTitle} detail={text.leaderboards.modes.ship_defense_endless.title} onClick={startEndless} />}
@@ -1104,7 +1067,6 @@ function App() {
         {playerNamePrompt}
         {runResultsOverlay}
         {homeSettingsOpen && <HomeSettingsDialog language={language} onClose={() => setHomeSettingsOpen(false)} />}
-        {raidDownloadDialog}
       </div>
     )
   }
@@ -1746,7 +1708,6 @@ function App() {
         />
         {playerNamePrompt}
         {runResultsOverlay}
-        {raidDownloadDialog}
       </>
     )
   }
