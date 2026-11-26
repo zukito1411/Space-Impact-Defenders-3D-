@@ -1130,7 +1130,11 @@ export class PixiRaidBackground {
       await this.loadAssets()
       if (this.destroyed || this.app !== app) return false
       const adrian = this.assetTextures.get('planetAdrian')
-      await app.renderer.prepare.upload(adrian ? [...this.paintedStarMaps.values(), adrian] : [...this.paintedStarMaps.values()])
+      const sceneryTextures = [...this.paintedStarMaps.values()]
+      for (const texture of [adrian, getJourneyPlanet(0), getSurfaceTerrain(0), getSurfaceTerrain(1)]) {
+        if (texture) sceneryTextures.push(texture)
+      }
+      await app.renderer.prepare.upload(sceneryTextures)
       if (this.destroyed || this.app !== app) return false
       this.backdrop.prepare(app.renderer)
       this.asteroidBelt.prepare(app.renderer,this.assetTextures.get('asteroid') ?? Texture.WHITE)
@@ -1141,7 +1145,8 @@ export class PixiRaidBackground {
       }
       if (this.destroyed) return false
       try {
-        warmOrbitalBodies(app.renderer, this.assetTextures.get('planet1'), this.assetTextures.get('asteroid'), this.assetTextures.get('clouds'))
+        warmOrbitalBodies(app.renderer, this.assetTextures.get('planet1'), this.assetTextures.get('asteroid'),
+          this.assetTextures.get('clouds'), getSurfaceTerrain(1))
         this.orbitalBodiesReady = true
       } catch (error) {
         console.warn('Raid 3D natural scenery unavailable; retaining painted scenery:', error)
@@ -1417,7 +1422,7 @@ export class PixiRaidBackground {
           this.orbitalBodiesReady && space && this.journey.worldAlpha < .99 && Boolean(pose?.active) && style !== globeStyles.adrian && style !== globeStyles.at5)
       }
       for (const globe of this.globes) globe.update(celestialSeconds, this.globeStyle, this.orbitalBodiesReady,
-        this.projected.get(globe.anchor)?.world.distanceKm ?? 0, this.orbitalCamera ?? undefined, this.assetTextures.get('clouds'))
+        this.projected.get(globe.anchor)?.world.distanceKm ?? 0, this.orbitalCamera ?? undefined, this.assetTextures.get('clouds'), dpr)
       for (const rock of this.sceneryRocks) rock.update(this.orbitalBodiesReady ? this.assetTextures.get('asteroid') : undefined, celestialSeconds, this.orbitalCamera?.focal ?? 1, width, height, this.orbitalCamera?.sunDirection)
       this.updateOrbitalEffects(width, height, frame.stageNumber ?? 1, frame.stageAge ?? 0, frame.stageRush,
         bossIntensity, isLow, isMedium, !space)

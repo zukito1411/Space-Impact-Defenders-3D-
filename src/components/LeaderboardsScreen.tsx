@@ -8,14 +8,16 @@ import {
 } from '../leaderboards'
 import { getLanguageText, type LanguageCode } from '../i18n'
 import { GameButton } from './ui/GameButton'
+import { getCommandText } from '../commandText'
 
 type LeaderboardsScreenProps = {
-  playerName: string
+  playerName: string | null
   language: LanguageCode
   onBack: () => void
+  onChooseCallsign: () => void
 }
 
-export function LeaderboardsScreen({ playerName, language, onBack }: LeaderboardsScreenProps) {
+export function LeaderboardsScreen({ playerName, language, onBack, onChooseCallsign }: LeaderboardsScreenProps) {
   const text = getLanguageText(language).leaderboards
   const [activeMode, setActiveMode] = useState<LeaderboardMode>('ship_defense_normal')
   const [leaderboards, setLeaderboards] = useState<LeaderboardMap>({ ...EMPTY_LEADERBOARDS })
@@ -28,7 +30,8 @@ export function LeaderboardsScreen({ playerName, language, onBack }: Leaderboard
   )
   const activeModeText = text.modes[activeModeInfo.key]
   const activeEntries = leaderboards[activeMode] ?? []
-  const playerKey = playerName.trim().toLowerCase()
+  const playerKey = playerName?.trim().toLowerCase()
+  const command = getCommandText(language)
 
   const loadLeaderboards = async () => {
     setLoading(true)
@@ -58,7 +61,9 @@ export function LeaderboardsScreen({ playerName, language, onBack }: Leaderboard
           <div>
             <span className="leaderboards-screen__eyebrow">{text.eyebrow}</span>
             <h1>{text.title}</h1>
-            <p>{text.signedIn} <strong>{playerName}</strong></p>
+            {playerName
+              ? <p>{text.signedIn} <strong>{playerName}</strong></p>
+              : <GameButton tone="quiet" onClick={onChooseCallsign}>{command.callsign}</GameButton>}
           </div>
           <GameButton className="leaderboards-screen__refresh" onClick={loadLeaderboards} disabled={loading}>
             {loading ? text.syncing : text.refresh}

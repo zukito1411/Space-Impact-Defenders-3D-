@@ -62,9 +62,14 @@ async function load(clip: ImmersionClip): Promise<AudioBuffer | null> {
   return task
 }
 
-export function warmImmersionAudio() {
-  return Promise.all((['field-hit', 'shield-hit', 'combined-hit', 'field-break', 'shield-break', 'hull-hit', 'repair',
-    'fighter-death', 'armored-death', 'capital-death', 'deploy', 'synergy', 'hq-warning'] as ImmersionClip[]).map(load)).then(() => {})
+const COMBAT_SAMPLES: readonly ImmersionClip[] = [
+  'field-hit', 'shield-hit', 'combined-hit', 'field-break', 'shield-break', 'hull-hit', 'repair',
+  'fighter-death', 'armored-death', 'capital-death',
+  'fleet-motif', 'fleet-departure', 'fleet-steer', 'fleet-charge', 'fleet-recovery',
+]
+
+export function warmImmersionAudio(clips: readonly ImmersionClip[] = COMBAT_SAMPLES) {
+  return Promise.all(clips.map(load)).then(() => {})
 }
 
 function level(bus: Bus, gain: number) {

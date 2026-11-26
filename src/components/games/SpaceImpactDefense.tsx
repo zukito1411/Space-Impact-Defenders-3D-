@@ -1,5 +1,7 @@
 import { useDoorState } from '../ui/SpaceDoor'
 import { DefensePresentation } from './towerDefense/presentation'
+import { getCommandText } from '../../commandText'
+import { FleetRadio } from './FleetRadio'
 import './towerDefense/presentation.css'
 import { getCurrentGameBgm } from './sound'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -160,7 +162,7 @@ function buildDefenseGraphicsProfile(quality: GraphicsQuality, isMobileViewport:
 
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export function SpaceImpactDefense({ availableCoins, onClose, initialMode = 'normal', playerName, language = 'en', onRunComplete }: { availableCoins: CoinOption[]; onClose: () => void; initialMode?: 'normal' | 'endless'; playerName: string; language?: LanguageCode; onRunComplete?: (result: RunResult) => void }) {
+export function SpaceImpactDefense({ availableCoins, onClose, initialMode = 'normal', playerName, language = 'en', onRunComplete }: { availableCoins: CoinOption[]; onClose: () => void; initialMode?: 'normal' | 'endless'; playerName: string; language?: LanguageCode; onRunComplete?: (result: RunResult, retry?: () => void) => void }) {
   const [mobileLayoutMode, setMobileLayoutMode] = useState<MobileLayoutMode>(() => {
     if (typeof window === 'undefined') return 'auto'
     const raw = localStorage.getItem(MOBILE_LAYOUT_STORAGE_KEY)
@@ -169,6 +171,10 @@ export function SpaceImpactDefense({ availableCoins, onClose, initialMode = 'nor
   const [cell, setCell] = useState(() => calcCell(mobileLayoutMode))
   const [soundOn, setSoundOn] = useState(getGameSoundEnabled)
   const [defensePresentation] = useState(() => new DefensePresentation())
+  const command = getCommandText(language)
+  const [deploymentCue, setDeploymentCue] = useState<'defenseOrders' | 'deployed' | null>('defenseOrders')
+  const deploymentCueTimer = useRef<number | undefined>(undefined)
+  const [touchPlacement, setTouchPlacement] = useState<[number, number] | null>(null)
   const deploymentNodes = useRef(new WeakSet<HTMLDivElement>())
   const synergyNodes = useRef(new Map<number, HTMLDivElement>())
   const [audioMix, setAudioMix] = useState<AudioMixSettings>(getGameAudioMixSettings)
@@ -690,7 +696,7 @@ export function SpaceImpactDefense({ availableCoins, onClose, initialMode = 'nor
   }, [playerName])
 
   const reportDefenseRunComplete = useCallback((status: RunStatus) => {
-    if (runReportedRef.current || scoreRef.current <= 0) return
+    if (runReportedRef.current || (status === 'exit' && scoreRef.current <= 0)) return
     runReportedRef.current = true
     onRunComplete?.({
       mode: endlessRef.current ? 'ship_defense_endless' : 'ship_defense_normal',
@@ -704,7 +710,7 @@ export function SpaceImpactDefense({ availableCoins, onClose, initialMode = 'nor
       bossesDefeated: bossesDefeatedRef.current,
       pickupsCollected: 0,
       nukesUsed: 0,
-    })
+    }, status === 'exit' ? undefined : () => retryDefenseRef.current())
   }, [onRunComplete, playerName])
 
   const closeDefenseGame = useCallback(() => {
@@ -1526,6 +1532,7 @@ export function SpaceImpactDefense({ availableCoins, onClose, initialMode = 'nor
   function startWave() {
     if (stateRef.current !== 'playing' && stateRef.current !== 'idle') return
     const nextWave = waveRef.current + 1
+    if (deploymentCue === 'defenseOrders') setDeploymentCue(null)
     waveRef.current = nextWave
     setUiWave(nextWave)
     const cfg = getWaveCfg(stageRef.current, nextWave, endlessRef.current)
@@ -1665,20 +1672,25 @@ export function SpaceImpactDefense({ availableCoins, onClose, initialMode = 'nor
     setDraggedTower(null)
   }
 
-  function handleCellClick(col: number, row: number) {
+  function handleCellClick(col: number, row: number, touch: boolean) {
     if (stateRef.current === 'gameover' || stateRef.current === 'victory') return
-    if (draggedTower) return  // Don't build while dragging
+    if (draggedTower) return
     const key = `${col},${row}`
-    if (pathSetRef.current.has(key)) return
+    if (pathSetRef.current.has(key)) { setTouchPlacement(null); return }
 
     // Check existing tower
     const existing = findTowerAtCell(col, row)
     if (existing) {
+      setTouchPlacement(null)
       setSelectedTowerOnGrid(existing)
       return
     }
     setSelectedTowerOnGrid(null)
     if (!selectedTowerKey) return
+    if (touch && (touchPlacement?.[0] !== col || touchPlacement[1] !== row)) {
+      setTouchPlacement([col, row])
+      return
+    }
 
     const tDef = TOWER_TYPES.find(t => t.key === selectedTowerKey)!
     const footprint = getTowerFootprint(selectedTowerKey)
@@ -1716,12 +1728,13 @@ export function SpaceImpactDefense({ availableCoins, onClose, initialMode = 'nor
     towersRef.current.push(newTower)
     towerCreationTimeRef.current.set(newTower.id, 0)
     defensePresentation.deploy(col)
+    setDeploymentCue('deployed')
+    window.clearTimeout(deploymentCueTimer.current)
+    deploymentCueTimer.current = window.setTimeout(() => setDeploymentCue(null), 3000)
+    setTouchPlacement(null)
     setUiTowers([...towersRef.current])
     setUiGold(goldRef.current)
-    playGameSound('select')
     const towerCenter = getTowerCenter(newTower)
-    // Spawn portal effect
-    spawnPortalRef.current.push({x: towerCenter.x, y: towerCenter.y, time: 0, maxTime: 0.4, pathIdx: 0})
     // Build particles
     for (let i = 0; i < 8; i++) {
       const angle = (Math.PI * 2 * i) / 8
@@ -1858,6 +1871,17 @@ export function SpaceImpactDefense({ availableCoins, onClose, initialMode = 'nor
 
   // ── Restart ────────────────────────────────────────────────────────────────
   function restart() {
+    defensePresentation.stop()
+    window.clearTimeout(deploymentCueTimer.current)
+    setDeploymentCue('defenseOrders')
+    setTouchPlacement(null)
+    setHoveredCell(null)
+    setSelectedTowerKey(null)
+    towerCreationTimeRef.current.clear()
+    spawnPortalRef.current = []
+    setSpawnPortals([])
+    particlesRef.current = []
+    defensePresentation.briefing()
     if (endlessRef.current) {
       enterEndless()
       return
@@ -1902,7 +1926,11 @@ export function SpaceImpactDefense({ availableCoins, onClose, initialMode = 'nor
     setUiScoutDrones([])
     setUiTowers([])
     setSelectedTowerOnGrid(null)
+    startBGM()
   }
+
+  const retryDefenseRef = useRef(restart)
+  retryDefenseRef.current = restart
 
   function resetRunTracking() {
     runStartTimeRef.current = performance.now()
@@ -2074,6 +2102,11 @@ export function SpaceImpactDefense({ availableCoins, onClose, initialMode = 'nor
   // enemies, particles and shots continue animating every requestAnimationFrame.
   useEffect(() => {
     defensePresentation.warm()
+    defensePresentation.briefing()
+    return () => window.clearTimeout(deploymentCueTimer.current)
+  }, [defensePresentation])
+
+  useEffect(() => {
     const tick = () => {
       const active = !document.hidden && stateRef.current !== 'gameover' && stateRef.current !== 'victory'
       const inWave = stateRef.current === 'wave'
@@ -2102,10 +2135,20 @@ export function SpaceImpactDefense({ availableCoins, onClose, initialMode = 'nor
     }
     const timer = window.setInterval(tick, 200)
     document.addEventListener('visibilitychange', tick)
-    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', tick); defensePresentation.stop() }
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', tick)
+      defensePresentation.stop()
+    }
   }, [defensePresentation, defenseText.sidebar.synergyOnline])
 
   const tileOccupancyKey = uiTowers.map(t => `${t.id}:${t.col},${t.row}:${t.type}`).join('|')
+  const placementCell = touchPlacement ?? hoveredCell
+  const placementFootprint = selectedTowerKey ? getTowerFootprint(selectedTowerKey) : 1
+  const placementAvailable = Boolean(placementCell && selectedTowerDef && uiGold >= selectedTowerDef.cost
+    && canPlaceTowerAt(placementCell[0], placementCell[1], placementFootprint)
+    && (selectedTowerKey !== 'dreadnought' || !dreadnoughtLimitReached))
+  const placementCoversBoard = selectedTowerDef != null && selectedTowerDef.range >= Math.hypot(COLS, ROWS)
   const gridCells = useMemo(() => (
     <>
       {Array.from({ length: ROWS }, (_, r) =>
@@ -2115,16 +2158,20 @@ export function SpaceImpactDefense({ availableCoins, onClose, initialMode = 'nor
           const isStart = uiSpawnCells.has(key)
           const isEnd = key === uiFinishCell
           const hasTower = findTowerAtCell(c, r) != null
-          const isHovered = hoveredCell?.[0] === c && hoveredCell?.[1] === r
-          const tDef = selectedTowerKey ? TOWER_TYPES.find(t => t.key === selectedTowerKey) ?? null : null
-          const canAfford = tDef != null && goldRef.current >= tDef.cost
-          const selectedFootprint = selectedTowerKey ? getTowerFootprint(selectedTowerKey) : 1
-          const isInPlacementPreview = hoveredCell != null && selectedTowerKey != null && c >= hoveredCell[0] && c < hoveredCell[0] + selectedFootprint && r >= hoveredCell[1] && r < hoveredCell[1] + selectedFootprint
-          const canPlacePreview = hoveredCell != null && selectedTowerKey != null && canPlaceTowerAt(hoveredCell[0], hoveredCell[1], selectedFootprint) && (selectedTowerKey !== 'dreadnought' || !dreadnoughtLimitReached)
+          const inPreview = placementCell != null && selectedTowerKey != null
+            && c >= placementCell[0] && c < placementCell[0] + placementFootprint
+            && r >= placementCell[1] && r < placementCell[1] + placementFootprint
           return (
             <div
               key={key}
-              onClick={() => handleCellClick(c, r)}
+              data-grid-col={c}
+              data-grid-row={r}
+              onClick={(event) => {
+                const touch = 'pointerType' in event.nativeEvent
+                  ? event.nativeEvent.pointerType === 'touch'
+                  : window.matchMedia('(pointer: coarse)').matches
+                handleCellClick(c, r, touch)
+              }}
               onMouseEnter={() => setHoveredCell([c, r])}
               onMouseLeave={() => setHoveredCell(null)}
               style={{
@@ -2134,8 +2181,8 @@ export function SpaceImpactDefense({ availableCoins, onClose, initialMode = 'nor
                 background: isPath
                   ? (isStart ? 'rgba(78,255,190,0.18)' : isEnd ? 'rgba(255,127,127,0.18)' : 'rgba(79,137,201,0.13)')
                   : hasTower ? 'transparent'
-                  : (isHovered || isInPlacementPreview) && !isPath && !hasTower
-                    ? (canAfford && canPlacePreview ? 'rgba(244,63,94,0.18)' : 'rgba(255,0,0,0.14)')
+                  : inPreview
+                    ? (placementAvailable ? 'rgba(115,232,220,0.25)' : 'rgba(255,75,105,0.27)')
                     : 'rgba(8,16,30,0.28)',
                 border: '1px solid rgba(66,99,132,0.34)',
                 cursor: isPath ? 'default' : 'pointer',
@@ -2151,7 +2198,8 @@ export function SpaceImpactDefense({ availableCoins, onClose, initialMode = 'nor
         })
       )}
     </>
-  ), [uiPaths, cell, hoveredCell, selectedTowerKey, selectedTowerKey && hoveredCell ? uiGold : null, tileOccupancyKey, draggedTower?.id, dreadnoughtLimitReached])
+  ), [uiPaths, cell, placementCell, touchPlacement, selectedTowerKey, placementFootprint, placementAvailable,
+    selectedTowerKey && placementCell ? uiGold : null, tileOccupancyKey, draggedTower?.id, dreadnoughtLimitReached])
 
   const pathArrows = useMemo(() => (
     <>
@@ -2259,6 +2307,12 @@ export function SpaceImpactDefense({ availableCoins, onClose, initialMode = 'nor
         )}
       </div>
 
+      {deploymentCue && !activeOverlay && (
+        <div className="defense-fleet-radio">
+          <FleetRadio name={command.radio}>{command[deploymentCue]}</FleetRadio>
+        </div>
+      )}
+
       <div className="defense-commandbar" style={{
         display: isCompact ? 'flex' : 'grid',
         gridTemplateColumns: isCompact ? undefined : 'repeat(5,minmax(0,1fr))',
@@ -2318,6 +2372,27 @@ export function SpaceImpactDefense({ availableCoins, onClose, initialMode = 'nor
 
           {/* Grid cells — retain element identities between battlefield changes */}
           {gridCells}
+          {placementCell && selectedTowerDef && !draggedTower && (() => {
+            const [col, row] = placementCell
+            const radius = selectedTowerDef.range * cell
+            const centerX = (col + placementFootprint / 2) * cell
+            const centerY = (row + placementFootprint / 2) * cell
+            const report = placementCoversBoard ? command.globalRange : `${defenseText.sidebar.range} ${selectedTowerDef.range}`
+            return (
+              <div className={`defense-placement${placementAvailable ? '' : ' defense-placement--blocked'}`} aria-hidden={!touchPlacement}>
+                {placementAvailable && (
+                  <div className={`defense-placement__range${placementCoversBoard ? ' defense-placement__range--global' : ''}`}
+                    style={placementCoversBoard ? undefined : { left: centerX - radius, top: centerY - radius, width: radius * 2, height: radius * 2 }} />
+                )}
+                <div className="defense-placement__footprint" style={{ left: col * cell, top: row * cell, width: cell * placementFootprint, height: cell * placementFootprint }}>
+                  {placementAvailable && <TowerShip tType={selectedTowerDef.key} color={selectedTowerDef.color} size={Math.round(cell * placementFootprint * .7)} />}
+                </div>
+                {placementAvailable && <small className="defense-placement__label" role={touchPlacement ? 'status' : undefined}>
+                  {report}{touchPlacement && ` · ${command.confirmDeployment}`}
+                </small>}
+              </div>
+            )
+          })()}
           {uiPath.length > 0 && <div className="defense-hq-threat" style={{ left: uiPath[uiPath.length - 1][0] * cell - 3,
             top: uiPath[uiPath.length - 1][1] * cell - 3, width: cell + 6, height: cell + 6 }} />}
 
@@ -2420,6 +2495,8 @@ export function SpaceImpactDefense({ availableCoins, onClose, initialMode = 'nor
                   }}
                 />
                 <TowerShip tType={tower.type} color={tower.towerDef.color} size={shipSize} />
+                <span className="defense-tower-mark fleet-mark" aria-hidden="true" />
+                <span className="defense-tower-warp" aria-hidden="true" />
                 {tower.level > 1 && (
                   <div style={{ fontSize: cell * 0.22, color: '#ffd666', fontWeight: 700, lineHeight: 1 }}>★{tower.level}</div>
                 )}
@@ -3343,6 +3420,7 @@ export function SpaceImpactDefense({ availableCoins, onClose, initialMode = 'nor
                     setSelectedTowerOnGrid(null)
                     return
                   }
+                  setTouchPlacement(null)
                   setSelectedTowerKey(prev => prev === t.key ? null : t.key as TowerKey)
                   setSelectedTowerOnGrid(null)
                 }}

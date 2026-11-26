@@ -30,7 +30,7 @@ export const RAID_IMAGE_CACHE_NAME = 'space-defender-raid-images-v1'
 
 export const RAID_AUDIO_CACHE_NAME = 'space-defender-audio-v1'
 
-export const RAID_PERSISTENT_CACHE_VERSION = 'gradius-raid-assets-v26'
+export const RAID_PERSISTENT_CACHE_VERSION = 'gradius-raid-assets-v27'
 
 export const RAID_PERSISTENT_CACHE_STORAGE_KEY = 'gradiusRaidPersistentAssetCache'
 
@@ -353,36 +353,40 @@ export function preloadRaidPixiBackgroundAssets(onProgress?: (loaded: number, to
   return warmPromise
 }
 
-export function preloadGradiusRaidAssets(onProgress?: (loaded: number, total: number) => void) {
-  const canvasTotal = warmRaidCanvasAssets().length
-  const persistentTotal = getRaidPersistentAssetCount()
-  const pixiTotal = getRaidPixiBackgroundAssetCount()
-  const total = Math.max(1, canvasTotal + persistentTotal + pixiTotal)
-  let canvasLoaded = raidCanvasAssetWarmComplete ? canvasTotal : 0
-  let persistentLoaded = raidPersistentAssetCacheComplete ? persistentTotal : 0
-  let pixiLoaded = raidPixiAssetWarmComplete ? pixiTotal : 0
-  const report = () => onProgress?.(Math.min(canvasLoaded + persistentLoaded + pixiLoaded, total), total)
+let raidPreloadPromise: Promise<void> | null = null
+let raidPreloadProgress = { loaded: 0, total: 1 }
+const raidPreloadListeners = new Set<(loaded: number, total: number) => void>()
 
-  report()
-  return Promise.all([
-    preloadRaidCanvasAssets((loaded) => {
-      canvasLoaded = loaded
-      report()
-    }),
-    warmRaidPersistentAssetCache((loaded) => {
-      persistentLoaded = loaded
-      report()
-    }),
-    preloadRaidPixiBackgroundAssets((loaded) => {
-      pixiLoaded = loaded
-      report()
-    }),
-  ]).then(() => {
-    canvasLoaded = canvasTotal
-    persistentLoaded = persistentTotal
-    pixiLoaded = pixiTotal
-    report()
-  })
+export function preloadGradiusRaidAssets(onProgress?: (loaded: number, total: number) => void) {
+  if (onProgress) {
+    raidPreloadListeners.add(onProgress)
+    onProgress(raidPreloadProgress.loaded, raidPreloadProgress.total)
+  }
+  if (!raidPreloadPromise) {
+    const canvasTotal = warmRaidCanvasAssets().length
+    const persistentTotal = getRaidPersistentAssetCount()
+    const pixiTotal = getRaidPixiBackgroundAssetCount()
+    const total = Math.max(1, canvasTotal + persistentTotal + pixiTotal)
+    let canvasLoaded = raidCanvasAssetWarmComplete ? canvasTotal : 0
+    let persistentLoaded = raidPersistentAssetCacheComplete ? persistentTotal : 0
+    let pixiLoaded = raidPixiAssetWarmComplete ? pixiTotal : 0
+    const report = (loaded: number) => {
+      raidPreloadProgress = { loaded: Math.min(loaded, total), total }
+      for (const listener of raidPreloadListeners) listener(raidPreloadProgress.loaded, total)
+    }
+    const reportCurrent = () => report(canvasLoaded + persistentLoaded + pixiLoaded)
+
+    reportCurrent()
+    raidPreloadPromise = Promise.all([
+      preloadRaidCanvasAssets(loaded => { canvasLoaded = loaded; reportCurrent() }),
+      warmRaidPersistentAssetCache(loaded => { persistentLoaded = loaded; reportCurrent() }),
+      preloadRaidPixiBackgroundAssets(loaded => { pixiLoaded = loaded; reportCurrent() }),
+    ]).then(() => report(total)).catch(error => {
+      raidPreloadPromise = null
+      throw error
+    })
+  }
+  return onProgress ? raidPreloadPromise.finally(() => raidPreloadListeners.delete(onProgress)) : raidPreloadPromise
 }
 
 export function getRaidAssetPreloadInitialState(): RaidAssetPreloadState {

@@ -9,8 +9,35 @@ from pathlib import Path
 
 RELEASE = "android-3d-assets-v1"
 BASE_URL = f"https://github.com/zukito1411/Space-Impact-Defenders-3D-/releases/download/{RELEASE}/"
-LOGO = "assets/brand/zuki-logo-v1.png"
 MEDIA_METADATA_SUFFIXES = {".txt", ".json"}
+
+# Keep the command deck, shared profile artwork, and the entire Ship Defense
+# mode available before the player chooses to download the Raid.
+BUNDLED_ART_PREFIXES = (
+    "assets/brand/", "assets/ui/", "assets/ships/previews/", "assets/aliens/", "assets/bosses/",
+)
+BUNDLED_MEDIA = {
+    "assets/others/planet_1.webp", "assets/others/space_station.webp", "assets/others/sun.webp",
+    "assets/others/asteroid.webp", "assets/others/comet.webp", "assets/others/galaxy.webp",
+    "assets/GundamEnemy/devil-rage.png", "assets/GundamEnemy/master-gundam.png",
+    "assets/ships/god-gundam.png", "assets/ships/god-gundam-burning.png", "assets/ships/spiegel.png",
+    "assets/ships/sideview/god-gundam-flight-v4.webp", "assets/ships/sideview/god-gundam-burning-flight-v5.webp",
+    "assets/ships/sideview/spiegel-flight-v2.webp",
+    "audio/bgm_shelter.wav", "audio/bgm_scifi_loop.ogg",
+    "audio/immersion/score-cruise.ogg", "audio/immersion/sector-station.ogg",
+    "audio/immersion/deploy.ogg", "audio/immersion/synergy.ogg", "audio/immersion/hq-warning.ogg",
+    "audio/immersion/fighter-death.ogg", "audio/immersion/armored-death.ogg",
+    "audio/immersion/capital-death.ogg",
+}
+
+
+def is_bundled_media(name):
+    return (
+        name in BUNDLED_MEDIA
+        or name.startswith(BUNDLED_ART_PREFIXES)
+        or (name.startswith("audio/sfx_") and name.endswith(".wav"))
+        or name.startswith("audio/immersion/fleet-")
+    )
 
 
 def package(public, dist, output):
@@ -20,10 +47,7 @@ def package(public, dist, output):
     for media_root in ("assets", "audio"):
         for source in sorted((public / media_root).rglob("*")):
             name = source.relative_to(public).as_posix()
-            # Credits and asset manifests remain ordinary APK files. Only binary
-            # media is extracted into download packs; metadata must stay readable
-            # before the native media store has been installed.
-            if not source.is_file() or name == LOGO or source.suffix.lower() in MEDIA_METADATA_SUFFIXES:
+            if not source.is_file() or is_bundled_media(name) or source.suffix.lower() in MEDIA_METADATA_SUFFIXES:
                 continue
             if source.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp", ".svg", ".glb", ".mp3", ".wav", ".ogg"}:
                 raise ValueError(f"Unrecognized Android media: {name}")

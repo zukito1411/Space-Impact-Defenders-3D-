@@ -360,7 +360,6 @@
 #root .result-overlay__stats > div { border: 0; border-radius: 0; padding: 12px; background: #0a1725; box-shadow: none; }
 #root .result-overlay__stats strong { font-size: 1rem; font-variant-numeric: tabular-nums; }
 #root :is(.result-overlay__unlocks, .result-overlay__pilot-card) { border-radius: 3px; border-color: var(--ui-line-soft); background: #0a1725; }
-#root .result-overlay__panel > .game-button { position: sticky; bottom: 0; width: 100%; min-height: 48px; margin-top: 18px; }
 
 /* Menus expose scroll position; the playfield retains its clean viewport. */
 #root :is(.start-screen__content, .mode-screen, .progress-panel, .leaderboards-screen__shell, .raid-hangar__panel, .raid__panel, .result-overlay__panel, .player-name-modal__panel, .defense-dialog__panel) { scrollbar-width: thin; scrollbar-color: #365167 #08121e; }

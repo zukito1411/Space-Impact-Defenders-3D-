@@ -109,3 +109,8 @@ Immersion presentation pack (audio/immersion/, November 2026)
   "Maintenance team. Report to the aft service deck."
 - manifest.json records each derived file's source recordings, duration,
   channel count, sample rate, byte length and SHA-256 digest.
+
+Earth Defense Initiative radio and motif
+- fleet-*.ogg: original dialogue and four-note game motif created for the Raid
+  and Ship Defense opening. Radio dialogue uses the CMU Flite SLT synthetic
+  voice with equalization and dynamics processing.

@@ -74,7 +74,18 @@ if "--built-assets" in sys.argv:
         manifest = json.loads((dist / "native-assets.json").read_text())
         assert "audio/immersion/manifest.json" not in manifest["files"]
         assert (dist / "audio/immersion/manifest.json").read_bytes() == (public / "audio/immersion/manifest.json").read_bytes()
-        assert len([name for name in manifest["files"] if name.startswith("audio/immersion/")]) == 44
+        immersion = json.loads((public / "audio/immersion/manifest.json").read_text())
+        packed_audio = {name for name in manifest["files"] if name.startswith("audio/immersion/")}
+        bundled_audio = {path.relative_to(dist).as_posix() for path in (dist / "audio/immersion").glob("*.ogg")}
+        assert packed_audio.isdisjoint(bundled_audio)
+        assert packed_audio | bundled_audio == {entry["file"] for entry in immersion["files"]}
+        for name in (
+            "assets/ui/orbital-hangar-v1.png", "assets/ui/console-plate-v1.png", "assets/ui/space-door-v1.webp",
+            "audio/bgm_scifi_loop.ogg", "audio/immersion/fleet-motif.ogg",
+            "audio/immersion/fleet-defense-orders.ogg", "audio/immersion/fleet-deployed.ogg",
+        ):
+            assert (dist / name).read_bytes() == (public / name).read_bytes()
+        assert "assets/ships/models/v1/rocket.glb" in manifest["files"]
         assert (dist / "index.html").is_file()
         assert all(not (dist / name).exists() for name in manifest["files"])
         print(f"Verified real production Android payload: {len(manifest['files'])} media files; JSON metadata retained in APK")

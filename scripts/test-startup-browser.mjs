@@ -80,7 +80,9 @@ try{
    }
    await page.locator('#startup-splash').waitFor({state:'detached',timeout:10000})
    assert.equal(await page.locator('#root').evaluate(el=>el.inert),false)
-   await page.locator('.player-name-modal').waitFor({timeout:10000})
+   assert.equal(await page.locator('.player-name-modal').count(),0,'guest can reach both solo modes without registration')
+   await page.getByRole('button',{name:/Launch Gradius Raid/}).waitFor({timeout:10000})
+   assert.equal(await page.getByRole('button',{name:/Tower Defense Campaign/}).isEnabled(),true)
    assert.equal(await page.locator('.start-screen').count(),1,'skip cannot activate the game behind the logo')
    art.open()
    if(mode==='automatic')await page.screenshot({path:'presentation-review/startup-menu-handoff.png'})
@@ -94,7 +96,7 @@ try{
    await story.route('**/*', route => new URL(route.request().url()).origin === base ? route.continue() : route.abort())
    await story.goto(base)
    await story.locator('#startup-splash').waitFor({state:'detached',timeout:30000})
-   await story.locator('.start-screen__actions [data-menu-default]').click({timeout:120000})
+   await story.getByRole('button', { name: 'Raid Operations' }).click({timeout:120000})
    await story.locator('.mode-screen__actions--raid [data-menu-default]').click()
    const next = story.locator('.raid-story__next')
    for (const [width,height] of [[874,403],[640,320],[360,640]]) {

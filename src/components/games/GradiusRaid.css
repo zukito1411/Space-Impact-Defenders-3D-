@@ -4623,3 +4623,17 @@
   position: absolute; inset: 0; z-index: 100; display: grid; place-content: center;
   gap: 16px; padding: 24px; background: #050816; color: #e2e8f0;
 }
+
+.raid__fleet-radio {
+  position: absolute;
+  z-index: 14;
+  inset-inline-start: max(12px, env(safe-area-inset-left));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  pointer-events: none;
+}
+.raid:not(.raid--landscape) .raid__fleet-radio {
+  bottom: max(66px, calc(env(safe-area-inset-bottom) + 54px));
+}
+.raid__opening-report {
+  z-index: 150;
+}

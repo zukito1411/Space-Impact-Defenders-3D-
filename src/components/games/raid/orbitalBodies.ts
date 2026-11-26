@@ -100,6 +100,8 @@ precision highp float;
 uniform sampler2D uArt;
 uniform vec4 uFrame;
 uniform vec3 uAir, uSun, uHalfLight;
+uniform sampler2D uDetail;
+uniform float uDetailAmount, uDetailMidtone;
 uniform sampler2D uWeather;
 uniform vec4 uWeatherFrame;
 uniform vec2 uWeatherTurn;
@@ -148,6 +150,14 @@ void main() {
     gl_FragColor = vec4(shadeAsteroid(pigment,n,light,uHalfLight),1.)*tint;
     return;
   }
+  // Reuse the mipmapped terrain material on the globe's existing paint
+  // coordinates. A uniform branch keeps distant globes to the base sample.
+  float detail = 0.;
+  if (uDetailAmount > 0.) {
+    vec3 surfaceDetail = texture2D(uDetail,paint*12.).rgb;
+    float relief = dot(surfaceDetail,vec3(.2126,.7152,.0722))-uDetailMidtone;
+    detail = clamp(relief*3.2,-.22,.25)*uDetailAmount;
+  }
   float visibility = sunlightPast(uOccluder0,light)*sunlightPast(uOccluder1,light);
   float incidence = dot(n,light), day = max(0.,incidence)*visibility;
   if (uBloodOcean > .5) {
@@ -179,7 +189,7 @@ void main() {
     // A narrow broken coastline reads as rock meeting liquid, not lava.
     float shore = 1.-smoothstep(.006,.025,abs(elevation-.633));
     stone = mix(stone,vec3(.18,.069,.065),shore*.45);
-    vec3 surfaceColor = mix(stone,blood,ocean);
+    vec3 surfaceColor = mix(stone,blood,ocean)*(1.+detail*mix(1.,.55,ocean));
     vec3 color = surfaceColor*mix(vec3(.035,.037,.045),vec3(1.18,1.08,1.04),day);
     float glint = pow(max(0.,dot(n,uHalfLight)),76.)*day*ocean;
     color += vec3(.46,.045,.061)*glint*(.75+.25*current);
@@ -187,7 +197,7 @@ void main() {
     return;
   }
   // Airless surfaces have a true night side; atmospheric twilight is separate.
-  vec3 color = pigment * mix(vec3(.10,.13,.19),vec3(1.22,1.16,1.09),day);
+  vec3 color = pigment * mix(vec3(.10,.13,.19),vec3(1.22,1.16,1.09),day) * (1.+detail);
   float rim = pow(1.-max(0.,n.z),3.1);
   color += uAir*rim*(.16+.52*day)*(1.-uRock)*visibility;
   float twilight = 1.-smoothstep(.02,.29,abs(incidence));
@@ -232,6 +242,8 @@ export class OrbitalSurface {
     uAir: { value: new Float32Array(3), type: 'vec3<f32>' },
     uSun: { value: new Float32Array([-.61, -.49, .62]), type: 'vec3<f32>' },
     uHalfLight: { value: new Float32Array(3), type: 'vec3<f32>' },
+    uDetailAmount: { value: 0, type: 'f32' },
+    uDetailMidtone: { value: 0, type: 'f32' },
     uWeatherFrame: { value: new Float32Array([0, 0, 1, 1]), type: 'vec4<f32>' },
     uWeatherTurn: { value: new Float32Array([1, 0]), type: 'vec2<f32>' },
     uWeatherAmount: { value: 0, type: 'f32' },
@@ -242,13 +254,14 @@ export class OrbitalSurface {
   })
   private readonly shader: Shader
   private weather: Texture | undefined
+  private detail: Texture | undefined
   readonly mesh: Mesh<Geometry, Shader>
   constructor(private readonly variant = -1) {
     // Separate compiled programs remove weather work entirely from every rock.
     this.shader = new Shader({ glProgram: GlProgram.from({ vertex,
       fragment: fragment.replace('uniform float uRock, uLava, uAstrophage;',
         `const float uRock = ${variant < 0 ? '0.' : '1.'}; uniform float uLava, uAstrophage;`) }),
-      resources: { body: this.params, uArt: Texture.WHITE.source, uWeather: Texture.WHITE.source } })
+      resources: { body: this.params, uArt: Texture.WHITE.source, uWeather: Texture.WHITE.source, uDetail: Texture.WHITE.source } })
     this.mesh = new Mesh({ geometry: acquireGeometry(variant), shader: this.shader })
     this.mesh.pivot.set(.5)
     this.mesh.visible = false
@@ -280,6 +293,13 @@ export class OrbitalSurface {
   }
   setAstrophage(strength: number) { this.params.uniforms.uAstrophage = strength }
   setBloodOcean(enabled: boolean) { this.params.uniforms.uBloodOcean = enabled ? 1 : 0 }
+  setDetail(texture: Texture | undefined, amount: number, midtone: number) {
+    this.params.uniforms.uDetailAmount = texture ? amount : 0
+    if (!texture || texture === this.detail) return
+    this.detail = texture
+    this.params.uniforms.uDetailMidtone = midtone
+    this.shader.resources.uDetail = texture.source
+  }
   setWeather(texture: Texture | undefined, seconds: number, amount: number) {
     const u = this.params.uniforms
     u.uWeatherAmount = texture ? amount : 0
@@ -512,7 +532,7 @@ export class OrbitalCombatRocks {
 }
 
 /** Compile the real body shader and upload all shared buffers during loading. */
-export function warmOrbitalBodies(renderer: Renderer, planet: Texture | undefined, rock: Texture | undefined, weather?: Texture) {
+export function warmOrbitalBodies(renderer: Renderer, planet: Texture | undefined, rock: Texture | undefined, weather?: Texture, detail?: Texture) {
   const scene = new Container(), target = RenderTexture.create({ width: 8, height: 8 })
   const surfaces: OrbitalSurface[] = []
   const atmosphere = new OrbitalAtmosphere()
@@ -524,7 +544,10 @@ export function warmOrbitalBodies(renderer: Renderer, planet: Texture | undefine
       surfaces.push(surface)
       surface.setTexture(texture)
       surface.pose(.1, .1, .48, .48, ROCK_AIR)
-      if (variant < 0) surface.setWeather(weather, .1, .5)
+      if (variant < 0) {
+        surface.setWeather(weather, .1, .5)
+        surface.setDetail(detail, 1, .112)
+      }
       mesh.position.set(4, 4); mesh.scale.set(8); mesh.visible = true
       scene.addChild(mesh)
     }

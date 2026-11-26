@@ -4,6 +4,9 @@ import { getRaidExhaustScale, getRaidShipNozzles } from './components/games/raid
 import { getDefaultPlayerVisualShipKey, getRaidGundamName } from './components/games/raid/state'
 import { useDoorState } from './components/ui/SpaceDoor'
 import { startStudioSplash } from './startupSplash'
+import { getCommandText } from './commandText'
+import { getAndroidRaidAssetsStatus, needsNativeRaidAssets } from './androidAssetDownload'
+import { AndroidRaidDownloadDialog } from './components/AndroidRaidDownloadDialog'
 import './App.css'
 import { GameButton, GameMenuAction } from './components/ui/GameButton'
 import { GameDialog } from './components/ui/GameDialog'
@@ -14,7 +17,7 @@ import { LeaderboardsScreen } from './components/LeaderboardsScreen'
 import { ProgressionScreen } from './components/ProgressionScreen'
 import { RaidMultiplayerLobby, type RaidMultiplayerConnectionMode, type RaidMultiplayerSession } from './components/RaidMultiplayerLobby'
 import { RunResultsOverlay } from './components/RunResultsOverlay'
-import { GradiusRaid, preloadGradiusRaidAssets, type RaidAssetPreloadState } from './components/games/GradiusRaid'
+import { GradiusRaid, preloadGradiusRaidAssets } from './components/games/GradiusRaid'
 import { getRaidAlienSpriteUrl, getRaidEliteSpriteUrl, RaidShipSprite, useLandscapeScreen } from './components/games/RaidShipSprite'
 import { SpaceImpactDefense } from './components/games/SpaceImpactDefense'
 import { getPublicAssetUrl } from './components/games/sound'
@@ -178,6 +181,7 @@ function App() {
   const [language, setLanguage] = useState<LanguageCode>(getInitialLanguage)
   const [gameMode, setGameMode] = useState<GameMode>('normal')
   const [activeGame, setActiveGame] = useState<ActiveGame>('towerDefense')
+  const [quickRaidLaunch, setQuickRaidLaunch] = useState(false)
   const [raidLaunchMode, setRaidLaunchMode] = useState<RaidLaunchMode>('campaign')
   const [raidMultiplayerConnectionMode, setRaidMultiplayerConnectionMode] = useState<RaidMultiplayerConnectionMode>('online')
   const [raidMultiplayerSession, setRaidMultiplayerSession] = useState<RaidMultiplayerSession | null>(null)
@@ -201,7 +205,8 @@ function App() {
   const [cutsceneIndex, setCutsceneIndex] = useState(0)
   const [playerName, setPlayerName] = useState(getStoredPlayerName)
   const [playerNameDraft, setPlayerNameDraft] = useState(playerName === 'Pilot' && !hasStoredPlayerName() ? '' : playerName)
-  const [showPlayerNamePrompt, setShowPlayerNamePrompt] = useState(() => !hasStoredPlayerName())
+  const [showPlayerNamePrompt, setShowPlayerNamePrompt] = useState(false)
+  const pendingLobbyRef = useRef<RaidMultiplayerConnectionMode | null>(null)
   const [playerNameSaving, setPlayerNameSaving] = useState(false)
   const [playerNameError, setPlayerNameError] = useState('')
   const [playerNameRestoreMode, setPlayerNameRestoreMode] = useState(false)
@@ -209,10 +214,12 @@ function App() {
   const [recoveryCodeDraft, setRecoveryCodeDraft] = useState('')
   const [endlessUnlocked, setEndlessUnlocked] = useState(getStoredTowerDefenseEndlessUnlock)
   const [progress, setProgress] = useState<ProgressState>(() => loadProgress())
-  const [lastRunUpdate, setLastRunUpdate] = useState<{ result: RunResult; update: ProgressUpdate } | null>(null)
-  const [raidAssetPreload, setRaidAssetPreload] = useState<RaidAssetPreloadState>({ status: 'idle', loaded: 0, total: 1 })
+  const [lastRunUpdate, setLastRunUpdate] = useState<{ result: RunResult; update: ProgressUpdate; retry?: () => void } | null>(null)
   const [cloudSyncStatus, setCloudSyncStatus] = useState<'offline' | 'connected' | 'conflict'>('offline')
   const [homeSettingsOpen, setHomeSettingsOpen] = useState(false)
+  const [nativeRaidReady, setNativeRaidReady] = useState(() => !needsNativeRaidAssets())
+  const [showRaidDownload, setShowRaidDownload] = useState(false)
+  const pendingRaidAction = useRef<(() => void) | null>(null)
   useEffect(() => { restoreDisplayOrientation() }, [])
   const cloudConnectedRef = useRef(false)
   const cloudSyncInFlightRef = useRef(false)
@@ -242,8 +249,8 @@ function App() {
     ? releaseText.cutsceneArchive.defenseEndingScenes
     : releaseText.cutsceneArchive.raidEndingScenes
   const currentCodexEndingScene = currentCodexEndingScenes[codexEndingIndex] ?? currentCodexEndingScenes[0]
-  const raidAssetPreloadPercent = Math.min(100, Math.round(raidAssetPreload.loaded / Math.max(1, raidAssetPreload.total) * 100))
-  const raidAssetsReady = raidAssetPreload.status === 'ready'
+  const command = getCommandText(language)
+  const guestPilot = !hasStoredPlayerName()
   const closeCodexCutsceneArchive = () => {
     setCodexCutsceneMode(null)
     setCodexEndingIndex(0)
@@ -340,19 +347,36 @@ function App() {
   }, [sameScreenGuestShipKey, sameScreenShipOptions])
 
   useEffect(() => {
-    let cancelled = false
-    setRaidAssetPreload((state) => state.status === 'ready' ? state : { status: 'loading', loaded: state.loaded, total: Math.max(1, state.total) })
-    void preloadGradiusRaidAssets((loaded, total) => {
-      if (cancelled) return
-      setRaidAssetPreload({ status: loaded >= total ? 'ready' : 'loading', loaded, total: Math.max(1, total) })
-    }).then(() => {
-      if (cancelled) return
-      setRaidAssetPreload((state) => ({ status: 'ready', loaded: state.total, total: Math.max(1, state.total) }))
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [])
+    if (!startupReady || nativeRaidReady) return
+    let active = true
+    void getAndroidRaidAssetsStatus().then(({ ready }) => {
+      if (active && ready) setNativeRaidReady(true)
+    }).catch(() => {})
+    return () => { active = false }
+  }, [startupReady, nativeRaidReady])
+
+  useEffect(() => {
+    if (startupReady && nativeRaidReady) void preloadGradiusRaidAssets().catch(error => console.warn('Raid background preparation failed:', error))
+  }, [startupReady, nativeRaidReady])
+
+  const withRaidAssets = (action: () => void) => {
+    if (nativeRaidReady) { action(); return }
+    pendingRaidAction.current = action
+    setShowRaidDownload(true)
+  }
+
+  const raidDownloadDialog = showRaidDownload ? (
+    <AndroidRaidDownloadDialog language={language} onClose={() => {
+      pendingRaidAction.current = null
+      setShowRaidDownload(false)
+    }} onReady={() => {
+      const action = pendingRaidAction.current
+      pendingRaidAction.current = null
+      setNativeRaidReady(true)
+      setShowRaidDownload(false)
+      action?.()
+    }} />
+  ) : null
 
   useEffect(() => () => {
     if (raidStoryTransitionTimerRef.current !== null) {
@@ -391,9 +415,10 @@ function App() {
     result: PlayerNameRegistrationResult,
     fallbackName: string,
     newAccount: boolean,
+    keepGuestProgress = false,
   ) => {
     const switchingAccount = newAccount || Boolean(result.playerId && result.playerId !== getOrCreateStoredPlayerId())
-    const localProgress = switchingAccount ? resetProgressForNewAccount(false) : loadProgress()
+    const localProgress = switchingAccount && !keepGuestProgress ? resetProgressForNewAccount(false) : loadProgress()
     if (result.playerId) saveStoredPlayerId(result.playerId)
     if (result.recoveryCode !== undefined || switchingAccount) saveStoredRecoveryCode(result.recoveryCode ?? '')
     const nextName = saveStoredPlayerName(result.playerName ?? fallbackName)
@@ -409,12 +434,12 @@ function App() {
     const pending = getPendingProgressSyncToken()
     const cloudProgress = !newAccount && !result.offline && result.progress ? normalizeProgress(result.progress) : null
     const nextProgress = cloudProgress
-      ? pending ? mergeProgressForSync(localProgress, cloudProgress) : cloudProgress
+      ? (pending || keepGuestProgress) ? mergeProgressForSync(localProgress, cloudProgress) : cloudProgress
       : localProgress
     saveProgress(nextProgress, false)
     setProgress(nextProgress)
     setEndlessUnlocked(nextProgress.towerDefenseEndlessUnlocked)
-    if (!result.offline && !cloudProgress && !pending) markProgressSyncPending()
+    if (keepGuestProgress || (!result.offline && !cloudProgress && !pending)) markProgressSyncPending()
   }
 
   useEffect(() => {
@@ -822,20 +847,20 @@ function App() {
     setScreen('game')
   }
 
-  const startRocketRaid = () => {
-    if (!raidAssetsReady) return
+  const startRocketRaid = () => withRaidAssets(() => {
     setCodexCutsceneMode(null)
     setScreen('rocketMode')
-  }
+  })
 
-  const startRocketRaidSingle = (mode: RaidLaunchMode = 'campaign') => {
+  const startRocketRaidSingle = (mode: RaidLaunchMode = 'campaign', quickLaunch = false) => {
     if ((mode === 'endless' || mode === 'bossRush') && !canPlayGradiusEndless) return
     setCodexCutsceneMode(null)
     setRaidMultiplayerSession(null)
     setRaidSameScreenCoop(false)
     setRaidLaunchMode(mode)
+    setQuickRaidLaunch(quickLaunch)
     setActiveGame('rocketRaid')
-    if (mode === 'campaign') {
+    if (mode === 'campaign' && !quickLaunch) {
       setRaidStoryIndex(0)
       setScreen('raidStory')
       return
@@ -844,6 +869,7 @@ function App() {
   }
 
   const startSameScreenCoop = () => {
+    setQuickRaidLaunch(false)
     setCodexCutsceneMode(null)
     setRaidMultiplayerSession(null)
     setRaidSameScreenCoop(true)
@@ -853,33 +879,38 @@ function App() {
   }
 
   const startCodexCutscenePlayback = (mode: Exclude<CodexCutsceneMode, null>) => {
-    setCodexCutsceneMode(mode)
-    setCodexEndingIndex(0)
-    setCodexEndingFading(false)
-    setLastRunUpdate(null)
-    if (mode === 'raid') {
-      setActiveGame('rocketRaid')
-      setRaidStoryIndex(0)
-      setRaidStoryFading(false)
-      setScreen('raidStory')
-      return
+    const play = () => {
+      setCodexCutsceneMode(mode)
+      setCodexEndingIndex(0)
+      setCodexEndingFading(false)
+      setLastRunUpdate(null)
+      if (mode === 'raid') {
+        setActiveGame('rocketRaid')
+        setRaidStoryIndex(0)
+        setRaidStoryFading(false)
+        setScreen('raidStory')
+        return
+      }
+      setActiveGame('towerDefense')
+      setGameMode('normal')
+      setCutsceneIndex(0)
+      setScreen('cutscene')
     }
-    setActiveGame('towerDefense')
-    setGameMode('normal')
-    setCutsceneIndex(0)
-    setScreen('cutscene')
+    if (mode === 'raid') withRaidAssets(play)
+    else play()
   }
 
-  const handleRunComplete = (result: RunResult) => {
+  const handleRunComplete = (result: RunResult, retry?: () => void) => {
     const update = recordRunResult(result)
     setProgress(update.progress)
     setEndlessUnlocked(update.progress.towerDefenseEndlessUnlocked)
     syncCloudProgress(update.progress)
-    setLastRunUpdate({ result, update })
+    setLastRunUpdate({ result, update, retry })
   }
 
   const savePlayerName = async () => {
     if (!playerNameDraft.trim() || playerNameSaving) return
+    const keepGuestProgress = !hasStoredPlayerName()
     const newAccount = !playerNameRestoreMode && cloudSyncStatus !== 'conflict' &&
       (!hasStoredPlayerName() || sanitizePlayerName(playerNameDraft).toLowerCase() !== getStoredPlayerName().toLowerCase())
     setPlayerNameSaving(true)
@@ -899,12 +930,34 @@ function App() {
       return
     }
 
-    applyRegisteredPlayer(result, playerNameDraft, newAccount)
+    applyRegisteredPlayer(result, playerNameDraft, newAccount, keepGuestProgress)
+    const lobby = pendingLobbyRef.current
+    pendingLobbyRef.current = null
+    if (lobby) {
+      setRaidMultiplayerConnectionMode(lobby)
+      setScreen('raidMultiplayer')
+    }
     if (!result.offline) syncCloudProgress(loadProgress())
   }
 
+  const dismissCallsign = () => {
+    if (playerNameSaving) return
+    pendingLobbyRef.current = null
+    setShowPlayerNamePrompt(false)
+  }
+
+  const openMultiplayerLobby = (mode: RaidMultiplayerConnectionMode) => {
+    if (!hasStoredPlayerName()) {
+      pendingLobbyRef.current = mode
+      setShowPlayerNamePrompt(true)
+      return
+    }
+    setRaidMultiplayerConnectionMode(mode)
+    setScreen('raidMultiplayer')
+  }
+
   const playerNamePrompt = startupReady && showPlayerNamePrompt ? (
-    <GameDialog className="player-name-modal" aria-labelledby="player-name-title" onDismiss={hasStoredPlayerName() ? () => setShowPlayerNamePrompt(false) : undefined}>
+    <GameDialog className="player-name-modal" aria-labelledby="player-name-title" onDismiss={dismissCallsign}>
       <form
         className="player-name-modal__panel"
         onSubmit={(event) => {
@@ -914,10 +967,10 @@ function App() {
       >
         <div className="player-name-modal__heading">
           <span className="player-name-modal__eyebrow">{text.player.registration}</span>
-          {hasStoredPlayerName() && <GameButton tone="quiet" data-dialog-dismiss onClick={() => setShowPlayerNamePrompt(false)}>{raidText.menu.close}</GameButton>}
+          <GameButton tone="quiet" data-dialog-dismiss disabled={playerNameSaving} onClick={dismissCallsign}>{raidText.menu.close}</GameButton>
         </div>
-        <h2 id="player-name-title">{text.player.chooseName}</h2>
-        <p>{text.player.nameUse}</p>
+        <h2 id="player-name-title">{guestPilot ? command.callsign : text.player.chooseName}</h2>
+        <p>{guestPilot ? command.callsignUse : text.player.nameUse}</p>
         <input
           data-dialog-initial-focus
           aria-label={text.player.placeholder}
@@ -981,6 +1034,10 @@ function App() {
       update={lastRunUpdate.update}
       language={language}
       onClose={() => setLastRunUpdate(null)}
+      onRetry={screen === 'game' && lastRunUpdate.retry ? () => {
+        setLastRunUpdate(null)
+        lastRunUpdate.retry?.()
+      } : undefined}
     />
   ) : null
 
@@ -1012,25 +1069,26 @@ function App() {
             <nav className="start-screen__actions" aria-label={releaseText.deckTitle}>
               <GameMenuAction
                 primary data-menu-default
-                label={text.title.raidTitle}
-                detail={raidAssetsReady ? text.title.raidCopy : `${raidText.menu.loadingAssets} ${raidAssetPreloadPercent}%`}
-                disabled={!raidAssetsReady} onClick={startRocketRaid}
+                label={command.launch}
+                detail={command.launchDetail}
+                onClick={() => withRaidAssets(() => startRocketRaidSingle('campaign', true))}
               />
-              <GameMenuAction label={text.leaderboards.modes.ship_defense_normal.title} detail={text.title.normalTitle} onClick={startCutscene} />
+              <GameMenuAction label={command.defense} detail={command.defenseDetail} onClick={startCutscene} />
               {canPlayEndless && <GameMenuAction label={text.title.endlessTitle} detail={text.leaderboards.modes.ship_defense_endless.title} onClick={startEndless} />}
             </nav>
 
             <div className="start-screen__pilot">
-              <div className="start-screen__pilot-identity"><span>{text.player.commander}</span><strong>{playerName}</strong></div>
-              <GameButton tone="quiet" onClick={() => setShowPlayerNamePrompt(true)}>{text.player.change}</GameButton>
-              <span className={`start-screen__sync start-screen__sync--${cloudSyncStatus}`} role="status" title={cloudSyncStatus === 'connected' ? 'Cloud profile connected' : cloudSyncStatus === 'conflict' ? 'Name already taken online. Choose a different name to sync.' : 'Offline pilot: progress saved locally and will reconnect automatically.'}>
+              <div className="start-screen__pilot-identity"><span>{text.player.commander}</span><strong>{guestPilot ? command.guest : playerName}</strong></div>
+              {!guestPilot && <GameButton tone="quiet" onClick={() => setShowPlayerNamePrompt(true)}>{text.player.change}</GameButton>}
+              <span className={`start-screen__sync start-screen__sync--${cloudSyncStatus}`} role="status" title={guestPilot ? command.localSave : cloudSyncStatus === 'connected' ? 'Cloud profile connected' : cloudSyncStatus === 'conflict' ? 'Name already taken online. Choose a different name to sync.' : 'Offline pilot: progress saved locally and will reconnect automatically.'}>
                 <i aria-hidden="true" />
-                {cloudSyncStatus === 'connected' ? 'Cloud connected' : cloudSyncStatus === 'conflict' ? 'Name conflict · local save safe' : 'Offline · local save'}
+                {guestPilot ? command.localSave : cloudSyncStatus === 'connected' ? 'Cloud connected' : cloudSyncStatus === 'conflict' ? 'Name conflict · local save safe' : 'Offline · local save'}
               </span>
             </div>
           </div>
 
           <nav className="start-screen__command-deck" aria-label={releaseText.deckTitle}>
+            <GameButton tone="quiet" onClick={startRocketRaid}>{command.operations}</GameButton>
             <GameButton tone="quiet" onClick={() => setScreen('leaderboards')}>{text.title.recordsTitle}</GameButton>
             <GameButton tone="quiet" onClick={() => setScreen('profile')}>{releaseText.profile}</GameButton>
             <GameButton tone="quiet" onClick={() => setScreen('achievements')}>{releaseText.achievements}</GameButton>
@@ -1042,20 +1100,11 @@ function App() {
             <span>{text.title.copyright}</span>
             <span>{text.title.musicCredit}</span>
           </div>
-          {!raidAssetsReady && (
-            <div className="start-screen__asset-loading" role="status" aria-live="polite">
-              <div className="start-screen__asset-loading-panel">
-                <span>{raidText.menu.loadingAssets}</span><strong>{raidAssetPreloadPercent}%</strong>
-                <div className="start-screen__asset-loading-bar" role="progressbar" aria-label={raidText.menu.loadingAssets} aria-valuemin={0} aria-valuemax={100} aria-valuenow={raidAssetPreloadPercent}>
-                  <i style={{ width: `${raidAssetPreloadPercent}%` }} />
-                </div>
-              </div>
-            </div>
-          )}
         </main>
         {playerNamePrompt}
         {runResultsOverlay}
         {homeSettingsOpen && <HomeSettingsDialog language={language} onClose={() => setHomeSettingsOpen(false)} />}
+        {raidDownloadDialog}
       </div>
     )
   }
@@ -1457,7 +1506,7 @@ function App() {
                   </div>
                 </div>
 
-                <GameButton tone="primary" className="raid-hangar__launch" disabled={!isSelectedUnlocked || !raidAssetsReady} onClick={() => startRocketRaidSingle('campaign')}>
+                <GameButton tone="primary" className="raid-hangar__launch" disabled={!isSelectedUnlocked} onClick={() => startRocketRaidSingle('campaign')}>
                   {text.rocketMode.start}
                 </GameButton>
 
@@ -1574,8 +1623,8 @@ function App() {
     const canUseSameScreenCoop = true
     const touchCoop = window.matchMedia('(pointer: coarse)').matches
     const choices = [
-      {key:'local',available:canUseLocalCoop,label:text.lobby.localCoopTitle,detail:text.lobby.localCoopDesc,launch:()=>{setRaidMultiplayerConnectionMode('local');setScreen('raidMultiplayer')}},
-      {key:'online',available:true,label:text.lobby.onlineCoopTitle,detail:text.lobby.onlineCoopDesc,launch:()=>{setRaidMultiplayerConnectionMode('online');setScreen('raidMultiplayer')}},
+      {key:'local',available:canUseLocalCoop,label:text.lobby.localCoopTitle,detail:text.lobby.localCoopDesc,launch:()=>openMultiplayerLobby('local')},
+      {key:'online',available:true,label:text.lobby.onlineCoopTitle,detail:text.lobby.onlineCoopDesc,launch:()=>openMultiplayerLobby('online')},
       {key:'shared',available:canUseSameScreenCoop,label:text.lobby.sameScreenCoopTitle,detail:text.lobby.sameScreenCoopDesc,launch:()=>setScreen('raidSameScreenBriefing')},
     ]
     const orderedChoices = touchCoop ? choices : [choices[2],choices[0],choices[1]]
@@ -1672,7 +1721,7 @@ function App() {
   if (screen === 'leaderboards') {
     return (
       <>
-        <LeaderboardsScreen playerName={playerName} language={language} onBack={() => setScreen('title')} />
+        <LeaderboardsScreen playerName={guestPilot ? null : playerName} language={language} onBack={() => setScreen('title')} onChooseCallsign={() => setShowPlayerNamePrompt(true)} />
         {playerNamePrompt}
         {runResultsOverlay}
       </>
@@ -1697,6 +1746,7 @@ function App() {
         />
         {playerNamePrompt}
         {runResultsOverlay}
+        {raidDownloadDialog}
       </>
     )
   }
@@ -1710,6 +1760,7 @@ function App() {
           connectionMode={raidMultiplayerConnectionMode}
           onBack={() => setScreen('raidCoopMode')}
           onStart={(session) => {
+            setQuickRaidLaunch(false)
             setCodexCutsceneMode(null)
             setRaidMultiplayerSession(session)
             setRaidSameScreenCoop(false)
@@ -1730,6 +1781,7 @@ function App() {
         <GradiusRaid
           onClose={closeRocketRaid}
           initialMode={raidLaunchMode}
+          quickLaunch={quickRaidLaunch}
           initialShipKey={raidMultiplayerSession || raidSameScreenCoop || (hangarShipKey === 'mesiah' && !canPlayGradiusEndless) || (hangarShipKey === 'coreLander' && !isCoreLanderUnlocked(progress)) ? undefined : hangarShipKey}
           multiplayerSession={raidMultiplayerSession}
           sameScreenCoop={raidSameScreenCoop}

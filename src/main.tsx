@@ -4,7 +4,6 @@ import ReactDOM from 'react-dom/client'
 import App from './App.tsx'
 import { SpaceDoorProvider } from './components/ui/SpaceDoor'
 import { getPublicAssetUrl } from './components/games/sound'
-import { prepareAndroidAssets } from './androidAssetDownload'
 
 import './index.css'
 import './game-ui.css'
@@ -27,13 +26,11 @@ function getUiArtworkCssUrl(path: string) {
 root.style.setProperty('--ui-hangar-art', getUiArtworkCssUrl('assets/ui/orbital-hangar-v1.png'))
 root.style.setProperty('--ui-console-texture', getUiArtworkCssUrl('assets/ui/console-plate-v1.png'))
 
-void prepareAndroidAssets().then(() => {
-  ReactDOM.createRoot(root).render(
-    <React.StrictMode>
-      <SpaceDoorProvider><App /></SpaceDoorProvider>
-    </React.StrictMode>,
-  )
-})
+ReactDOM.createRoot(root).render(
+  <React.StrictMode>
+    <SpaceDoorProvider><App /></SpaceDoorProvider>
+  </React.StrictMode>,
+)
 
 function isAndroidWebView() {
   if (typeof navigator === 'undefined') return false

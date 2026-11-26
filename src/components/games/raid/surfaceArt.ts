@@ -13,6 +13,9 @@ export function preloadSurfaceArt(): Promise<void> {
       texture.source.scaleMode = 'linear'
       if (index < 2) {
         texture.source.style.addressMode = 'repeat'
+        // Both small terrain tiles are prepared before launch. Retain them
+        // until the Raid renderer closes, including during long orbital legs.
+        texture.source.autoGarbageCollect = false
         terrain[index] = texture
       } else for (let cell = 0; cell < 4; cell++) weather[cell] = new Texture({ source: texture.source,
         frame: new Rectangle(cell % 2 * texture.width / 2, Math.floor(cell / 2) * texture.height / 2, texture.width / 2, texture.height / 2) })

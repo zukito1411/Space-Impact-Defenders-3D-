@@ -4,6 +4,7 @@ import { SpaceCamera, SPACE_DISTANCES } from './spaceWorld'
 import type { Renderer } from 'pixi.js'
 import type { SpacePlacement } from './spaceWorld'
 import { STAR_VARIABILITY_GLSL } from './starVariability'
+import { getSurfaceTerrain } from './surfaceArt'
 
 // Author the initial composition once, then project persistent kilometre positions.
 export class OrbitalCamera extends SpaceCamera {
@@ -82,15 +83,15 @@ void main() {
   gl_FragColor = texture2D(uArt,uFrame.xy+uv*uFrame.zw)*tint;
 }`
 
-type GlobeStyle = { radiusKm: number; radius: number; air: number[]; swing: number; weather?: number; lava?: boolean; astrophage?: boolean; phaseZ?: number; bloodOcean?: boolean; thinAtmosphere?: boolean }
+type GlobeStyle = { radiusKm: number; radius: number; air: number[]; swing: number; weather?: number; lava?: boolean; astrophage?: boolean; phaseZ?: number; bloodOcean?: boolean; thinAtmosphere?: boolean; softDetail?: boolean }
 export const globeStyles = {
-  ocean: { radiusKm: 6400, radius: .481, air: [.42,.40,1.], swing: .42, weather: .72 },
+  ocean: { radiusKm: 6400, radius: .481, air: [.42,.40,1.], swing: .42, weather: .72, softDetail: true },
   volcanic: { radiusKm: 5100, radius: .482, air: [1.,.31,.10], swing: .36, lava: true },
-  earth: { radiusKm: 6400, radius: .447, air: [.25,.66,1.], swing: .32, weather: .64 },
-  blue: { radiusKm: 7200, radius: .446, air: [.18,.63,1.], swing: .34, weather: .48 },
+  earth: { radiusKm: 6400, radius: .447, air: [.25,.66,1.], swing: .32, weather: .64, softDetail: true },
+  blue: { radiusKm: 7200, radius: .446, air: [.18,.63,1.], swing: .34, weather: .48, softDetail: true },
   // The source rings cross the near hemisphere. Keep that texture registration fixed.
-  ring: { radiusKm: 58000, radius: .29, air: [.94,.67,.33], swing: 0 },
-  ringLandmark: { radiusKm: 58000, radius: .239, air: [1.,.63,.25], swing: 0 },
+  ring: { radiusKm: 58000, radius: .29, air: [.94,.67,.33], swing: 0, softDetail: true },
+  ringLandmark: { radiusKm: 58000, radius: .239, air: [1.,.63,.25], swing: 0, softDetail: true },
   violet: { radiusKm: 4600, radius: .478, air: [.72,.39,1.], swing: .33 },
   green: { radiusKm: 8800, radius: .488, air: [.38,.78,.95], swing: .32, weather: .42 },
   gold: { radiusKm: 7200, radius: .492, air: [1.,.53,.12], swing: .28, lava: true },
@@ -126,7 +127,7 @@ export class OrbitalGlobe {
     parent.addChildAt(this.atmosphere.mesh, index + 1)
     parent.addChildAt(this.rings, index + 2)
   }
-  update(seconds: number, styleFor: (texture: Texture) => GlobeStyle, enabled = true, distanceKm = 0, camera?: OrbitalCamera, weather?: Texture) {
+  update(seconds: number, styleFor: (texture: Texture) => GlobeStyle, enabled = true, distanceKm = 0, camera?: OrbitalCamera, weather?: Texture, resolution = 1) {
     const sprite = this.anchor, mesh = this.mesh
     mesh.visible = enabled && sprite.visible
     sprite.renderable = !enabled
@@ -143,6 +144,13 @@ export class OrbitalGlobe {
     // A shared texture can represent Adrian in Stage 3 and AT-5 in Stage 13.
     this.style = styleFor(texture)
     const rx = this.style.radius, ry = rx * texture.width / texture.height
+    const perspective = distanceKm > 0 ? Math.min(.975, this.style.radiusKm / distanceKm) : 0
+    // Compare the renderer's actual pixels to the source texels near the
+    // globe's face, where perspective magnifies the paint first.
+    const magnification = sprite.width * resolution / (texture.frame.width * .965 * (1 - perspective))
+    const detail = Math.max(0, Math.min(1, (magnification - .8) / .9))
+    this.surface.setDetail(detail > 0 ? getSurfaceTerrain(this.style.softDetail ? 0 : 1) : undefined,
+      detail * detail * (3 - 2 * detail), this.style.softDetail ? .096 : .112)
     this.surface.setWeather(weather, seconds, this.style.weather ?? 0)
     this.surface.setBloodOcean(Boolean(this.style.bloodOcean))
     this.surface.setAstrophage(this.style.astrophage ? .92 + .08 * Math.sin(seconds * 1.12) : 0)
@@ -154,7 +162,7 @@ export class OrbitalGlobe {
       light = this.phaseLight
     }
     if (light) this.surface.setLight(light)
-    this.surface.setPerspective(distanceKm > 0 ? Math.min(.975, this.style.radiusKm / distanceKm) : 0,
+    this.surface.setPerspective(perspective,
       camera ? (sprite.x - camera.width * .5) / camera.focal : 0,
       camera ? (sprite.y - camera.height * .5) / camera.focal : 0, sprite.rotation)
     this.surface.pose(this.style.swing === 0 ? 0 : seconds*.008+this.style.swing,
@@ -166,7 +174,7 @@ export class OrbitalGlobe {
     mesh.tint = sprite.tint
     mesh.zIndex = sprite.zIndex
     const halo = this.atmosphere.mesh
-    this.atmosphere.pose(rx, ry, distanceKm > 0 ? this.style.radiusKm / distanceKm : 0,
+    this.atmosphere.pose(rx, ry, perspective,
       camera ? (sprite.x-camera.width*.5)/camera.focal : 0,
       camera ? (sprite.y-camera.height*.5)/camera.focal : 0, sprite.rotation, this.style.air, light, this.style.thinAtmosphere ?? false)
     halo.position.copyFrom(sprite.position); halo.scale.set(sprite.width, sprite.height)

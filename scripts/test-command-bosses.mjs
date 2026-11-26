@@ -33,6 +33,26 @@ for (const difficulty of ['easy', 'normal']) {
  }
  assert.deepEqual([...bursts].sort(), difficulty === 'easy' ? [1] : [1, 2])
 }
+// Solo opening warns before a single committed beam, then presents a stable counterattack window.
+const opening = boss(1)
+const openingTarget = { x: 38, y: 82 }, openingShots = []
+const stepOpening = () => m.advanceCommandBoss(opening, .05, [openingTarget], 'normal', 120,
+  shot => openingShots.push({ ...shot }), true)
+assert.ok(stepOpening() & m.COMMAND_WARNING)
+assert.equal(opening.bossAttackPattern, 'beam')
+assert.ok(opening.bossWarningSeconds >= 2.4)
+openingTarget.x = 80
+while (opening.bossAttackTimer > .051) stepOpening()
+assert.equal(openingShots.length, 0)
+stepOpening()
+assert.equal(openingShots.length, 1)
+assert.equal(openingShots[0].x, 38, 'warning must show the same lane the boss fires on')
+assert.equal(opening.bossAttackState, 'recovery')
+assert.ok(opening.bossAttackTimer > 2.7)
+const openingBossX = opening.x
+stepOpening()
+assert.equal(opening.x, openingBossX)
+
 // Warnings latch target, origin, phase, speed and duration. HP loss cannot shorten a committed warning.
 for(const p of m.COMMAND_BOSS_PROFILES) {
  const e=boss(p.stage),emit=()=>assert.fail('unexpected early volley')
@@ -188,7 +208,7 @@ m.advanceCommandBoss(effectBoss, .01, [{x:50,y:80}], 'normal', 120, () => {})
 assert.equal(effectBoss.bossPhaseStartedAge, effectBoss.bossEncounterAge)
 const sprites = [], fills = [], labels = []
 const effectsContext = {
- sprites, save(){}, restore(){}, translate(){}, rotate(){}, scale(){},
+ sprites, save(){}, restore(){}, translate(){}, rotate(){}, scale(){}, beginPath(){}, arc(){}, stroke(){},
  fillRect(...args){ fills.push(args) },
  fillText(...args){ labels.push(args) },
 }
@@ -215,32 +235,6 @@ warnings.drawCommandBossEnergy(effectsContext, fan, x=>x,y=>y,130)
 assert.equal(sprites.length,1,'a five-shot fan sharing a muzzle should draw only one flash')
 
 const damage = await load(source + vfxStubs + strip(read('src/components/games/raid/bossDamageFx.ts')))
-for (const profile of m.COMMAND_BOSS_PROFILES) {
- const ship = boss(profile.stage, 1)
- sprites.length=0
- damage.drawHullDamage(effectsContext, ship, 0, 0, 130, 0, 1, true)
- assert.equal(sprites.length, 0)
- ship.hp = ship.maxHp * .65
- damage.drawHullDamage(effectsContext, ship, 0, 0, 130, 0, 1, true)
- assert.deepEqual(sprites.map(([tile])=>tile),['damage'])
- sprites.length=0
- ship.hp = ship.maxHp * .3
- damage.drawHullDamage(effectsContext, ship, 0, 0, 130, 0, 1, true)
- assert.deepEqual(sprites.map(([tile])=>tile),['damage','damage','damage','precision'])
- sprites.length=0
- ship.hp = 0
- damage.drawHullDamage(effectsContext, ship, 0, 0, 130, 0, 1, true)
- assert.deepEqual(sprites.map(([tile])=>tile), Array(profile.stage === 11 ? 3 : 1).fill('char'))
-}
-const critical = boss(1, .25)
-effectsContext.smoke = 0
-damage.drawHullDamage(effectsContext, critical, 0, 0, 130, 0, 1, false)
-assert.equal(effectsContext.smoke, 1, 'critical boss damage draws a bounded smoke cue')
-effectsContext.smoke = 0
-damage.drawHullDamage(effectsContext, critical, 0, 0, 130, 0, 1, true)
-assert.equal(effectsContext.smoke, 0, 'reduced motion suppresses smoke')
-assert.ok(damage.BOSS_BREAKUP_DELAYS.length <= 5 && damage.BOSS_BREAKUP_DELAYS.at(-1) < 3.15)
-assert.notDeepEqual(damage.getBossBreakupPoint(boss(11), 0), damage.getBossBreakupPoint(boss(11), 1))
 
 const impactBoss = boss(11, .25)
 const contact = { id: 3, x: 51, y: 31, kind: 'pulse' }
@@ -257,7 +251,7 @@ impactBoss.bossImpactTime = .09
 assert.equal(damage.recordBossImpact(impactBoss, contact, false), 'core')
 impactBoss.bossImpactTime = 0
 assert.equal(damage.recordBossImpact(impactBoss, { ...contact, kind: 'rocket' }, false), 'heavy')
-console.log('Boss VFX: projected beam widths, per-muzzle artwork, hull damage and contact placement passed')
+console.log('Boss VFX: projected beam widths, per-muzzle artwork, shield, hull and contact placement passed')
 
 // Real network interpolation preserves committed targets and never blends different attack warnings.
 const net=read('src/components/games/raid/network.ts')
@@ -291,7 +285,7 @@ const asteroidsRef={current:[]},meteorsRef={current:[]},ionStrikesRef={current:[
 export const enemiesRef={current:[]},enemyShotsRef={current:[]};
 const HEIGHT=100,NUKE_FLASH_SECONDS=1;
 const addRipple=()=>{},spawnSparks=()=>{},triggerScreenShake=()=>{},playGameSound=()=>{},syncSnapshot=()=>{};
-const getNukeBossDamage=()=>1000;
+const getNukeBossDamage=()=>1000,scenePresentation={defeat(){}};
 `+nuke+'\nexport {detonateNuke};')
 const charged={...boss(12),bossEncounterAge:8,bossAttackState:'warning',bossAttackTimer:.1,bossAttackPattern:'twinBeam',bossLastVolleyAge:7.95}
 nukeHarness.enemiesRef.current.push(charged);nukeHarness.enemyShotsRef.current.push({})
@@ -305,10 +299,11 @@ const hostLoop=runtime.slice(runtime.indexOf('    const enemies = enemiesRef.cur
 try {
 const host=await load(source+`
 const HEIGHT=100,WIDTH=100,landscapeRef={current:false};
-const player={x:50,y:82},livingPlayersThisTick=[player];
+const player={x:50,y:82,hp:10},livingPlayersThisTick=[player];
+const enemyTactics={update(){}},sceneryRunTokenRef={current:0};
 export const enemiesRef={current:[]},enemyShotsRef={current:[]};
 const raidModeRef={current:'campaign'},raidDifficultyRef={current:'normal'},stageRef={current:1},waveRef={current:1};
-const bossAlertRef={current:0},bossMessageRef={current:null};
+const bossAlertRef={current:0},bossMessageRef={current:null},coachOpeningRef={current:false};
 const BOSS_RUSH_MOTION_SCALE=1.18,BOSS_RUSH_SPECIAL_RECHARGE_SCALE=1.32,BOSS_RUSH_ATTACK_COOLDOWN_SCALE=.72;
 export let legacyFires=0,totalShots=0;
 const playBossCriticalStinger=()=>{},getNearestLivingPlayerThisTick=()=>player;

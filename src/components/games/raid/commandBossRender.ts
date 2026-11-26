@@ -17,6 +17,28 @@ export function drawCommandBossTelegraph(ctx: CanvasRenderingContext2D, enemy: E
       const half = shot.radius * .82 + PLAYER_RADIUS * .72
       drawBossFxLane(ctx, BOSS_FX.lane, toX(shot.x), toY(0), toX(shot.x), toY(100),
         toX(half * 2) - toX(0), .4 + progress * .23)
+      if (enemy.bossArtStage === 1 && enemy.bossAttackSerial === 0) {
+        const direction = shot.x < 50 ? 1 : -1
+        const center = shot.x + (direction > 0 ? 100 - shot.x : -shot.x) * .5
+        const x = toX(center), y = toY(84)
+        ctx.save()
+        ctx.lineCap = 'round'
+        ctx.lineJoin = 'round'
+        ctx.beginPath()
+        ctx.moveTo(x - direction * 13, y - 9)
+        ctx.lineTo(x, y)
+        ctx.lineTo(x - direction * 13, y + 9)
+        ctx.moveTo(x, y - 9)
+        ctx.lineTo(x + direction * 13, y)
+        ctx.lineTo(x, y + 9)
+        ctx.strokeStyle = '#063028'
+        ctx.lineWidth = 7
+        ctx.stroke()
+        ctx.strokeStyle = '#91ffcf'
+        ctx.lineWidth = 3
+        ctx.stroke()
+        ctx.restore()
+      }
     } else {
       const span = shot.vy > 2 ? Math.max(.8, (92 - shot.y) / shot.vy) : 1.25
       drawBossFxLane(ctx, BOSS_FX.aim, toX(shot.x), toY(shot.y),
@@ -38,11 +60,40 @@ export function drawCommandBossEnergy(ctx: CanvasRenderingContext2D, enemy: Enem
   const age = enemy.bossEncounterAge
   if (enemy.hp <= 0 || age === undefined) return
 
-  const volleyAge = age - (enemy.bossLastVolleyAge ?? -Infinity)
-  const firing = volleyAge >= 0 && volleyAge < .18
-  if (!firing) return
+  if (enemy.bossArtStage === 1 && enemy.bossAttackSerial === 0 && enemy.bossAttackPattern === 'beam'
+    && enemy.bossAttackState === 'recovery' && (enemy.bossRecoverySeconds ?? 0) - (enemy.bossAttackTimer ?? 0) >= .68) {
+    const x = toX(enemy.x), y = toY(enemy.y + 4)
+    const radius = Math.max(8, size * .12)
+    ctx.save()
+    ctx.strokeStyle = '#a1ffdb'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    for (const direction of [-1, 1]) {
+      ctx.moveTo(x + direction * radius * .65, y - radius)
+      ctx.lineTo(x + direction * radius, y - radius)
+      ctx.lineTo(x + direction * radius, y + radius)
+      ctx.lineTo(x + direction * radius * .65, y + radius)
+    }
+    ctx.stroke()
+    ctx.restore()
+  }
+
   const motionReduced = prefersRaidReducedMotion()
-  if (firing) {
+  const phaseAge = age - (enemy.bossPhaseStartedAge ?? -Infinity)
+  if (phaseAge >= 0 && phaseAge < .42 && enemy.bossAttackState === 'warning') {
+    const progress = phaseAge / .42
+    const diameter = size * (motionReduced ? .52 : .45 + progress * .37)
+    drawBossFx(ctx, BOSS_FX.pulse, toX(enemy.x), toY(enemy.y + 4), diameter, diameter, .45 * (1 - progress), 0, true)
+  }
+  if (enemy.bossAttackState === 'warning') {
+    const progress = 1 - (enemy.bossAttackTimer ?? 0) / Math.max(.01, enemy.bossWarningSeconds ?? 1)
+    const diameter = Math.max(12, size * (motionReduced ? .22 : .17 + progress * .1))
+    drawBossFx(ctx, BOSS_FX.pulse, toX(enemy.bossAttackX ?? enemy.x), toY((enemy.bossAttackY ?? enemy.y) + 6),
+      diameter, diameter, .45 + progress * .38, 0, true)
+  }
+
+  const volleyAge = age - (enemy.bossLastVolleyAge ?? -Infinity)
+  if (volleyAge >= 0 && volleyAge < .18) {
     const count = writeCommandVolley(enemy, preview, Math.max(0, (enemy.bossBurstIndex ?? 1) - 1))
     const progress = volleyAge / .18
     const diameter = Math.max(12, size * .15) * (motionReduced ? 1 : 1 + progress * .5)
