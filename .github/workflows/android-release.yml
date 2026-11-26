@@ -223,7 +223,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TAG=android-3d-assets-v1
+          TAG="$(jq -er '.baseUrl | capture("/download/(?<tag>android-3d-assets-v[0-9]+)/$").tag' dist/native-assets.json)"
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" --target "$GITHUB_SHA" --title 'Space Impact Defenders 3D Android media' \
               --notes 'Immutable 3D game media packs for this repository only.' --prerelease --latest=false
@@ -232,11 +232,15 @@ jobs:
           gh api --paginate "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?per_page=100" \
             --jq '.[] | select(.state == "uploaded") | .name' > "$RUNNER_TEMP/uploaded-media.txt"
           # Iterate the manifest so a retried run also repairs any unfinished uploads.
+          missing=()
           while IFS= read -r filename; do
             if ! grep -Fxq "$filename" "$RUNNER_TEMP/uploaded-media.txt"; then
-              gh release upload "$TAG" "release/android-assets/$filename" --clobber
+              missing+=("release/android-assets/$filename")
             fi
           done < <(jq -r '.packs[].hash + ".zip"' dist/native-assets.json)
+          if (( ${#missing[@]} > 0 )); then
+            gh release upload "$TAG" "${missing[@]}" --clobber
+          fi
 
       - name: Publish one APK per release with explicit signing status
         env:

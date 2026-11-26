@@ -56,7 +56,8 @@ needed and a failed download can be retried. When an update changes Raid
 media, Android reuses the installed files and fetches only the packs it needs.
 
 The signed release workflow uploads the content-addressed ZIPs to
-`android-3d-assets-v1` before making the APK available. The APK pins its exact
-media inventory. Keep the asset release and its existing packs so that older
-APKs can still finish a first download. Regular APK retention applies only to
-`android-3d-vN` releases.
+the versioned asset release named by the APK's manifest before making the APK
+available. Current builds use `android-3d-assets-v2`. Earlier APKs still use
+`android-3d-assets-v1`, so keep both releases and their existing packs. The
+cache is keyed by file hash and survives the release change. Regular APK
+retention applies only to `android-3d-vN` releases.

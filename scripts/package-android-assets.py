@@ -7,7 +7,7 @@ import zipfile
 from collections import defaultdict
 from pathlib import Path
 
-RELEASE = "android-3d-assets-v1"
+RELEASE = "android-3d-assets-v2"
 BASE_URL = f"https://github.com/zukito1411/Space-Impact-Defenders-3D-/releases/download/{RELEASE}/"
 MEDIA_METADATA_SUFFIXES = {".txt", ".json"}
 
