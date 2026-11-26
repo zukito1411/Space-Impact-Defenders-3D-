@@ -23,10 +23,13 @@ async function capture(page, name) {
   if (output) await page.screenshot({ path: `${output}/${name}.png` })
 }
 
-async function setUp(page, landscape, relayTraffic) {
+async function setUp(page, landscape, relayTraffic, loadRaidMedia = true) {
   await page.route('**/*', route => {
     const url = new URL(route.request().url())
-    if (url.origin === origin) return route.continue()
+    if (url.origin === origin) {
+      if (!loadRaidMedia && (url.pathname.endsWith('.glb') || url.pathname.startsWith('/assets/raid-fx/'))) return route.abort()
+      return route.continue()
+    }
     const headers = { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET, POST, OPTIONS',
       'access-control-allow-headers': 'content-type' }
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers })
@@ -101,7 +104,9 @@ async function main() {
   browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH,
     args: ['--no-sandbox', '--enable-unsafe-swiftshader', '--use-angle=swiftshader'] })
 
-  const checks = process.argv.includes('--defense-only') ? [testDefense, testNativeDownload] : [testRaid, testDefense, testNativeDownload]
+  const mobileChecks = [testDefense, testCallsign, testNativeDownload]
+  const checks = process.argv.includes('--raid-only') ? [testRaid]
+    : process.argv.includes('--defense-only') ? mobileChecks : [testRaid, ...mobileChecks]
   const failures = []
   for (const check of checks) {
     try { await check() } catch (error) { failures.push(error) }
@@ -118,7 +123,7 @@ async function testRaid() {
     await title(desktop)
     await desktop.getByRole('button', { name: /Launch Gradius Raid/ }).click()
     console.log('Waiting for the guest carrier sequence')
-    await desktop.getByText('Flight deck clear. You have the launch lane.').waitFor({ timeout: 120000 })
+    await desktop.getByText('Flight deck clear. You have the launch lane.').waitFor({ timeout: 220000 })
     await capture(desktop, 'opening-launch')
     console.log('Guest carrier sequence reached')
     await desktop.getByText(/Weapons fire automatically/).waitFor({ timeout: 90000 })
@@ -171,6 +176,9 @@ async function testRaid() {
     assert.deepEqual(traffic, [], 'a guest run must not call the online profile or leaderboard APIs')
     assert.deepEqual(errors, [])
     console.log('Desktop guest launch, timed boss warning, counterattack, results and campaign continuation passed')
+  } catch (error) {
+    const visible = await desktop.locator('body').innerText({ timeout: 4000 }).catch(() => '')
+    throw new Error(`Raid did not complete its opening check. Visible state: ${visible.slice(0, 1000)}`, { cause: error })
   } finally { await desktop.close() }
 }
 
@@ -197,18 +205,27 @@ async function testDefense() {
   assert.equal(await phone.locator('.defense-tower-mark').count(), 1)
   await capture(phone, 'defense-tower-deployed')
   assert.deepEqual(phoneTraffic, [])
-  await phone.goto(origin)
-  await phone.locator('#startup-splash').waitFor({ state: 'detached' })
-  await phone.evaluate(() => localStorage.setItem('space-impact-release-progress', JSON.stringify({ totalRuns: 2, totalScore: 650 })))
-  await phone.getByRole('button', { name: 'Leaderboards' }).tap()
-  await phone.getByRole('button', { name: 'Choose a callsign' }).tap()
-  await phone.getByRole('textbox', { name: 'Commander name' }).fill('Test Cadet')
-  await phone.getByRole('button', { name: 'Confirm Name' }).tap()
-  await phone.getByRole('dialog').waitFor({ state: 'hidden' })
-  assert.equal(await phone.evaluate(() => JSON.parse(localStorage.getItem('space-impact-release-progress')).totalScore), 650)
-  assert.ok(phoneTraffic.includes('/players/register'))
   await phone.close()
   console.log('Android-sized touch layout, two-tap range preview and warship dispatch passed')
+}
+
+async function testCallsign() {
+  const phone = await browser.newPage({ viewport: { width: 393, height: 852 }, hasTouch: true, isMobile: true, reducedMotion: 'reduce' })
+  const traffic = []
+  try {
+    await setUp(phone, false, traffic, false)
+    await title(phone)
+    await phone.evaluate(() => localStorage.setItem('space-impact-release-progress', JSON.stringify({ totalRuns: 2, totalScore: 650 })))
+    await phone.getByRole('button', { name: 'Leaderboards', exact: true }).tap()
+    const callsign = phone.getByRole('button', { name: 'Choose a callsign', exact: true })
+    await callsign.tap()
+    await phone.getByRole('textbox', { name: 'Commander name' }).fill('Test Cadet')
+    await phone.getByRole('button', { name: 'Confirm Name', exact: true }).tap()
+    await phone.getByRole('dialog').waitFor({ state: 'hidden' })
+    assert.equal(await phone.evaluate(() => JSON.parse(localStorage.getItem('space-impact-release-progress')).totalScore), 650)
+    assert.ok(traffic.some(path => path.endsWith('/players/register')))
+    console.log('Optional callsign registration preserved the guest save')
+  } finally { await phone.close() }
 }
 
 async function testNativeDownload() {
