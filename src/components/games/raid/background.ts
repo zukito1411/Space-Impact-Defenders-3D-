@@ -808,6 +808,7 @@ export type PixiRaidBackgroundFrame = RaidJourneyInput & {
   playerX?: number
   playerY?: number
   finalBattleIntensity?: number
+  hideSunDisc?: boolean
   cruiseAge?: number
   runToken?: number
 }
@@ -1418,6 +1419,11 @@ export class PixiRaidBackground {
           frame.stageNumber ?? 1,frame.runToken ?? 0,space && this.journey.worldAlpha < .1,celestialSeconds)
         for (const volume of this.gasVolumes) volume.update(width, height, this.orbitalCamera, this.orbitalSkyReady,starSeconds,this.paintedStarMaps.get(volume.anchor.texture))
       }
+      // Keep the projected light bearing while Solar Flare hides the disk.
+      const sunTexture = this.assetTextures.get('sun')
+      for (const sprite of this.scenicSprites) {
+        sprite.renderable = !frame.hideSunDisc || sprite.texture !== sunTexture
+      }
       this.updateSceneryBloom(stageTheme, isLow, isMedium)
       for (let i=0;i<this.moonSystems.length;i++) {
         const sprite = this.planetSprites[i]
@@ -1869,7 +1875,7 @@ export class PixiRaidBackground {
       const texture = i === 0 && this.journey.enabled ? getJourneyBloom(this.journey.planet) : getCosmosBloom(i === 0 ? (region.landmark < 2 ? region.landmark : 0) : (this.journey.enabled && this.journey.fleetSize > 0 ? 3 : region.landmark))
       // Wreck lights are painted into their atlas: never overlay an unrelated old hull's bloom.
       const canonical = i === 0 ? (!this.journey.enabled || this.journey.planet >= 0) : !this.scenicHasWreckArt && (!this.journey.enabled || this.journey.phase === 'fleet') && this.cosmosRegion >= 2
-      glow.visible = !isLow && (!isMedium || i === 0) && canonical && shouldDrawRaidGalaxies(stageTheme) && source.visible && Boolean(texture)
+      glow.visible = !isLow && (!isMedium || i === 0) && canonical && shouldDrawRaidGalaxies(stageTheme) && source.visible && (i === 0 || source.renderable) && Boolean(texture)
       if (!glow.visible || !texture) continue
       const size = Math.max(source.width, source.height) * (256 / 192)
       if (size > Math.max(this.width, this.height) * 2) { glow.visible = false; continue }

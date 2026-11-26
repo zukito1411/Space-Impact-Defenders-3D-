@@ -1791,6 +1791,7 @@ export function GradiusRaid({
     const isGuestView = Boolean(multiplayerSessionRef.current && !multiplayerSessionRef.current.isHost)
     const ownShipRef = isGuestView ? remotePlayerRef.current : playerRef.current
     const playing = phaseRef.current === 'playing'
+    const event = randomEventRef.current
     const reducedMotion = prefersRaidReducedMotion()
     const briefing = phaseRef.current === 'briefing'
     const stop = carrierStopRef.current
@@ -1924,6 +1925,7 @@ export function GradiusRaid({
         bossIntensity,
         devilCorruption,
         finalBattleIntensity,
+        hideSunDisc: event?.kind === 'solar',
       })
     }
 
@@ -2711,7 +2713,6 @@ export function GradiusRaid({
     ctx.globalCompositeOperation = 'source-over'
     ctx.filter = 'none'
 
-    const event = randomEventRef.current
     if (event?.kind === 'rift') drawBlackHole(ctx, event, cssWidth, cssHeight, landscapeRef.current, reducedMotion)
     if (event?.kind === 'ion') drawIonStorm(ctx, event, cssWidth, cssHeight, reducedMotion)
 
@@ -2871,7 +2872,7 @@ export function GradiusRaid({
       drawMeteorHazard(ctx, meteor, toX, toY, cssWidth)
     }
 
-    if (event?.kind === 'solar') drawSolarFlare(ctx, event, cssWidth, cssHeight, landscapeRef.current, reducedMotion)
+    if (event?.kind === 'solar') drawSolarFlare(ctx, event, cssWidth, cssHeight, reducedMotion)
     for (const strike of ionStrikesRef.current) {
       drawIonStrike(ctx, strike, cssWidth, cssHeight, reducedMotion)
     }

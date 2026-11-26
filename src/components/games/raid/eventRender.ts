@@ -1,19 +1,61 @@
-import { drawCanvasImageContain, getCanvasSpriteSource, getRaidHazardCanvasSprite, getRaidOtherCanvasSprite } from './assets'
+import { getCanvasSpriteSource, getRaidHazardCanvasSprite } from './assets'
 import { HEIGHT, RANDOM_EVENT_WARNING_SECONDS, WIDTH } from './constants'
-import { BLACK_HOLE_AXIS_RATIO, BLACK_HOLE_PULL_RANGE, getBlackHole, getSolarWave, ION_STRIKE_DISCHARGE, ION_STRIKE_WARMUP, ionStrikeHalfWidth, SOLAR_FRONT_HALF_DEPTH, SOLAR_GAP_HALF_WIDTH, SOLAR_WAVE_CHARGE, SOLAR_WAVE_COUNT, SOLAR_WAVE_TRAVEL } from './events'
+import {
+  BLACK_HOLE_AXIS_RATIO, BLACK_HOLE_PULL_RANGE, getBlackHole, getSolarWave, ION_STRIKE_DISCHARGE,
+  ION_STRIKE_WARMUP, ionStrikeHalfWidth, SOLAR_FRONT_HALF_DEPTH, SOLAR_GAP_HALF_WIDTH,
+  SOLAR_WAVE_CHARGE, SOLAR_WAVE_COUNT, SOLAR_WAVE_TRAVEL,
+} from './events'
 import type { IonStrike, RaidRandomEvent } from './types'
 import { clamp, drawRadialEllipse } from './utils'
 
 const TAU = Math.PI * 2
-const BLACK_HOLE_HALO = [[0, 'rgba(71,31,137,.28)'], [.52, 'rgba(82,46,151,.12)'], [1, 'rgba(50,24,113,0)']] as const
-const SOLAR_CORONA = [[0, 'rgba(255,213,114,.53)'], [.39, 'rgba(250,98,36,.38)'], [.66, 'rgba(221,42,18,.13)'], [1, 'rgba(216,58,16,0)']] as const
-const ION_SOURCE_GLOW = [[0, 'rgba(202,212,255,.5)'], [.22, 'rgba(112,150,255,.31)'], [.54, 'rgba(87,76,236,.13)'], [1, 'rgba(66,47,221,0)']] as const
-const STORM_LIGHT = [[0, 'rgba(155,141,255,.24)'], [.24, 'rgba(94,82,211,.14)'], [1, 'rgba(76,66,204,0)']] as const
+const BLACK_HOLE_HALO = [[0, 'rgba(72,36,122,.18)'], [.44, 'rgba(89,34,122,.1)'], [1, 'rgba(45,23,87,0)']] as const
+const ION_CHARGE_GLOW = [[0, 'rgba(166,191,255,.54)'], [.26, 'rgba(97,114,255,.28)'], [1, 'rgba(55,38,195,0)']] as const
+const ION_DISCHARGE_GLOW = [[0, 'rgba(220,232,255,.66)'], [.14, 'rgba(157,167,255,.35)'], [.36, 'rgba(108,75,216,.19)'], [1, 'rgba(61,39,124,0)']] as const
+const SOLAR_PASSAGE_GLOW = [[0, 'rgba(123,227,223,.27)'], [.5, 'rgba(68,155,170,.17)'], [1, 'rgba(31,72,95,0)']] as const
+
+const ACCRETION_FRAMES = 8
+const SOLAR_FRAMES = 12
+const ION_FRAMES = 6
+
+type HazardSprite = NonNullable<ReturnType<typeof getCanvasSpriteSource>>
+
+function drawAtlasFrame(
+  ctx: CanvasRenderingContext2D, source: HazardSprite, frame: number, columns: number, rows: number,
+  x: number, y: number, width: number, height: number,
+) {
+  const cellWidth = source.width / columns
+  const cellHeight = source.height / rows
+  ctx.drawImage(source, frame % columns * cellWidth, Math.floor(frame / columns) * cellHeight,
+    cellWidth, cellHeight, x, y, width, height)
+}
+
+function drawLoop(
+  ctx: CanvasRenderingContext2D, source: HazardSprite, frame: number, frames: number,
+  x: number, y: number, width: number, height: number,
+) {
+  const index = Math.floor(frame)
+  const blend = frame - index
+  const rows = frames / 4
+  const alpha = ctx.globalAlpha
+  drawAtlasFrame(ctx, source, index % frames, 4, rows, x, y, width, height)
+  if (blend <= .02) return
+  ctx.globalAlpha = alpha * blend
+  drawAtlasFrame(ctx, source, (index + 1) % frames, 4, rows, x, y, width, height)
+  ctx.globalAlpha = alpha
+}
 
 function noise(seed: number) {
   const value = Math.sin(seed * 127.1 + 39.2) * 43758.5453
   return value - Math.floor(value)
 }
+
+const orbitDust = Array.from({ length: 96 }, (_, index) => ({
+  phase: noise(index + 9),
+  scatter: noise(index + 24),
+  speed: .24 + noise(index + 81) * .41,
+  angle: noise(index + 134) * TAU,
+}))
 
 export function drawBlackHole(ctx: CanvasRenderingContext2D, event: RaidRandomEvent, width: number, height: number, landscape: boolean, reduced: boolean) {
   const hole = getBlackHole(event)
@@ -27,70 +69,49 @@ export function drawBlackHole(ctx: CanvasRenderingContext2D, event: RaidRandomEv
   ctx.translate(hole.x * sx, hole.y / HEIGHT * height)
   ctx.globalAlpha = opacity
   ctx.globalCompositeOperation = 'screen'
-  drawRadialEllipse(ctx, 0, 0, BLACK_HOLE_PULL_RANGE * sx * .8, BLACK_HOLE_PULL_RANGE * sy * .8, BLACK_HOLE_HALO)
+  drawRadialEllipse(ctx, 0, 0, BLACK_HOLE_PULL_RANGE * sx * .65, BLACK_HOLE_PULL_RANGE * sy * .65, BLACK_HOLE_HALO)
 
-  // Infall streaks trace the pull field in its own collision coordinates.
-  const count = reduced ? 22 : 56
+  // Dust rotates faster as it approaches the horizon and vanishes at the rim.
   const time = reduced ? 0 : event.age + formation * .48
-  ctx.lineCap = 'round'
+  const count = reduced ? 28 : orbitDust.length
+  const scale = Math.min(sx, sy)
   for (let pass = 0; pass < 2; pass++) {
+    ctx.fillStyle = pass ? '#f9cbab' : '#a58cdf'
     ctx.beginPath()
-    for (let i = pass; i < count; i += 2) {
-      const cycle = (noise(i + event.seed) + time * (.33 + noise(i + 90) * .31)) % 1
-      const radius = hole.radius + (BLACK_HOLE_PULL_RANGE * .71 - hole.radius) * (1 - cycle) ** 1.6
-      const angle = i * 2.39996 + Math.log(BLACK_HOLE_PULL_RANGE / radius) * hole.direction * 1.15
-      const length = (.6 + noise(i + 172) ** 2 * 7) * (.4 + cycle * .6)
-      ctx.moveTo(Math.cos(angle) * radius * sx, Math.sin(angle) * radius * sy)
-      ctx.quadraticCurveTo(
-        Math.cos(angle - hole.direction * .035) * (radius + length * .44) * sx,
-        Math.sin(angle - hole.direction * .035) * (radius + length * .44) * sy,
-        Math.cos(angle - hole.direction * .11) * (radius + length) * sx,
-        Math.sin(angle - hole.direction * .11) * (radius + length) * sy,
-      )
+    for (let index = pass; index < count; index += 2) {
+      const dust = orbitDust[index]
+      const cycle = (dust.phase + time * dust.speed) % 1
+      const radius = hole.radius + (BLACK_HOLE_PULL_RANGE * (.53 + dust.scatter * .27) - hole.radius) * (1 - cycle) ** 1.72
+      const angle = dust.angle + Math.log(BLACK_HOLE_PULL_RANGE / radius) * hole.direction * 1.63
+      const x = Math.cos(angle) * radius * sx
+      const y = Math.sin(angle) * radius * sy
+      const size = scale * (.07 + dust.scatter ** 2 * .28) * Math.sin(cycle * Math.PI) + .18
+      ctx.moveTo(x + size, y)
+      ctx.arc(x, y, size, 0, TAU)
     }
-    ctx.lineWidth = pass ? 1.25 : .8
-    ctx.strokeStyle = pass ? 'rgba(228,196,255,.39)' : 'rgba(151,148,224,.24)'
-    ctx.stroke()
+    ctx.globalAlpha = opacity * (pass ? .72 : .38)
+    ctx.fill()
   }
 
+  ctx.globalAlpha = opacity
   ctx.scale(hole.radius * sx, hole.radius * sy)
   if (landscape) ctx.rotate(-Math.PI / 2)
-  ctx.rotate(-.22)
+  ctx.rotate(-.29)
   ctx.globalCompositeOperation = 'source-over'
-  ctx.fillStyle = '#020108'
+  ctx.fillStyle = '#010106'
   ctx.beginPath()
   ctx.arc(0, 0, 1, 0, TAU)
   ctx.fill()
   const lens = getRaidHazardCanvasSprite('blackHole')
   if (lens.loaded) {
-    ctx.drawImage(getCanvasSpriteSource(lens), -3.6, -3.6, 7.2, 7.2)
+    const motion = hole.direction > 0 ? time : (100 - time)
+    drawLoop(ctx, getCanvasSpriteSource(lens), (event.seed % 8) + motion * 3.2,
+      ACCRETION_FRAMES, -3.4, -3.4, 6.8, 6.8)
   } else {
-    ctx.strokeStyle = '#faad82'
-    ctx.lineWidth = .053
-    ctx.stroke()
-    ctx.strokeStyle = 'rgba(190,110,244,.52)'
-    ctx.beginPath()
-    ctx.ellipse(0, .37, 2.4, .34, 0, 0, TAU)
-    ctx.stroke()
-  }
-
-  // Tight, fast filaments give the baked lensing texture direction and depth.
-  if (!reduced) {
     ctx.globalCompositeOperation = 'screen'
-    ctx.lineWidth = .018
-    ctx.strokeStyle = 'rgba(255,217,180,.7)'
-    ctx.beginPath()
-    for (let i = 0; i < 21; i++) {
-      const angle = i * 2.39996 + time * (.85 + noise(i + 215) * .85) * hole.direction
-      if (Math.sin(angle) < .28) continue
-      const radius = 1.22 + noise(i + 8) * 1.94
-      const x = Math.cos(angle) * radius
-      const y = .36 + Math.sin(angle) * radius * .21
-      if (x * x + y * y < 1.05) continue
-      ctx.moveTo(x, y)
-      ctx.lineTo(Math.cos(angle + .14 * hole.direction) * radius, .36 + Math.sin(angle + .14 * hole.direction) * radius * .21)
-    }
-    ctx.stroke()
+    drawRadialEllipse(ctx, 0, 0, 1.16, 1.16, [
+      [0, 'rgba(70,29,117,0)'], [.83, 'rgba(138,77,141,0)'], [.89, 'rgba(255,179,132,.76)'], [1, 'rgba(143,75,135,0)'],
+    ])
   }
   ctx.restore()
 }
@@ -98,258 +119,119 @@ export function drawBlackHole(ctx: CanvasRenderingContext2D, event: RaidRandomEv
 export function drawIonStorm(ctx: CanvasRenderingContext2D, event: RaidRandomEvent, width: number, height: number, reduced: boolean) {
   const enter = clamp(1 - event.warning / RANDOM_EVENT_WARNING_SECONDS, 0, 1)
   const fade = Math.min(enter, clamp((event.duration - event.age) / .92, 0, 1))
-  if (fade <= 0) return
-  const time = reduced ? 0 : event.age
   const storm = getRaidHazardCanvasSprite('stormShelf')
+  if (fade <= 0 || !storm.loaded) return
+
+  const depth = Math.min(height * .37, width * .75)
+  const time = reduced ? 0 : event.age
+  const drift = Math.sin(time * .49 + event.seed) * width * .084
+  const source = getCanvasSpriteSource(storm)
   ctx.save()
-  ctx.globalAlpha = fade
-  if (storm.loaded) {
-    const source = getCanvasSpriteSource(storm)
-    const drift = Math.sin(time * .43 + event.seed) * width * .04
-    ctx.drawImage(source, -width * .12 + drift, -height * .08, width * 1.24, height * .41)
-    ctx.globalAlpha *= .53
-    ctx.drawImage(source, -width * .22 - drift, height * .06, width * 1.5, height * .35)
-  }
-  ctx.globalCompositeOperation = 'screen'
-  drawRadialEllipse(ctx, width * .53, height * .12, width * .52, height * .22, STORM_LIGHT)
+  ctx.globalAlpha = fade * .61
+  ctx.drawImage(source, -width * .22 - drift, -depth * .08, width * 1.45, depth)
+  ctx.translate(width, 0)
+  ctx.scale(-1, 1)
+  ctx.globalAlpha = fade * .54
+  ctx.drawImage(source, -width * .16 + drift, -depth * .44, width * 1.32, depth * 1.31)
   ctx.restore()
 }
-
-function traceLaneCorners(ctx: CanvasRenderingContext2D, x: number, half: number, height: number) {
-  const mark = Math.max(6, half * .72)
-  ctx.beginPath()
-  for (const side of [-1, 1]) {
-    const edge = x + side * half
-    for (const y of [height * .09, height * .5, height * .91]) {
-      ctx.moveTo(edge - side * mark, y)
-      ctx.lineTo(edge, y)
-      ctx.lineTo(edge, y - mark)
-    }
-  }
-}
-
-const LIGHTNING_SEGMENTS = 58
-const lightningXs = new Float32Array(LIGHTNING_SEGMENTS + 1)
 
 export function drawIonStrike(ctx: CanvasRenderingContext2D, strike: IonStrike, width: number, height: number, reduced: boolean) {
   const x = strike.x / WIDTH * width
   const half = ionStrikeHalfWidth(strike) / WIDTH * width
-  const charging = strike.warmup > 0
   const charge = clamp(1 - strike.warmup / ION_STRIKE_WARMUP, 0, 1)
   const age = strike.duration - strike.life
-  const afterglow = clamp(strike.life / strike.duration, 0, 1)
+  const texture = getRaidHazardCanvasSprite('ionDischarge')
+  const charged = strike.warmup <= 0
+
   ctx.save()
   ctx.globalCompositeOperation = 'screen'
-  if (charging) {
+  if (!charged) {
+    // Charge is visible across the hit area, with a brighter packet moving down the lane.
     const lane = ctx.createLinearGradient(x - half, 0, x + half, 0)
-    lane.addColorStop(0, 'rgba(93,151,255,.25)')
-    lane.addColorStop(.18, 'rgba(57,91,202,.045)')
-    lane.addColorStop(.82, 'rgba(57,91,202,.045)')
-    lane.addColorStop(1, 'rgba(93,151,255,.25)')
+    lane.addColorStop(0, 'rgba(58,54,186,0)')
+    lane.addColorStop(.21, 'rgba(77,83,210,.13)')
+    lane.addColorStop(.5, 'rgba(116,126,248,.32)')
+    lane.addColorStop(.79, 'rgba(77,83,210,.13)')
+    lane.addColorStop(1, 'rgba(58,54,186,0)')
+    ctx.globalAlpha = .63 + charge * .37
     ctx.fillStyle = lane
-    ctx.globalAlpha = .48 + charge * .46
     ctx.fillRect(x - half, 0, half * 2, height)
-    ctx.strokeStyle = '#92c8ff'
-    ctx.lineWidth = 1.4
-    traceLaneCorners(ctx, x, half, height)
-    ctx.stroke()
-    ctx.strokeStyle = 'rgba(142,187,255,.56)'
-    ctx.beginPath()
-    ctx.moveTo(x - half, 0)
-    ctx.lineTo(x - half, height * charge)
-    ctx.moveTo(x + half, 0)
-    ctx.lineTo(x + half, height * charge)
-    ctx.stroke()
-    drawRadialEllipse(ctx, x, height * .06, half * 2, height * .095, STORM_LIGHT)
-    ctx.restore()
-    return
-  }
-
-  const energy = age < ION_STRIKE_DISCHARGE ? .66 + .34 * Math.exp(-age * 13) : afterglow * .74
-  const seed = strike.id * 3.429 + (reduced ? 0 : Math.min(2, Math.floor(age * 7)) * 42)
-  ctx.globalAlpha = energy * (reduced ? .72 : 1)
-  const haze = ctx.createLinearGradient(x - half, 0, x + half, 0)
-  haze.addColorStop(0, 'rgba(76,50,212,0)')
-  haze.addColorStop(.32, 'rgba(78,67,234,.06)')
-  haze.addColorStop(.52, 'rgba(111,119,252,.16)')
-  haze.addColorStop(1, 'rgba(76,50,212,0)')
-  ctx.fillStyle = haze
-  ctx.fillRect(x - half, 0, half * 2, height)
-  drawRadialEllipse(ctx, x, height * .085, half * 3.0, height * .136, ION_SOURCE_GLOW)
-
-  ctx.lineJoin = 'round'
-  ctx.lineCap = 'round'
-  ctx.beginPath()
-  const step = height / LIGHTNING_SEGMENTS
-  for (let i = 0; i <= LIGHTNING_SEGMENTS; i++) {
-    const bend = Math.sin(i * .36 + seed) * .34 + Math.sin(i * .93) * .13 + (noise(seed + i * 1.13) - .5) * .51
-    lightningXs[i] = x + half * bend
-    if (i === 0) ctx.moveTo(lightningXs[i], 0)
-    else ctx.lineTo(lightningXs[i], i * step)
-  }
-  ctx.strokeStyle = 'rgba(65,58,245,.16)'
-  ctx.lineWidth = Math.max(8, half * .84)
-  ctx.stroke()
-  ctx.strokeStyle = 'rgba(108,103,255,.3)'
-  ctx.lineWidth = Math.max(5, half * .51)
-  ctx.stroke()
-  ctx.strokeStyle = 'rgba(127,172,255,.59)'
-  ctx.lineWidth = Math.max(2.4, half * .23)
-  ctx.stroke()
-  ctx.strokeStyle = '#e6f4ff'
-  ctx.lineWidth = Math.max(1.05, half * .065)
-  ctx.stroke()
-
-  ctx.beginPath()
-  for (let i = 2; i < LIGHTNING_SEGMENTS - 5; i += reduced ? 7 : 4) {
-    const side = noise(seed + i * .32) >= .5 ? 1 : -1
-    const origin = lightningXs[i]
-    const reach = .72 + noise(i + seed * 1.2) * .23
-    const length = 1.8 + noise(i - seed) * 3.2
-    ctx.moveTo(origin, i * step)
-    for (let segment = 1; segment <= 5; segment++) {
-      const fraction = segment / 5
-      const destination = x + side * half * (reach * fraction + (noise(seed + i + segment * 2.1) - .5) * .3)
-      const px = origin * (1 - fraction) + destination * fraction
-      const py = (i + length * fraction) * step
-      ctx.lineTo(px, py)
-      if (segment === 2 && !reduced) {
-        ctx.lineTo(px + side * half * .32, py + length * step * .15)
-        ctx.lineTo(px + side * half * .47, py + length * step * .41)
-        ctx.moveTo(px, py)
-      }
+    drawRadialEllipse(ctx, x, height * (reduced ? .17 : .045 + charge * .90), half, height * .16, ION_CHARGE_GLOW)
+    if (texture.loaded) {
+      ctx.globalAlpha = .13 + charge * .13
+      drawAtlasFrame(ctx, getCanvasSpriteSource(texture), strike.id % ION_FRAMES, 3, 2, x - half, 0, half * 2, height)
     }
-  }
-  ctx.strokeStyle = 'rgba(119,134,255,.37)'
-  ctx.lineWidth = Math.max(1.5, half * .16)
-  ctx.stroke()
-  ctx.strokeStyle = 'rgba(183,219,255,.75)'
-  ctx.lineWidth = .8
-  ctx.stroke()
-
-  if (!reduced) {
-    ctx.beginPath()
-    for (let i = 1; i < LIGHTNING_SEGMENTS; i += 2) {
-      const side = noise(i + seed) < .5 ? -1 : 1
-      const px = x + side * half * (.33 + noise(i * 3.09 + seed) * .61)
-      const py = step * (i + noise(i + 74))
-      ctx.moveTo(px, py)
-      ctx.lineTo(px + side * half * .05, py + 2 + noise(i + 32) * 3)
+  } else {
+    const decay = clamp(strike.life / (strike.duration - ION_STRIKE_DISCHARGE), 0, 1)
+    const energy = age < ION_STRIKE_DISCHARGE ? .82 + .18 * Math.exp(-age * 14) : decay ** 1.55 * .29
+    const spread = Math.min(half * 4.1, width * .25)
+    ctx.globalAlpha = energy * (reduced ? .7 : 1)
+    drawRadialEllipse(ctx, x, height * .12, spread, height * .24, ION_DISCHARGE_GLOW)
+    if (texture.loaded) {
+      const phase = !reduced && age < ION_STRIKE_DISCHARGE ? Math.floor(age * 12) : 0
+      drawAtlasFrame(ctx, getCanvasSpriteSource(texture), (strike.id + phase) % ION_FRAMES, 3, 2,
+        x - half * 1.79, 0, half * 3.58, height)
+    } else {
+      drawRadialEllipse(ctx, x, height * .5, half, height * .8, ION_DISCHARGE_GLOW)
     }
-    ctx.strokeStyle = 'rgba(155,193,255,.46)'
-    ctx.lineWidth = .95
-    ctx.stroke()
   }
   ctx.restore()
 }
 
-export function drawSolarFlare(ctx: CanvasRenderingContext2D, event: RaidRandomEvent, width: number, height: number, landscape: boolean, reduced: boolean) {
+export function drawSolarFlare(ctx: CanvasRenderingContext2D, event: RaidRandomEvent, width: number, height: number, reduced: boolean) {
   const intensity = clamp(1 - event.warning / RANDOM_EVENT_WARNING_SECONDS, 0, 1)
-    * clamp((event.duration - event.age) / .67, 0, 1)
+    * clamp((event.duration - event.age) / .4, 0, 1)
   if (intensity <= 0) return
-  const sunX = width * (Math.floor(event.seed) % 2 === 0 ? .72 : .28)
-  const radius = Math.min(width * .35, height * .23)
-  ctx.save()
-  ctx.globalAlpha = intensity
-  ctx.globalCompositeOperation = 'screen'
-  drawRadialEllipse(ctx, sunX, -radius * .52, radius * 2.5, radius * 1.9, SOLAR_CORONA)
-  ctx.globalCompositeOperation = 'source-over'
-  drawCanvasImageContain(ctx, getRaidOtherCanvasSprite('sun'), sunX, -radius * .69, radius * 2.8, radius * 2.8,
-    'none', .94, (!reduced ? event.age * .06 : 0) + (landscape ? -Math.PI / 2 : 0))
 
-  ctx.globalCompositeOperation = 'screen'
-  ctx.beginPath()
-  for (let i = 0; i < 5; i++) {
-    const start = .25 + i * .52 + Math.sin(event.age * (reduced ? 0 : .35) + i) * .07
-    const end = start + .23 + noise(i + 45) * .19
-    const y = -radius * .61
-    ctx.moveTo(sunX + Math.cos(start) * radius, y + Math.sin(start) * radius)
-    const lift = 1.22 + noise(i + 249) * .27
-    ctx.bezierCurveTo(
-      sunX + Math.cos(start) * radius * lift, y + Math.sin(start) * radius * lift,
-      sunX + Math.cos(end + .09) * radius * (lift + .08), y + Math.sin(end + .09) * radius * (lift + .08),
-      sunX + Math.cos(end) * radius, y + Math.sin(end) * radius,
-    )
-  }
-  ctx.strokeStyle = 'rgba(255,101,53,.44)'
-  ctx.lineWidth = 3.6
-  ctx.stroke()
-  ctx.strokeStyle = 'rgba(255,182,114,.79)'
-  ctx.lineWidth = .9
-  ctx.stroke()
-  ctx.restore()
-
-  for (let i = 0; i < SOLAR_WAVE_COUNT; i++) {
-    const wave = getSolarWave(event, i)
+  const texture = getRaidHazardCanvasSprite('solarFront')
+  const wing = width * .87
+  const wake = Math.min(height * .24, width * .49)
+  for (let index = 0; index < SOLAR_WAVE_COUNT; index++) {
+    const wave = getSolarWave(event, index)
     if (wave.age < 0 || wave.age > SOLAR_WAVE_CHARGE + SOLAR_WAVE_TRAVEL) continue
-    const left = (wave.gap - SOLAR_GAP_HALF_WIDTH) / WIDTH * width
-    const right = (wave.gap + SOLAR_GAP_HALF_WIDTH) / WIDTH * width
+    const gap = wave.gap / WIDTH * width
+    const gapRadius = SOLAR_GAP_HALF_WIDTH / WIDTH * width
     const y = wave.y / HEIGHT * height
-    const depth = SOLAR_FRONT_HALF_DEPTH / HEIGHT * height
-    const charging = wave.age < SOLAR_WAVE_CHARGE || event.warning > 0
     ctx.save()
-    if (charging) {
-      ctx.globalAlpha = intensity * (event.warning > 0 ? .55 : .85)
-      const tint = ctx.createLinearGradient(0, 0, 0, height)
-      tint.addColorStop(0, 'rgba(89,210,228,.46)')
-      tint.addColorStop(.4, 'rgba(104,225,249,.31)')
-      tint.addColorStop(1, 'rgba(104,225,249,.75)')
-      ctx.strokeStyle = tint
-      ctx.lineWidth = 1.5
-      ctx.setLineDash([11, 10])
-      ctx.beginPath()
-      ctx.moveTo(left, 0)
-      ctx.lineTo(left, height)
-      ctx.moveTo(right, 0)
-      ctx.lineTo(right, height)
-      ctx.stroke()
+    ctx.globalAlpha = intensity
+
+    if (wave.age < SOLAR_WAVE_CHARGE) {
+      const charge = clamp(wave.age / SOLAR_WAVE_CHARGE, 0, 1)
+      ctx.globalCompositeOperation = 'screen'
+      drawRadialEllipse(ctx, gap, height * .55, gapRadius, height * .63, SOLAR_PASSAGE_GLOW)
+      // Show exactly where the two banks will enter. The opening stays unlit by the plasma.
+      ctx.globalAlpha *= .68 + charge * .32
+      if (texture.loaded) drawPlasmaWings(ctx, getCanvasSpriteSource(texture),
+        index * 3 + (reduced ? 0 : charge * 3), gap, gapRadius, wing, -wake * (.71 - charge * .19), wake * .76)
       ctx.restore()
       continue
     }
 
-    ctx.globalAlpha = intensity
-    ctx.globalCompositeOperation = 'screen'
-    ctx.beginPath()
-    ctx.rect(0, 0, left, height)
-    ctx.rect(right, 0, width - right, height)
-    ctx.clip()
-    const texture = getRaidHazardCanvasSprite('solarFront')
-    const wake = Math.max(depth * 9, height * .14)
-    if (texture.loaded) {
-      ctx.drawImage(getCanvasSpriteSource(texture), 0, y - wake * .81, width, wake)
-    } else {
-      const glow = ctx.createLinearGradient(0, y - wake * .6, 0, y + depth)
-      glow.addColorStop(0, 'rgba(250,91,20,0)')
-      glow.addColorStop(.85, 'rgba(255,105,28,.71)')
-      glow.addColorStop(1, 'rgba(255,229,173,.88)')
-      ctx.fillStyle = glow
-      ctx.fillRect(0, y - wake * .6, width, wake * .6 + depth)
-    }
-    if (!reduced) {
-      ctx.strokeStyle = 'rgba(255,178,94,.56)'
-      ctx.lineWidth = 1
-      ctx.beginPath()
-      for (let j = 0; j < 40; j++) {
-        const drift = (noise(event.seed + j * 5) + wave.age * (.44 + noise(j) * .45)) % 1
-        const px = noise(j * 3.17 + i) * width
-        const py = y - drift * wake * .81
-        ctx.moveTo(px, py)
-        ctx.lineTo(px + (noise(j + 13) - .7) * 8, py - (1 - drift) * 15 - 2)
+    if (y + SOLAR_FRONT_HALF_DEPTH / HEIGHT * height >= 0) {
+      if (texture.loaded) drawPlasmaWings(ctx, getCanvasSpriteSource(texture),
+        (event.seed % 4) + index * 3 + (reduced ? 0 : wave.age * 8.4),
+        gap, gapRadius, wing, y - wake * .73, wake)
+      else {
+        const depth = SOLAR_FRONT_HALF_DEPTH / HEIGHT * height
+        ctx.globalCompositeOperation = 'screen'
+        const glow = [[0, 'rgba(255,132,60,.83)'], [.42, 'rgba(243,72,32,.51)'], [1, 'rgba(158,20,32,0)']] as const
+        drawRadialEllipse(ctx, (gap - gapRadius) * .5, y, (gap - gapRadius) * .5, depth * 2.1, glow)
+        drawRadialEllipse(ctx, (width + gap + gapRadius) * .5, y, (width - gap - gapRadius) * .5, depth * 2.1, glow)
       }
-      ctx.stroke()
     }
-    ctx.restore()
-
-    ctx.save()
-    ctx.globalAlpha = intensity * .8
-    ctx.strokeStyle = '#ffcb8f'
-    ctx.lineWidth = 1.25
-    ctx.beginPath()
-    for (const x of [left, right]) {
-      ctx.moveTo(x, y - depth * 2)
-      ctx.lineTo(x, y + depth)
-    }
-    ctx.stroke()
     ctx.restore()
   }
+}
+
+function drawPlasmaWings(
+  ctx: CanvasRenderingContext2D, source: HazardSprite, frame: number,
+  gap: number, gapRadius: number, wing: number, top: number, height: number,
+) {
+  drawLoop(ctx, source, frame, SOLAR_FRAMES, gap - gapRadius - wing, top, wing, height)
+  ctx.save()
+  ctx.translate(gap + gapRadius, 0)
+  ctx.scale(-1, 1)
+  drawLoop(ctx, source, frame + 5, SOLAR_FRAMES, -wing, top, wing, height)
+  ctx.restore()
 }

@@ -56,9 +56,10 @@ export type CanvasSpriteProcessor = (image: HTMLImageElement) => HTMLCanvasEleme
 export const canvasSpriteCache = new Map<string, CanvasSpriteEntry>()
 
 export const RAID_HAZARD_ASSET_PATHS = {
-  blackHole: 'assets/raid-fx/hazard-black-hole-v1.webp',
-  solarFront: 'assets/raid-fx/hazard-solar-front-v1.webp',
-  stormShelf: 'assets/raid-fx/hazard-storm-shelf-v1.webp',
+  blackHole: 'assets/raid-fx/hazard-black-hole-v2.webp',
+  solarFront: 'assets/raid-fx/hazard-solar-front-v2.webp',
+  stormShelf: 'assets/raid-fx/hazard-storm-shelf-v2.webp',
+  ionDischarge: 'assets/raid-fx/hazard-ion-discharge-v2.webp',
 } as const
 
 export const RAID_OTHER_ASSET_PATHS = {

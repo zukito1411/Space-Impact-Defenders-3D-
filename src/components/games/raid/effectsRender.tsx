@@ -521,7 +521,7 @@ export function drawRandomEventWarning(ctx: CanvasRenderingContext2D, width: num
 
   const pulse = 0.68 + Math.sin(time / 105) * 0.2
   const hint = event.kind === 'rift' ? 'Thrust away from the event horizon'
-    : event.kind === 'solar' ? 'Fly through the gaps in each plasma front'
+    : event.kind === 'solar' ? 'Fly through the opening in each plasma front'
       : event.kind === 'ion' ? 'Clear marked lanes before discharge' : ''
   const panelWidth = Math.min(width * 0.86, 560)
   const panelHeight = hint ? 62 : 50
