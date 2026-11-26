@@ -29,6 +29,7 @@ import { createRaidJourneyView, sampleRaidJourney } from './journey'
 import type { RaidJourneyInput } from './journey'
 import { sceneryTint, PLANET_DEPTH } from './sceneryMaterial'
 import { cosmicRegionIndex, COSMIC_REGIONS } from './cosmos'
+import { getRaidSectorLight, sampleSectorWreck, type WreckFlyby } from './sectorAtmosphere'
 import { getCosmosBackdrop, getCosmosLandmark, getCosmosBloom, getJourneyPlanet, getJourneySurface, getJourneyBloom, preloadCosmosArt } from './cosmosArt'
 import { projectDepthStar, type DepthStar } from './depthProjection'
 import { RaidTravelMotion } from './travelMotion'
@@ -929,6 +930,9 @@ export class PixiRaidBackground {
   private readonly volcanicIslandSprites = createWorldSurfaceSprites(VOLCANIC_WORLD_ISLAND_LAYERS.length)
   private readonly volcanicCloudSprites = createWorldSurfaceSprites(VOLCANIC_WORLD_CLOUD_LAYERS.length)
   private readonly capitalFlyby = new Sprite(Texture.WHITE)
+  private readonly passingWreck = new Sprite(Texture.WHITE)
+  private readonly wreckFlyby: WreckFlyby = { x: 0, y: 0, size: 0, alpha: 0, rotation: 0 }
+  private readonly wreckShadow: OrbitalShadow = { x: 0, y: 0, width: 1, length: 1, rotation: 0, strength: 0, sunSide: 0 }
   private readonly dustFlybys = Array.from({ length: 7 }, () => new Sprite(Texture.WHITE))
   private readonly eclipseSprite = new Sprite(Texture.WHITE)
   private eclipseTexture: Texture | null = null
@@ -1078,7 +1082,7 @@ export class PixiRaidBackground {
       this.asteroidSprites.forEach((sprite) => this.solidScenery.addChild(sprite))
       this.debrisSprites.forEach((sprite, index) => { sprite.zIndex = 56 + index * 0.01; this.solidScenery.addChild(sprite) })
       this.eclipseTexture = this.createEclipseTexture()
-      for (const sprite of [this.eclipseSprite, this.capitalFlyby, ...this.dustFlybys]) {
+      for (const sprite of [this.eclipseSprite, this.capitalFlyby, ...this.dustFlybys, this.passingWreck]) {
         sprite.anchor.set(.5)
         sprite.visible = false
         this.scene.addChild(sprite)
@@ -1397,13 +1401,15 @@ export class PixiRaidBackground {
       const cruiseAge = frame.cruiseAge ?? -1
       this.updateCruiseFlybys(cruiseAge, width, height)
       this.astrophage.update(cruiseAge, width, height, isLow, this.reducedMotion)
+      const sectorLight = frame.raidMode === 'campaign' ? getRaidSectorLight(frame.stageNumber ?? 0) : undefined
       if (this.orbitalCamera) {
         // Light uses the same projected sun position as the rest of the scenery.
         let sun: Sprite | undefined
         for (const sprite of this.scenicSprites) {
           if (sprite.visible && sprite.texture === this.assetTextures.get('sun')) { sun = sprite; break }
         }
-        this.orbitalCamera.setSunPosition(sun?.x, sun?.y)
+        if (sectorLight && !sun) this.orbitalCamera.setSunDirection(...sectorLight.sun)
+        else this.orbitalCamera.setSunPosition(sun?.x, sun?.y)
         const surface = isWateryWorldTheme(groundTheme) ? 1 : isVolcanicWorldTheme(groundTheme) ? 2 : 0
         sampleShipLighting(this.shipLighting, this.orbitalCamera.sunDirection, this.cosmosRegion,
           surface, this.journey.enabled ? this.journey.worldAlpha : surface ? 1 : 0, celestialSeconds)
@@ -1426,6 +1432,9 @@ export class PixiRaidBackground {
       for (const rock of this.sceneryRocks) rock.update(this.orbitalBodiesReady ? this.assetTextures.get('asteroid') : undefined, celestialSeconds, this.orbitalCamera?.focal ?? 1, width, height, this.orbitalCamera?.sunDirection)
       this.updateOrbitalEffects(width, height, frame.stageNumber ?? 1, frame.stageAge ?? 0, frame.stageRush,
         bossIntensity, isLow, isMedium, !space)
+      this.updatePassingWreck(width, height, frame.stageAge ?? 0,
+        space && this.journey.worldAlpha < .1 && bossIntensity < .04 &&
+        !frame.entryRemaining && !frame.clearRemaining && !this.reducedMotion ? sectorLight?.wreckAt : undefined)
       if (space && this.orbitalCamera) {
         this.projectScenery(this.capitalFlyby, width, height)
         for (const dust of this.dustFlybys) this.projectScenery(dust, width, height)
@@ -2474,13 +2483,27 @@ export class PixiRaidBackground {
   }
 
   getEclipseAt(x: number, y: number) {
-    return orbitalShadowCoverage(this.orbitalShadow, x, y)
+    return Math.max(orbitalShadowCoverage(this.orbitalShadow, x, y), orbitalShadowCoverage(this.wreckShadow, x, y))
   }
 
   getShipLighting() { return this.shipLighting }
 
   getOrbitalSunlight() {
     return this.orbitalShadow.sunSide * Math.min(1, this.orbitalShadow.strength * 4)
+  }
+
+  private updatePassingWreck(width: number, height: number, age: number, start?: number) {
+    this.passingWreck.visible = false
+    this.wreckShadow.strength = 0
+    if (start === undefined || !this.orbitalCamera || age < start || age >= start + 3.8) return
+    const design = sceneryWreckDesign(this.wreckSeed, this.journeyStage, 0, 'ship')
+    const texture = getWreckTexture(design) ?? this.assetTextures.get('spaceStation')
+    if (!texture || !sampleSectorWreck(this.wreckFlyby, this.wreckShadow, age, start,
+      width, height, this.orbitalCamera.sunDirection)) return
+    const { x, y, size, alpha, rotation } = this.wreckFlyby
+    this.passingWreck.visible = true
+    this.passingWreck.tint = sceneryTint(COSMIC_REGIONS[this.cosmosRegion].tint, .72)
+    setPixiSpriteContain(this.passingWreck, texture, x, y, size, size, alpha, rotation)
   }
 
   private createEclipseTexture() {

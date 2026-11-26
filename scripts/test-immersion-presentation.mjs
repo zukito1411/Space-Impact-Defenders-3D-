@@ -99,9 +99,11 @@ assert.equal(stem.paused, true, 'late play completion resurrected a paused score
 score.stop()
 
 const cues = []
+const loops = new Map()
+let scorePressure = 0
 let fullStops = 0
-class Sounds { play(...args) { cues.push(args) } loop() {} stop() { fullStops++ } stopLoops() {} }
-class Score { update() {} stop() {} }
+class Sounds { play(...args) { cues.push(args) } loop(slot, clip, gain) { loops.set(slot, gain) } stop() { fullStops++ } stopLoops() {} }
+class Score { update(_bgm, _track, pressure) { scorePressure = pressure } stop() {} }
 const fakeAudio = { SampleScene: Sounds, AdaptiveScore: Score, warmImmersionAudio() {} }
 const condition = load('raid/playerCondition.ts', {
   './combatArt': { COMBAT_TILE: {}, getRaidCombatFrame: () => null },
@@ -170,6 +172,18 @@ const { RaidScenePresentation } = load('raid/scenePresentation.ts', {
   './assets': {}, './fighterHulls': {}, './liveHullBridge': {}, './enemyHulls': { enemyHullKey: () => undefined, ENEMY_HULL_SPECS: {} },
 }, { document, performance: { now: () => now } })
 const scene = new RaidScenePresentation()
+const cruise = { phase: 'playing', enemies: [], hostileShots: 100, player: { ...player, ship: { key: 'fast' }, engineBoost: 0 },
+  stage: 7, landscape: false, stageClear: false }
+const normal = new RaidScenePresentation()
+normal.update(cruise)
+const sectorGain = loops.get('sector'), engineGain = loops.get('engine'), pressure = scorePressure
+const approaching = new RaidScenePresentation()
+approaching.update({ ...cruise, quietGain: .25 })
+assert.equal(loops.get('sector'), sectorGain * .25)
+assert.equal(loops.get('engine'), engineGain)
+assert.equal(scorePressure, pressure * .5)
+approaching.update({ ...cruise, enemies: [{ isBoss: true, hp: 10, maxHp: 10 }] })
+assert.equal(loops.get('sector'), .055, 'reveal held the ambience duck into the boss fight')
 for (let id = 1; id <= 40; id++) scene.defeat({ id, x: 50, y: 50, radius: 3, isBoss: id === 40 })
 assert.equal(scene.snapshot().length, 12, 'snapshot destruction history must remain bounded')
 const count = cues.length

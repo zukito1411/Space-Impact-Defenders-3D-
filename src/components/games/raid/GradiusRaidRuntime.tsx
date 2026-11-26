@@ -43,6 +43,7 @@ import { getCampaignBossKind, getGenericBossArt } from './bossCatalog'
 import { pickGameplayWreckVariant } from './wreckVariety'
 import { getRaidStageEntrySeconds } from './journey'
 import { COSMIC_REGIONS, cosmicRegionIndex } from './cosmos'
+import { raidRevealGain } from './sectorAtmosphere'
 import { CosmosPresentation } from './CosmosPresentation'
 import { missileLaunchScale, homingCruiseSpeed, missileVisualScale } from './missilePresentation'
 import { MissileSmokeTrails } from './missileSmoke'
@@ -403,6 +404,7 @@ export function GradiusRaid({
   const raidBgmPlayRef = useRef<Promise<void> | null>(null)
   const bgmFadeRef = useRef(0)
   const raidBgmTargetVolumeRef = useRef(0)
+  const raidBgmQuietGainRef = useRef(1)
   const raidBgmDuckAnimationRef = useRef(0)
   const raidBgmDuckRestoreTimerRef = useRef(0)
   const raidBgmDuckRestoreAtRef = useRef(0)
@@ -667,6 +669,7 @@ export function GradiusRaid({
     guestPointer: cloneVec(remotePointerVisualRef.current),
     stageClear: stageClearRef.current,
     journeyAge: journeyStageAgeRef.current,
+    bossApproachRemaining: bossTimerRef.current,
     stageEntry: stageEntryRef.current,
     carrierLaunch: initialLaunchRef.current,
     carrierStop: carrierStopRef.current,
@@ -869,6 +872,7 @@ export function GradiusRaid({
       resetGuestPredictionState()
     }
     if (Number.isFinite(state.journeyAge)) journeyStageAgeRef.current = Math.max(0, state.journeyAge!)
+    bossTimerRef.current = Number.isFinite(state.bossApproachRemaining) ? Math.max(0, state.bossApproachRemaining!) : Infinity
     if (Number.isFinite(state.stageEntry)) stageEntryRef.current = Math.max(0, state.stageEntry!)
     unlockedStageRef.current = state.unlockedStage
     nukeFlashRef.current = state.nukeFlash
@@ -1491,7 +1495,7 @@ export function GradiusRaid({
     const releaseDucker = registerGameSoundDucker((kind) => {
       const profile = getGameSoundBgmDuckProfile(kind)
       const audio = raidBgmElementRef.current
-      const targetVolume = raidBgmTargetVolumeRef.current
+      const targetVolume = raidBgmTargetVolumeRef.current * raidBgmQuietGainRef.current
       if (!profile || !audio || audio.paused || targetVolume <= 0) return
       if (raidBgmDuckRestoreTimerRef.current) window.clearTimeout(raidBgmDuckRestoreTimerRef.current)
       const now = getNow()
@@ -1502,7 +1506,7 @@ export function GradiusRaid({
         raidBgmDuckRestoreTimerRef.current = 0
         raidBgmDuckRestoreAtRef.current = 0
         if (raidBgmElementRef.current === audio) {
-          setRaidBgmVolumeSmooth(audio, raidBgmTargetVolumeRef.current, profile.releaseMs)
+          setRaidBgmVolumeSmooth(audio, raidBgmTargetVolumeRef.current * raidBgmQuietGainRef.current, profile.releaseMs)
         }
       }, Math.max(0, raidBgmDuckRestoreAtRef.current - now))
     })
@@ -1534,6 +1538,7 @@ export function GradiusRaid({
     raidBgmDuckRestoreTimerRef.current = 0
     raidBgmDuckRestoreAtRef.current = 0
     raidBgmTargetVolumeRef.current = 0
+    raidBgmQuietGainRef.current = 1
     if (raidBgmElementRef.current) {
       raidBgmElementRef.current.pause()
       raidBgmElementRef.current.currentTime = 0
@@ -1573,12 +1578,13 @@ export function GradiusRaid({
     raidBgmStageRef.current = stage
     raidBgmTrackRef.current = track
     raidBgmBossKindRef.current = bossKind
+    if (mode !== 'cruise' && mode !== 'combat') raidBgmQuietGainRef.current = 1
 
     const mix = getGameAudioMixSettings()
     raidBgmTargetVolumeRef.current = RAID_BGM_LEVEL[mode] * mix.master * mix.bgm
     if (sameTrack) {
       if (mode !== previousMode && !bgmFadeRef.current && !raidBgmDuckRestoreTimerRef.current) {
-        audio.volume = raidBgmTargetVolumeRef.current
+        audio.volume = raidBgmTargetVolumeRef.current * raidBgmQuietGainRef.current
       }
       resumeRaidBgm()
       return
@@ -1607,7 +1613,7 @@ export function GradiusRaid({
     const fade = (time: number) => {
       const progress = Math.max(0, Math.min(1, (time - started) / 360))
       if (!raidBgmDuckRestoreTimerRef.current && !raidBgmDuckAnimationRef.current) {
-        audio.volume = raidBgmTargetVolumeRef.current * progress
+        audio.volume = raidBgmTargetVolumeRef.current * raidBgmQuietGainRef.current * progress
       }
       bgmFadeRef.current = progress < 1 ? requestAnimationFrame(fade) : 0
     }
@@ -7870,12 +7876,23 @@ export function GradiusRaid({
       const session = multiplayerSessionRef.current
       const own = session && !session.isHost ? remotePlayerRef.current ?? playerRef.current : playerRef.current
       const ally = session && !session.isHost ? playerRef.current : remotePlayerRef.current
-      scenePresentation.update({ phase: phaseRef.current, stage: stageRef.current,
-        carrier: Boolean(initialLaunchRef.current || carrierStopRef.current?.remaining), stageClear: stageClearRef.current > 0,
+      const stage = stageRef.current
+      const carrier = Boolean(initialLaunchRef.current || carrierStopRef.current?.remaining)
+      const stageClear = stageClearRef.current > 0
+      // Scripted first contact and the Devil Gundam encounter keep their cues.
+      const quietGain = phaseRef.current === 'playing' && raidModeRef.current === 'campaign' &&
+        stage > 1 && stage <= MAX_RAID_STAGE && !carrier && !stageClear && stageEntryRef.current <= 0 &&
+        randomEventRef.current?.kind !== 'ambush' ? raidRevealGain(bossTimerRef.current) : 1
+      const bgm = raidBgmElementRef.current
+      raidBgmQuietGainRef.current = quietGain
+      const targetVolume = raidBgmTargetVolumeRef.current * quietGain
+      if (bgm && Math.abs(bgm.volume - targetVolume) > .001 && !bgmFadeRef.current &&
+        !raidBgmDuckRestoreTimerRef.current && !raidBgmDuckAnimationRef.current) bgm.volume = targetVolume
+      scenePresentation.update({ phase: phaseRef.current, stage, carrier, stageClear,
         player: own, ally, enemies: enemiesRef.current, hostileShots: enemyShotsRef.current.length,
         event: randomEventRef.current?.kind, landscape: landscapeRef.current,
         elite: getCachedEquippedCosmetics(own.ship.key).frame,
-        bgm: raidBgmElementRef.current, track: raidBgmTrackRef.current ?? '',
+        bgm, track: raidBgmTrackRef.current ?? '', quietGain,
       })
     }
     const timer = window.setInterval(sync, 180)
@@ -8031,7 +8048,9 @@ export function GradiusRaid({
     if (audio && mode) {
       const targetVolume = RAID_BGM_LEVEL[mode] * nextMix.master * nextMix.bgm
       raidBgmTargetVolumeRef.current = targetVolume
-      if (!bgmFadeRef.current && raidBgmDuckRestoreTimerRef.current <= 0) audio.volume = targetVolume
+      if (!bgmFadeRef.current && raidBgmDuckRestoreTimerRef.current <= 0 && !raidBgmDuckAnimationRef.current) {
+        audio.volume = targetVolume * raidBgmQuietGainRef.current
+      }
     }
   }
   const audioMixControls: Array<{ key: keyof AudioMixSettings; label: string }> = [

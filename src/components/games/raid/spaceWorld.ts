@@ -91,7 +91,10 @@ export class SpaceCamera {
     const sx = visible ? (x - this.width * .5) / this.focal : -.61
     const sy = visible ? (y - this.height * .5) / this.focal : -.49
     // A sun visible ahead lights the far side; an unseen key lights the front.
-    const sz = visible ? -1 : .62
+    this.setSunDirection(sx, sy, visible ? -1 : .62)
+  }
+
+  setSunDirection(sx: number, sy: number, sz: number) {
     const length = Math.hypot(sx, sy, sz)
     // Keep the current light while paused; seed the very first frame directly.
     const blend = this.frame <= 1 || this.reducedMotion ? 1 : 1 - Math.exp(-this.deltaSeconds * 2)

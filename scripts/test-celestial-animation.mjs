@@ -16,17 +16,18 @@ vm.runInNewContext(compile('celestialMotion.ts'), { exports: motion, require:nam
 } })
 const sample = (i,t,planet=true,reduced=false) => motion.sampleCelestialStar(i,844,390,t,planet,reduced,{})
 for (let i=0;i<64;i++) {
-  const samples=Array.from({length:180},(_,n)=>sample(i,n/10))
+  const samples=Array.from({length:1080},(_,n)=>sample(i,n/60))
   const alphas=samples.map(frame=>frame.alpha)
-  const seed=(i*.61803398875+.071)%1,group=(seed*91.37)%1
   const variation=Math.max(...alphas)-Math.min(...alphas)
-  if(group<.08)assert.ok(variation<1e-9,'steady star changed brightness')
-  else assert.ok(variation>.2,'variable star never visibly brightened')
-  for(let n=1;n<samples.length;n++) assert.ok(Math.abs(alphas[n]-alphas[n-1])<.3,'star blinked with an abrupt flash')
+  assert.ok(variation>.2,'star never visibly brightened')
+  for(let n=1;n<samples.length;n++) assert.ok(Math.abs(alphas[n]-alphas[n-1])<.09,'star blinked with an abrupt flash')
   assert.ok(samples.every(frame=>frame.y>0&&frame.y<390*.55),'planet stars spilled into terrain')
   assert.equal(sample(i,1).x,sample(i,100).x,'planet stars followed the wind instead of remaining in the sky')
   assert.equal(sample(i,1,true,true).x,sample(i,100,true,true).x,'reduced motion moved stars')
 }
+const origin=sample(19,1,false), distant=sample(19,6,false)
+const drift=Math.hypot(distant.x-origin.x,distant.y-origin.y)
+assert.ok(drift>0&&drift<4,`Distant star crossed ${drift.toFixed(2)} pixels in five seconds`)
 assert.notEqual(sample(0,1).alpha,sample(1,1).alpha,'twinkles were synchronized')
 const clock = new motion.CelestialClock()
 const start=clock.advance(1000,false,false)
@@ -39,7 +40,7 @@ class Sprite extends Container {anchor=new Point();position=new Point()}
 const art=Array.from({length:4},(_,id)=>({id}))
 const renderer={}
 assert.ok(!/\bGraphics\b|\.poly\(|\.circle\(|\.ellipse\(/.test(read('celestialScenery.ts')),'new celestial detail must use raster artwork')
-vm.runInNewContext(compile('celestialScenery.ts'),{exports:renderer,require:name=>name==='./celestialMotion'?motion:name==='./celestialArt'?{getCelestialArt:i=>art[i]}:{Container,Sprite,Texture:{WHITE:{}}}})
+vm.runInNewContext(compile('celestialScenery.ts'),{exports:renderer,require:name=>name==='./celestialMotion'?motion:name==='./starVariability'?variability:name==='./celestialArt'?{getCelestialArt:i=>art[i]}:{Container,Sprite,Texture:{WHITE:{}}}})
 const scene=new renderer.CelestialScenery(),warmAllocations=allocations
 const draw=(time,region=0,quality='high',reduced=false,planet=false)=>scene.update(844,390,time,region,quality,reduced,planet)
 draw(0);draw(3)

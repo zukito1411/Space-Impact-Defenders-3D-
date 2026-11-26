@@ -408,6 +408,7 @@ export type MultiplayerHostState = {
   hostPointer: Vec | null
   guestPointer: Vec | null
   journeyAge?: number
+  bossApproachRemaining?: number
   stageEntry?: number
   carrierLaunch?: boolean
   carrierStop?: CarrierStop | null

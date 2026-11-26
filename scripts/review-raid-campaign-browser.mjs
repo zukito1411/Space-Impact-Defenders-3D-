@@ -22,6 +22,7 @@ const verifyHullLamps=process.env.RAID_REVIEW_HULL_LAMP_CHECK==='1'
 const verifyEnemyBanking=process.env.RAID_REVIEW_ENEMY_BANK_CHECK==='1'
 const verifyCloudsCrosswing=process.env.RAID_REVIEW_CLOUD_WING_CHECK==='1'
 const verifyMobs=process.argv.includes('--verify-mobs')
+const verifyAtmosphere=process.argv.includes('--verify-space-atmosphere')
 const frames=Number(process.env.RAID_REVIEW_FRAMES ?? 24)
 assert.ok(Number.isInteger(frames)&&frames>=12&&frames<=180)
 const source=await readFile('src/components/games/raid/GradiusRaidRuntime.tsx','utf8')
@@ -58,7 +59,7 @@ try {
   browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH,
     args:['--no-sandbox','--enable-unsafe-swiftshader','--use-angle=swiftshader']})
   const specialChecks=[],mobChecks=[],bankingCaptures=[]
-  for(const landscape of (capturesOnly&&!verifySpecial&&!verifyMobs&&!verifyTerrain&&!verifyPlanetDetail&&!verifyKeels&&!verifyCloudsCrosswing&&!verifyEnemyBanking&&!verifyHullLamps ? [true] : [true,false])) {
+  for(const landscape of (capturesOnly&&!verifySpecial&&!verifyMobs&&!verifyTerrain&&!verifyPlanetDetail&&!verifyKeels&&!verifyCloudsCrosswing&&!verifyEnemyBanking&&!verifyHullLamps&&!verifyAtmosphere ? [true] : [true,false])) {
     const view=landscape?'landscape':'portrait'
     const page=await browser.newPage({viewport:landscape?(desktop?{width:1920,height:1080}:{width:844,height:390}):{width:393,height:852},
       deviceScaleFactor:1,hasTouch:!desktop,reducedMotion:'no-preference'})
@@ -212,6 +213,10 @@ try {
     },{names:refNames,resetRefs})
     await page.evaluate(async()=>{await new Promise(window.reviewRAF);await new Promise(window.reviewRAF)})
     assert.equal(await page.evaluate(()=>typeof window.reviewLoop),'function')
+    if(verifyAtmosphere) {
+      const {checkSpaceAtmosphere}=await import('./check-space-atmosphere.mjs')
+      await checkSpaceAtmosphere(page,output,view)
+    }
     if(process.env.RAID_REVIEW_LIGHTING_CHECK==='1') {
       const {checkCombatLighting}=await import('./check-combat-lighting.mjs')
       await checkCombatLighting(page,output)

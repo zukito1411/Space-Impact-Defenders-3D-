@@ -15,7 +15,7 @@ import type { DestructionPresentationEvent, Enemy, GamePhase, Player, PlayerFeed
 type SceneState = {
   phase: GamePhase; stage: number; carrier: boolean; stageClear: boolean; player: Player; ally: Player | null
   enemies: readonly Enemy[]; hostileShots: number; event?: RaidRandomEventKind; landscape: boolean; elite: boolean
-  bgm: HTMLAudioElement | null; track: string
+  bgm: HTMLAudioElement | null; track: string; quietGain?: number
 }
 type Burst = DestructionPresentationEvent & { at: number; poseSeconds: number; profile: DestructionProfile; finalePlayed: boolean }
 
@@ -113,12 +113,13 @@ export class RaidScenePresentation {
     }
     this.lastPhase = state.phase
     const active = state.phase === 'playing' && !state.carrier
+    const quietGain = state.quietGain ?? 1
     const alive = state.enemies.filter(enemy => enemy.hp > 0)
     const boss = alive.find(enemy => enemy.isBoss)
     const target = state.stageClear || !active ? 0 : boss ? .65 + (1 - boss.hp / Math.max(1, boss.maxHp)) * .35
       : Math.min(1, alive.length / 22 + state.hostileShots / 100)
     this.pressure += (target - this.pressure) * (target > this.pressure ? .24 : .14)
-    this.score.update(state.bgm, state.track, this.pressure, active && !state.stageClear)
+    this.score.update(state.bgm, state.track, this.pressure * Math.sqrt(quietGain), active && !state.stageClear)
     if (!active) { this.sounds.stop(); return }
     const now = performance.now()
     const engine = (pilot: Player | null, slot: string, gain: number) => {
@@ -140,8 +141,8 @@ export class RaidScenePresentation {
     const sector = state.event === 'ion' ? 'ion' : state.event === 'wreck' ? 'wreck'
       : state.stage === 5 || state.stage === 9101 ? 'ocean' : state.stage === 10 || state.stage === 9102 ? 'volcanic'
         : (['stellar', 'asteroid', 'wreck', 'ion'] as const)[region]
-    this.sounds.loop('sector', `sector-${sector}`, (boss ? .055 : .105) * (state.stageClear ? .45 : 1), 1, 0, 'bgm')
-    if (!boss && !state.stageClear && now >= this.nextAmbience) {
+    this.sounds.loop('sector', `sector-${sector}`, (boss ? .055 : .105) * (state.stageClear ? .45 : quietGain), 1, 0, 'bgm')
+    if (!boss && !state.stageClear && quietGain === 1 && now >= this.nextAmbience) {
       this.nextAmbience = now + 17000 + region * 3100
       this.sounds.play(region >= 2 ? 'radio-fragment' : 'hull-tick', .09, Math.sin(now / 4000) * .6, 'bgm', 0, 0, 15000)
     }
