@@ -78,22 +78,9 @@ export function drawCommandBossEnergy(ctx: CanvasRenderingContext2D, enemy: Enem
     ctx.restore()
   }
 
-  const motionReduced = prefersRaidReducedMotion()
-  const phaseAge = age - (enemy.bossPhaseStartedAge ?? -Infinity)
-  if (phaseAge >= 0 && phaseAge < .42 && enemy.bossAttackState === 'warning') {
-    const progress = phaseAge / .42
-    const diameter = size * (motionReduced ? .52 : .45 + progress * .37)
-    drawBossFx(ctx, BOSS_FX.pulse, toX(enemy.x), toY(enemy.y + 4), diameter, diameter, .45 * (1 - progress), 0, true)
-  }
-  if (enemy.bossAttackState === 'warning') {
-    const progress = 1 - (enemy.bossAttackTimer ?? 0) / Math.max(.01, enemy.bossWarningSeconds ?? 1)
-    const diameter = Math.max(12, size * (motionReduced ? .22 : .17 + progress * .1))
-    drawBossFx(ctx, BOSS_FX.pulse, toX(enemy.bossAttackX ?? enemy.x), toY((enemy.bossAttackY ?? enemy.y) + 6),
-      diameter, diameter, .45 + progress * .38, 0, true)
-  }
-
   const volleyAge = age - (enemy.bossLastVolleyAge ?? -Infinity)
   if (volleyAge >= 0 && volleyAge < .18) {
+    const motionReduced = prefersRaidReducedMotion()
     const count = writeCommandVolley(enemy, preview, Math.max(0, (enemy.bossBurstIndex ?? 1) - 1))
     const progress = volleyAge / .18
     const diameter = Math.max(12, size * .15) * (motionReduced ? 1 : 1 + progress * .5)
