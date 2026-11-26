@@ -22,9 +22,11 @@ function advance(ms) {
 }
 class Audio {
   paused = true; currentTime = 0; volume = 1
-  constructor(url) { this.src = url; media.push(this) }
+  constructor(url) { this.src = this.initialSrc = url; media.push(this) }
   play() { this.paused = false; return new Promise((resolve, reject) => { this.resolve = () => { this.paused = false; resolve() }; this.reject = reject }) }
   pause() { this.paused = true }
+  removeAttribute(name) { if (name === 'src') this.src = '' }
+  load() { this.loadCount = (this.loadCount ?? 0) + 1 }
 }
 const param = () => ({ value: 0, setValueAtTime() {}, exponentialRampToValueAtTime() {} })
 class Context {
@@ -80,9 +82,27 @@ const before = media.length
 for (let i = 0; i < 60; i++) { sound.playGameSound('laser'); advance(1000 / 60) }
 assert.ok(media.length - before <= 13, 'rapid fire created excessive laser voices')
 assert.ok(media.filter(audio => !audio.paused).length <= 3)
-assert.ok(media.slice(before).every(audio => audio.src.endsWith('/sfx_laser.wav')))
+assert.ok(media.slice(before).every(audio => audio.initialSrc.endsWith('/sfx_laser.wav')))
 sound.stopGameSounds()
 assert.ok(media.every(audio => audio.paused))
+
+// Media that hasn't finished loading never fires ended. A continuous run
+// should release old voices even when no spatial audio bus is available.
+const beforeStall = media.length
+for (let i = 0; i < 240; i++) { sound.playGameSound('shoot'); advance(34) }
+const stalled = media.slice(beforeStall)
+assert.ok(stalled.filter(audio => !audio.paused).length <= 6, 'autofire left too many pending media players')
+assert.ok(stalled.filter(audio => audio.paused).every(audio => audio.src === '' && audio.loadCount === 1), 'retired players left their media resource open')
+sound.stopGameSounds()
+assert.ok(stalled.every(audio => audio.src === '' && audio.loadCount === 1))
+
+const overlappingKinds = ['shoot', 'hit', 'rocket', 'artillery', 'pop', 'combo', 'levelup', 'countdown']
+for (let i = 0; i < 10; i++) {
+  for (const kind of overlappingKinds) sound.playGameSound(kind)
+  advance(40)
+}
+assert.equal(media.filter(audio => !audio.paused).length, 32, 'stalled cues exceeded the shared media budget')
+sound.stopGameSounds()
 
 // Missing optional samples use synthesized cues; pending notes must also stop.
 sound.setGameSoundPack({ sfx: { gameover: '' } })

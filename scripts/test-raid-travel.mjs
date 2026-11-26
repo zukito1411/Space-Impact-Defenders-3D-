@@ -94,6 +94,11 @@ for (const [difficulty, expected] of [['easy',6],['normal',9],['hard',10],['expe
  assert.equal(ambush.getRaidAmbushWaveSize(difficulty,1,32),0)
 }
 assert.ok(2*ambush.RAID_AMBUSH_WAVE_SPACING < ambush.getRandomEventDuration('ambush'))
+for (let pick = 0; pick < 20; pick++) {
+ const next = ambush.pickNextRandomRaidEventKind(4, false, 'solar', [{ kind: 'ion' }, { kind: 'rift' }])
+ assert.ok(next && !['rift', 'ion', 'solar'].includes(next), 'an overlapping event must have a distinct kind')
+}
+assert.equal(ambush.pickNextRandomRaidEventKind(2, false, 'wreck', [{ kind: 'ion' }, { kind: 'meteor' }]), 'wreck')
 console.log('Ambush: three waves, alternating flank lanes, difficulty counts and live enemy cap passed')
 
 const runtime = read('GradiusRaidRuntime.tsx')
@@ -107,14 +112,13 @@ export function playAmbush(difficulty, initialEnemies = 0) {
  const spawned=[];
  const stageRef={current:7}, waveRef={current:7}, raidDifficultyRef={current:difficulty};
  const enemiesRef={current:Array.from({length:initialEnemies},()=>({hp:100,isMiniBoss:false}))};
- const randomEventSpawnTimerRef={current:0};
  const pickEliteEnemyKind=()=> 'lancer', getMaxActiveEliteEnemies=()=>1, isCoOpActive=()=>false;
  const spawnEnemyAt=(x,y,wave,pattern,slot,style,elite)=>{
   spawned.push({x,y,elite});
   enemiesRef.current.push({hp:100,isMiniBoss:Boolean(elite)});
  };
  for(let round=0;round<4;round++){
-  if(randomEventSpawnTimerRef.current>=activeRandomEvent.duration) break;
+  if(activeRandomEvent.spawnIn>=activeRandomEvent.duration) break;
  ` + ambushBody + `
  }
  return spawned;
@@ -126,6 +130,50 @@ assert.equal(normalAmbush.length,9)
 assert.equal(normalAmbush.filter(enemy=>enemy.elite).length,1)
 assert.ok(normalAmbush.every(enemy=>enemy.y<0))
 assert.equal(integratedAmbush.playAmbush('expert',30).length,2,'the actual spawn path must respect the live enemy cap')
+
+// Run the production scheduling branches with an established asteroid field
+// and a space event already active.
+const asteroidScheduleStart = runtime.indexOf('    const cruiseApproach = authoredCruise')
+const asteroidScheduleEnd = runtime.indexOf('    let blackHole:', asteroidScheduleStart)
+const eventScheduleStart = runtime.indexOf("    const riftEvent = events.find", asteroidScheduleEnd)
+const eventScheduleEnd = runtime.indexOf('    const now = performance.now()', eventScheduleStart)
+assert.ok(asteroidScheduleStart >= 0 && asteroidScheduleEnd > asteroidScheduleStart)
+assert.ok(eventScheduleStart >= 0 && eventScheduleEnd > eventScheduleStart)
+const scheduleCode = ambushSource + `
+const ASTEROID_CLUSTER_MIN_SECONDS = 42, ASTEROID_CLUSTER_MAX_SECONDS = 64
+const RANDOM_EVENT_MIN_SECONDS = 34, RANDOM_EVENT_MAX_SECONDS = 56
+const ASTEROID_CLUSTER_WARNING_SECONDS = 3.2, ASTEROID_CLUSTER_SPAWN_DELAY_SECONDS = 1.35
+const MAX_ASTEROIDS = 16, CRUISE_BOSS_APPROACH_SECONDS = 7
+const playGameSound = () => {}, shouldForceLocalDerelictWreckTest = () => false
+export function schedule({ kinds = ['ion'], rocks = 1, due = false, delay = 0 } = {}) {
+ const dt = .1, canSpawnStageEnemies = true, bossActive = false, firstBlackHoleDue = due, authoredCruise = true
+ const ref = current => ({ current })
+ const events = kinds.map(kind => ({ kind }))
+ const asteroidsRef = ref(Array.from({ length: rocks }, () => ({})))
+ const asteroidApproachRef = ref(delay > 0 ? [{}] : []), asteroidSpawnDelayRef = ref(delay), asteroidWarningRef = ref(0), asteroidClusterTimerRef = ref(0)
+ const randomEventTimerRef = ref(.05), lastRandomEventKindRef = ref(kinds.at(-1)), localDerelictWreckTestTriggeredRef = ref(false)
+ const stageRef = ref(4), raidModeRef = ref('campaign'), bossTimerRef = ref(60)
+ const planAsteroidCluster = () => [{}], spawnAsteroidCluster = () => asteroidsRef.current.push(...asteroidApproachRef.current)
+ const startRandomRaidEvent = kind => events.push({ kind })
+ ` + runtime.slice(asteroidScheduleStart, asteroidScheduleEnd) + runtime.slice(eventScheduleStart, eventScheduleEnd) + `
+ return { events: events.map(event => event.kind), rocks: asteroidsRef.current.length,
+   asteroidWarning: asteroidWarningRef.current, eventTimer: randomEventTimerRef.current }
+}`
+const scheduleApi = await import('data:text/javascript;base64,' +
+ Buffer.from(ts.transpileModule(scheduleCode, { compilerOptions: { module: ts.ModuleKind.ESNext } }).outputText).toString('base64'))
+const simultaneous = scheduleApi.schedule({ due: true })
+assert.deepEqual(simultaneous.events, ['ion', 'rift'])
+assert.equal(simultaneous.rocks, 1)
+assert.ok(simultaneous.asteroidWarning > 0)
+assert.equal(simultaneous.eventTimer, 0, 'a due event must remain queued if both slots are occupied')
+const arrival = scheduleApi.schedule({ delay: .05, kinds: ['rift'] })
+assert.equal(arrival.rocks, 2, 'an underway asteroid cluster must arrive during a Black Hole')
+assert.equal(arrival.events.length, 2, 'an asteroid arrival must not veto a due space event')
+assert.equal(arrival.events[0], 'rift')
+assert.notEqual(arrival.events[1], 'rift')
+assert.equal(scheduleApi.schedule({ rocks: 16 }).asteroidWarning, 0)
+assert.equal(scheduleApi.schedule({ rocks: 16 }).events.length, 2, 'a full asteroid budget must not block a space event')
+console.log('Raid scheduling: established rocks, asteroid arrivals, independent clocks and simultaneous event slots passed')
 
 const hazardCode = ts.transpileModule(
   'const RANDOM_EVENT_WARNING_SECONDS = 2.45; const clamp = (n, min, max) => Math.max(min, Math.min(n, max));\n' + ambushSource,

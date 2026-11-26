@@ -24,7 +24,7 @@ import { COMBAT_TILE, getRaidCombatFrame } from './combatArt'
 import { getWreckTexture, preloadWreckArt } from './wreckArt'
 import { sceneryWreckDesign, wreckRunSeed } from './wreckVariety'
 import { createSurfaceCameraFrame, sampleSurfaceCamera, getSurfaceIslandY, positiveSurfaceModulo } from './surfaceMotion'
-import { getSurfaceTerrain, preloadSurfaceArt } from './surfaceArt'
+import { getPlanetWeatherArt, getSurfaceTerrain, preloadSurfaceArt } from './surfaceArt'
 import { createRaidJourneyView, sampleRaidJourney } from './journey'
 import type { RaidJourneyInput } from './journey'
 import { sceneryTint, PLANET_DEPTH } from './sceneryMaterial'
@@ -1097,9 +1097,19 @@ export class PixiRaidBackground {
       host.appendChild(canvas)
       await this.loadAssets()
       if (this.destroyed || this.app !== app) return false
-      const adrian = this.assetTextures.get('planetAdrian')
       const sceneryTextures = [...this.paintedStarMaps.values()]
-      for (const texture of [adrian, getJourneyPlanet(0), getSurfaceTerrain(0), getSurfaceTerrain(1)]) {
+      // A first or repeated upload of these images can block a flight frame.
+      // Keep the shared scenery sources resident across quiet sectors.
+      const returningScenery = [
+        this.assetTextures.get('planetAdrian'), getWreckTexture(0), getWreckTexture(4),
+        getPlanetWeatherArt(0), getCosmosLandmark(0),
+      ]
+      for (const texture of returningScenery) {
+        if (!texture) continue
+        texture.source.autoGarbageCollect = false
+        sceneryTextures.push(texture)
+      }
+      for (const texture of [getJourneyPlanet(0), getSurfaceTerrain(0), getSurfaceTerrain(1)]) {
         if (texture) sceneryTextures.push(texture)
       }
       await app.renderer.prepare.upload(sceneryTextures)

@@ -5,6 +5,7 @@ import ts from 'typescript'
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8')
 const load=(source,jsx=false)=>import('data:text/javascript;base64,'+Buffer.from(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022,jsx:jsx?ts.JsxEmit.React:undefined}}).outputText).toString('base64'))
 const catalogSource=read('src/components/games/raid/bossCatalog.ts').replace(/^import .*\n/gm,'')
+const specialSource=read('src/components/games/raid/specialBossCatalog.ts').replace(/^import .*\n/gm,'')
 const commandSource=read('src/components/games/raid/commandBoss.ts').replace(/^import .*\n/gm,'')
 const catalog=await load(catalogSource)
 const {CAMPAIGN_BOSS_ART,GENERIC_BOSS_KINDS,getGenericBossArt,getCampaignBossKind}=catalog
@@ -71,8 +72,8 @@ await Promise.all(entries.map(e=>e.ready))
 for(let t=0;t<100;t++)for(const a of CAMPAIGN_BOSS_ART)assert.equal(images.getGenericBossCanvasSprite(a.kind,a.stage),entries[stages.indexOf(a.stage)])
 assert.equal(images.made,12);assert.ok(entries.every(e=>e.loaded&&!e.processedImage))
 assert.equal(new Set(entries.map(e=>e.cacheKey)).size,12)
-// Production bodies use the registered 3D hull; special bosses never submit a mesh.
-const hullSources = catalogSource +
+// Production bodies use registered hulls and preserve the special-boss artwork.
+const hullSources = catalogSource + specialSource +
   read('src/components/games/raid/stageEncounters.ts').replace(/^import .*\n/gm,'') +
   read('src/components/games/raid/fighterHulls.ts').replace(/^import .*\n/gm,'') +
   read('src/components/games/raid/enemyHulls.ts').replace(/^import .*\n/gm,'')
@@ -89,11 +90,11 @@ for(const landscape of [false,true])for(const a of CAMPAIGN_BOSS_ART){
  assert.equal(size,260);assert.equal(alpha,1);assert.equal(view,landscape);assert.equal(id,'enemy:'+a.stage)
 }
 assert.equal(renderer.calls.length,24)
-for(const kind of ['squid','snake','final','devil']){
- renderer.drawGenericBossShip(ctx,{isBoss:true,bossKind:kind},0,0,250,0,1,1)
- assert.equal(renderer.enemyHullKey({isBoss:true,bossKind:kind}),null)
+for (const kind of ['squid', 'snake', 'final']) {
+ const key = renderer.enemyHullKey({isBoss:true,bossKind:kind})
+ assert.equal(renderer.ENEMY_HULL_SPECS[key].special,kind)
 }
-assert.equal(renderer.calls.length,24,'special boss was converted to 3D')
+assert.equal(renderer.enemyHullKey({isBoss:true,bossKind:'devil'}),null)
 for(let variant=0;variant<14;variant++)assert.ok(renderer.ENEMY_HULL_SPECS[renderer.normalEnemyHullKey(variant)])
 for(let variant=0;variant<5;variant++){
  const key=renderer.enemyHullKey({isMiniBoss:true,variant})
@@ -101,13 +102,15 @@ for(let variant=0;variant<5;variant++){
 }
 console.log('Campaign boss identities, registered 3D bodies, regular/elite coverage and special-boss exclusions passed')
 // Verify drawRaidEnemy routes all ordinary bosses to the new body and preserves special render paths.
-const enemyRender=await load(`
+const enemyRender=await load(specialSource+`
 export const paths=[];
 const DEG=Math.PI/180,STAGE_CLEAR_SECONDS=3.15,clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-const getEnemyCanvasSize=()=>250,getStageBossIntroProgress=()=>1;
-const drawGenericBossShip=(ctx,enemy)=>paths.push(['generic',enemy.bossKind,enemy.bossArtStage]);
-const drawCachedStageBossBody=(ctx,kind)=>paths.push([kind]);
-const drawFinalBossSpriteBody=()=>paths.push(['final']),drawDevilGundamBoss=()=>paths.push(['devil']);
+const getEnemyCanvasSize=()=>250,getStageBossIntroProgress=()=>1,ORGANIC_BOSS_VIEW_YAW=.5;
+const drawGenericBossShip=(ctx,enemy,x,y,size,angle,scale,alpha)=>paths.push(['generic',enemy.bossKind,enemy.bossArtStage,alpha]);
+const drawLiveHull=(ctx,key)=>paths.push([key]);
+const drawDevilGundamBoss=()=>paths.push(['devil']);
+const sampleCommandBossCloak=enemy=>enemy.bossManeuver==='cloak' ? 1 : 0;
+const getCommandBossHullOpacity=enemy=>enemy.bossManeuver==='cloak' ? 0 : 1;
 const drawEnemyHitFlash=()=>{},drawBossShield=()=>{},drawCachedBossBar=()=>{},drawCommandBossTelegraph=()=>{},drawCommandBossEnergy=()=>{},drawCommandBossHealthBar=()=>{},drawHullDamage=()=>{},prefersRaidReducedMotion=()=>false;
 const drawSquidWhipStrike=()=>{},drawSnakeVenomTelegraph=()=>{};
 const getNormalAlienCanvasSprite=()=>{throw Error('boss borrowed a normal model')};
@@ -118,7 +121,9 @@ for(const art of CAMPAIGN_BOSS_ART)for(const id of [0,1,1001])enemyRender.drawRa
 assert.equal(enemyRender.paths.length,36)
 assert.ok(enemyRender.paths.every(p=>p[0]==='generic'&&stages.includes(p[2])))
 for(const kind of ['squid','snake','final','devil'])enemyRender.drawRaidEnemy(frameCtx,{bossKind:kind,isBoss:true,hp:100,maxHp:100,x:50,y:18,shieldTime:0,chargeTimer:0},v=>v,v=>v,1280,100,'none')
-assert.deepEqual(enemyRender.paths.slice(-4).map(p=>p[0]),['squid','snake','final','devil'])
+assert.deepEqual(enemyRender.paths.slice(-4).map(p=>p[0]),['abyssSquidHull','serpentGuardianHull','mirageMothershipHull','devil'])
+enemyRender.drawRaidEnemy(frameCtx,{id:13,bossKind:'carrier',bossArtStage:13,bossManeuver:'cloak',isBoss:true,hp:100,maxHp:100,x:50,y:18,shieldTime:0,chargeTimer:0},v=>v,v=>v,390,100,'none')
+assert.deepEqual(enemyRender.paths.at(-1),['generic','carrier',13,0])
 // Execute real almanac entry construction and JSX, with simple React nodes (no browser).
 const localization=await load(read('src/i18n.ts'))
 const progression=read('src/components/ProgressionScreen.tsx')
@@ -173,7 +178,7 @@ for(const language of ['en','zh','ja','ko']) {
  }
 }
 // New portraits must return the same art URL as battle and must allocate zero animation loops/prewarms.
-const preview=await load(catalogSource+`
+const preview=await load(catalogSource+specialSource+`
 export let rafs=0,warms=0;
 const React={createElement:(type,props)=>({type,props})};
 const useRef=()=>({current:null}),useEffect=fn=>fn();
@@ -185,7 +190,8 @@ for(const a of CAMPAIGN_BOSS_ART) {
  assert.equal(node.type,'img');assert.equal(node.props.src,a.assetPath);assert.equal(node.props.loading,'lazy')
 }
 assert.equal(preview.rafs,0);assert.equal(preview.warms,0)
-assert.equal(preview.BossBriefingCanvas({kind:'squid'}).type,'canvas')
+assert.equal(preview.BossBriefingCanvas({kind:'squid'}).type,'img')
+assert.equal(preview.BossBriefingCanvas({kind:'devil'}).type,'canvas')
 assert.equal(preview.rafs,1);assert.equal(preview.warms,1)
 console.log('Boss integration/almanac: real enemy routing, 15 ordered campaign cards plus anomaly, stable keys, unlock gates, all 4 locales, matching static portraits and zero added portrait loops passed')
 // Production asset integrity, genuine alpha WebP and bounded native dimensions.

@@ -23,8 +23,8 @@ export class EnemyTactics {
       if((enemy.isBoss || enemy.isMiniBoss) && enemy.hp/enemy.maxHp<.48) {
         if(!protectedHull || enemy.isBoss && !protectedHull.isBoss || enemy.isBoss===protectedHull.isBoss && enemy.hp/enemy.maxHp<protectedHull.hp/protectedHull.maxHp)protectedHull=enemy
       }
-      if (enemy.isMiniBoss && enemy.squadId !== undefined && enemy.cruiseEliteAge !== undefined) {
-        this.cruiseLeaders.set(enemy.squadId, enemy)
+      if (enemy.isMiniBoss && (enemy.cruiseEliteAge !== undefined || enemy.miniBossKind === 'brood')) {
+        this.cruiseLeaders.set(enemy.squadId ?? -enemy.id, enemy)
       }
       if(enemy.isBoss || enemy.isMiniBoss)continue
       const id=enemy.squadId ?? -enemy.id

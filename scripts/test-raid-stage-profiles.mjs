@@ -40,12 +40,12 @@ export function formation(stage, serial, liveEnemies = 0) {
   spawnFormation()
   return { enemies: enemiesRef.current.slice(liveEnemies), next: wingSerialRef.current }
 }
-export function cruise(stage, serial, { liveEnemies = 0, hazard = false, bossRemaining = 90 } = {}) {
+export function cruise(stage, serial, { liveEnemies = 0, bossRemaining = 90 } = {}) {
   stageRef.current = waveRef.current = stage
   wingSerialRef.current = serial
   bossTimerRef.current = bossRemaining
   enemiesRef.current = Array.from({ length: liveEnemies }, () => ({ hp: 1 }))
-  const interval = spawnCruiseEncounter(hazard)
+  const interval = spawnCruiseEncounter()
   return { enemies: enemiesRef.current.slice(liveEnemies), next: wingSerialRef.current, interval }
 }
 export function fire(enemy, target, queued = 0) {
@@ -145,8 +145,6 @@ for (let stage = 2; stage <= 15; stage++) {
     assert.equal(enemies.filter(enemy => enemy.isMiniBoss).length, 1)
     assert.ok(enemies.every(enemy => enemy.squadId === enemies[0].squadId))
     assert.ok(enemies.slice(1).every(enemy => enemy.cruiseManeuver === 'escort'))
-    assert.deepEqual(api.cruise(stage, slot, { hazard: true }).enemies, [])
-    assert.equal(api.cruise(stage, slot, { hazard: true }).next, slot)
     assert.equal(api.cruise(stage, slot, { bossRemaining: 14 }).next, slot + 1)
   }
   assert.equal(api.cruise(stage, 0, { liveEnemies: 31 }).next, 0)
@@ -172,14 +170,40 @@ assert.ok(escortGroup.slice(1).every(enemy => !enemy.tacticHoldFire))
 elite.hp = 0
 tactics.update(escortGroup, .1, 2, 1, { x: 50, y: 85 })
 assert.ok(escortGroup.slice(1).every(enemy => enemy.tacticHoldFire && enemy.tacticSpeed > 1))
-api.beginCruiseEliteAttack(elite, { x: 48, y: 82 })
-assert.equal(elite.chargeLane, 48)
-assert.ok(elite.chargeTimer >= 1)
-const charges = []
-assert.equal(api.fireCruiseLancer(elite, 3, shot => charges.push(shot)), false)
-assert.equal(api.fireCruiseLancer(elite, 4, shot => charges.push(shot)), true)
-assert.ok(charges.every(shot => shot.vx === 0 && Math.abs(shot.x - 48) < 4))
+const attackCycles = {
+  lancer: [['drill', 4], ['crossfire', 6], ['rail', 3]],
+  stalker: [['knives', 4], ['flank', 3], ['fan', 6]],
+  brood: [['launch', 0], ['pods', 4], ['screen', 6]],
+}
+for (const [kind, cycle] of Object.entries(attackCycles)) {
+  const boss = { ...elite, miniBossKind: kind, x: 23, y: 24, hp: elite.maxHp }
+  for (const [attack, shotCount] of [...cycle, cycle[0]]) {
+    const target = { x: 48, y: 82 }
+    api.beginCruiseEliteAttack(boss, target, true)
+    assert.equal(boss.miniBossAttack, attack)
+    assert.equal(boss.chargeTimer, api.getMiniBossWarningSeconds(attack))
+    assert.ok(boss.chargeTimer >= .9 && boss.chargeCooldown >= 1.5)
+    target.x = 80
+    assert.equal(boss.chargeLane, 48, 'moving during the warning must not retarget it')
+    const shots = []
+    const emit = shot => shots.push(shot)
+    assert.equal(api.fireCruiseEliteAttack(boss, shotCount - 1, emit), false)
+    assert.equal(shots.length, 0, 'an over-budget volley must never partially fire')
+    assert.equal(api.fireCruiseEliteAttack(boss, shotCount, emit), shotCount > 0)
+    assert.equal(shots.length, shotCount)
+    if (attack === 'drill') assert.ok(shots.every(shot => shot.vx === 0 && Math.abs(shot.x - 48) < 4))
+    if (attack === 'crossfire' || attack === 'screen') assert.ok(shots.every(shot => shot.vx === 0 && Math.abs(shot.x - 48) >= 12))
+    if (attack === 'flank') assert.ok(shots.every(shot => shot.x > 48 && shot.vx < 0))
+    if (attack === 'rail') assert.ok(shots.some(shot => shot.kind === 'superShot'))
+  }
+}
+const broodWithEscorts = { ...elite, miniBossKind: 'brood', hp: elite.maxHp }
+api.beginCruiseEliteAttack(broodWithEscorts, { x: 50, y: 82 }, false)
+assert.equal(broodWithEscorts.miniBossAttack, 'pods')
+const wounded = { ...elite, miniBossKind: 'brood', hp: 1 }
+api.beginCruiseEliteAttack(wounded, { x: 50, y: 82 }, false)
+assert.ok(wounded.chargeCooldown < broodWithEscorts.chargeCooldown)
 assert.equal(api.cruiseEliteShouldWithdraw(21, 60), true)
 assert.equal(api.cruiseEliteShouldWithdraw(3, 2), true)
 assert.equal(api.cruiseEliteShouldWithdraw(3, 12), false)
-console.log('Cruise: 14 authored routes, staggered pincers, firing lines, elite escorts, warning timing, and shot caps passed')
+console.log('Cruise: 14 authored routes, staggered pincers, firing lines, elite escorts, all nine attack patterns, warning timing, and shot caps passed')

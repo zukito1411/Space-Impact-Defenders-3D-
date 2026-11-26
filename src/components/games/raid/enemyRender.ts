@@ -5,7 +5,8 @@ import { fighterHullHeading } from './fighterHulls'
 import { drawLiveHull } from './liveHullBridge'
 import { BOSS_FX, COMBAT_TILE, drawBossFx, drawRaidCombatTexture, getRaidCombatFrame } from './combatArt'
 import { getRaidFighter, getRaidFighterCharge } from './stageEncounters'
-import { drawCommandBossEnergy, drawCommandBossHealthBar, drawCommandBossTelegraph, prefersRaidReducedMotion } from './commandBossRender'
+import { drawCommandBossEnergy, drawCommandBossHealthBar, drawCommandBossTelegraph, drawCommandPhaseAfterimages, getCommandBossHullOpacity, prefersRaidReducedMotion } from './commandBossRender'
+import { sampleCommandBossCloak } from './commandBoss'
 import { drawGenericBossShip } from './genericBossRender'
 import { getEnemyCanvasSize } from './assets'
 import { DEG, STAGE_CLEAR_SECONDS } from './constants'
@@ -160,15 +161,25 @@ export function drawRaidEnemy(
     const reducedMotion = prefersRaidReducedMotion()
     const recoil = !reducedMotion && enemy.bossImpact?.kind === 'heavy' ? (enemy.bossImpactTime ?? 0) * size * .12 : 0
     const drift = enemy.hp <= 0 && !reducedMotion ? (1 - defeatFade) * (enemy.id % 2 ? -.18 : .18) : 0
-    drawGenericBossShip(ctx, enemy, x, y - recoil, size, rotation + drift, floatScale, defeatFade, landscape, enemyBank)
+    const hullOpacity = getCommandBossHullOpacity(enemy)
+    if (enemy.bossManeuver === 'phaseShift') {
+      drawCommandPhaseAfterimages(enemy, (ghostX, alpha, index) => {
+        drawGenericBossShip(ctx, enemy, toX(ghostX), y, size, rotation, floatScale, alpha, landscape, undefined,
+          'fx:command-phase:' + enemy.id + ':' + index)
+      })
+    }
+    drawGenericBossShip(ctx, enemy, x, y - recoil, size, rotation + drift, floatScale, defeatFade * hullOpacity, landscape, enemyBank)
     drawCommandBossEnergy(ctx, enemy, toX, toY, size)
     ctx.save()
     ctx.translate(x, y)
     ctx.globalAlpha *= defeatFade
     drawBossResidualHit(ctx, enemy, size)
     ctx.restore()
-    if (enemy.hp > 0) {
+    if (enemy.hp > 0 && sampleCommandBossCloak(enemy) < .8) {
+      ctx.save()
+      ctx.globalAlpha *= hullOpacity
       drawRaidEnemyHealthBar(ctx, enemy, x, y, size, viewportWidth, toY(100), landscape, true)
+      ctx.restore()
     }
     return
   }

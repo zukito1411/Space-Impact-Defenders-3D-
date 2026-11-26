@@ -1,7 +1,7 @@
 import type { CruiseManeuver } from './cruiseEncounters'
 import type { BlackHoleCapture } from './blackHoleDistortion'
 import type { CarrierStop } from './carrierRecovery'
-import type { CommandPattern } from './commandBoss'
+import type { CommandManeuver, CommandPattern } from './commandBoss'
 import type { CoreLanderModel } from '../../../progression'
 import type { GodGundamBarragePose } from './assets'
 
@@ -18,6 +18,7 @@ export type BossKind = 'carrier' | 'orb' | 'serpent' | 'mantis' | 'hydra' | 'gat
 export type MirageBossKind = 'squid' | 'snake'
 
 export type MiniBossKind = 'stalker' | 'brood' | 'lancer'
+export type MiniBossAttack = 'drill' | 'crossfire' | 'rail' | 'knives' | 'flank' | 'fan' | 'launch' | 'pods' | 'screen'
 
 export type RaidBgmMode = 'cruise' | 'combat' | 'boss' | 'ending' | 'hangar'
 
@@ -179,9 +180,19 @@ export type Enemy = Vec & {
   bossGapX?: number
   bossBurstIndex?: number
   bossBurstCount?: number
+  bossBurstInterval?: number
+  bossManeuver?: CommandManeuver
+  bossManeuverStartAge?: number
+  bossManeuverFromX?: number
+  bossManeuverToX?: number
+  bossLastManeuverSerial?: number
   bossShotSpeed?: number
   bossRecoverySeconds?: number
   miniBossKind: MiniBossKind | null
+  miniBossAttack?: MiniBossAttack
+  miniBossAttackIndex?: number
+  miniBossAttackOriginX?: number
+  broodParentId?: number
   shieldTime: number
   originX: number
   amplitude: number
@@ -223,6 +234,7 @@ export type EnemySpawnProfile = {
   cruiseManeuver?: CruiseManeuver
   cruiseFlank?: number
   cruiseElite?: boolean
+  broodParentId?: number
   squadId?: number
   variant: number
   motion?: number
@@ -316,6 +328,7 @@ export type AsteroidHazard = Vec & {
 export type RaidRandomEvent = {
   captures?: BlackHoleCapture[]
   ambushWave?: number
+  spawnIn?: number
   solarHitMask?: number
   kind: RaidRandomEventKind
   age: number
@@ -437,6 +450,7 @@ export type MultiplayerHostState = {
   asteroidApproachRemaining?: number
   asteroidWarning: number
   randomEvent: RaidRandomEvent | null
+  secondaryRandomEvent?: RaidRandomEvent | null
   meteors: MeteorHazard[]
   ionStrikes: IonStrike[]
   wrecks: DerelictWreck[]

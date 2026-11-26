@@ -12,6 +12,10 @@ export function getRandomEventInterval() {
   return RANDOM_EVENT_MIN_SECONDS + Math.random() * (RANDOM_EVENT_MAX_SECONDS - RANDOM_EVENT_MIN_SECONDS)
 }
 
+export const MAX_CONCURRENT_RAID_EVENTS = 2
+export const FIRST_BLACK_HOLE_STAGE = 4
+export const FIRST_BLACK_HOLE_CRUISE_SECONDS = 18
+
 export function getRandomEventDuration(kind: RaidRandomEventKind) {
   if (kind === 'meteor') return 6.6
   if (kind === 'solar') return 9.35
@@ -155,23 +159,16 @@ export function advanceRaidEventShot(shot: Shot, dt: number, hole: BlackHole | n
   return !hole || !segmentCrossesHorizon(hole, x, y, shot.x, shot.y)
 }
 
-export function pickRandomRaidEventKind(stage: number, surfaceStage: boolean): RaidRandomEventKind {
+export function pickNextRandomRaidEventKind(stage: number, surfaceStage: boolean, previousKind: RaidRandomEventKind | null, activeEvents: readonly RaidRandomEvent[]) {
   const pool: RaidRandomEventKind[] = stage < 4
     ? ['meteor', 'ion', 'wreck']
     : surfaceStage
       ? ['meteor', 'solar', 'rift', 'ambush', 'ion']
       : ['meteor', 'solar', 'rift', 'wreck', 'ambush', 'ion']
-  return pool[Math.floor(Math.random() * pool.length)]
-}
-
-export function pickNextRandomRaidEventKind(stage: number, surfaceStage: boolean, previousKind: RaidRandomEventKind | null) {
-  let kind = pickRandomRaidEventKind(stage, surfaceStage)
-  if (previousKind && kind === previousKind) {
-    for (let attempt = 0; attempt < 4 && kind === previousKind; attempt += 1) {
-      kind = pickRandomRaidEventKind(stage, surfaceStage)
-    }
-  }
-  return kind
+  const available = pool.filter(kind => !activeEvents.some(event => event.kind === kind))
+  const fresh = available.filter(kind => kind !== previousKind)
+  const candidates = fresh.length ? fresh : available
+  return candidates[Math.floor(Math.random() * candidates.length)]
 }
 
 export function getAsteroidHp(tier: number, stage: number, powerPressure: number) {

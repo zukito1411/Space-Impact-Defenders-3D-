@@ -119,6 +119,7 @@ export class SceneryHulls {
     const prepared=await Promise.allSettled([...new Set(this.slots.map(slot => slot.key))].map(async key => {
       let object: Object3D | undefined
       const parts: HullBuffers[] = []
+      const recurringFlyby = this.slots.some(slot => slot.key === key && slot.dynamic)
       try {
         await loadHull(key)
         if (this.destroyed) return
@@ -162,7 +163,12 @@ export class SceneryHulls {
           geometry.autoGarbageCollect = false
           const image = child.material.map?.image as HTMLImageElement | ImageBitmap | HTMLCanvasElement | undefined
           const texture = image ? Texture.from(image, true) : Texture.WHITE
-          if (image) this.ownedTextures.add(texture)
+          if (image) {
+            // A flyby can return many stages after its last appearance.
+            // Its full-resolution GPU upload is owned by this renderer.
+            if (recurringFlyby) texture.source.autoGarbageCollect = false
+            this.ownedTextures.add(texture)
+          }
           parts.push({ geometry, texture, paint: new Float32Array(child.material.color.toArray()) })
         })
         if (parts.length === 0) throw new Error('No drawable hull geometry: ' + key)

@@ -49,7 +49,10 @@ class Context {
 }
 window.AudioContext = Context
 class Audio {
-  paused = true; readyState = 1; currentTime = 0; volume = 0; playbackRate = 1
+  paused = true; readyState = 1; volume = 0; playbackRate = 1; seeking = false
+  position = 0; seeks = 0
+  get currentTime() { return this.position }
+  set currentTime(value) { this.position = value; this.seeks++ }
   constructor() { media.push(this) }
   play() { this.paused = false; return new Promise(resolve => { this.resolvePlay = resolve }) }
   pause() { this.paused = true }
@@ -93,6 +96,22 @@ const original = { paused: false, currentTime: 23.5, playbackRate: 1 }
 score.update(original, '/audio/bgm_scifi_loop.ogg', 1, true)
 const stem = media.at(-1)
 assert.equal(stem.currentTime, original.currentTime, 'stem did not align with source score')
+stem.seeking = true
+for (let n = 0; n < 120; n++) {
+  original.currentTime += 1 / 120
+  now += 1000 / 120
+  score.update(original, '/audio/bgm_scifi_loop.ogg', 1, true)
+}
+assert.equal(stem.seeks, 1, 'score repeatedly restarted a pending media seek')
+stem.seeking = false
+score.update(original, '/audio/bgm_scifi_loop.ogg', 1, true)
+assert.equal(stem.seeks, 2, 'score did not correct drift once the stem was available')
+for (let n = 0; n < 40; n++) {
+  original.currentTime += 1 / 120
+  now += 1000 / 120
+  score.update(original, '/audio/bgm_scifi_loop.ogg', 1, true)
+}
+assert.equal(stem.seeks, 2, 'score corrected drift faster than the seek interval')
 score.update(original, '/audio/bgm_scifi_loop.ogg', 0, false)
 stem.resolvePlay(); await flush()
 assert.equal(stem.paused, true, 'late play completion resurrected a paused score')

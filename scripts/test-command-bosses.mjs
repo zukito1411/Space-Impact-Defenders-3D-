@@ -8,7 +8,7 @@ const source='const PLAYER_MAX_RANK=20;\n'+strip(read('src/components/games/raid
 const m=await load(source)
 const boss=(stage,hp=1)=>({isBoss:true,bossKind:m.getCampaignBossKind(stage),bossArtStage:stage,id:1,x:50,y:20,hp:10000*hp,maxHp:10000,shieldTime:0,phase:0,radius:12,chargeLane:50,chargeTimer:0,chargeCooldown:0,fireCooldown:0})
 assert.equal(m.COMMAND_BOSS_PROFILES.length,12)
-assert.equal(new Set(m.COMMAND_BOSS_PROFILES.map(p=>JSON.stringify([p.sequence,p.movement,p.speed,p.warning]))).size,12)
+assert.equal(new Set(m.COMMAND_BOSS_PROFILES.map(profile => profile.sequence[0])).size, 12)
 for(const profile of m.COMMAND_BOSS_PROFILES) {
  const kind = m.getCampaignBossKind(profile.stage)
  for (const difficulty of ['easy', 'normal', 'hard', 'expert']) {
@@ -31,7 +31,7 @@ for (const difficulty of ['easy', 'normal']) {
   const event = m.advanceCommandBoss(enemy, 1/60, [{ x: 50, y: 82 }], difficulty, 120, () => {})
   if (event & m.COMMAND_WARNING) bursts.add(enemy.bossBurstCount)
  }
- assert.deepEqual([...bursts].sort(), difficulty === 'easy' ? [1] : [1, 2])
+ assert.deepEqual([...bursts].sort(), [1, 2])
 }
 // Solo opening warns before a single committed beam, then presents a stable counterattack window.
 const opening = boss(1)
@@ -87,7 +87,7 @@ function run(stage,ratio,fps,difficulty='normal',duration=60,targetMode='static'
    const hit=s.kind==='beam'?Math.abs(s.x-targets[0].x)<=s.radius*.82+3.2*.72:Math.hypot(s.x-targets[0].x,s.y-82)<=s.radius+3.2
    if(hit&&invuln<=0){hits++;invuln=1.05}
   }
-  const oldX=e.x,oldY=e.y,state=e.bossAttackState
+  const oldX=e.x,oldY=e.y,state=e.bossAttackState, maneuver=e.bossManeuver
   let volley=0
   const event=m.advanceCommandBoss(e,dt,targets,difficulty,Math.max(0,120-shots.length),shot=>{shots.push({...shot});volley++})
   if(event&m.COMMAND_WARNING) {
@@ -100,7 +100,8 @@ function run(stage,ratio,fps,difficulty='normal',duration=60,targetMode='static'
    if(warning)assert.ok(t-lastWarning>=e.bossWarningSeconds-1/fps-1e-8,'danger before warning completed')
    warning=false;fired++;times.push(t)
   }
-  assert.ok(Math.abs(e.x-oldX)<=m.COMMAND_MAX_STRAFE_SPEED*dt+1e-9&&Math.abs(e.y-oldY)<=m.COMMAND_MAX_VERTICAL_SPEED*dt+1e-9,'boss teleported')
+  const speedLimit = maneuver === 'phaseShift' ? m.COMMAND_MAX_PHASE_SPEED : m.COMMAND_MAX_STRAFE_SPEED
+  assert.ok(Math.abs(e.x-oldX)<=speedLimit*dt+1e-9&&Math.abs(e.y-oldY)<=m.COMMAND_MAX_VERTICAL_SPEED*dt+1e-9,'boss teleported')
   if(state==='warning'||state==='burst')assert.equal(e.x,oldX,'boss moved its locked muzzle during a warning/burst')
   assert.ok(e.x>=18&&e.x<=82&&e.y>=16&&e.y<=28)
   maxVolley=Math.max(maxVolley,volley);peak=Math.max(peak,shots.length)
@@ -144,14 +145,121 @@ for(let i=0;i<1200;i++) {
 assert.ok(bait.length>4);assert.ok(bait.every((x,i)=>x===(i%2?82:18)))
 const draft=m.createCommandVolley()
 for(const p of m.COMMAND_BOSS_PROFILES)for(const pattern of p.sequence)for(const aimX of [8,50,92]) {
- const e={...boss(p.stage),bossAttackPattern:pattern,bossAimX:aimX,bossAimY:82,bossGapX:Math.max(22,Math.min(78,aimX)),bossCombatPhase:2,bossShotSpeed:40,bossBurstCount:3}
+ const e={...boss(p.stage),bossAttackPattern:pattern,bossAimX:aimX,bossAimY:82,bossGapX:aimX < 25 ? aimX + 18 : aimX - 18,bossCombatPhase:2,bossShotSpeed:40,bossBurstCount:3}
  const count=m.writeCommandVolley(e,draft)
- assert.ok(count>0&&count<=12)
+ assert.ok(count>0&&count<=12, 'empty or overfull '+pattern+' at '+aimX)
  if(pattern==='curtain')for(let i=0;i<count;i++)assert.ok(Math.abs(draft[i].x-e.bossGapX)>=13,'curtain fills its advertised corridor')
  if(pattern==='twinBeam')assert.ok(draft[1].x-draft[0].x>=28-1e-9,'paired beams close the safe center')
 }
 const longRun=run(14,.2,60,'expert',600)
 assert.ok(longRun.peak<120,'ordinary fight constantly exhausts its shot budget')
+
+// Each boss opens its own barrage and sustains it at the tuned interval before recovering.
+for (const profile of m.COMMAND_BOSS_PROFILES) {
+  const full = boss(profile.stage)
+  const critical = boss(profile.stage, .2)
+  const target = [{ x: 54, y: 80 }]
+  for (const enemy of [full, critical]) {
+    const stamps = []
+    for (let i = 0; i < 360; i++) {
+      const event = m.advanceCommandBoss(enemy, 1/120, target, 'normal', 120, () => {})
+      if (event & m.COMMAND_FIRED) stamps.push(enemy.bossEncounterAge)
+      if (enemy.bossAttackState === 'recovery') break
+    }
+    assert.equal(enemy.bossAttackPattern, profile.sequence[0])
+    assert.equal(stamps.length, Math.min(6, profile.signature.rounds + (enemy === critical ? 2 : 0)))
+    for (let i = 1; i < stamps.length; i++) assert.ok(
+      Math.abs(stamps[i] - stamps[i-1] - enemy.bossBurstInterval) <= 1/120 + 1e-6,
+      'rounds should follow the same barrage cadence across refresh rates',
+    )
+  }
+  assert.ok(critical.bossRecoverySeconds < full.bossRecoverySeconds)
+}
+
+for (const profile of m.COMMAND_BOSS_PROFILES.filter(profile => profile.maneuver)) {
+  const enemy = boss(profile.stage, .6)
+  const target = [{ x: 50, y: 82 }]
+  const step = emit => m.advanceCommandBoss(enemy, 1/60, target, 'normal', 120, emit)
+  const cloak = profile.maneuver === 'cloak'
+  let startAge, departureX, lastHiddenAge, movedDuringScan = false
+  let fullyCloaked = false
+  for (let i = 0; i < 600; i++) {
+    const event = step(() => assert.equal(m.sampleCommandBossCloak(enemy), 0, 'a hidden boss must never fire'))
+    if (enemy.bossManeuver) {
+      assert.equal(enemy.bossManeuver, profile.maneuver)
+      departureX = enemy.bossManeuverFromX
+      startAge ??= enemy.bossManeuverStartAge
+      assert.equal(enemy.shieldTime, 0)
+      assert.equal(enemy.bossAttackState, 'recovery')
+      if (m.getCommandManeuverAge(enemy) < m.COMMAND_CLOAK_SCAN_SECONDS && enemy.x !== departureX) movedDuringScan = true
+    }
+    if (m.sampleCommandBossCloak(enemy) >= .99) fullyCloaked = true
+    if (m.sampleCommandBossCloak(enemy) > 0) lastHiddenAge = enemy.bossEncounterAge
+    if (startAge !== undefined && event & m.COMMAND_WARNING) break
+  }
+  assert.ok(Math.abs(enemy.x - departureX) >= 20, 'the hull must actually change positions')
+  if (cloak) {
+    assert.ok(fullyCloaked && !movedDuringScan)
+    assert.ok(enemy.bossEncounterAge - lastHiddenAge >= .22, 'cloak must end before the warning')
+    assert.ok(enemy.bossEncounterAge - startAge <= 2.23)
+  } else {
+    assert.ok(!fullyCloaked && enemy.bossEncounterAge - startAge < .68, 'phase dash should immediately lead into a warning')
+    const warning = enemy.bossWarningSeconds
+    const warningAge = enemy.bossEncounterAge
+    assert.ok(warning >= m.getCommandWarningFloor(false))
+    let fired = false
+    for (let i = 0; i < 180 && !fired; i++) step(() => { fired = true })
+    assert.ok(fired && enemy.bossEncounterAge - startAge < 1.55, 'the dash follow-up should land quickly')
+    assert.ok(enemy.bossEncounterAge - warningAge >= warning - 1/60, 'the follow-up must still give time to dodge')
+  }
+  for (let i = 0; i < 600 && !enemy.bossManeuver; i++) step(() => {})
+  assert.ok(enemy.bossManeuver && enemy.bossAttackSerial >= 3, 'maneuver should recur with cooldown')
+  m.interruptCommandBoss(enemy)
+  assert.equal(m.sampleCommandBossCloak(enemy), 0)
+  assert.equal(enemy.bossManeuver, undefined)
+  assert.equal(enemy.bossAttackTimer, .9)
+}
+
+for (const x of [18, 82]) {
+  const edgeBoss = { ...boss(13, .6), x }
+  const target = [{ x: x < 50 ? 8 : 92, y: 82 }]
+  for (let i = 0; i < 360 && !edgeBoss.bossManeuver; i++) {
+    m.advanceCommandBoss(edgeBoss, 1/60, target, 'normal', 120, () => {})
+  }
+  assert.ok(Math.abs(edgeBoss.bossManeuverToX - x) >= 18, 'cloaking at an edge must still reposition the boss')
+}
+
+const ladder = { ...boss(12), bossAttackPattern: 'ladder', bossGapX: 46, bossShotSpeed: 45 }
+const ladderLanes = []
+for (let wave = 0; wave < 6; wave++) {
+  const count = m.writeCommandVolley(ladder, draft, wave)
+  const lanes = draft.slice(0, count).map(shot => shot.x)
+  assert.ok(lanes.every(x => Math.abs(x - 46) >= 15), 'the ladder must keep a persistent escape corridor')
+  ladderLanes.push(lanes)
+}
+assert.notDeepEqual(ladderLanes[0], ladderLanes[1])
+assert.deepEqual(ladderLanes[0], ladderLanes[2])
+for (const stage of [3, 4, 6, 12, 13]) {
+  for (const bossX of [18, 50, 82]) for (const aimX of [8, 25, 50, 75, 92]) for (const aimY of [48, 55, 82, 91, 94]) {
+    const enemy = { ...boss(stage, .2), x: bossX, y: 26 }
+    const target = [{ x: aimX, y: aimY }]
+    m.advanceCommandBoss(enemy, 1/60, target, 'expert', 120, () => {})
+    assert.ok(Math.abs(enemy.bossGapX - aimX) <= 18 && Math.abs(enemy.bossGapX - aimX) >= 12)
+    for (let wave = 0; wave < enemy.bossBurstCount; wave++) {
+      const count = m.writeCommandVolley(enemy, draft, wave)
+      assert.ok(count > 0 && count <= m.COMMAND_VOLLEY_LIMIT, 'barrage must sustain every scheduled wave')
+      for (const shot of draft.slice(0, count)) {
+        if (shot.vy <= 0) continue
+        for (const altitude of [aimY - 4, aimY, aimY + 4]) {
+          const crossing = shot.x + shot.vx * (altitude - shot.y) / shot.vy
+          assert.ok(Math.abs(crossing - enemy.bossGapX) >= 10 - 1e-8,
+            'a maximum-size pilot must have room in the corridor during every wave')
+        }
+      }
+    }
+  }
+}
+console.log('Command signatures: all 12 sustained barrages, phased cadence, cloak recovery and clear corridor geometry passed')
 
 // A simple stationary/continuous-strafe comparison is diagnostic, not a human playtest.
 const diagnostics=m.COMMAND_BOSS_PROFILES.map(p=>({stage:p.stage,stationary:run(p.stage,.55,60,'normal',60).hits,strafe:run(p.stage,.55,60,'normal',60,'strafe').hits}))
@@ -202,16 +310,41 @@ for(const [w,h] of [[390,844],[1280,720]])for(const p of m.COMMAND_BOSS_PROFILES
   }
  }
  if(pattern==='hydra')assert.equal(ctx.lanes.length,3,'Hydra must preview all firing heads')
+ if(pattern==='broadside')assert.equal(ctx.lanes.length,6,'Broadside must preview both batteries')
 }
+const cloaked = { ...boss(13), bossAttackState: 'recovery', bossManeuver: 'cloak', bossManeuverStartAge: 3, bossEncounterAge: 3.6 }
+assert.equal(warnings.getCommandBossHullOpacity(cloaked), 0)
+assert.equal(warnings.getCommandBossHullOpacity({ ...cloaked, bossManeuver: 'phaseShift' }), 1)
+assert.ok(Math.abs(warnings.getCommandBossHullOpacity({ ...cloaked, hitFlash: .24 }) - .34) < 1e-8)
+assert.ok(warnings.getCommandBossHullOpacity({ ...cloaked, hitFlash: .1 }) < .34)
+assert.equal(warnings.getCommandBossHullOpacity({ ...cloaked, bossEncounterAge: 5.01 }), 1)
+const dash = { ...cloaked, bossManeuver: 'phaseShift', bossManeuverFromX: 22, bossManeuverToX: 78, bossEncounterAge: 3.36 }
+dash.x = m.sampleCommandPhaseShiftX(dash, .36)
+const ghosts = []
+warnings.drawCommandPhaseAfterimages(dash, (x, alpha, index) => ghosts.push({ x, alpha, index }))
+assert.equal(ghosts.length, 3)
+assert.ok(ghosts[0].x < ghosts[1].x && ghosts[1].x < ghosts[2].x && ghosts[2].x < dash.x)
+assert.ok(ghosts[0].alpha < ghosts[1].alpha && ghosts[1].alpha < ghosts[2].alpha)
+warnings.drawCommandPhaseAfterimages({ ...dash, bossEncounterAge: 3.7 }, () => assert.fail('ghosts outlived the dash'))
+const motionSafe = await load(source + vfxStubs +
+ '\nconst PLAYER_RADIUS=3.2; const window={matchMedia:()=>({matches:true})};\n' + strip(read('src/components/games/raid/commandBossRender.ts')))
+assert.ok(motionSafe.getCommandBossHullOpacity(cloaked) >= .24 - 1e-8)
+motionSafe.drawCommandPhaseAfterimages(dash, () => assert.fail('reduced motion must suppress the trail'))
 const effectBoss = boss(11, .5)
 m.advanceCommandBoss(effectBoss, .01, [{x:50,y:80}], 'normal', 120, () => {})
 assert.equal(effectBoss.bossPhaseStartedAge, effectBoss.bossEncounterAge)
 const sprites = [], fills = [], labels = []
 const effectsContext = {
+ globalAlpha: 1, ellipse(){}, clip(){}, createLinearGradient(){ return {addColorStop(){}} },
  sprites, save(){}, restore(){}, translate(){}, rotate(){}, scale(){}, beginPath(){}, arc(){}, stroke(){},
  fillRect(...args){ fills.push(args) },
  fillText(...args){ labels.push(args) },
 }
+warnings.drawCommandBossEnergy(effectsContext, { ...cloaked, bossEncounterAge: 3.22 }, x=>x, y=>y, 130)
+assert.equal(fills.length, 1, 'a visible scan must precede full cloak')
+warnings.drawCommandBossEnergy(effectsContext, cloaked, x=>x, y=>y, 130)
+assert.equal(fills.length, 1, 'the scan should disappear when the cloak is active')
+fills.length = 0
 warnings.drawCommandBossEnergy(effectsContext, effectBoss, x=>x*3.9, y=>y*8.44, 130)
 assert.equal(sprites.length, 0, 'A warning uses its projected attack lanes without a body or charge ring')
 warnings.drawCommandBossHealthBar(effectsContext, effectBoss, 195, 168.8, 130)
@@ -273,10 +406,21 @@ assert.equal(interpolation.interpolateEnemyVisual(oldFrame, newImpact, .5).bossI
 const changed={...next,bossAttackSerial:2,bossAttackTimer:1.1,bossAimX:80}
 assert.equal(interpolation.interpolateEnemyVisual(prev,changed,.5).bossAttackTimer,1.1)
 assert.equal(interpolation.interpolateEnemyVisual(prev,changed,.5).bossAimX,80)
-// Execute actual nuke callback: shots clear and a command boss gets recovery, with normal nuke damage retained.
+const eliteBefore = { ...prev, isMiniBoss: true, chargeTimer: 0, chargeLane: 20, chargeTargetY: 50 }
+const eliteWarning = { ...eliteBefore, miniBossAttack: 'crossfire', miniBossAttackIndex: 2, chargeTimer: 1.05, chargeLane: 70, chargeTargetY: 80 }
+const committed = interpolation.interpolateEnemyVisual(eliteBefore, eliteWarning, .5)
+assert.equal(committed.chargeTimer, 1.05)
+assert.equal(committed.chargeLane, 70)
+assert.equal(committed.chargeTargetY, 80)
+assert.equal(interpolation.interpolateEnemyVisual(eliteWarning, { ...eliteWarning, chargeTimer: .55 }, .5).chargeTimer, .8)
+// Execute the actual nuke callback and damage rule, including its projectile clear and forced recovery.
 const runtime=read('src/components/games/raid/GradiusRaidRuntime.tsx')
 const nuke=runtime.slice(runtime.indexOf('  const detonateNuke = useCallback('),runtime.indexOf('  const activateNuke = useCallback('))
-const nukeHarness=await load(source+`
+const mechanics=read('src/components/games/raid/mechanics.ts')
+const balanceConstants=read('src/components/games/raid/constants.ts').split('\n').filter(line =>
+  /^export const (?:MAX_RAID_STAGE|NUKE_BOSS_DAMAGE_\w+|NUKE_MINI_BOSS_DAMAGE_RATIO|FINAL_BOSS_NUKE_DAMAGE_MULTIPLIER|DEVIL_BOSS_NUKE_DAMAGE_MULTIPLIER) = /.test(line)).join('\n')
+const balanceSource=mechanics.slice(mechanics.indexOf('export function getNukeStageScale'), mechanics.indexOf('export function getGodGundamBarrageBossDamage'))
+const nukeHarness=await load(source+balanceConstants+'\n'+balanceSource+`
 const useCallback=f=>f;
 const phaseRef={current:'playing'},playerRef={current:{x:50,y:80,invuln:0,score:0}},remotePlayerRef={current:null};
 const scoreMultRef={current:1},stageRef={current:12},waveRef={current:12},highScoreRef={current:0},killsSincePowerRef={current:0},enemiesDestroyedRef={current:0};
@@ -285,13 +429,29 @@ const asteroidsRef={current:[]},meteorsRef={current:[]},ionStrikesRef={current:[
 export const enemiesRef={current:[]},enemyShotsRef={current:[]};
 const HEIGHT=100,NUKE_FLASH_SECONDS=1;
 const addRipple=()=>{},spawnSparks=()=>{},triggerScreenShake=()=>{},playGameSound=()=>{},syncSnapshot=()=>{};
-const getNukeBossDamage=()=>1000,scenePresentation={defeat(){}};
+const scenePresentation={defeat(){}};
 `+nuke+'\nexport {detonateNuke};')
 const charged={...boss(12),bossEncounterAge:8,bossAttackState:'warning',bossAttackTimer:.1,bossAttackPattern:'twinBeam',bossLastVolleyAge:7.95}
 nukeHarness.enemiesRef.current.push(charged);nukeHarness.enemyShotsRef.current.push({})
 nukeHarness.detonateNuke()
 assert.equal(nukeHarness.enemyShotsRef.current.length,0)
-assert.equal(charged.bossLastVolleyAge,undefined);assert.equal(charged.hp,9000);assert.equal(charged.bossAttackState,'recovery');assert.equal(charged.bossAttackTimer,.9)
+assert.equal(charged.bossLastVolleyAge,undefined);assert.equal(charged.hp,10000-nukeHarness.getNukeBossDamage(charged,12));assert.equal(charged.bossAttackState,'recovery');assert.equal(charged.bossAttackTimer,.9)
+for (const hp of [12, 100, 1800, 150000]) {
+ const normal = { isBoss: true, maxHp: hp }
+ const damage = (enemy, stage) => nukeHarness.getNukeBossDamage(enemy, stage)
+ assert.ok(damage(normal, 1) <= hp * .07)
+ assert.equal(damage(normal, 45), Math.floor(hp * .11))
+ assert.ok(damage({ ...normal, bossKind: 'final' }, 15) <= hp * .061)
+ assert.ok(damage({ ...normal, bossKind: 'devil' }, 25) <= hp * .025)
+ assert.ok(damage({ isMiniBoss: true, maxHp: hp }, 15) <= hp * .2)
+}
+const weakBoss = {...boss(13), hp: 15, bossManeuver: 'cloak', bossEncounterAge: 6, bossManeuverStartAge: 5}
+const miniBoss = {isMiniBoss: true, hp:200, maxHp:200, x:40, y:20}
+nukeHarness.enemiesRef.current = [weakBoss, miniBoss]
+nukeHarness.detonateNuke()
+assert.equal(weakBoss.hp, 1, 'boss finishing blow should still require ordinary fire')
+assert.equal(weakBoss.bossManeuver, undefined, 'nuke must cancel cloak')
+assert.equal(miniBoss.hp, 160)
 console.log('Command warnings/integration: matching beam hit lanes, bounded atlas draws, three-head preview, atomic co-op warnings and real nuke interruption passed')
 // Execute the production host enemy loop, not only the standalone scheduler.
 const updateStart=runtime.indexOf('  const updateGame = useCallback(')
@@ -310,7 +470,7 @@ const playBossCriticalStinger=()=>{},getNearestLivingPlayerThisTick=()=>player;
 const fireEnemy=()=>{legacyFires++},playGameSound=()=>{},markBossAttack=()=>{},commandBossReleaseCue=()=>'beam',addRipple=()=>{};
 let shotId=0;
 const emitCommandBossShot=s=>{enemyShotsRef.current.push({...s,id:shotId++});totalShots++};
-export function tick(dt,now){const nowSeconds=now/1000;
+export function tick(dt,now){const nowSeconds=now/1000; const blackHole=null;
 `+hostLoop+'\n}\n')
 for(const p of m.COMMAND_BOSS_PROFILES) {
  const e={...boss(p.stage),isMiniBoss:false,vx:0,vy:7,originX:50,trainSlot:0,pathSpeed:.05,pattern:0,amplitude:0,phase:0}

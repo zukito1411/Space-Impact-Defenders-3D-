@@ -185,10 +185,21 @@ export class AdaptiveScore {
   private pending = false
   private epoch = 0
   private nextAttempt = 0
+  private nextSeek = 0
   private active = false
   private original: HTMLAudioElement | null = null
   private silence = () => {
     if (this.audio) { this.audio.volume = 0; if (!getGameSoundEnabled() || document.hidden) this.audio.pause() }
+  }
+
+  private syncTime(audio: HTMLAudioElement, original: HTMLAudioElement) {
+    if (audio.readyState < 1 || audio.seeking || original.seeking) return
+    const now = performance.now()
+    if (now < this.nextSeek || Math.abs(audio.currentTime - original.currentTime) <= .045) return
+    // Assigning currentTime again can restart a seek still being handled by
+    // the media pipeline, so do not let a rendered frame drive its cadence.
+    this.nextSeek = now + 750
+    try { audio.currentTime = original.currentTime } catch { /* Wait for the next correction. */ }
   }
 
   update(original: HTMLAudioElement | null, track: string, pressure: number, active: boolean) {
@@ -201,17 +212,23 @@ export class AdaptiveScore {
     if (!target) { if (this.audio) { this.audio.pause(); this.audio.volume = 0 } return }
     if (!this.audio) {
       this.audio = new Audio(); this.audio.loop = true; this.audio.preload = 'auto'; this.audio.volume = 0
-      this.audio.onloadedmetadata = () => { if (this.original && this.audio) this.audio.currentTime = this.original.currentTime }
+      this.audio.onloadedmetadata = () => { if (this.original && this.audio) this.syncTime(this.audio, this.original) }
       window.addEventListener('game-audio-settings', this.silence)
       document.addEventListener('visibilitychange', this.silence)
     }
     const audio = this.audio
-    if (this.url !== url) { this.url = url; this.epoch++; this.pending = false; audio.pause(); audio.src = url; audio.volume = 0 }
+    if (this.url !== url) {
+      this.url = url
+      this.epoch++
+      this.pending = false
+      this.nextSeek = 0
+      audio.pause()
+      audio.src = url
+      audio.volume = 0
+    }
     if (original) {
-      audio.playbackRate = original.playbackRate
-      if (audio.readyState >= 1 && Math.abs(audio.currentTime - original.currentTime) > .045) {
-        try { audio.currentTime = original.currentTime } catch { /* Retry after the media metadata arrives. */ }
-      }
+      if (audio.playbackRate !== original.playbackRate) audio.playbackRate = original.playbackRate
+      this.syncTime(audio, original)
     }
     audio.volume += (target - audio.volume) * .17
     if (audio.paused && !this.pending && performance.now() >= this.nextAttempt) {

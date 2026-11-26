@@ -531,9 +531,7 @@ export function drawAsteroidWarning(ctx: CanvasRenderingContext2D, width: number
   ctx.restore()
 }
 
-export function drawRandomEventWarning(ctx: CanvasRenderingContext2D, width: number, height: number, event: RaidRandomEvent | null, time: number) {
-  if (!event || event.warning <= 0) return
-
+export function drawRandomEventWarning(ctx: CanvasRenderingContext2D, width: number, event: RaidRandomEvent, time: number, y: number) {
   const pulse = 0.68 + Math.sin(time / 105) * 0.2
   const hint = event.kind === 'rift' ? 'Thrust away from the event horizon'
     : event.kind === 'solar' ? 'Fly through the opening in each plasma front'
@@ -541,7 +539,6 @@ export function drawRandomEventWarning(ctx: CanvasRenderingContext2D, width: num
   const panelWidth = Math.min(width * 0.86, 560)
   const panelHeight = hint ? 62 : 50
   const x = (width - panelWidth) / 2
-  const y = Math.max(104, height * 0.21)
   const color = event.kind === 'solar' ? 'rgba(255,168,98,' : event.kind === 'rift' ? 'rgba(217,173,255,' : event.kind === 'ion' ? 'rgba(146,199,255,' : 'rgba(251,113,133,'
   ctx.save()
   ctx.globalCompositeOperation = 'source-over'
@@ -563,6 +560,7 @@ export function drawRandomEventWarning(ctx: CanvasRenderingContext2D, width: num
     ctx.fillText(hint, width / 2, y + 43, panelWidth - 24)
   }
   ctx.restore()
+  return panelHeight
 }
 
 export function drawMeteorHazard(

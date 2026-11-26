@@ -2,26 +2,32 @@ import { getGenericBossArt } from './bossCatalog'
 import { PLAYER_MAX_RANK } from './constants'
 import type { Enemy, RaidDifficulty, Shot, Vec } from './types'
 
-export type CommandPattern = 'fan' | 'snipe' | 'iris' | 'reverseIris' | 'pincer' | 'sweep' | 'curtain' | 'hydra' | 'beam' | 'twinBeam' | 'fork'
+export type CommandPattern = 'fan' | 'snipe' | 'iris' | 'reverseIris' | 'pincer' | 'sweep' | 'curtain' | 'hydra'
+  | 'beam' | 'twinBeam' | 'fork' | 'shears' | 'broadside' | 'salvo' | 'ladder' | 'spiral'
+export type CommandManeuver = 'cloak' | 'phaseShift'
+
 export type CommandBossProfile = {
   stage: number; sequence: readonly CommandPattern[]; warning: number; recovery: number
   speed: number; hp: number; movement: 'broadside' | 'orbit' | 'flank' | 'sweep' | 'fortress' | 'hunt'
   amplitude: number; bursts: number
+  signature: { rounds: number; interval: number }
+  maneuver?: CommandManeuver
 }
-/** Attack identities follow the art catalog; later hulls introduce combinations, not just faster copies. */
+
+/** The first pattern is the signature attack. Every other pattern also runs in each HP phase. */
 export const COMMAND_BOSS_PROFILES: readonly CommandBossProfile[] = [
-  { stage: 1, sequence: ['fan','snipe'], warning: 1.02, recovery: 1.05, speed: 38, hp: 1.08, movement: 'broadside', amplitude: 22, bursts: 1 },
-  { stage: 2, sequence: ['iris','snipe','iris'], warning: 1.04, recovery: 1.02, speed: 37, hp: 1.08, movement: 'orbit', amplitude: 22, bursts: 1 },
-  { stage: 3, sequence: ['pincer','snipe','pincer'], warning: 1, recovery: 1.02, speed: 42, hp: 1.1, movement: 'flank', amplitude: 29, bursts: 1 },
-  { stage: 4, sequence: ['sweep','snipe','fan'], warning: 1, recovery: 1.0, speed: 42, hp: 1.1, movement: 'sweep', amplitude: 29, bursts: 1 },
-  { stage: 6, sequence: ['curtain','beam','curtain'], warning: 1.1, recovery: 1.08, speed: 43, hp: 1.12, movement: 'fortress', amplitude: 17, bursts: 1 },
-  { stage: 7, sequence: ['fan','curtain','snipe','fan'], warning: .98, recovery: .94, speed: 44, hp: 1.12, movement: 'broadside', amplitude: 27, bursts: 1 },
-  { stage: 8, sequence: ['reverseIris','curtain','iris'], warning: 1.02, recovery: .96, speed: 44, hp: 1.14, movement: 'orbit', amplitude: 24, bursts: 2 },
-  { stage: 9, sequence: ['pincer','sweep','snipe','pincer'], warning: .98, recovery: .92, speed: 46, hp: 1.14, movement: 'flank', amplitude: 30, bursts: 2 },
-  { stage: 11, sequence: ['hydra','pincer','hydra','snipe'], warning: 1.02, recovery: .94, speed: 47, hp: 1.16, movement: 'hunt', amplitude: 25, bursts: 2 },
-  { stage: 12, sequence: ['twinBeam','curtain','beam','curtain'], warning: 1.12, recovery: 1.02, speed: 46, hp: 1.16, movement: 'fortress', amplitude: 20, bursts: 2 },
-  { stage: 13, sequence: ['fork','curtain','fan','snipe'], warning: 1.02, recovery: .94, speed: 49, hp: 1.18, movement: 'broadside', amplitude: 27, bursts: 2 },
-  { stage: 14, sequence: ['iris','reverseIris','curtain','fork'], warning: 1.04, recovery: .98, speed: 48, hp: 1.18, movement: 'orbit', amplitude: 26, bursts: 2 },
+  { stage: 1, sequence: ['fan', 'snipe'], warning: 1.02, recovery: 1.05, speed: 38, hp: 1.08, movement: 'broadside', amplitude: 22, bursts: 1, signature: { rounds: 2, interval: .42 } },
+  { stage: 2, sequence: ['iris', 'snipe', 'reverseIris'], warning: 1.04, recovery: 1.02, speed: 37, hp: 1.08, movement: 'orbit', amplitude: 22, bursts: 1, signature: { rounds: 3, interval: .38 } },
+  { stage: 3, sequence: ['shears', 'snipe', 'pincer'], warning: 1, recovery: 1.02, speed: 42, hp: 1.1, movement: 'flank', amplitude: 29, bursts: 1, signature: { rounds: 4, interval: .36 } },
+  { stage: 4, sequence: ['sweep', 'snipe', 'fan'], warning: 1, recovery: 1, speed: 42, hp: 1.1, movement: 'sweep', amplitude: 29, bursts: 1, signature: { rounds: 4, interval: .39 }, maneuver: 'phaseShift' },
+  { stage: 6, sequence: ['curtain', 'beam', 'snipe'], warning: 1.1, recovery: 1.08, speed: 43, hp: 1.12, movement: 'fortress', amplitude: 17, bursts: 1, signature: { rounds: 4, interval: .46 } },
+  { stage: 7, sequence: ['broadside', 'curtain', 'snipe', 'fan'], warning: .98, recovery: .94, speed: 44, hp: 1.12, movement: 'broadside', amplitude: 27, bursts: 1, signature: { rounds: 5, interval: .34 } },
+  { stage: 8, sequence: ['reverseIris', 'curtain', 'iris'], warning: 1.02, recovery: .96, speed: 44, hp: 1.14, movement: 'orbit', amplitude: 24, bursts: 2, signature: { rounds: 4, interval: .37 } },
+  { stage: 9, sequence: ['salvo', 'sweep', 'snipe', 'pincer'], warning: .98, recovery: .92, speed: 46, hp: 1.14, movement: 'flank', amplitude: 30, bursts: 2, signature: { rounds: 5, interval: .31 }, maneuver: 'cloak' },
+  { stage: 11, sequence: ['hydra', 'pincer', 'shears', 'snipe'], warning: 1.02, recovery: .94, speed: 47, hp: 1.16, movement: 'hunt', amplitude: 25, bursts: 2, signature: { rounds: 5, interval: .32 } },
+  { stage: 12, sequence: ['ladder', 'twinBeam', 'beam', 'curtain'], warning: 1.12, recovery: 1.02, speed: 46, hp: 1.16, movement: 'fortress', amplitude: 20, bursts: 2, signature: { rounds: 5, interval: .42 } },
+  { stage: 13, sequence: ['fork', 'curtain', 'broadside', 'snipe'], warning: 1.02, recovery: .94, speed: 49, hp: 1.18, movement: 'broadside', amplitude: 27, bursts: 2, signature: { rounds: 4, interval: .42 }, maneuver: 'cloak' },
+  { stage: 14, sequence: ['spiral', 'reverseIris', 'ladder', 'fork'], warning: 1.04, recovery: .98, speed: 48, hp: 1.18, movement: 'orbit', amplitude: 26, bursts: 2, signature: { rounds: 5, interval: .39 }, maneuver: 'phaseShift' },
 ]
 const PROFILES_BY_STAGE = new Map(COMMAND_BOSS_PROFILES.map(profile => [profile.stage, profile]))
 const TACTICS: Record<RaidDifficulty, { warning: number; speed: number; recovery: number }> = {
@@ -35,10 +41,12 @@ export const COMMAND_SHOT_LIMIT = 120 // below the co-op packet's 140-shot limit
 export const COMMAND_VOLLEY_LIMIT = 12
 export const COMMAND_MAX_SHOT_SPEED = 59
 export const COMMAND_MAX_STRAFE_SPEED = 44
+export const COMMAND_MAX_PHASE_SPEED = 180
 export const COMMAND_MAX_VERTICAL_SPEED = 11
 export const getCommandWarningFloor = (beam: boolean) => beam ? .94 : .64
 export const COMMAND_WARNING = 1, COMMAND_FIRED = 2, COMMAND_PHASE = 4
 export const COMMAND_PHASE_HP = { pressure: .65, critical: .30 } as const
+export const commandVolleyPreviewIndex = (pattern?: CommandPattern) => pattern === 'hydra' || pattern === 'broadside' ? -1 : 0
 export const isCommandBeam = (pattern?: CommandPattern) => pattern === 'beam' || pattern === 'twinBeam'
 export function getCommandBossProfile(enemy: Pick<Enemy, 'isBoss' | 'bossKind' | 'bossArtStage'>) {
   if (!enemy.isBoss) return undefined
@@ -80,8 +88,18 @@ export function writeCommandVolley(enemy: Enemy, out: CommandShot[], burstIndex 
     shot.kind = kind; shot.radius = radius; shot.damage = 1; shot.life = shot.maxLife = life
     shot.angle = undefined; shot.spin = undefined
   }
-  const aimed = (sx: number, sy: number, angle: number, kind: Shot['kind'], rate = speed, radius = 1.5) =>
-    add(sx, sy, Math.cos(angle) * Math.min(COMMAND_MAX_SHOT_SPEED, rate), Math.sin(angle) * Math.min(COMMAND_MAX_SHOT_SPEED, rate), kind, radius)
+  const leavesCorridor = pattern === 'fork' || pattern === 'sweep' || pattern === 'shears'
+  const aimed = (sx: number, sy: number, angle: number, kind: Shot['kind'], rate = speed, radius = 1.5) => {
+    const vx = Math.cos(angle) * Math.min(COMMAND_MAX_SHOT_SPEED, rate)
+    const vy = Math.sin(angle) * Math.min(COMMAND_MAX_SHOT_SPEED, rate)
+    if (leavesCorridor && vy > 0 && enemy.bossGapX !== undefined) {
+      // Reserve a pilot-width corridor through the crossings near the committed altitude.
+      const start = clamp(sx, 5, 95) + vx / vy * (aimY - sy - 8)
+      const end = clamp(sx, 5, 95) + vx / vy * (aimY - sy + 8)
+      if (Math.min(start, end) < enemy.bossGapX + 10 && Math.max(start, end) > enemy.bossGapX - 10) return
+    }
+    add(sx, sy, vx, vy, kind, radius)
+  }
   const fan = (kind: Shot['kind']) => {
     for (let i = -2; i <= 2; i++) aimed(x, y + 6, heading + i * .24 + side * burstIndex * .09, kind, speed, 1.65)
   }
@@ -92,16 +110,16 @@ export function writeCommandVolley(enemy: Enemy, out: CommandShot[], burstIndex 
     }
   } else if (pattern === 'snipe') {
     for (let i = -1; i <= 1; i++) aimed(x, y + 6, heading + i * .12 + side * burstIndex * .085, 'needle', speed + 3, 1.35)
-  } else if (pattern === 'iris' || pattern === 'reverseIris') {
-    const total = phase >= 1 ? 12 : 10
+  } else if (pattern === 'iris' || pattern === 'reverseIris' || pattern === 'spiral') {
+    const total = pattern === 'spiral' ? 9 : phase >= 1 ? 12 : 10
     const direction = pattern === 'reverseIris' ? -1 : 1
-    const rotation = serial * .37 + direction * burstIndex * .14
+    const rotation = serial * .37 + direction * burstIndex * (pattern === 'spiral' ? .41 : .14)
     // A missing sector preserves a broad dodge route; this is never a solid bullet wall.
-    const gapHeading = heading + side * .22
+    const gapHeading = heading + side * (pattern === 'spiral' ? .22 + Math.min(.17, burstIndex * .055) : .22)
     for (let i = 0; i < total; i++) {
       const angle = i / total * Math.PI * 2 + rotation
       const diff = Math.atan2(Math.sin(angle - gapHeading), Math.cos(angle - gapHeading))
-      if (Math.abs(diff) < .43) continue
+      if (Math.abs(diff) < .55) continue
       aimed(x, y + 3, angle, 'orbShot', speed * .88, 1.4)
     }
   } else if (pattern === 'pincer') {
@@ -114,8 +132,38 @@ export function writeCommandVolley(enemy: Enemy, out: CommandShot[], burstIndex 
   } else if (pattern === 'sweep') {
     const sweep = side * (burstIndex - ((enemy.bossBurstCount ?? 1) - 1) / 2) * .22
     for (let i = -1; i <= 1; i++) aimed(x + i * 9, y + 6, heading + i * .2 + sweep, 'blade', speed, 1.65)
+  } else if (pattern === 'shears') {
+    for (const sign of [-1, 1]) {
+      const launchX = x + sign * 15
+      const angle = Math.atan2(Math.max(28, aimY - y), aimX - sign * (14 + burstIndex * 5) - launchX)
+      aimed(launchX, y + 5, angle, 'blade', speed, 1.55)
+      aimed(launchX, y + 5, angle - sign * .16, 'needle', speed * .9, 1.2)
+    }
+  } else if (pattern === 'broadside') {
+    for (const sign of [-1, 1]) {
+      if (burstIndex >= 0 && sign !== side * (burstIndex % 2 ? -1 : 1)) continue
+      const launchX = x + sign * 14
+      const angle = Math.atan2(Math.max(24, aimY - y), aimX - launchX) - sign * .15
+      for (const spread of [-.24, 0, .24]) {
+        aimed(launchX, y + 5, angle + spread, 'boss', speed, 1.65)
+      }
+    }
+  } else if (pattern === 'salvo') {
+    if (burstIndex % 2 === 0) {
+      for (const offset of [-.14, 0, .14]) aimed(x, y + 6, heading + offset + side * burstIndex * .035, 'needle', speed + 5, 1.25)
+    } else {
+      for (const offset of [-.5, -.27, .27, .5]) aimed(x, y + 6, heading + offset, 'blade', speed * .84, 1.65)
+    }
+  } else if (pattern === 'ladder') {
+    // Alternate the rungs around a single corridor that stays clear across the chain.
+    const gap = enemy.bossGapX ?? 50
+    for (let lane = 11; lane < 100; lane += 12) {
+      const lx = lane + (burstIndex % 2 ? 4 : -4)
+      if (Math.abs(lx - gap) < 16) continue
+      add(lx, y + 7, 0, speed * .87, 'scatterBoss', 1.45)
+    }
   } else if (pattern === 'curtain') {
-    const gap = enemy.bossGapX ?? 50, gapRadius = 15 - phase
+    const gap = enemy.bossGapX ?? 50, gapRadius = 16
     for (let i = 0; i < 9; i++) {
       const lane = 8 + i * 10.5
       if (Math.abs(lane - gap) < gapRadius) continue
@@ -135,6 +183,9 @@ export function writeCommandVolley(enemy: Enemy, out: CommandShot[], burstIndex 
     if (pattern === 'twinBeam') for (const sign of [-1, 1]) add(center + sign * 14, y + 6, 0, 0, 'beam', 2.05, .68)
     else add(clamp(aimX, 12, 88), y + 6, 0, 0, 'beam', 2.15, .68)
   }
+  // If a sweep would cross the corridor with every barrel, fall back to a
+  // single strike in the marked pilot lane. The warning uses this same recipe.
+  if (!count && leavesCorridor) add(aimX, y + 7, 0, speed, pattern === 'fork' ? 'superShot' : 'blade')
   return count
 }
 const releaseScratch = createCommandVolley()
@@ -160,6 +211,11 @@ function beginAttack(enemy: Enemy, profile: CommandBossProfile, targets: readonl
   const firstInterception = guidedOpening && profile.stage === 1 && serial === 0
   const pattern = firstInterception ? 'beam' : profile.sequence[index]
   const tune = TACTICS[difficulty]
+  const afterPhaseShift = enemy.bossManeuver === 'phaseShift'
+  enemy.bossManeuver = undefined
+  enemy.bossManeuverStartAge = undefined
+  enemy.bossManeuverFromX = undefined
+  enemy.bossManeuverToX = undefined
   if (changed) enemy.bossPhaseStartedAge = enemy.bossEncounterAge
   enemy.bossLastVolleyAge = undefined
   enemy.bossCombatPhase = phase
@@ -168,20 +224,87 @@ function beginAttack(enemy: Enemy, profile: CommandBossProfile, targets: readonl
   enemy.bossAttackState = 'warning'
   enemy.bossAimX = clamp(target.x, 8, 92); enemy.bossAimY = clamp(target.y, 48, 94)
   enemy.bossAttackX = enemy.x; enemy.bossAttackY = enemy.y
-  enemy.bossGapX = clamp(target.x + (serial % 2 ? 14 : -14), 22, 78)
-  enemy.bossWarningSeconds = Math.max(getCommandWarningFloor(isCommandBeam(pattern)), profile.warning * tune.warning * (1 - phase * .065) - (difficulty === 'easy' ? 0 : .14))
+  const escapeSide = enemy.bossAimX < 34 ? 1 : enemy.bossAimX > 66 ? -1 : serial % 2 ? 1 : -1
+  enemy.bossGapX = enemy.bossAimX + escapeSide * 18
+  enemy.bossWarningSeconds = Math.max(getCommandWarningFloor(isCommandBeam(pattern)), profile.warning * tune.warning * (1 - phase * .065)
+    - (difficulty === 'easy' ? 0 : .14) - (afterPhaseShift ? .16 : 0))
   if (firstInterception) enemy.bossWarningSeconds = Math.max(2.45, enemy.bossWarningSeconds)
   enemy.bossAttackTimer = enemy.bossWarningSeconds - elapsed
   enemy.bossShotSpeed = Math.min(COMMAND_MAX_SHOT_SPEED, (profile.speed + phase * 2.5) * tune.speed)
   enemy.bossBurstIndex = 0
   const followUp = difficulty !== 'easy' && phase === 0 && profile.bursts === 1 &&
     (pattern === 'fan' || pattern === 'snipe' || pattern === 'pincer' || pattern === 'sweep') && mixed % 3 !== 0 ? 1 : 0
-  enemy.bossBurstCount = isCommandBeam(pattern) ? 1 : pattern === 'hydra' ? 3 : Math.min(3, profile.bursts + followUp + (phase > 0 ? 1 : 0) + (phase === 2 && difficulty !== 'easy' ? 1 : 0))
+  const signature = pattern === profile.sequence[0]
+  const rounds = signature ? profile.signature.rounds : profile.bursts + followUp
+  enemy.bossBurstCount = isCommandBeam(pattern) ? 1
+    : Math.min(signature ? 6 : 3, Math.max(1, rounds + phase - (difficulty === 'easy' && rounds >= 3 ? 1 : 0)))
+  enemy.bossBurstInterval = signature
+    ? Math.max(.24, profile.signature.interval * (difficulty === 'easy' ? 1.17 : 1) - phase * .025)
+    : (difficulty === 'easy' ? .35 : .29) - phase * .018
   enemy.bossRecoverySeconds = Math.max(.48, profile.recovery * tune.recovery * (1 - phase * .11) - (difficulty === 'easy' ? .12 : .23))
   if (firstInterception) enemy.bossRecoverySeconds = 2.85
   return COMMAND_WARNING | (changed ? COMMAND_PHASE : 0)
 }
+export const COMMAND_CLOAK_SCAN_SECONDS = .44
+export const COMMAND_CLOAK_REVEAL_AT = COMMAND_CLOAK_SCAN_SECONDS + 1.18
+export const COMMAND_CLOAK_SECONDS = COMMAND_CLOAK_REVEAL_AT + .34
+export const COMMAND_PHASE_SHIFT_SECONDS = .52
+const COMMAND_PHASE_RECOVERY_SECONDS = .66
+
+export function getCommandManeuverAge(enemy: Enemy) {
+  return (enemy.bossEncounterAge ?? 0) - (enemy.bossManeuverStartAge ?? 0)
+}
+
+function smoothStep(progress: number) {
+  const t = clamp(progress, 0, 1)
+  return t * t * (3 - 2 * t)
+}
+
+export function sampleCommandBossCloak(enemy: Enemy) {
+  if (enemy.hp <= 0 || enemy.bossManeuver !== 'cloak' || enemy.bossAttackState !== 'recovery') return 0
+  const age = getCommandManeuverAge(enemy)
+  return smoothStep(Math.min((age - .1) / (COMMAND_CLOAK_SCAN_SECONDS - .1),
+    (COMMAND_CLOAK_SECONDS - age) / (COMMAND_CLOAK_SECONDS - COMMAND_CLOAK_REVEAL_AT)))
+}
+
+export function sampleCommandPhaseShiftX(enemy: Enemy, age: number) {
+  const from = enemy.bossManeuverFromX ?? enemy.x
+  const to = enemy.bossManeuverToX ?? enemy.x
+  return from + (to - from) * smoothStep(age / COMMAND_PHASE_SHIFT_SECONDS)
+}
+
+function beginRecovery(enemy: Enemy, profile: CommandBossProfile, overshoot: number) {
+  enemy.bossAttackState = 'recovery'
+  const recovery = enemy.bossRecoverySeconds ?? 1
+  const serial = enemy.bossAttackSerial ?? 0
+  if (!profile.maneuver || !enemy.bossCombatPhase || serial - (enemy.bossLastManeuverSerial ?? -3) < 3) {
+    enemy.bossAttackTimer = recovery - overshoot
+    return
+  }
+  const lane = enemy.bossAimX ?? 50
+  enemy.bossManeuver = profile.maneuver
+  enemy.bossManeuverStartAge = (enemy.bossEncounterAge ?? 0) - overshoot
+  enemy.bossLastManeuverSerial = serial
+  enemy.bossManeuverFromX = enemy.x
+  const flank = clamp(lane + (enemy.x < lane ? 28 : -28), 18, 82)
+  const opposite = enemy.x < 50 ? 78 : 22
+  enemy.bossManeuverToX = profile.maneuver === 'phaseShift' || Math.abs(flank - enemy.x) < 18 ? opposite : flank
+  // A dash leads into a fresh warning. Cloaking has a separate, longer exposure window.
+  enemy.bossAttackTimer = (profile.maneuver === 'phaseShift'
+    ? COMMAND_PHASE_RECOVERY_SECONDS : COMMAND_CLOAK_SECONDS + .24) - overshoot
+}
+
 function moveDuringRecovery(enemy: Enemy, profile: CommandBossProfile, target: Vec, dt: number) {
+  if (enemy.bossManeuver === 'phaseShift') {
+    enemy.x = sampleCommandPhaseShiftX(enemy, getCommandManeuverAge(enemy))
+    return
+  }
+  if (enemy.bossManeuver === 'cloak' && enemy.bossManeuverToX !== undefined) {
+    const age = getCommandManeuverAge(enemy)
+    const moveSeconds = clamp(age - COMMAND_CLOAK_SCAN_SECONDS, 0, dt)
+    enemy.x += clamp(enemy.bossManeuverToX - enemy.x, -36 * moveSeconds, 36 * moveSeconds)
+    return
+  }
   const age = enemy.bossEncounterAge ?? 0, serial = enemy.bossAttackSerial ?? 0
   const maneuver = mixCommandAttack(serial + profile.stage * 97 + (enemy.id ?? 0) * 17)
   const side = (maneuver & 4) ? 1 : -1
@@ -225,10 +348,10 @@ export function advanceCommandBoss(enemy: Enemy, dt: number, targets: readonly V
   if (count > 0) enemy.bossLastVolleyAge = enemy.bossEncounterAge
   enemy.bossBurstIndex = (enemy.bossBurstIndex ?? 0) + 1
   if (enemy.bossBurstIndex < (enemy.bossBurstCount ?? 1)) {
-    const stagger = ((enemy.bossAttackSerial ?? 0) + enemy.bossBurstIndex) % 2 ? .035 : 0
-    enemy.bossAttackState = 'burst'; enemy.bossAttackTimer = (difficulty === 'easy' ? .31 : .26 + stagger - (enemy.bossCombatPhase ?? 0) * .015) - overshoot
+    enemy.bossAttackState = 'burst'
+    enemy.bossAttackTimer = (enemy.bossBurstInterval ?? .29) - overshoot
   } else {
-    enemy.bossAttackState = 'recovery'; enemy.bossAttackTimer = (enemy.bossRecoverySeconds ?? 1) - overshoot
+    beginRecovery(enemy, profile, overshoot)
   }
   return count ? COMMAND_FIRED : 0
 }
@@ -236,4 +359,8 @@ export function interruptCommandBoss(enemy: Enemy) {
   if (!getCommandBossProfile(enemy) || enemy.bossEncounterAge === undefined) return
   enemy.bossLastVolleyAge = undefined
   enemy.bossAttackState = 'recovery'; enemy.bossAttackTimer = .9; enemy.bossBurstIndex = 0
+  enemy.bossManeuver = undefined
+  enemy.bossManeuverStartAge = undefined
+  enemy.bossManeuverFromX = undefined
+  enemy.bossManeuverToX = undefined
 }

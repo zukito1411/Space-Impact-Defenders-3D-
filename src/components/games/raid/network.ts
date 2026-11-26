@@ -295,9 +295,11 @@ export function interpolateEnemyVisual(previous: Enemy, next: Enemy, t: number) 
   visual.shieldTime = Math.max(0, previous.shieldTime + (next.shieldTime - previous.shieldTime) * t)
   visual.fireCooldown = Math.max(0, previous.fireCooldown + (next.fireCooldown - previous.fireCooldown) * t)
   visual.chargeCooldown = Math.max(0, previous.chargeCooldown + (next.chargeCooldown - previous.chargeCooldown) * t)
-  visual.chargeTimer = Math.max(0, previous.chargeTimer + (next.chargeTimer - previous.chargeTimer) * t)
-  visual.chargeLane = previous.chargeLane + (next.chargeLane - previous.chargeLane) * t
-  visual.chargeTargetY = (previous.chargeTargetY ?? previous.y) + ((next.chargeTargetY ?? next.y) - (previous.chargeTargetY ?? previous.y)) * t
+  if (!next.isMiniBoss || (previous.miniBossAttackIndex === next.miniBossAttackIndex && previous.miniBossAttack === next.miniBossAttack)) {
+    visual.chargeTimer = Math.max(0, previous.chargeTimer + (next.chargeTimer - previous.chargeTimer) * t)
+    visual.chargeLane = previous.chargeLane + (next.chargeLane - previous.chargeLane) * t
+    visual.chargeTargetY = (previous.chargeTargetY ?? previous.y) + ((next.chargeTargetY ?? next.y) - (previous.chargeTargetY ?? previous.y)) * t
+  }
   if (previous.bossEncounterAge !== undefined && next.bossEncounterAge !== undefined) {
     visual.bossEncounterAge = previous.bossEncounterAge + (next.bossEncounterAge - previous.bossEncounterAge) * t
   }

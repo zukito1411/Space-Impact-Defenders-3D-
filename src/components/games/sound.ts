@@ -146,6 +146,7 @@ const recentSfxTimesMs: number[] = []
 const lastKindPlayMs: Partial<Record<GameSoundKind, number>> = {}
 const gameSoundDuckers = new Set<GameSoundDucker>()
 const activeSamples = new Set<{ kind: GameSoundKind; stop: () => void }>()
+const MAX_ACTIVE_SAMPLES = 32
 const activeSynthSources = new Set<AudioScheduledSourceNode>()
 
 export type GameSoundSpace = { pan: number; depth?: number; gain?: number }
@@ -521,16 +522,19 @@ function tryPlaySample(kind: GameSoundKind, eventGain = 1) {
   const sampleUrl = pack.sfx?.[kind]
   if (!sampleUrl) return false
   try {
+    // Short defeat cues keep their attack, then fade instead of playing long noisy tails.
+    const limit = kind === 'gameover' ? 1100 : kind === 'destroyed_explosion' ? 1500 : 0
+    const fadeMs = kind === 'gameover' ? 180 : 220
+    const maxVoices = kind === 'laser' ? 3 : limit ? 1 : 6
+    const matching = [...activeSamples].filter(sample => sample.kind === kind)
+    while (matching.length >= maxVoices) matching.shift()!.stop()
+    // A stalled media load may never emit ended. Keep the total bounded even
+    // when several cues overlap or spatial routing is temporarily saturated.
+    if (activeSamples.size >= MAX_ACTIVE_SAMPLES) activeSamples.values().next().value?.stop()
     const a = new Audio(sampleUrl)
     a.preload = 'auto'
     a.loop = false
     a.volume = clamp01((pack.sfxVolume ?? 0.7) * getKindBusGain(kind) * eventGain * MAX_SFX_OUTPUT)
-    // Short defeat cues keep their attack, then fade instead of playing long noisy tails.
-    const limit = kind === 'gameover' ? 1100 : kind === 'destroyed_explosion' ? 1500 : 0
-    const fadeMs = kind === 'gameover' ? 180 : 220
-    const maxVoices = kind === 'laser' ? 3 : limit ? 1 : currentSfxSpace ? 6 : Infinity
-    const matching = [...activeSamples].filter(sample => sample.kind === kind)
-    while (matching.length >= maxVoices) matching.shift()!.stop()
     let timer = 0, fade = 0
     let media: MediaElementAudioSourceNode | null=null,releaseSpace:(()=>void)|undefined
     if(currentSfxSpace && new URL(sampleUrl,window.location.href).origin===window.location.origin){
@@ -545,7 +549,8 @@ function tryPlaySample(kind: GameSoundKind, eventGain = 1) {
       window.clearTimeout(timer); window.clearInterval(fade)
       a.onended = null; a.onerror = null
       a.pause()
-      try { a.currentTime = 0 } catch { /* Metadata may still be loading. */ }
+      a.removeAttribute('src')
+      a.load()
     } }
     activeSamples.add(sample)
     a.onended = sample.stop

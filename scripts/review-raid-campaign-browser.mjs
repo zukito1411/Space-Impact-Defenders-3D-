@@ -30,10 +30,10 @@ const refNames=[...source.matchAll(/const (\w+Ref) = useRef/g)].map(match=>match
 const resetRefs={
   arrays:['enemiesRef','shotsRef','enemyShotsRef','sparksRef','ripplesRef','asteroidsRef',
     'asteroidApproachRef','meteorsRef','ionStrikesRef','wrecksRef','powerUpsRef','muzzleFlashesRef',
-    'godMeleeStrikesRef'],
+    'godMeleeStrikesRef','randomEventsRef'],
   numbers:['stageEntryRef','stageClearRef','bossAlertRef','bossEntranceSlamRef','nukeFlashRef',
     'asteroidWarningRef','asteroidSpawnDelayRef','victoryBlackoutRef'],
-  nullable:['carrierStopRef','pendingNextStageRef','randomEventRef','nukeStrikeRef','godBarrageRef'],
+  nullable:['carrierStopRef','pendingNextStageRef','nukeStrikeRef','godBarrageRef'],
 }
 // Fail before starting Chromium if runtime refactors leave stale fixture state.
 const missingResetRefs=Object.values(resetRefs).flat().filter(name=>!refNames.includes(name))

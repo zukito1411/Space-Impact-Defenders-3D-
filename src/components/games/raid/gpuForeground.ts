@@ -220,8 +220,11 @@ export class RaidGpuForeground {
       node.anchor.set(.5);node.visible=false;node.eventMode='none'
       this.destructionLayer.addChild(node);this.destructionNodes.push(node)
     }
-    // Frame textures use the same two underlying sources; upload each once.
-    await renderer.prepare.upload([...getRaidCombatRootTextures(), ...Array.from(this.textures.values(), (record) => record.texture)])
+    // These shared atlases are reused by distant parts of the campaign.
+    // Retain their uploads even while a particular attack type is idle.
+    const combatAtlases = getRaidCombatRootTextures()
+    for (const texture of combatAtlases) texture.source.autoGarbageCollect = false
+    await renderer.prepare.upload([...combatAtlases, ...Array.from(this.textures.values(), (record) => record.texture)])
   }
 
   private colorTint(color: string) {

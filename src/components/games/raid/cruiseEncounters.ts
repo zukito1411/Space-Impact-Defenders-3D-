@@ -1,5 +1,5 @@
 import { getRaidStageEncounter, getRaidWingSize } from './stageEncounters'
-import type { Enemy, MiniBossKind, Shot, Vec } from './types'
+import type { Enemy, MiniBossAttack, MiniBossKind, Shot, Vec } from './types'
 
 export type CruiseManeuver = 'pincer' | 'dive' | 'barrage' | 'escort'
 type CruiseEncounter = Exclude<CruiseManeuver, 'escort'> | 'patrol' | MiniBossKind
@@ -24,7 +24,6 @@ const ROUTES: readonly (readonly CruiseEncounter[])[] = [
 ]
 
 export const CRUISE_BOSS_APPROACH_SECONDS = 7
-export const CRUISE_ELITE_WARNING_SECONDS = 1.05
 
 export function getCruiseEncounter(stage: number, serial: number) {
   const route = ROUTES[Math.max(0, stage - 2) % ROUTES.length]
@@ -61,31 +60,92 @@ export function placeCruiseWing(maneuver: CruiseManeuver, slot: number, count: n
   }
 }
 
-export function beginCruiseEliteAttack(enemy: Enemy, target: Vec) {
-  enemy.chargeLane = Math.max(12, Math.min(88, target.x))
-  enemy.chargeTargetY = target.y
-  enemy.chargeTimer = CRUISE_ELITE_WARNING_SECONDS
-  enemy.chargeCooldown = enemy.miniBossKind === 'stalker' ? 3.6 : 4.8
+const MINI_BOSS_PROFILES = {
+  lancer: ['drill', 'crossfire', 'rail'],
+  stalker: ['knives', 'flank', 'fan'],
+  brood: ['launch', 'pods', 'screen'],
+} as const satisfies Record<MiniBossKind, readonly MiniBossAttack[]>
+
+const MINI_BOSS_TIMING: Record<MiniBossAttack, { warning: number; recovery: number; shots: number }> = {
+  drill: { warning: 1.05, recovery: 1.8, shots: 4 },
+  crossfire: { warning: 1.05, recovery: 2, shots: 6 },
+  rail: { warning: 1.2, recovery: 2.15, shots: 3 },
+  knives: { warning: 1.05, recovery: 1.5, shots: 4 },
+  flank: { warning: 1.15, recovery: 1.9, shots: 3 },
+  fan: { warning: .9, recovery: 1.7, shots: 6 },
+  launch: { warning: 1.2, recovery: 2, shots: 0 },
+  pods: { warning: 1, recovery: 1.9, shots: 4 },
+  screen: { warning: 1.15, recovery: 2.2, shots: 6 },
 }
 
-export function fireCruiseLancer(enemy: Enemy, available: number, emit: (shot: Omit<Shot, 'id'>) => void) {
-  if (available < 4) return false
-  // The warning shows a committed lane. The salvo crosses the screen there,
-  // giving the pilot room to dodge to either side.
-  for (let slot = 0; slot < 4; slot++) {
-    emit({ x: enemy.chargeLane + (slot - 1.5) * 2.35, y: enemy.y + 3 - slot * 4.1,
-      vx: 0, vy: 53, damage: 1, radius: 1.25, kind: 'needle' })
+export function beginCruiseEliteAttack(enemy: Enemy, target: Vec, canLaunch: boolean) {
+  const profile = MINI_BOSS_PROFILES[enemy.miniBossKind ?? 'stalker']
+  let index = enemy.miniBossAttackIndex ?? 0
+  let attack = profile[index % profile.length]
+  if (attack === 'launch' && !canLaunch) {
+    index++
+    attack = profile[index % profile.length]
   }
-  return true
+  enemy.miniBossAttack = attack
+  enemy.miniBossAttackIndex = index + 1
+  const laneInset = attack === 'crossfire' ? 24 : attack === 'screen' ? 32 : 12
+  enemy.chargeLane = Math.max(laneInset, Math.min(100 - laneInset, target.x))
+  enemy.chargeTargetY = target.y
+  enemy.miniBossAttackOriginX = attack === 'flank'
+    ? Math.max(10, Math.min(90, target.x + (enemy.x < target.x ? 28 : -28)))
+    : enemy.x
+  const { warning, recovery } = MINI_BOSS_TIMING[attack]
+  enemy.chargeTimer = warning
+  enemy.chargeCooldown = recovery * (enemy.hp <= enemy.maxHp * .38 ? .82 : 1)
 }
 
-export function fireCruiseStalker(enemy: Enemy, available: number, emit: (shot: Omit<Shot, 'id'>) => void) {
-  if (available < 4) return false
-  const aim = Math.atan2(enemy.chargeLane - enemy.x, Math.max(16, enemy.chargeTargetY - enemy.y))
-  for (const spread of [-.19, -.06, .06, .19]) {
-    const angle = aim + spread
-    emit({ x: enemy.x, y: enemy.y + 3, vx: Math.sin(angle) * 47, vy: Math.cos(angle) * 47,
-      damage: 1, radius: 1.4, kind: 'blade' })
+export function getMiniBossWarningSeconds(attack: MiniBossAttack) {
+  return MINI_BOSS_TIMING[attack].warning
+}
+
+export function forEachMiniBossLane(attack: 'drill' | 'crossfire' | 'screen', lane: number, visit: (x: number) => void) {
+  const offsets = attack === 'drill' ? [0] : attack === 'crossfire' ? [-17, 17] : [-26, -19, -12, 12, 19, 26]
+  for (const offset of offsets) visit(lane + offset)
+}
+
+export function fireCruiseEliteAttack(enemy: Enemy, available: number, emit: (shot: Omit<Shot, 'id'>) => void) {
+  const attack = enemy.miniBossAttack
+  if (!attack || attack === 'launch' || available < MINI_BOSS_TIMING[attack].shots) return false
+  const y = enemy.y + 3
+  const origin = enemy.miniBossAttackOriginX ?? enemy.x
+  const aimed = (x: number, spread: number, speed: number, kind: Shot['kind'], radius: number, offsetY = 0) => {
+    const angle = Math.atan2(enemy.chargeLane - x, enemy.chargeTargetY - y) + spread
+    emit({ x, y: y + offsetY, vx: Math.sin(angle) * speed, vy: Math.cos(angle) * speed, damage: 1, radius, kind })
+  }
+  if (attack === 'drill') {
+    for (let slot = 0; slot < 4; slot++) {
+      emit({ x: enemy.chargeLane + (slot - 1.5) * 2.35, y: y - slot * 4.1, vx: 0, vy: 53, damage: 1, radius: 1.25, kind: 'needle' })
+    }
+  } else if (attack === 'crossfire') {
+    forEachMiniBossLane(attack, enemy.chargeLane, lane => {
+      for (const offset of [-3.4, 0, 3.4]) {
+        emit({ x: lane + offset, y: y - Math.abs(offset), vx: 0, vy: 45, damage: 1, radius: 1.25, kind: 'needle' })
+      }
+    })
+  } else if (attack === 'rail') {
+    aimed(origin, 0, 65, 'superShot', 2.1)
+    aimed(origin, -.075, 57, 'needle', 1.25, -5)
+    aimed(origin, .075, 57, 'needle', 1.25, -5)
+  } else if (attack === 'knives') {
+    for (const spread of [-.19, -.06, .06, .19]) aimed(origin, spread, 47, 'blade', 1.4)
+  } else if (attack === 'flank') {
+    for (const spread of [-.1, 0, .1]) aimed(origin, spread, 57, 'blade', 1.4)
+  } else if (attack === 'fan') {
+    for (const spread of [-.64, -.41, -.21, .21, .41, .64]) aimed(origin, spread, 38, 'blade', 1.4)
+  } else if (attack === 'pods') {
+    for (const side of [-1, 1]) {
+      aimed(origin + side * 7, side * .25, 24, 'orbShot', 2)
+      aimed(origin + side * 7, side * .085, 36, 'voidShot', 1.55)
+    }
+  } else {
+    forEachMiniBossLane(attack, enemy.chargeLane, lane => {
+      emit({ x: lane, y, vx: 0, vy: Math.abs(lane - enemy.chargeLane) > 20 ? 27 : 32, damage: 1, radius: 1.7, kind: 'orbShot' })
+    })
   }
   return true
 }

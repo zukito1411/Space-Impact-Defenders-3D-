@@ -1,14 +1,14 @@
 import { BOSS_FX, drawBossFx, drawBossFxLane } from './combatArt'
 import { getGenericBossArt } from './bossCatalog'
 import { PLAYER_RADIUS } from './constants'
-import { COMMAND_PHASE_HP, createCommandVolley, isCommandBeam, writeCommandVolley } from './commandBoss'
+import { COMMAND_CLOAK_REVEAL_AT, COMMAND_CLOAK_SCAN_SECONDS, COMMAND_CLOAK_SECONDS, COMMAND_PHASE_HP, COMMAND_PHASE_SHIFT_SECONDS, commandVolleyPreviewIndex, createCommandVolley, getCommandManeuverAge, isCommandBeam, sampleCommandBossCloak, sampleCommandPhaseShiftX, writeCommandVolley } from './commandBoss'
 import type { Enemy } from './types'
 const preview = createCommandVolley()
 /** Warning projections use the committed volley geometry. */
 export function drawCommandBossTelegraph(ctx: CanvasRenderingContext2D, enemy: Enemy,
   toX: (v: number) => number, toY: (v: number) => number, viewportWidth: number) {
   if (enemy.hp <= 0 || enemy.bossAttackState !== 'warning' || (enemy.bossAttackTimer ?? 0) <= 0) return
-  const count = writeCommandVolley(enemy, preview, enemy.bossAttackPattern === 'hydra' ? -1 : 0)
+  const count = writeCommandVolley(enemy, preview, commandVolleyPreviewIndex(enemy.bossAttackPattern))
   if (!count) return
   const progress = 1 - (enemy.bossAttackTimer ?? 0) / Math.max(.01, enemy.bossWarningSeconds ?? 1)
   for (let i = 0; i < count; i++) {
@@ -54,6 +54,51 @@ const reducedMotion = typeof window !== 'undefined' && typeof window.matchMedia 
 export const prefersRaidReducedMotion = () => reducedMotion?.matches === true
 const phaseColors = ['#67e8f9', '#fbbf24', '#fb7185'] as const
 
+export function getCommandBossHullOpacity(enemy: Enemy) {
+  const depth = sampleCommandBossCloak(enemy)
+  const minimum = prefersRaidReducedMotion() ? .24 : 0
+  const hitReveal = .34 * Math.sqrt(Math.min(1, Math.max(0, enemy.hitFlash ?? 0) / .24))
+  return 1 - depth * (1 - Math.max(minimum, hitReveal))
+}
+
+export function drawCommandPhaseAfterimages(enemy: Enemy, draw: (x: number, alpha: number, index: number) => void) {
+  if (enemy.hp <= 0 || enemy.bossManeuver !== 'phaseShift' || prefersRaidReducedMotion()) return
+  const age = getCommandManeuverAge(enemy)
+  if (age <= 0 || age >= .65) return
+  const tail = Math.min(1, (.65 - age) / .2)
+  for (let index = 2; index >= 0; index--) {
+    const historyAge = age - (index + 1) * .08
+    if (historyAge < 0 || historyAge >= COMMAND_PHASE_SHIFT_SECONDS) continue
+    const x = sampleCommandPhaseShiftX(enemy, historyAge)
+    if (Math.abs(x - enemy.x) < 2) continue
+    draw(x, (.36 - index * .085) * tail, index)
+  }
+}
+
+function drawCloakScan(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, progress: number) {
+  const reduced = prefersRaidReducedMotion()
+  const extent = size * .43
+  const span = size * .31
+  const band = Math.max(5, size * .11)
+  const scan = reduced ? 0 : (progress * 2 - 1) * extent
+  ctx.save()
+  ctx.translate(x, y)
+  ctx.globalCompositeOperation = 'screen'
+  ctx.globalAlpha *= Math.sin(progress * Math.PI) * (reduced ? .42 : .9)
+  ctx.beginPath()
+  ctx.ellipse(0, 0, span, extent, 0, 0, Math.PI * 2)
+  ctx.clip()
+  const sweep = ctx.createLinearGradient(0, scan - band, 0, scan + band)
+  sweep.addColorStop(0, 'rgba(40,149,245,0)')
+  sweep.addColorStop(.35, 'rgba(53,175,255,0.38)')
+  sweep.addColorStop(.61, 'rgba(182,252,255,0.98)')
+  sweep.addColorStop(.72, 'rgba(50,212,255,0.56)')
+  sweep.addColorStop(1, 'rgba(34,143,234,0)')
+  ctx.fillStyle = sweep
+  ctx.fillRect(-span, scan - band, span * 2, band * 2)
+  ctx.restore()
+}
+
 /** Short, local effects driven by the same encounter clock as the attacks. */
 export function drawCommandBossEnergy(ctx: CanvasRenderingContext2D, enemy: Enemy,
   toX: (v: number) => number, toY: (v: number) => number, size: number) {
@@ -76,6 +121,18 @@ export function drawCommandBossEnergy(ctx: CanvasRenderingContext2D, enemy: Enem
     }
     ctx.stroke()
     ctx.restore()
+  }
+
+  const elapsed = getCommandManeuverAge(enemy)
+  if (enemy.bossManeuver === 'cloak' && elapsed > 0) {
+    if (elapsed < COMMAND_CLOAK_SCAN_SECONDS) {
+      drawCloakScan(ctx, toX(enemy.x), toY(enemy.y), size, elapsed / COMMAND_CLOAK_SCAN_SECONDS)
+    } else if (elapsed >= COMMAND_CLOAK_REVEAL_AT && elapsed < COMMAND_CLOAK_SECONDS) {
+      const progress = (elapsed - COMMAND_CLOAK_REVEAL_AT) / (COMMAND_CLOAK_SECONDS - COMMAND_CLOAK_REVEAL_AT)
+      const span = size * (prefersRaidReducedMotion() ? .32 : .28 + progress * .22)
+      drawBossFx(ctx, BOSS_FX.pulse, toX(enemy.x), toY(enemy.y), span, span * .85,
+        .62 * Math.sin(progress * Math.PI), 0, true)
+    }
   }
 
   const volleyAge = age - (enemy.bossLastVolleyAge ?? -Infinity)

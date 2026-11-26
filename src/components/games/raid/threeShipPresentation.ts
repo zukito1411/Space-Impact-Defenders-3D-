@@ -205,12 +205,16 @@ export class ThreeShipPresentation implements LiveHullSink {
         renderer.setRenderTarget(this.uploadTarget)
         renderer.render(upload, camera)
       } finally { renderer.setRenderTarget(target) }
-      for (const node of pool) node.group.visible = false
-      // Offscreen targets use a different output/tone-mapping program. Retain
-      // the screen variant with the same light/environment configuration too.
-      for (const node of pool) node.group.visible = true
-      await renderer.compileAsync(upload, this.camera, this.world)
-      if (!this.disposed) { this.nodePools.set(key, pool); admitted = true }
+      // Offscreen targets use a different output/tone-mapping program. The
+      // upload scene already mirrors the live lights. Passing the live scene
+      // as a target as well would make Three compile with both sets of lights.
+      await renderer.compileAsync(upload, this.camera)
+      if (this.disposed) return
+      // Three normally initializes the linked program's uniform and attribute
+      // tables on the first draw. Finish that work before publishing the hull.
+      for (const program of renderer.info.programs ?? []) program.getUniforms()
+      this.nodePools.set(key, pool)
+      admitted = true
     } finally {
       if (breakup) {
         breakup.reset()
