@@ -1,10 +1,10 @@
-import { drawHostileShotContrast } from './hostileShotContrast'
 import { CoopLink, readCoopInput } from './coopLink'
 import { isOrganicBoss } from './destructionProfile'
 import { drawDestructionEffects } from './destructionEffects'
 import { EnemyTactics } from './enemyTactics'
 import { WorldStories } from './worldStories'
 import { CRUISE_FLYBY_START, STAGE_ONE_CRUISE_SEQUENCE_END } from './cruiseTiming'
+import { HOSTILE_PROJECTILE_COLOR } from './hostileProjectileArt'
 import { isRaid2DMech } from './mechArtwork'
 import { enemyHullKey } from './enemyHulls'
 import { ThreeShipPresentation } from './threeShipPresentation'
@@ -2388,10 +2388,10 @@ export function GradiusRaid({
       ctx.globalCompositeOperation = 'lighter'
       ctx.globalAlpha = 0.42 * alpha
       const core = ctx.createRadialGradient(x, y, radius * 0.08, x, y, radius)
-      core.addColorStop(0, 'rgba(236,252,203,0.86)')
-      core.addColorStop(0.26, 'rgba(132,204,22,0.56)')
-      core.addColorStop(0.62, 'rgba(22,101,52,0.32)')
-      core.addColorStop(1, 'rgba(22,101,52,0)')
+      core.addColorStop(0, 'rgba(255,196,226,0.86)')
+      core.addColorStop(0.26, 'rgba(255,66,158,0.56)')
+      core.addColorStop(0.62, 'rgba(119,19,89,0.32)')
+      core.addColorStop(1, 'rgba(119,19,89,0)')
       ctx.fillStyle = core
       ctx.beginPath()
       ctx.arc(x, y, radius, 0, Math.PI * 2)
@@ -2404,16 +2404,16 @@ export function GradiusRaid({
         const py = y + Math.sin(angle) * dist * 0.72
         const puffRadius = radius * (0.22 + (puff % 2) * 0.08)
         const g = ctx.createRadialGradient(px, py, 1, px, py, puffRadius)
-        g.addColorStop(0, 'rgba(217,249,157,0.54)')
-        g.addColorStop(0.48, 'rgba(74,222,128,0.28)')
-        g.addColorStop(1, 'rgba(22,101,52,0)')
+        g.addColorStop(0, 'rgba(255,143,199,0.54)')
+        g.addColorStop(0.48, 'rgba(210,40,131,0.28)')
+        g.addColorStop(1, 'rgba(119,19,89,0)')
         ctx.fillStyle = g
         ctx.beginPath()
         ctx.arc(px, py, puffRadius, 0, Math.PI * 2)
         ctx.fill()
       }
       ctx.globalAlpha = 0.42 * alpha
-      ctx.strokeStyle = 'rgba(190,242,100,0.42)'
+      ctx.strokeStyle = 'rgba(255,111,186,0.42)'
       ctx.lineWidth = Math.max(1, visualScale * 1.5)
       ctx.beginPath()
       ctx.arc(x, y, radius * 0.62, 0, Math.PI * 2)
@@ -2435,16 +2435,16 @@ export function GradiusRaid({
       ctx.globalCompositeOperation = 'lighter'
       if (shot.angle === undefined) {
         ctx.globalAlpha = 0.24 * alpha
-        ctx.fillStyle = 'rgba(14,165,233,1)'
+        ctx.fillStyle = 'rgba(255,30,137,1)'
         ctx.fillRect(x - width * 0.72, 0, width * 1.44, cssHeight)
         ctx.globalAlpha = 0.48 * alpha
-        ctx.fillStyle = 'rgba(56,189,248,1)'
+        ctx.fillStyle = 'rgba(255,72,163,1)'
         ctx.fillRect(x - width * 0.5, 0, width, cssHeight)
         ctx.globalAlpha = 0.86 * alpha
-        ctx.fillStyle = 'rgba(224,242,254,1)'
+        ctx.fillStyle = 'rgba(255,191,226,1)'
         ctx.fillRect(x - coreWidth * 0.5, 0, coreWidth, cssHeight)
         ctx.globalAlpha = 0.55 * alpha
-        ctx.strokeStyle = 'rgba(125,249,255,1)'
+        ctx.strokeStyle = 'rgba(255,127,197,1)'
         ctx.lineWidth = Math.max(2, visualScale * 2.4)
         ctx.beginPath()
         ctx.moveTo(x - width * 0.47, 0)
@@ -2456,16 +2456,16 @@ export function GradiusRaid({
         ctx.translate(x, y)
         ctx.rotate(shot.angle)
         ctx.globalAlpha = 0.24 * alpha
-        ctx.fillStyle = 'rgba(14,165,233,1)'
+        ctx.fillStyle = 'rgba(255,30,137,1)'
         ctx.fillRect(-length / 2, -width * 0.72, length, width * 1.44)
         ctx.globalAlpha = 0.48 * alpha
-        ctx.fillStyle = 'rgba(56,189,248,1)'
+        ctx.fillStyle = 'rgba(255,72,163,1)'
         ctx.fillRect(-length / 2, -width * 0.5, length, width)
         ctx.globalAlpha = 0.86 * alpha
-        ctx.fillStyle = 'rgba(224,242,254,1)'
+        ctx.fillStyle = 'rgba(255,191,226,1)'
         ctx.fillRect(-length / 2, -coreWidth * 0.5, length, coreWidth)
         ctx.globalAlpha = 0.55 * alpha
-        ctx.strokeStyle = 'rgba(125,249,255,1)'
+        ctx.strokeStyle = 'rgba(255,127,197,1)'
         ctx.lineWidth = Math.max(2, visualScale * 2.4)
         ctx.beginPath()
         ctx.moveTo(-length / 2, -width * 0.47)
@@ -2569,8 +2569,8 @@ export function GradiusRaid({
       ctx.translate(x, y)
       ctx.rotate(angle)
       ctx.globalCompositeOperation = 'lighter'
-      ctx.fillStyle = '#fef3c7'
-      ctx.strokeStyle = 'rgba(190,242,100,0.82)'
+      ctx.fillStyle = '#ffc0e4'
+      ctx.strokeStyle = 'rgba(255,110,184,0.82)'
       ctx.lineWidth = Math.max(1, visualScale * 1.3)
       ctx.beginPath()
       ctx.moveTo(0, -length * 0.64)
@@ -2607,7 +2607,7 @@ export function GradiusRaid({
       ctx.save()
       ctx.globalCompositeOperation = 'lighter'
       drawRadialEllipse(ctx, x, y, radius * pulse, radius * 0.78, RAID_VENOM_SPIT_STOPS)
-      ctx.strokeStyle = 'rgba(253,230,138,0.68)'
+      ctx.strokeStyle = 'rgba(255,154,210,0.68)'
       ctx.lineWidth = Math.max(1.1, visualScale * 1.1)
       ctx.beginPath()
       ctx.arc(x, y, radius * 0.7, 0, Math.PI * 2)
@@ -2915,8 +2915,8 @@ export function GradiusRaid({
         continue
       }
       if (!gfxProfile.drawAdvancedShotFx) {
-        if (shot.kind === 'beam') drawTrail(shot, 'rgba(56,189,248,0.88)', 82, 9)
-        else drawOrb(shot, shot.kind === 'poisonCloud' || shot.kind === 'venomSpit' || shot.kind === 'snakeFang' || shot.kind === 'devilSnakeHead' ? 'rgba(132,204,22,0.68)' : shot.kind === 'squidInk' || shot.kind === 'squidSpine' ? 'rgba(244,114,182,0.78)' : 'rgba(251,113,133,0.78)', shot.kind === 'squidBubble' ? 12 : 8)
+        if (shot.kind === 'beam') drawTrail(shot, HOSTILE_PROJECTILE_COLOR, 82, 9)
+        else drawOrb(shot, HOSTILE_PROJECTILE_COLOR, shot.kind === 'squidBubble' ? 12 : 8)
       }
       else if (shot.kind === 'squidBubble') drawSquidBubble(shot)
       else if (shot.kind === 'squidInk') drawSquidInkShot(shot)
@@ -2925,21 +2925,14 @@ export function GradiusRaid({
       else if (shot.kind === 'devilSnakeHead') drawDevilSnakeHeadShot(shot)
       else if (shot.kind === 'venomSpit') drawVenomSpitShot(shot)
       else if (shot.kind === 'poisonCloud') drawPoisonCloud(shot)
-      else if (shot.kind === 'orbShot') drawOrb(shot, 'rgba(168,85,247,0.92)', 12)
-      else if (shot.kind === 'blade') drawTrail(shot, 'rgba(34,211,238,0.9)', 46, 7)
-      else if (shot.kind === 'needle') drawTrail(shot, 'rgba(190,242,100,0.92)', 42, 5)
-      else if (shot.kind === 'voidShot') drawOrb(shot, 'rgba(192,132,252,0.95)', 15)
-      else if (shot.kind === 'beam') drawTrail(shot, 'rgba(56,189,248,0.96)', 112, 14)
-      else if (shot.kind === 'scatterBoss') drawTrail(shot, 'rgba(251,146,60,0.9)', 34, 5)
-      else if (shot.kind === 'superShot') drawOrb(shot, 'rgba(251,191,36,0.95)', 14)
-      else drawOrb(shot, 'rgba(251,113,133,0.9)', 10)
-    }
-
-    // Pixi projectiles already sit above Pixi effects. Add a small solid
-    // contact silhouette when a brighter foreground Canvas pass overlaps them.
-    const brightForeground = nukeFlashRef.current > 0 || destructionEffects.some(particle => particle.kind === 'explosion')
-    if (playing && gpuForegroundDrawn && brightForeground) {
-      drawHostileShotContrast(ctx, enemyShotsRef.current, drawBounds, toX, toY, visualScale)
+      else if (shot.kind === 'orbShot') drawOrb(shot, HOSTILE_PROJECTILE_COLOR, 12)
+      else if (shot.kind === 'blade') drawTrail(shot, HOSTILE_PROJECTILE_COLOR, 46, 7)
+      else if (shot.kind === 'needle') drawTrail(shot, HOSTILE_PROJECTILE_COLOR, 42, 5)
+      else if (shot.kind === 'voidShot') drawOrb(shot, HOSTILE_PROJECTILE_COLOR, 15)
+      else if (shot.kind === 'beam') drawTrail(shot, HOSTILE_PROJECTILE_COLOR, 112, 14)
+      else if (shot.kind === 'scatterBoss') drawTrail(shot, HOSTILE_PROJECTILE_COLOR, 34, 5)
+      else if (shot.kind === 'superShot') drawOrb(shot, HOSTILE_PROJECTILE_COLOR, 14)
+      else drawOrb(shot, HOSTILE_PROJECTILE_COLOR, 10)
     }
 
     if (playing && ownShipRef && ownShipRef.hp > 0 && !stageClearActive && asteroidWarningRef.current <= 0 && !(randomEventRef.current?.warning)) {
@@ -8315,7 +8308,7 @@ export function GradiusRaid({
 
       {openingCue && snapshot.phase === 'playing' && snapshot.stageTheme === 1 && snapshot.stageClear <= 0 && !openingReport && (
         <div className="raid__fleet-radio">
-          <FleetRadio name={command.radio}>
+          <FleetRadio>
             {command[openingCue]}
             {openingCue === 'steer' && <small>{window.matchMedia('(pointer: coarse)').matches ? command.steerTouch : command.steerKeys}</small>}
           </FleetRadio>

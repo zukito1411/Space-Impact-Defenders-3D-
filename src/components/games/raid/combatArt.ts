@@ -3,6 +3,7 @@ import { getPublicAssetUrl } from '../sound'
 import type { Shot } from './types'
 import { missileVisualScale } from './missilePresentation'
 import type { GpuBossProjectileSpec } from './gpuBossProjectiles'
+import { colorHostileProjectilePixels } from './hostileProjectileArt'
 
 export const RAID_COMBAT_ATLAS_URL = getPublicAssetUrl('assets/raid-fx/combat-atlas-v2.png')
 export const RAID_EXPLOSION_ATLAS_URL = getPublicAssetUrl('assets/raid-fx/explosion-atlas-v2.png')
@@ -96,12 +97,12 @@ function splitAtlas(texture: Texture, trimBossProjectiles = false, trimExplosion
   })
 }
 
-function buildMaterials(specs: Partial<Record<Shot['kind'], MaterialSpec>>, target: typeof playerMaterials) {
+function buildMaterials(specs: Partial<Record<Shot['kind'], MaterialSpec>>, target: typeof playerMaterials, frames: Texture[]) {
   for (const [kind, spec] of Object.entries(specs)) {
     const [tile, width, height, directional, solid] = spec
     if (target === playerMaterials && missileLoaded && (kind === 'rocket' || kind === 'homing')) continue
     const scale = target === playerMaterials ? missileVisualScale(kind) : 1
-    target[kind as Shot['kind']] = { texture: combatFrames[tile], width:width*scale, height:height*scale, directional, solid }
+    target[kind as Shot['kind']] = { texture: frames[tile], width:width*scale, height:height*scale, directional, solid }
   }
 }
 
@@ -149,6 +150,35 @@ export function getRaidProjectileTexture(texture: Texture, glow: boolean) {
   return glow ? glowFrames.get(texture) ?? texture : texture
 }
 
+/** Pack only live hostile cells. Recolor before baking glow so both paths agree. */
+function prepareHostileArtwork(original: Texture, frames: Texture[], solidIndices: number[] = []) {
+  const resolution = original.source.resolution
+  const cellWidth = Math.ceil(Math.max(...frames.map(frame => frame.width)) * resolution) + 4
+  const cellHeight = Math.ceil(Math.max(...frames.map(frame => frame.height)) * resolution) + 4
+  const columns = Math.ceil(Math.sqrt(frames.length))
+  const canvas = document.createElement('canvas')
+  canvas.width = cellWidth * columns
+  canvas.height = cellHeight * Math.ceil(frames.length / columns)
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  const source = original.source.resource as CanvasImageSource | undefined
+  let root = original
+  if (ctx && source) {
+    const bounds = frames.map(({ frame }, i) => {
+      const x = i % columns * cellWidth + 2, y = Math.floor(i / columns) * cellHeight + 2
+      const width = frame.width * resolution, height = frame.height * resolution
+      ctx.drawImage(source, frame.x * resolution, frame.y * resolution, width, height, x, y, width, height)
+      return new Rectangle(x, y, width, height)
+    })
+    colorHostileProjectilePixels(ctx)
+    root = Texture.from(canvas, true)
+    root.source.scaleMode = 'linear'
+    frames = bounds.map(frame => new Texture({ source: root.source, frame }))
+  }
+  if (root !== original || !rootTextures.includes(original)) rootTextures.push(root)
+  if (root !== original || !glowFrames.has(frames[0])) bakeProjectileGlow(root, frames, solidIndices.map(i => frames[i]))
+  return frames
+}
+
 /** Decode once in the loading screen. Frames share their atlas GPU texture sources. */
 export function preloadRaidCombatArt(): Promise<void> {
   if (!warmPromise) {
@@ -156,19 +186,22 @@ export function preloadRaidCombatArt(): Promise<void> {
       (combatFrames.length ? Promise.resolve() : Assets.load<Texture>(RAID_COMBAT_ATLAS_URL).then((texture) => {
         combatFrames = splitAtlas(texture)
         rootTextures.push(texture)
-        buildMaterials(PLAYER_MATERIALS, playerMaterials)
-        buildMaterials(ENEMY_MATERIALS, enemyMaterials)
+        buildMaterials(PLAYER_MATERIALS, playerMaterials, combatFrames)
         const tiles = [COMBAT_TILE.plasma, COMBAT_TILE.hotBolt, COMBAT_TILE.ionNeedle, COMBAT_TILE.alienOrb,
           COMBAT_TILE.fireImpact, COMBAT_TILE.missile]
         bakeProjectileGlow(texture, tiles.map(tile => combatFrames[tile]), [combatFrames[COMBAT_TILE.missile]])
+        const hostileTiles = [...new Set(Object.values(ENEMY_MATERIALS).map(([tile]) => tile))]
+        const colored = prepareHostileArtwork(texture, hostileTiles.map(tile => combatFrames[tile]))
+        const hostileFrames = combatFrames.slice()
+        hostileTiles.forEach((tile, index) => { hostileFrames[tile] = colored[index] })
+        buildMaterials(ENEMY_MATERIALS, enemyMaterials, hostileFrames)
       }).catch((error: unknown) => { console.warn('Raid projectile artwork failed to load:', RAID_COMBAT_ATLAS_URL, error) })),
       (explosionFrames.length ? Promise.resolve() : Assets.load<Texture>(RAID_EXPLOSION_ATLAS_URL).then((texture) => {
         explosionFrames = splitAtlas(texture, false, true)
         rootTextures.push(texture)
       }).catch((error: unknown) => { console.warn('Raid explosion artwork failed to load:', RAID_EXPLOSION_ATLAS_URL, error) })),
       (bossFrames.length ? Promise.resolve() : Assets.load<Texture>(RAID_BOSS_ATLAS_URL).then((texture) => {
-        bossFrames = splitAtlas(texture, true)
-        rootTextures.push(texture)
+        bossFrames = prepareHostileArtwork(texture, splitAtlas(texture, true).slice(0, 10), [2, 3, 5])
         const specs: Partial<Record<Shot['kind'], MaterialSpec>> = {
           enemy: [8, 34, 34, false, false], boss: [7, 68, 54, true, false],
           plasma: [8, 54, 54, false, false], orbShot: [6, 60, 60, false, false],
@@ -178,7 +211,6 @@ export function preloadRaidCombatArt(): Promise<void> {
           const [tile, width, height, directional, solid] = spec
           bossMaterials[kind as Shot['kind']] = { texture: bossFrames[tile], width, height, directional, solid }
         }
-        bakeProjectileGlow(texture, bossFrames.slice(0, 10), [bossFrames[2], bossFrames[3], bossFrames[5]])
       }).catch((error: unknown) => { console.warn('Raid boss artwork failed to load:', RAID_BOSS_ATLAS_URL, error) })),
       (bossFxFrames.length ? Promise.resolve() : Assets.load<Texture>(RAID_BOSS_FX_ATLAS_URL).then((texture) => {
         bossFxFrames = splitAtlas(texture, false, false, 3)
@@ -186,9 +218,7 @@ export function preloadRaidCombatArt(): Promise<void> {
       (bossBeam ? Promise.resolve() : Assets.load<Texture>(RAID_BOSS_BEAM_URL).then((texture) => {
         texture.source.scaleMode = 'linear'
         texture.source.autoGenerateMipmaps = false
-        bossBeam = texture
-        rootTextures.push(texture)
-        bakeProjectileGlow(texture, [texture])
+        bossBeam = prepareHostileArtwork(texture, [texture])[0]
       }).catch((error: unknown) => { console.warn('Boss beam artwork unavailable:', error) })),
       (missileLoaded ? Promise.resolve() : Assets.load<Texture>(RAID_MISSILE_ATLAS_URL).then((texture) => {
         texture.source.scaleMode = 'linear'

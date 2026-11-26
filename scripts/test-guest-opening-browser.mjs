@@ -23,6 +23,57 @@ async function capture(page, name) {
   if (output) await page.screenshot({ path: `${output}/${name}.png` })
 }
 
+async function assertCompactCaption(caption) {
+  const appearance = await caption.evaluate(el => {
+    const style = getComputedStyle(el)
+    return { background: style.backgroundColor, shadow: style.boxShadow, size: Number.parseFloat(style.fontSize) }
+  })
+  assert.equal(appearance.background, 'rgba(0, 0, 0, 0)')
+  assert.equal(appearance.shadow, 'none')
+  assert.ok(appearance.size <= 12, 'In-flight tutorial should fit in a small caption')
+}
+
+async function assertProjectileColors(page) {
+  await page.evaluate(async () => {
+    const { applyRaidBossArtwork, getRaidProjectileMaterial, getRaidProjectileTexture } =
+      await import('/src/components/games/raid/combatArt.ts')
+    const { createGpuBossProjectileCanvas } = await import('/src/components/games/raid/gpuBossProjectiles.ts')
+    const canvas = document.createElement('canvas')
+    canvas.width = canvas.height = 48
+    const context = canvas.getContext('2d', { willReadFrequently: true })
+    const sample = (source, x, y, width, height) => {
+      context.clearRect(0, 0, 48, 48)
+      context.drawImage(source, x, y, width, height, 0, 0, 48, 48)
+      const { data } = context.getImageData(0, 0, 48, 48)
+      let pink = 0, total = 0
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] < 20) continue
+        total++
+        if (data[i] > data[i + 2] && data[i + 2] > data[i + 1] * 1.3) pink++
+      }
+      return pink / Math.max(1, total)
+    }
+    const fromTexture = (base, glow) => {
+      const texture = getRaidProjectileTexture(base, glow)
+      const { x, y, width, height } = texture.frame
+      const scale = texture.source.resolution
+      return sample(texture.source.resource, x * scale, y * scale, width * scale, height * scale)
+    }
+    for (const glow of [false, true]) {
+      for (const kind of ['enemy', 'blade', 'needle', 'scatterBoss', 'superShot']) {
+        if (fromTexture(getRaidProjectileMaterial(kind, true).texture, glow) < .85) throw Error(`Hostile ${kind} lost its color`)
+      }
+      for (const kind of ['beam', 'snakeFang', 'poisonCloud', 'squidBubble']) {
+        const texture = applyRaidBossArtwork({ kind, width: 50, height: 20, rotation: 0, alpha: 1, x: 0, y: 0 })
+        if (!texture || fromTexture(texture, glow) < .85) throw Error(`Boss ${kind} lost its color`)
+      }
+      if (fromTexture(getRaidProjectileMaterial('pulse').texture, glow) > .2) throw Error('Friendly fire picked up the hostile color')
+    }
+    const fallback = createGpuBossProjectileCanvas('beam')
+    if (sample(fallback, 0, 0, fallback.width, fallback.height) < .85) throw Error('Enemy beam fallback lost its color')
+  })
+}
+
 async function setUp(page, landscape, relayTraffic, loadRaidMedia = true) {
   await page.route('**/*', route => {
     const url = new URL(route.request().url())
@@ -159,6 +210,8 @@ async function testRaid() {
     })
     await desktop.getByText(/Weapons fire automatically/).waitFor()
     assert.ok(await desktop.getByText(/WASD/).isVisible())
+    await assertCompactCaption(desktop.locator('.raid__fleet-radio .fleet-radio'))
+    await assertProjectileColors(desktop)
     await desktop.keyboard.down('ArrowUp')
     await desktop.evaluate(() => {
       const { refs, update } = window.openingTest
@@ -227,6 +280,7 @@ async function testDefense() {
   await phone.getByRole('button', { name: 'Skip Briefing' }).tap()
   await phone.locator('.defense-board').waitFor()
   await phone.getByText(/Dispatch a ship to cover the approach/).waitFor()
+  await assertCompactCaption(phone.locator('.defense-fleet-radio .fleet-radio'))
   await phone.locator('.defense-shop button').first().tap()
   for (const [col, row] of [[3, 2], [2, 3], [4, 2], [1, 0], [5, 4]]) {
     const cell = phone.locator(`[data-grid-col="${col}"][data-grid-row="${row}"]`)

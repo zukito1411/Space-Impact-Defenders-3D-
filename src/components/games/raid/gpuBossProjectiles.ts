@@ -1,5 +1,6 @@
 import type { Shot } from './types'
 import { clamp } from './utils'
+import { colorHostileProjectilePixels } from './hostileProjectileArt'
 
 /**
  * Boss-battle projectile art is generated once as a tiny texture and reused
@@ -110,6 +111,7 @@ export function createGpuBossProjectileCanvas(kind: GpuBossProjectileKind): HTML
     c.fillStyle = 'rgba(125,249,255,0.65)'
     c.fillRect(-64, -33, 128, 2)
     c.fillRect(-64, 31, 128, 2)
+    colorHostileProjectilePixels(c)
     return canvas
   }
   if (kind === 'snakeFang' || kind === 'squidSpine') {
@@ -135,6 +137,7 @@ export function createGpuBossProjectileCanvas(kind: GpuBossProjectileKind): HTML
     c.closePath()
     c.fill()
     c.stroke()
+    colorHostileProjectilePixels(c)
     return canvas
   }
   const gradient = c.createRadialGradient(0, 0, 3, 0, 0, 57)
@@ -177,5 +180,6 @@ export function createGpuBossProjectileCanvas(kind: GpuBossProjectileKind): HTML
     c.arc(-13, -15, 9, 0, Math.PI * 2)
     c.fill()
   }
+  colorHostileProjectilePixels(c)
   return canvas
 }

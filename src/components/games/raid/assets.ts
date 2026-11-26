@@ -258,7 +258,7 @@ export const RAID_DEVIL_BOSS_ATTACK_FILTER = 'brightness(1.12) contrast(1.24) sa
 
 export const RAID_DEVIL_BOSS_RED_OVERLAY_FILTER = 'brightness(1.34) contrast(1.34) saturate(2.8) sepia(0.72) hue-rotate(315deg)'
 
-export const RAID_DEVIL_MASTER_PROJECTILE_FILTER = 'brightness(1.1) contrast(1.18) saturate(1.18)'
+export const RAID_DEVIL_MASTER_PROJECTILE_FILTER = 'grayscale(1) sepia(1) saturate(3) hue-rotate(280deg) brightness(1.1) contrast(1.18)'
 
 export const RAID_DEVIL_BOSS_RED_FILTERS: Record<string, string> = {
   '0.5': 'brightness(1.20) contrast(1.31) saturate(1.82) sepia(0.29) hue-rotate(327.0deg)',
@@ -280,9 +280,9 @@ export const RAID_DEVIL_RETICLE_GLOW_STOPS: Array<[number, string]> = [
 ]
 
 export const RAID_DEVIL_MASTER_PROJECTILE_GLOW_STOPS: Array<[number, string]> = [
-  [0, 'rgba(254,226,226,0.32)'],
-  [0.44, 'rgba(248,113,113,0.24)'],
-  [1, 'rgba(127,29,29,0)'],
+  [0, 'rgba(255,191,226,0.32)'],
+  [0.44, 'rgba(255,66,158,0.24)'],
+  [1, 'rgba(119,19,89,0)'],
 ]
 
 export const RAID_GOD_GUNDAM_BARRAGE_FILTER = 'brightness(1.08) contrast(1.14) saturate(1.14)'
@@ -340,15 +340,15 @@ export const RAID_SQUID_INK_STOPS: Array<[number, string]> = [
 
 export const RAID_SNAKE_FANG_GLOW_STOPS: Array<[number, string]> = [
   [0, 'rgba(255,255,255,0.55)'],
-  [0.42, 'rgba(132,204,22,0.56)'],
-  [1, 'rgba(132,204,22,0)'],
+  [0.42, 'rgba(255,66,158,0.56)'],
+  [1, 'rgba(255,66,158,0)'],
 ]
 
 export const RAID_VENOM_SPIT_STOPS: Array<[number, string]> = [
   [0, 'rgba(255,255,255,0.72)'],
-  [0.24, 'rgba(190,242,100,0.82)'],
-  [0.58, 'rgba(132,204,22,0.58)'],
-  [1, 'rgba(63,98,18,0)'],
+  [0.24, 'rgba(255,110,184,0.82)'],
+  [0.58, 'rgba(255,66,158,0.58)'],
+  [1, 'rgba(119,19,89,0)'],
 ]
 
 export const RAID_OTHER_STATIC_FILTERS: Partial<Record<RaidOtherAssetKey, readonly string[]>> = {
