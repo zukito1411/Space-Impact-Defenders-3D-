@@ -10,7 +10,7 @@ import { getRandomEventLabel } from './events'
 import { COMET_ASSET_HEAD_ANGLE, DEG } from './constants'
 import { drawPowerPickupIcon, traceRegularPolygon } from './playerRender'
 import { getCoreLanderBarrageEnergyColor, getCoreLanderBarrageFilter, getCoreLanderBarrageImpactStops, getCoreLanderBarragePoseScale, getCoreLanderBarrageSequence, getCoreLanderBarrageShadowColor, getGodGundamGameplayRenderSize, powerColor, powerGlyph, shouldMirrorCoreLanderBarragePose } from './state'
-import type { AsteroidHazard, DerelictWreck, Enemy, GodGundamBarrage, GodGundamPassiveStrike, IonStrike, MeteorHazard, NukeStrike, PowerKind, PowerUp, RaidRandomEvent } from './types'
+import type { AsteroidHazard, DerelictWreck, Enemy, GodGundamBarrage, GodGundamPassiveStrike, MeteorHazard, NukeStrike, PowerKind, PowerUp, RaidRandomEvent } from './types'
 import { clamp, drawRadialEllipse, getCanvasCacheScale, traceRoundedRect, trimOldestMapEntry } from './utils'
 
 export const homingMissileSpriteCache = new Map<number, HTMLCanvasElement>()
@@ -520,24 +520,33 @@ export function drawRandomEventWarning(ctx: CanvasRenderingContext2D, width: num
   if (!event || event.warning <= 0) return
 
   const pulse = 0.68 + Math.sin(time / 105) * 0.2
+  const hint = event.kind === 'rift' ? 'Thrust away from the event horizon'
+    : event.kind === 'solar' ? 'Fly through the gaps in each plasma front'
+      : event.kind === 'ion' ? 'Clear marked lanes before discharge' : ''
   const panelWidth = Math.min(width * 0.86, 560)
+  const panelHeight = hint ? 62 : 50
   const x = (width - panelWidth) / 2
-  const y = Math.max(132, height * 0.22)
-  const color = event.kind === 'solar' ? 'rgba(251,191,36,' : event.kind === 'rift' ? 'rgba(168,85,247,' : event.kind === 'ion' ? 'rgba(103,232,249,' : 'rgba(251,113,133,'
+  const y = Math.max(104, height * 0.21)
+  const color = event.kind === 'solar' ? 'rgba(255,168,98,' : event.kind === 'rift' ? 'rgba(217,173,255,' : event.kind === 'ion' ? 'rgba(146,199,255,' : 'rgba(251,113,133,'
   ctx.save()
   ctx.globalCompositeOperation = 'source-over'
   ctx.globalAlpha = clamp(event.warning / 0.45, 0, 1)
-  ctx.fillStyle = 'rgba(2,6,23,0.78)'
-  ctx.strokeStyle = `${color}${pulse})`
-  ctx.lineWidth = 2
-  traceRoundedRect(ctx, x, y, panelWidth, 50, 8)
+  ctx.fillStyle = 'rgba(4,7,18,0.88)'
+  ctx.strokeStyle = `${color}${hint ? .58 : pulse})`
+  ctx.lineWidth = 1.4
+  traceRoundedRect(ctx, x, y, panelWidth, panelHeight, 6)
   ctx.fill()
   ctx.stroke()
-  ctx.fillStyle = `${color}${Math.min(1, pulse + 0.12)})`
-  ctx.font = `850 ${Math.max(13, Math.min(21, width * 0.032))}px system-ui, sans-serif`
+  ctx.fillStyle = `${color}.96)`
+  ctx.font = `850 ${Math.max(13, Math.min(20, width * 0.032))}px system-ui, sans-serif`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  ctx.fillText(getRandomEventLabel(event.kind), width / 2, y + 25)
+  ctx.fillText(getRandomEventLabel(event.kind), width / 2, y + (hint ? 21 : 25))
+  if (hint) {
+    ctx.fillStyle = '#e1e8f5'
+    ctx.font = '500 13px system-ui, sans-serif'
+    ctx.fillText(hint, width / 2, y + 43, panelWidth - 24)
+  }
   ctx.restore()
 }
 
@@ -582,31 +591,6 @@ export function drawMeteorHazard(
   ctx.restore()
 }
 
-export function drawIonStrike(ctx: CanvasRenderingContext2D, strike: IonStrike, width: number, height: number, time: number) {
-  const x = (strike.x / WIDTH) * width
-  const laneWidth = Math.max(20, (strike.width / WIDTH) * width)
-  const charging = strike.warmup > 0
-  const pulse = 0.55 + Math.sin(time / 80 + strike.id) * 0.24
-  ctx.save()
-  ctx.globalCompositeOperation = charging ? 'source-over' : 'lighter'
-  ctx.globalAlpha = charging ? 0.18 + pulse * 0.12 : 0.34 + pulse * 0.26
-  const gradient = ctx.createLinearGradient(x - laneWidth, 0, x + laneWidth, 0)
-  gradient.addColorStop(0, 'rgba(103,232,249,0)')
-  gradient.addColorStop(0.45, charging ? 'rgba(103,232,249,0.36)' : 'rgba(255,255,255,0.78)')
-  gradient.addColorStop(0.55, charging ? 'rgba(103,232,249,0.36)' : 'rgba(103,232,249,0.88)')
-  gradient.addColorStop(1, 'rgba(103,232,249,0)')
-  ctx.fillStyle = gradient
-  ctx.fillRect(x - laneWidth, 0, laneWidth * 2, height)
-  ctx.strokeStyle = charging ? 'rgba(103,232,249,0.62)' : 'rgba(255,255,255,0.86)'
-  ctx.lineWidth = charging ? 1.5 : 3
-  ctx.beginPath()
-  ctx.moveTo(x - laneWidth * 0.5, 0)
-  ctx.lineTo(x + laneWidth * 0.18 + Math.sin(time / 70) * 14, height * 0.38)
-  ctx.lineTo(x - laneWidth * 0.1, height)
-  ctx.stroke()
-  ctx.restore()
-}
-
 export function drawDerelictWreck(
   ctx: CanvasRenderingContext2D,
   wreck: DerelictWreck,
@@ -637,33 +621,6 @@ export function drawDerelictWreck(
     ctx.beginPath()
     ctx.ellipse(0, 0, w * 0.48, h * 0.36, 0, 0, Math.PI * 2)
     ctx.fill()
-  }
-  ctx.restore()
-}
-
-export function drawRandomEventOverlay(ctx: CanvasRenderingContext2D, width: number, height: number, event: RaidRandomEvent | null, time: number) {
-  if (!event || event.warning > 0) return
-  const progress = clamp(event.age / Math.max(0.1, event.duration), 0, 1)
-  ctx.save()
-  if (event.kind === 'solar') {
-    const strength = Math.sin(progress * Math.PI)
-    ctx.globalCompositeOperation = 'screen'
-    ctx.globalAlpha = 0.1 + strength * 0.26
-    ctx.fillStyle = 'rgba(251,191,36,0.58)'
-    ctx.fillRect(0, 0, width, height)
-    drawRadialEllipse(ctx, width * 0.82, height * 0.12, width * 0.42, height * 0.28, [[0, `rgba(255,255,255,${0.3 * strength})`], [1, 'rgba(0,0,0,0)']])
-  } else if (event.kind === 'rift') {
-    const wobble = Math.sin(time / 180 + event.seed) * width * 0.04
-    const x = width * 0.5 + wobble
-    const y = height * 0.38 + Math.cos(time / 260 + event.seed) * height * 0.08
-    ctx.globalCompositeOperation = 'screen'
-    drawRadialEllipse(ctx, x, y, width * 0.18, height * 0.2, [[0, 'rgba(255,255,255,0.22)'], [0.28, 'rgba(168,85,247,0.36)'], [1, 'rgba(0,0,0,0)']])
-    ctx.globalAlpha = 0.42
-    ctx.strokeStyle = 'rgba(216,180,254,0.65)'
-    ctx.lineWidth = 2
-    ctx.beginPath()
-    ctx.ellipse(x, y, width * 0.12, height * 0.045, time / 520, 0, Math.PI * 2)
-    ctx.stroke()
   }
   ctx.restore()
 }

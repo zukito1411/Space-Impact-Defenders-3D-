@@ -98,7 +98,8 @@ console.log('Ambush: three waves, alternating flank lanes, difficulty counts and
 
 const runtime = read('GradiusRaidRuntime.tsx')
 const ambushStart = runtime.indexOf("        } else if (activeRandomEvent.kind === 'ambush'")
-const ambushEnd = runtime.indexOf("        } else if (activeRandomEvent.kind === 'solar'", ambushStart)
+const ambushEnd = runtime.indexOf('\n        }', runtime.indexOf('activeRandomEvent.ambushWave =', ambushStart))
+assert.ok(ambushStart >= 0 && ambushEnd > ambushStart, 'could not locate the Raid ambush branch')
 const ambushBody = runtime.slice(runtime.indexOf('{', ambushStart + 12) + 1, ambushEnd)
 const integrationSource = ambushSource + `
 export function playAmbush(difficulty, initialEnemies = 0) {
@@ -125,3 +126,29 @@ assert.equal(normalAmbush.length,9)
 assert.equal(normalAmbush.filter(enemy=>enemy.elite).length,1)
 assert.ok(normalAmbush.every(enemy=>enemy.y<0))
 assert.equal(integratedAmbush.playAmbush('expert',30).length,2,'the actual spawn path must respect the live enemy cap')
+
+const hazardCode = ts.transpileModule(
+  'const RANDOM_EVENT_WARNING_SECONDS = 2.45; const clamp = (n, min, max) => Math.max(min, Math.min(n, max));\n' + ambushSource,
+  { compilerOptions: { module: ts.ModuleKind.ESNext } },
+).outputText
+const hazards = await import('data:text/javascript;base64,' + Buffer.from(hazardCode).toString('base64'))
+const event = { kind: 'rift', seed: 18, age: 3, duration: hazards.getRandomEventDuration('rift'), warning: 0 }
+const hole = hazards.getBlackHole(event)
+const crossingShot = { x: hole.x - 20, y: hole.y, vx: 2800, vy: 0 }
+assert.equal(hazards.advanceRaidEventShot(crossingShot, 1 / 60, hole), false, 'fast shots must be captured when they cross the horizon')
+const passingShot = { x: hole.x - 20, y: hole.y + 10, vx: 2800, vy: 0 }
+assert.equal(hazards.advanceRaidEventShot(passingShot, 1 / 60, hole), true, 'shots clear of the horizon should survive')
+assert.ok(passingShot.vy < 0, 'gravity should still bend a passing shot')
+assert.equal(hazards.getBlackHole({ ...event, age: 0, warning: 1 }).strength, 0, 'the black hole must telegraph before applying gravity')
+
+const front = hazards.getSolarWave({ ...event, kind: 'solar', age: 2 }, 0)
+assert.equal(hazards.solarWaveHits(front, { x: front.gap, y: front.y }, 3, 1 / 60), false, 'the solar gap should be safe')
+assert.equal(hazards.solarWaveHits(front, { x: 99 - front.gap, y: front.y }, 3, 1 / 60), true, 'the front should hit outside its gap')
+assert.equal(hazards.solarWaveHits({ ...front, age: .5 }, { x: 99 - front.gap, y: front.y }, 3, 1 / 60), false, 'the charge phase must be safe')
+assert.ok(hazards.getSolarWave(event, 1).gap - front.gap > 20, 'the next front should require a different lane')
+
+const strike = { id: 1, x: 50, width: 8.4, warmup: 1, life: .68, duration: .68 }
+assert.equal(hazards.ionStrikeIsLive(strike), false, 'charging lanes must be safe')
+assert.equal(hazards.ionStrikeIsLive({ ...strike, warmup: 0, life: .6 }), true, 'the discharge should be dangerous')
+assert.equal(hazards.ionStrikeIsLive({ ...strike, warmup: 0, life: .2 }), false, 'the afterglow must be safe')
+console.log('Raid hazards: black-hole capture and deflection, solar escape gaps, and ion strike phases passed')

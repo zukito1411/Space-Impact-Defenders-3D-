@@ -2,7 +2,7 @@ import type { GodGundamBarragePose } from './assets'
 import { CORE_LANDER_BASE_DAMAGE_BONUS, CORE_LANDER_BURNING_DAMAGE_BONUS, CORE_LANDER_BURNING_FIRE_INTERVAL_SECONDS, CORE_LANDER_BURNING_RAGE_DAMAGE_BONUS, CORE_LANDER_BURNING_RAGE_FIRE_INTERVAL_REDUCTION, CORE_LANDER_FIRE_INTERVAL_SECONDS, DEVIL_BOSS_NUKE_DAMAGE_MULTIPLIER, FINAL_BOSS_NUKE_DAMAGE_MULTIPLIER, FORCE_FIELD_ARMOR, GOD_GUNDAM_BARRAGE_BASE_DAMAGE_MULTIPLIER, GOD_GUNDAM_BARRAGE_BURNING_DAMAGE_MULTIPLIER, GOD_GUNDAM_BARRAGE_BURNING_RAGE_DAMAGE_MULTIPLIER, GOD_GUNDAM_MELEE_BOSS_DAMAGE_MULTIPLIER, GOD_GUNDAM_MELEE_BURNING_DAMAGE_MULTIPLIER, GOD_GUNDAM_MELEE_BURNING_RAGE_DAMAGE_MULTIPLIER, GOD_GUNDAM_MELEE_BURNING_RANGE_BONUS, GOD_GUNDAM_MELEE_DAMAGE_PER_SECOND, GOD_GUNDAM_MELEE_MINIBOSS_DAMAGE_MULTIPLIER, GOD_GUNDAM_MELEE_RANGE, GOD_GUNDAM_STAGE_ATTACK_BONUS, LEVEL_UP_HEAL, MAX_RAID_STAGE, NUKE_BOSS_DAMAGE_MAX_FLOOR, NUKE_BOSS_DAMAGE_MAX_RATIO, NUKE_BOSS_DAMAGE_MIN_FLOOR, NUKE_BOSS_DAMAGE_MIN_RATIO, NUKE_MAX_COOLDOWN_SECONDS, NUKE_MIN_COOLDOWN_SECONDS, PLAYER_BASE_ATTACK_PER_LEVEL, PLAYER_MAX_RANK, SPACE_ET_FORCE_FIELD_REGEN_SECONDS, SPACE_ET_PASSIVE_FORCE_FIELD_CHARGES, SPIEGEL_AFTERIMAGE_CAP, SPIEGEL_AFTERIMAGE_LIFE_MULTIPLIER, SPIEGEL_LOW_HP_BARRAGE_DAMAGE_MULTIPLIER, SPIEGEL_LOW_HP_BARRAGE_RAGE_DAMAGE_MULTIPLIER, SPIEGEL_LOW_HP_PASSIVE_DAMAGE_MULTIPLIER, SPIEGEL_LOW_HP_PASSIVE_RAGE_DAMAGE_MULTIPLIER, SPIEGEL_LOW_HP_SHADOW_CLONE_DAMAGE_MULTIPLIER, SPIEGEL_LOW_HP_SHADOW_CLONE_RAGE_DAMAGE_MULTIPLIER, SPIEGEL_PASSIVE_DAMAGE_MULTIPLIER, SPIEGEL_SHADOW_CLONE_DAMAGE_MULTIPLIER, WEAPON_KEYS, WEAPON_STACK_CAPS } from './constants'
 import { updateMesiahDrones, updateMesiahScoutDrones } from './playerRender'
 import { getCoreLanderBarrageSequence, getPlayerCoreLanderCombatModel } from './state'
-import type { CoreLanderCombatModel, Enemy, Player, RaidRandomEvent, Shot, Vec } from './types'
+import type { CoreLanderCombatModel, Enemy, Player, Shot, Vec } from './types'
 import { clamp, distSq } from './utils'
 
 export function acquireHomingTarget(shot: Shot, enemies: Enemy[]) {
@@ -254,30 +254,6 @@ export function movePlayerWithInput(player: Player, dt: number, pointerTarget: V
   }
   afterimages.length = Math.min(afterimages.length, isSpiegelModel ? SPIEGEL_AFTERIMAGE_CAP : 8)
   player.spiegelAfterimages = afterimages
-}
-
-export function getRiftCenter(event: RaidRandomEvent) {
-  return {
-    x: 50 + Math.sin(event.age * 1.3 + event.seed) * 18,
-    y: 38 + Math.cos(event.age * 0.95 + event.seed) * 8,
-  }
-}
-
-export function applyRiftPullToPlayer(player: Player, event: RaidRandomEvent, dt: number) {
-  if (player.hp <= 0 || event.warning > 0) return
-  const center = getRiftCenter(event)
-  const dx = center.x - player.x
-  const dy = center.y - player.y
-  const dist = Math.hypot(dx, dy) || 1
-  const near = clamp((72 - dist) / 72, 0.14, 1)
-  const pulse = 0.68 + Math.sin(event.age * 5.4 + event.seed) * 0.32
-  const pull = (4.8 + pulse * 4.6) * near
-  const swirl = (2.4 + pulse * 2.2) * near
-
-  player.x += ((dx / dist) * pull + (-dy / dist) * swirl) * dt
-  player.y += ((dy / dist) * pull + (dx / dist) * swirl * 0.42) * dt
-  player.x = clamp(player.x, 4, 96)
-  player.y = clamp(player.y, 13, 93)
 }
 
 export function updatePlayerTimers(player: Player, dt: number, enemies: Enemy[], isSmallViewport: boolean, landscape = false) {

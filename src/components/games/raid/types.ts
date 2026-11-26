@@ -307,6 +307,7 @@ export type AsteroidHazard = Vec & {
 
 export type RaidRandomEvent = {
   ambushWave?: number
+  solarHitMask?: number
   kind: RaidRandomEventKind
   age: number
   duration: number
@@ -324,6 +325,7 @@ export type MeteorHazard = Vec & {
 }
 
 export type IonStrike = {
+  hitMask?: number
   id: number
   x: number
   width: number

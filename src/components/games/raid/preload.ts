@@ -15,7 +15,7 @@ import { getRaidAlienSpriteUrl, getRaidEliteSpriteUrl, RAID_ALIEN_SPRITE_COUNT, 
 import { getPublicAssetUrl } from '../sound'
 import { Assets } from 'pixi.js'
 import { RAID_COMBAT_ART_URLS, preloadRaidCombatArt } from './combatArt'
-import { SPACE_JET_FORCE_FIELD_ASSET_PATH, getSpaceJetForceFieldSprite, RAID_COBRA_BOSS_ASSET_PATH, RAID_DERELICT_WRECK_ASSET_PATH, RAID_DERELICT_WRECK_VARIANTS, RAID_DEVIL_BOSS_ASSET_PATHS, RAID_DEVIL_BOSS_POSES, RAID_DEVIL_MASTER_PROJECTILE_ASSET_PATH, RAID_FINAL_BOSS_ASSET_PATH, RAID_OTHER_ASSET_PATHS, RAID_SQUID_BOSS_ASSET_PATH, getCobraBossCanvasSprite, getGenericBossCanvasSprite, getDerelictWreckCanvasSprite, getDevilBossCanvasSprite, getDevilMasterProjectileCanvasSprite, getEliteAlienCanvasSprite, getFinalBossCanvasSprite, getNormalAlienCanvasSprite, getRaidOtherCanvasSprite, getSquidBossCanvasSprite, warmRaidCanvasFilterVariants } from './assets'
+import { SPACE_JET_FORCE_FIELD_ASSET_PATH, getSpaceJetForceFieldSprite, RAID_COBRA_BOSS_ASSET_PATH, RAID_DERELICT_WRECK_ASSET_PATH, RAID_DERELICT_WRECK_VARIANTS, RAID_DEVIL_BOSS_ASSET_PATHS, RAID_DEVIL_BOSS_POSES, RAID_DEVIL_MASTER_PROJECTILE_ASSET_PATH, RAID_FINAL_BOSS_ASSET_PATH, RAID_HAZARD_ASSET_PATHS, RAID_OTHER_ASSET_PATHS, RAID_SQUID_BOSS_ASSET_PATH, getCobraBossCanvasSprite, getGenericBossCanvasSprite, getDerelictWreckCanvasSprite, getDevilBossCanvasSprite, getDevilMasterProjectileCanvasSprite, getEliteAlienCanvasSprite, getFinalBossCanvasSprite, getNormalAlienCanvasSprite, getRaidHazardCanvasSprite, getRaidOtherCanvasSprite, getSquidBossCanvasSprite, warmRaidCanvasFilterVariants } from './assets'
 import type { CanvasSpriteEntry, RaidOtherAssetKey } from './assets'
 import { DEFAULT_PICKUP_VOICE_SAMPLE_URL, PICKUP_VOICE_SAMPLE_URLS } from './audio'
 import { RAID_SOUNDTRACK_URLS } from './raidSoundtrack'
@@ -30,7 +30,7 @@ export const RAID_IMAGE_CACHE_NAME = 'space-defender-raid-images-v1'
 
 export const RAID_AUDIO_CACHE_NAME = 'space-defender-audio-v1'
 
-export const RAID_PERSISTENT_CACHE_VERSION = 'gradius-raid-assets-v27'
+export const RAID_PERSISTENT_CACHE_VERSION = 'gradius-raid-assets-v28'
 
 export const RAID_PERSISTENT_CACHE_STORAGE_KEY = 'gradiusRaidPersistentAssetCache'
 
@@ -71,6 +71,7 @@ export function warmRaidCanvasAssets() {
   for (let variant = 0; variant < RAID_ALIEN_SPRITE_COUNT; variant += 1) entries.push(getNormalAlienCanvasSprite(variant))
   for (let variant = 0; variant < RAID_ELITE_SPRITE_COUNT; variant += 1) entries.push(getEliteAlienCanvasSprite(variant))
   for (const key of Object.keys(RAID_OTHER_ASSET_PATHS) as RaidOtherAssetKey[]) entries.push(getRaidOtherCanvasSprite(key))
+  for (const key of Object.keys(RAID_HAZARD_ASSET_PATHS) as (keyof typeof RAID_HAZARD_ASSET_PATHS)[]) entries.push(getRaidHazardCanvasSprite(key))
   for (let variant = 0; variant < RAID_DERELICT_WRECK_VARIANTS.length; variant += 1) entries.push(getDerelictWreckCanvasSprite(variant))
   return entries
 }
@@ -100,7 +101,7 @@ export function getRaidPersistentImageUrls() {
   urls.add(getPublicAssetUrl(RAID_DEVIL_MASTER_PROJECTILE_ASSET_PATH))
   for (let variant = 0; variant < RAID_ALIEN_SPRITE_COUNT; variant += 1) urls.add(getRaidAlienSpriteUrl(variant))
   for (let variant = 0; variant < RAID_ELITE_SPRITE_COUNT; variant += 1) urls.add(getRaidEliteSpriteUrl(variant))
-  for (const key of Object.keys(RAID_OTHER_ASSET_PATHS) as RaidOtherAssetKey[]) urls.add(getPublicAssetUrl(RAID_OTHER_ASSET_PATHS[key]))
+  for (const path of [...Object.values(RAID_OTHER_ASSET_PATHS), ...Object.values(RAID_HAZARD_ASSET_PATHS)]) urls.add(getPublicAssetUrl(path))
   urls.add(getPublicAssetUrl(RAID_DERELICT_WRECK_ASSET_PATH))
   for(const key of PLAYER_HULL_KEYS)for(const landscape of [false,true]){
     if (isRaid2DMech(key)) continue

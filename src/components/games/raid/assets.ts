@@ -55,6 +55,12 @@ export type CanvasSpriteProcessor = (image: HTMLImageElement) => HTMLCanvasEleme
 
 export const canvasSpriteCache = new Map<string, CanvasSpriteEntry>()
 
+export const RAID_HAZARD_ASSET_PATHS = {
+  blackHole: 'assets/raid-fx/hazard-black-hole-v1.webp',
+  solarFront: 'assets/raid-fx/hazard-solar-front-v1.webp',
+  stormShelf: 'assets/raid-fx/hazard-storm-shelf-v1.webp',
+} as const
+
 export const RAID_OTHER_ASSET_PATHS = {
   nukeMissile: 'assets/raid-fx/nuke-missile-v1.webp',
   asteroid: 'assets/others/asteroid.webp',
@@ -1164,6 +1170,11 @@ export const SPACE_JET_FORCE_FIELD_ASSET_PATH = 'assets/raid-fx/space-jet-force-
 export function getSpaceJetForceFieldSprite() {
   const key = 'space-jet-force-field-v1'
   return canvasSpriteCache.get(key) ?? makeImageCanvasSprite(key, getPublicAssetUrl(SPACE_JET_FORCE_FIELD_ASSET_PATH))
+}
+
+export function getRaidHazardCanvasSprite(key: keyof typeof RAID_HAZARD_ASSET_PATHS) {
+  const cacheKey = `hazard-image:${key}`
+  return canvasSpriteCache.get(cacheKey) ?? makeImageCanvasSprite(cacheKey, getPublicAssetUrl(RAID_HAZARD_ASSET_PATHS[key]))
 }
 
 export function getRaidOtherCanvasSprite(key: RaidOtherAssetKey) {
