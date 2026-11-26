@@ -1,6 +1,5 @@
 import type { CachedCanvasDrawSource } from './assets'
-import { DEFAULT_RAID_PALETTE } from './background'
-import type { RaidPalette } from './background'
+import { DEFAULT_RAID_PALETTE, type RaidPalette } from './raidPalette'
 import { ELITE_ENEMY_STAGE_START, ENEMY_COLLISION_BUCKET_PADDING, ENEMY_COLLISION_BUCKET_SIZE, MAX_RIPPLES, MAX_SPARKS, MINI_BOSS_KINDS, RIPPLE_POOL_LIMIT, SPARK_POOL_LIMIT } from './constants'
 import { ENEMY_COLLISION_BUCKET_COUNT } from './constants'
 import type { Enemy, MiniBossKind, Ripple, Shot, Spark, Vec } from './types'

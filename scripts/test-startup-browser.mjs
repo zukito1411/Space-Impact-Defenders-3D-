@@ -8,7 +8,8 @@ import {chromium} from 'playwright'
 const logo=await readFile('public/assets/brand/zuki-logo-v1.png')
 assert.equal(createHash('sha1').update(`blob ${logo.length}\0`).update(logo).digest('hex'),'9e99a440108247cf8cbf9a4b5d2e30a2371eae01','reuse the unmodified Tales logo')
 const port=5179,base=`http://127.0.0.1:${port}`
-const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','--host','127.0.0.1','--port',String(port),'--strictPort'],{stdio:'ignore'})
+const production=process.argv.includes('--production')
+const server=spawn(process.execPath,['node_modules/vite/bin/vite.js',...(production?['preview']:[]),'--host','127.0.0.1','--port',String(port),'--strictPort'],{stdio:'ignore'})
 const exited=once(server,'exit')
 let browser
 const gate=()=>{let open;const promise=new Promise(resolve=>{open=resolve});return{promise,open}}
@@ -22,8 +23,8 @@ async function captureStudioScreen(page,path){
 try{
  for(let i=0;i<120;i++){try{if((await fetch(base)).ok)break}catch{}await new Promise(r=>setTimeout(r,250))}
  browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH,args:['--enable-unsafe-swiftshader','--use-angle=swiftshader']})
- await mkdir('presentation-review',{recursive:true})
- for(const mode of['automatic','skip','failed-logo','failed-entry']){
+ if(!production)await mkdir('presentation-review',{recursive:true})
+ for(const mode of production?[]:['automatic','skip','failed-logo','failed-entry']){
   const context=await browser.newContext({viewport:mode==='skip'?{width:844,height:390}:{width:393,height:852},hasTouch:true,reducedMotion:mode==='failed-logo'?'reduce':'no-preference'})
   const entry=gate(),art=gate(),errors=[]
   if(mode!=='automatic')entry.open()
@@ -90,7 +91,9 @@ try{
    console.log('Studio opening:',mode,'passed')
   }finally{entry.open();art.open();await context.close()}
  }
- const story = await browser.newPage({viewport:{width:874,height:403},hasTouch:true})
+ const story = await browser.newPage({viewport:{width:874,height:403},hasTouch:true,serviceWorkers:'block'})
+ const storyErrors = []
+ story.on('pageerror', error => storyErrors.push(error.message))
  try {
    await story.addInitScript(() => localStorage.setItem('space-defenders-player-name', 'Presentation QA'))
    await story.route('**/*', route => new URL(route.request().url()).origin === base ? route.continue() : route.abort())
@@ -110,6 +113,8 @@ try{
    await story.setViewportSize({width:874,height:403})
    await next.click()
    await story.locator('.raid-story--scene-2').waitFor()
+   assert.deepEqual(storyErrors, [])
+   if (production) console.log('Production app starts and opens single-player Raid from the title screen')
    console.log('Raid story controls fit the reported Android aspect ratio, compact landscape, and portrait')
  } finally {
    await story.close()

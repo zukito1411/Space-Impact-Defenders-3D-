@@ -25,7 +25,8 @@ try {
   })
   await page.goto(base + '/scripts/presentation-fixture.html?briefing=1')
   await page.evaluate(async () => {
-    const { PixiRaidBackground, DEFAULT_RAID_PALETTE } = await import('/src/components/games/raid/background.ts')
+    const { PixiRaidBackground } = await import('/src/components/games/raid/background.ts')
+    const { DEFAULT_RAID_PALETTE } = await import('/src/components/games/raid/raidPalette.ts')
     const host = document.createElement('div')
     document.body.replaceChildren(host)
     const bg = new PixiRaidBackground()

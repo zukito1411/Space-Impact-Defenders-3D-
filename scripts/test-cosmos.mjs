@@ -13,6 +13,7 @@ assert.equal(remaster.outputContentPerRegion,1008)
 assert.ok(remaster.comparison.every(region=>region.meanAbsRgbErrorAtSourceSize.every(error=>error<2)), 'remaster changed the established scene colors/composition')
 const load = (source, jsx=false) => import('data:text/javascript;base64,'+Buffer.from(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022,jsx:jsx?ts.JsxEmit.React:undefined}}).outputText).toString('base64'))
 const surface = await load(read('src/components/games/raid/surfaceMotion.ts'))
+const { DEFAULT_RAID_PALETTE } = await load(read('src/components/games/raid/raidPalette.ts'))
 const material = await load(read('src/components/games/raid/sceneryMaterial.ts'))
 const journey = await load(read('src/components/games/raid/journey.ts'))
 const regions = await load(read('src/components/games/raid/cosmos.ts'))
@@ -122,7 +123,7 @@ for(const [stage,region] of [[1,0],[5,1],[9,2],[13,3],[9101,1],[9102,2],[9103,3]
  scene.cosmosRegion=region;scene.cosmosPrevious=(region+3)%4;scene.cosmosEntered=0
  for(const seconds of [0,.5,2,3,8,25,91,1e6]) {
   scene.updateGalaxies(1000,500,seconds,stage,quality==='low',quality==='medium')
-  scene.updatePlanets(1000,500,seconds,background.DEFAULT_RAID_PALETTE,stage,quality==='low',quality==='medium')
+  scene.updatePlanets(1000,500,seconds,DEFAULT_RAID_PALETTE,stage,quality==='low',quality==='medium')
   scene.updateWrecks(1000,500,seconds,stage,quality==='low',quality==='medium')
   scene.updateScenic(1000,500,seconds,stage,quality==='low',quality==='medium')
   scene.updateBackgroundObjects(1000,500,seconds,stage,quality==='low',quality==='medium')
@@ -237,7 +238,7 @@ assert.equal(background.sprites,wreckSpriteCount,'wreck pass allocated sprites')
 // Full render orchestration: region clocks remain continuous between neighboring stages.
 scene.app={renderer:{resize(){}},canvas:{style:{}}};scene.travel.update=()=>{}
 for(const method of ['updateBaseGraphics','updateNebula','updateBossTint','updateAmbientGlows','updateSurface','updateFinalBattleBackdrop','updateFinalBattleLayer','updateAmbientExplosions','updateStarfield','updateSpeedLines','updateWrecks','updateRareCometFlyby','updateWateryWorldAssetSprites','updateVolcanicWorldAssetSprites']) scene[method]=()=>{}
-const renderFrame=(stage,time,runToken=1)=>scene.render({width:1000,height:500,dpr:1,palette:background.DEFAULT_RAID_PALETTE,quality:'high',stageTheme:stage,time,runToken,stageRush:0,bossIntensity:0,devilCorruption:0})
+const renderFrame=(stage,time,runToken=1)=>scene.render({width:1000,height:500,dpr:1,palette:DEFAULT_RAID_PALETTE,quality:'high',stageTheme:stage,time,runToken,stageRush:0,bossIntensity:0,devilCorruption:0})
 assert.equal(renderFrame(1,1000),true)
 assert.equal(scene.cosmosEntered,1)
 assert.equal(renderFrame(2,2000),true)
@@ -248,7 +249,7 @@ assert.equal(renderFrame(9101,4000,2),true)
 assert.equal(renderFrame(6,5000,2),true)
 assert.equal(scene.cosmosEntered,5,'leaving a surface arena failed to reveal its region')
 // Real render orchestration for a linked campaign journey; one world plane, no new per-frame sprites.
-const travelFrame=(stage,theme,age,clear=0,entry=0)=>scene.render({width:1000,height:500,dpr:1,palette:background.DEFAULT_RAID_PALETTE,quality:'high',stageTheme:theme,time:age*1000+10000,runToken:10,stageNumber:stage,raidMode:'campaign',stageAge:age,clearRemaining:clear,entryRemaining:entry,stageRush:clear>0?1:0,bossIntensity:0,devilCorruption:0})
+const travelFrame=(stage,theme,age,clear=0,entry=0)=>scene.render({width:1000,height:500,dpr:1,palette:DEFAULT_RAID_PALETTE,quality:'high',stageTheme:theme,time:age*1000+10000,runToken:10,stageNumber:stage,raidMode:'campaign',stageAge:age,clearRemaining:clear,entryRemaining:entry,stageRush:clear>0?1:0,bossIntensity:0,devilCorruption:0})
 assert.equal(travelFrame(2,2,0),true);const distant=scene.planetSprites[0].width
 assert.equal(travelFrame(4,4,30),true);assert.ok(scene.planetSprites[0].width>distant)
 assert.equal(travelFrame(4,4,33,1e-8),true)
