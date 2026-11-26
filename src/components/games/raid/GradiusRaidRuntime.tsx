@@ -48,7 +48,7 @@ import { missileLaunchScale, homingCruiseSpeed, missileVisualScale } from './mis
 import { MissileSmokeTrails } from './missileSmoke'
 import { impactFrameProgress, explosionDiameter, impactAlpha, rippleLifetime, rippleReplacement } from './combatFeel'
 import { useDoorCallback, useDoorState, useSpaceDoor } from '../../ui/SpaceDoor'
-import { getRaidText, getReleaseText } from '../../../i18n'
+import { getRaidText } from '../../../i18n'
 import { getCommandText } from '../../../commandText'
 import { FleetAudio } from '../fleetAudio'
 import { FleetRadio } from '../FleetRadio'
@@ -388,14 +388,11 @@ export function GradiusRaid({
   const [openingCue, setOpeningCue] = useState<'departure' | 'steer' | 'charge' | 'recovery' | null>(null)
   const coachOpeningRef = useRef(false)
   const firstCounterattackRef = useRef(false)
-  const [openingReport, setOpeningReport] = useState<{ score: number; destroyed: number; hull: number; maxHull: number } | null>(null)
-  const openingReportRef = useRef(false)
   const quickLaunchRequestedRef = useRef(false)
   const [quickLaunchPending, setQuickLaunchPending] = useState(quickLaunch)
   const quickLaunchPendingRef = useRef(quickLaunchPending)
   quickLaunchPendingRef.current = quickLaunchPending
   const command = getCommandText(language)
-  const release = getReleaseText(language)
 
   const sendOpeningCue = useCallback((cue: typeof openingCue) => {
     setOpeningCue(cue)
@@ -404,10 +401,6 @@ export function GradiusRaid({
 
   useEffect(() => () => fleetAudio.stop(), [fleetAudio])
 
-  const continueOpeningCampaign = () => {
-    openingReportRef.current = false
-    setOpeningReport(null)
-  }
   const [scenePresentation] = useState(() => new RaidScenePresentation())
   const [enemyTactics] = useState(() => new EnemyTactics())
   const [worldStories] = useState(() => new WorldStories())
@@ -3467,8 +3460,6 @@ export function GradiusRaid({
     const guidedOpening = stage === 1 && mode === 'campaign' && !session && !sameScreen
     coachOpeningRef.current = guidedOpening
     firstCounterattackRef.current = false
-    openingReportRef.current = false
-    setOpeningReport(null)
     fleetAudio.stop()
     spawnTimerRef.current = guidedOpening ? 9 : 3.2
     formationTimerRef.current = guidedOpening ? .85 : 1.8
@@ -4910,7 +4901,7 @@ export function GradiusRaid({
   }, [collectPendingLevelUpRewards, startRaidBgm, syncSnapshot])
 
   const updateGame = useCallback((dt: number) => {
-    if (phaseRef.current !== 'playing' || openingReportRef.current) return
+    if (phaseRef.current !== 'playing') return
     const stop = carrierStopRef.current
     if (stop?.remaining) {
       stop.remaining = Math.max(0, stop.remaining - dt)
@@ -5015,13 +5006,9 @@ export function GradiusRaid({
           return
         }
         const pendingNextStage = pendingNextStageRef.current
-        const reportOpening = coachOpeningRef.current && stageRef.current === 1 && pendingNextStage === 2
-        if (reportOpening) {
+        if (coachOpeningRef.current && stageRef.current === 1 && pendingNextStage === 2) {
           coachOpeningRef.current = false
           sendOpeningCue(null)
-          openingReportRef.current = true
-          keysRef.current.clear()
-          setOpeningReport({ score: player.score, destroyed: enemiesDestroyedRef.current, hull: player.hp, maxHull: player.maxHp })
         }
         if (pendingNextStage !== null) {
           pendingNextStageRef.current = null
@@ -7611,7 +7598,7 @@ export function GradiusRaid({
     const p1Pressed = p1Gamepad ? getPressedButtons(p1Gamepad) : null
     const p2Pressed = p2Gamepad ? getPressedButtons(p2Gamepad) : null
     const remotePlayer = remotePlayerRef.current
-    if (phaseRef.current === 'playing' && !openingReportRef.current) {
+    if (phaseRef.current === 'playing') {
       applyPilotMovement('p1', playerRef.current, p1Gamepad, p1Pressed)
       if (sameScreenCoopRef.current) applyPilotMovement('p2', remotePlayer, p2Gamepad, p2Pressed)
       if (p1Gamepad && p1Pressed) {
@@ -7805,7 +7792,7 @@ export function GradiusRaid({
       w: 'a', d: 'w', s: 'd', a: 's',
     } as Record<string, string>)[key] ?? key : key
     const down = (event: KeyboardEvent) => {
-      if (openingReportRef.current || quickLaunchPending) return
+      if (quickLaunchPending) return
       const key = event.key.toLowerCase()
       if (phaseRef.current !== 'playing' && (key === 'arrowright' || key === 'arrowdown' || key === 'arrowleft' || key === 'arrowup')) {
         event.preventDefault()
@@ -8153,7 +8140,7 @@ export function GradiusRaid({
       ref={rootRef}
       onPointerDown={(event) => {
         if (sameScreenCoopRef.current) return
-        if (isUiPointerTarget(event.target) || openingReportRef.current || phaseRef.current !== 'playing' || stageEntryRef.current > 0) return
+        if (isUiPointerTarget(event.target) || phaseRef.current !== 'playing' || stageEntryRef.current > 0) return
         if (event.pointerType !== 'mouse' && steeringPointerIdRef.current !== null) return
         updatePointer(event.clientX, event.clientY, event.pointerType)
         if (event.pointerType !== 'mouse') {
@@ -8312,34 +8299,13 @@ export function GradiusRaid({
         </div>
       )}
 
-      {openingCue && snapshot.phase === 'playing' && snapshot.stageTheme === 1 && snapshot.stageClear <= 0 && !openingReport && (
+      {openingCue && snapshot.phase === 'playing' && snapshot.stageTheme === 1 && snapshot.stageClear <= 0 && (
         <div className="raid__fleet-radio">
           <FleetRadio>
             {command[openingCue]}
             {openingCue === 'steer' && <small>{window.matchMedia('(pointer: coarse)').matches ? command.steerTouch : command.steerKeys}</small>}
           </FleetRadio>
         </div>
-      )}
-
-      {openingReport && (
-        <GameDialog className="result-overlay result-overlay--victory raid__opening-report" aria-labelledby="raid-opening-report-title"
-          onDismiss={continueOpeningCampaign}>
-          <div className="result-overlay__panel">
-            <div className="result-overlay__hero">
-              <span>{command.radio}</span>
-              <h2 id="raid-opening-report-title">{command.openingReport}</h2>
-            </div>
-            <div className="result-overlay__stats">
-              <div><b>{release.score}</b><strong>{openingReport.score.toLocaleString()}</strong></div>
-              <div><b>{release.enemies}</b><strong>{openingReport.destroyed}</strong></div>
-              <div><b>{release.hull}</b><strong>{Math.ceil(openingReport.hull)}/{openingReport.maxHull}</strong></div>
-            </div>
-            <div className="result-overlay__actions">
-              <GameButton tone="primary" data-dialog-initial-focus data-dialog-dismiss onClick={continueOpeningCampaign}>{command.advance}</GameButton>
-              <GameButton onClick={() => resetGame(1, false, 'campaign', true)}>{command.retry}</GameButton>
-            </div>
-          </div>
-        </GameDialog>
       )}
 
       {showAssetPreloadOverlay && (

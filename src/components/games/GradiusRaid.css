@@ -4634,6 +4634,3 @@
 .raid:not(.raid--landscape) .raid__fleet-radio {
   bottom: max(66px, calc(env(safe-area-inset-bottom) + 54px));
 }
-.raid__opening-report {
-  z-index: 150;
-}
