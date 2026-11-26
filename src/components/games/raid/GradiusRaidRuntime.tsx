@@ -52,7 +52,6 @@ import { getRaidText } from '../../../i18n'
 import { getCommandText } from '../../../commandText'
 import { FleetAudio } from '../fleetAudio'
 import { FleetRadio } from '../FleetRadio'
-import { GameButton } from '../../ui/GameButton'
 import type { LanguageCode } from '../../../i18n'
 import { isCreatorPlayerName, submitLeaderboardScore } from '../../../leaderboards'
 import { getEquippedShipCosmetics, hasProgressionUnlockOverride, isCoreLanderUnlocked, loadProgress } from '../../../progression'
@@ -171,7 +170,6 @@ function getNormalRaidDevilAssistModel(player: Player, progress: ReturnType<type
 export function GradiusRaid({
   onClose,
   initialMode = 'campaign',
-  quickLaunch = false,
   multiplayerSession,
   sameScreenCoop = false,
   sameScreenGuestShipKey = 'fast',
@@ -182,7 +180,6 @@ export function GradiusRaid({
 }: {
   onClose: () => void
   initialMode?: RaidMode
-  quickLaunch?: boolean
   multiplayerSession?: RaidMultiplayerSession | null
   sameScreenCoop?: boolean
   sameScreenGuestShipKey?: string
@@ -388,10 +385,6 @@ export function GradiusRaid({
   const [openingCue, setOpeningCue] = useState<'departure' | 'steer' | 'charge' | 'recovery' | null>(null)
   const coachOpeningRef = useRef(false)
   const firstCounterattackRef = useRef(false)
-  const quickLaunchRequestedRef = useRef(false)
-  const [quickLaunchPending, setQuickLaunchPending] = useState(quickLaunch)
-  const quickLaunchPendingRef = useRef(quickLaunchPending)
-  quickLaunchPendingRef.current = quickLaunchPending
   const command = getCommandText(language)
 
   const sendOpeningCue = useCallback((cue: typeof openingCue) => {
@@ -483,12 +476,11 @@ export function GradiusRaid({
   }, [])
 
   useEffect(() => {
-    if (quickLaunch) return
     void preloadRaidAssetsForMenu(true).catch(error => {
       console.warn('Raid background preparation failed:', error)
       setAssetPreload(state => ({ ...state, status: 'error' }))
     })
-  }, [preloadRaidAssetsForMenu, quickLaunch])
+  }, [preloadRaidAssetsForMenu])
 
   const resetGuestPredictionState = useCallback(() => {
     guestPositionCorrectionRef.current = { x: 0, y: 0 }
@@ -3550,18 +3542,6 @@ export function GradiusRaid({
     syncSnapshot()
   }
   const resetGame = useCarrierLaunchRequest(phaseRef, prepareSortie)
-  const prepareSortieRef = useRef(prepareSortie)
-  prepareSortieRef.current = prepareSortie
-
-  useEffect(() => {
-    if (!quickLaunch || quickLaunchRequestedRef.current) return
-    quickLaunchRequestedRef.current = true
-    void prepareSortieRef.current(1, false, 'campaign', true)
-  }, [quickLaunch])
-
-  useEffect(() => {
-    if (snapshot.phase !== 'select' || shipRendererError) setQuickLaunchPending(false)
-  }, [snapshot.phase, shipRendererError])
 
   useEffect(() => {
     const session = multiplayerSessionRef.current
@@ -7685,9 +7665,7 @@ export function GradiusRaid({
       const phase = phaseRef.current
       const drawStart = measured ? performance.now() : 0
       frameStep = 'draw'
-      // The loading panel covers the flight view. Give renderer preparation
-      // the frame budget until it has a sortie to reveal.
-      if (!quickLaunchPendingRef.current || phase !== 'select') drawFxCanvas(time)
+      drawFxCanvas(time)
       consecutiveDrawFailures = 0
       frameStep = 'snapshot'
       const drawMs = measured ? performance.now() - drawStart : 0
@@ -7792,7 +7770,6 @@ export function GradiusRaid({
       w: 'a', d: 'w', s: 'd', a: 's',
     } as Record<string, string>)[key] ?? key : key
     const down = (event: KeyboardEvent) => {
-      if (quickLaunchPending) return
       const key = event.key.toLowerCase()
       if (phaseRef.current !== 'playing' && (key === 'arrowright' || key === 'arrowdown' || key === 'arrowleft' || key === 'arrowup')) {
         event.preventDefault()
@@ -7863,7 +7840,7 @@ export function GradiusRaid({
       window.removeEventListener('keydown', down)
       window.removeEventListener('keyup', up)
     }
-  }, [activateNuke, exitRaid, moveRaidMenuFocus, pauseGame, quickLaunchPending, resetGame, resumeGame, syncSnapshot])
+  }, [activateNuke, exitRaid, moveRaidMenuFocus, pauseGame, resetGame, resumeGame, syncSnapshot])
 
   useEffect(() => {
     const syncCarrierAudio = () => {
@@ -8081,7 +8058,7 @@ export function GradiusRaid({
   const endingBossesDefeated = Math.max(bossesDefeatedRef.current, snapshot.phase === 'victory' ? 3 : 0)
   const endingNukesUsed = nukesUsedRef.current
   const assetPreloadPercent = Math.min(100, Math.round(assetPreload.loaded / Math.max(1, assetPreload.total) * 100))
-  const showAssetPreloadOverlay = assetPreload.status === 'loading' && !quickLaunchPending && snapshot.phase !== 'playing' && snapshot.phase !== 'paused' && snapshot.phase !== 'victory'
+  const showAssetPreloadOverlay = assetPreload.status === 'loading' && snapshot.phase !== 'playing' && snapshot.phase !== 'paused' && snapshot.phase !== 'victory'
   const displayedShipOptions = SHIP_OPTIONS
   const renderHullPips = (hudPlayer: Player, keyPrefix: string) => {
     const hullPips = Array.from({ length: hudPlayer.maxHp }, (_, index) => index < hudPlayer.hp)
@@ -8287,16 +8264,6 @@ export function GradiusRaid({
         >
           <img className="raid__nuke-quick-icon" src={getPublicAssetUrl(RAID_OTHER_ASSET_PATHS.nukeMissile)} alt="" aria-hidden="true" draggable={false} />
         </button>
-      )}
-
-      {quickLaunchPending && (
-        <div className="raid__asset-loading" role="status">
-          <div className="raid__asset-loading-panel">
-            <div className="raid__kicker">{command.radio}</div>
-            <p>{command.launchPreparing}</p>
-            <GameButton tone="quiet" onClick={onClose}>{hudText.exit}</GameButton>
-          </div>
-        </div>
       )}
 
       {openingCue && snapshot.phase === 'playing' && snapshot.stageTheme === 1 && snapshot.stageClear <= 0 && (
@@ -8619,7 +8586,7 @@ export function GradiusRaid({
           </div>
         </GameDialog>
       )}
-      {!quickLaunchPending && snapshot.phase !== 'playing' && snapshot.phase !== 'paused' && snapshot.phase !== 'briefing' && snapshot.phase !== 'victory' && (
+      {snapshot.phase !== 'playing' && snapshot.phase !== 'paused' && snapshot.phase !== 'briefing' && snapshot.phase !== 'victory' && (
         <div className="raid__overlay">
           <div className="raid__panel">
             <div className="raid__kicker">{snapshot.phase === 'gameover' ? menuText.runEnded : menuText.chooseShip}</div>
