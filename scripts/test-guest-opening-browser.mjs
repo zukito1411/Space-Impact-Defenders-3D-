@@ -258,16 +258,14 @@ async function testRaid() {
       const { refs, update, sync } = window.openingTest
       const boss = refs.enemiesRef.current.find(enemy => enemy.isBoss)
       refs.shotsRef.current.push({ id: -1, x: boss.x, y: boss.y, vx: 0, vy: 0, kind: 'pulse', damage: boss.hp + 1, radius: 2 })
-      for (let frame = 0; frame < 500 && !refs.openingReportRef.current; frame++) update(1 / 60)
+      for (let frame = 0; frame < 500 && refs.stageRef.current === 1; frame++) update(1 / 60)
+      if (refs.stageRef.current !== 2) throw Error('The next stage did not start automatically')
+      const entryRemaining = refs.stageEntryRef.current
+      update(1 / 60)
+      if (refs.stageEntryRef.current >= entryRemaining) throw Error('Stage 2 did not progress without player input')
       sync()
     })
-    const report = desktop.getByRole('dialog', { name: 'First interception complete' })
-    await report.waitFor()
-    assert.ok(await report.getByRole('button', { name: 'Retry', exact: true }).isVisible())
-    await capture(desktop, 'opening-report')
-    await report.getByRole('button', { name: 'Continue campaign' }).click()
-    await report.waitFor({ state: 'hidden' })
-    assert.equal(await desktop.evaluate(() => window.openingTest.refs.stageRef.current), 2)
+    assert.equal(await desktop.getByRole('dialog').count(), 0, 'Stage transition must not show a score screen')
     await desktop.evaluate(() => {
       const { refs, update, sync } = window.openingTest
       for (let frame = 0; frame < 650 && refs.stageEntryRef.current > 0; frame++) update(1 / 60)
@@ -285,7 +283,7 @@ async function testRaid() {
     assert.equal(await desktop.evaluate(() => window.openingTest.refs.stageRef.current), 1)
     assert.deepEqual(traffic, [], 'a guest run must not call the online profile or leaderboard APIs')
     assert.deepEqual(errors, [])
-    console.log('Desktop guest launch, boss warning, counterattack, reports, campaign continuation and retry passed')
+    console.log('Desktop guest launch, boss warning, automatic stage advance, end-of-run report and retry passed')
   } catch (error) {
     const visible = await desktop.locator('body').innerText({ timeout: 4000 }).catch(() => '')
     throw new Error(`Raid did not complete its opening check. Visible state: ${visible.slice(0, 1000)}`, { cause: error })
