@@ -213,7 +213,7 @@ const effectsContext = {
  fillText(...args){ labels.push(args) },
 }
 warnings.drawCommandBossEnergy(effectsContext, effectBoss, x=>x*3.9, y=>y*8.44, 130)
-assert.deepEqual(sprites.map(([tile])=>tile),['pulse','pulse'],'phase pulse and charge use the plasma art')
+assert.equal(sprites.length, 0, 'A warning uses its projected attack lanes without a body or charge ring')
 warnings.drawCommandBossHealthBar(effectsContext, effectBoss, 195, 168.8, 130)
 assert.deepEqual(fills.slice(-2).map(([left])=>left),[136.5+117*.3-1,136.5+117*.65-1])
 assert.equal(labels[0][0],m.getGenericBossArt(effectBoss.bossKind,11).name)
@@ -229,7 +229,7 @@ warnings.drawCommandBossEnergy(effectsContext, effectBoss, x=>x*3.9, y=>y*8.44, 
 assert.deepEqual(sprites.map(([tile,x,y])=>[tile,x,y]), released.map(shot=>['muzzle',shot.x*3.9,shot.y*8.44]))
 sprites.length=0
 warnings.drawCommandBossEnergy(effectsContext, {...effectBoss,bossEncounterAge:effectBoss.bossEncounterAge+1}, x=>x,y=>y,130)
-assert.equal(sprites.length,0,'release and phase textures must expire')
+assert.equal(sprites.length,0,'Muzzle textures must expire')
 const fan = {...boss(1),bossEncounterAge:2,bossLastVolleyAge:2,bossAttackPattern:'fan',bossAttackState:'burst',bossBurstIndex:1}
 warnings.drawCommandBossEnergy(effectsContext, fan, x=>x,y=>y,130)
 assert.equal(sprites.length,1,'a five-shot fan sharing a muzzle should draw only one flash')

@@ -11,12 +11,14 @@ RELEASE = "android-3d-assets-v1"
 BASE_URL = f"https://github.com/zukito1411/Space-Impact-Defenders-3D-/releases/download/{RELEASE}/"
 MEDIA_METADATA_SUFFIXES = {".txt", ".json"}
 
-# Keep the command deck, shared profile artwork, and the entire Ship Defense
-# mode available before the player chooses to download the Raid.
-BUNDLED_ART_PREFIXES = (
-    "assets/brand/", "assets/ui/", "assets/ships/previews/", "assets/aliens/", "assets/bosses/",
-)
+# The command deck, shared profile and Ship Defense use these named files.
+# Raid art and archived versions stay in the downloadable release.
 BUNDLED_MEDIA = {
+    "assets/brand/zuki-logo-v1.png",
+    "assets/ui/orbital-hangar-v1.png", "assets/ui/console-plate-v1.png", "assets/ui/space-door-v1.webp",
+    "assets/aliens/alien_v0.png", "assets/aliens/alien_v3.png", "assets/aliens/alien_v6.png",
+    "assets/aliens/elite_2.png", "assets/aliens/elite_3.png",
+    "assets/aliens/squid_boss.png", "assets/aliens/cobra_boss.png", "assets/aliens/final_boss.png",
     "assets/others/planet_1.webp", "assets/others/space_station.webp", "assets/others/sun.webp",
     "assets/others/asteroid.webp", "assets/others/comet.webp", "assets/others/galaxy.webp",
     "assets/GundamEnemy/devil-rage.png", "assets/GundamEnemy/master-gundam.png",
@@ -24,30 +26,41 @@ BUNDLED_MEDIA = {
     "assets/ships/sideview/god-gundam-flight-v4.webp", "assets/ships/sideview/god-gundam-burning-flight-v5.webp",
     "assets/ships/sideview/spiegel-flight-v2.webp",
     "audio/bgm_shelter.wav", "audio/bgm_scifi_loop.ogg",
-    "audio/immersion/score-cruise.ogg", "audio/immersion/sector-station.ogg",
+    "audio/immersion/sector-station.ogg",
     "audio/immersion/deploy.ogg", "audio/immersion/synergy.ogg", "audio/immersion/hq-warning.ogg",
     "audio/immersion/fighter-death.ogg", "audio/immersion/armored-death.ogg",
     "audio/immersion/capital-death.ogg",
+    "audio/immersion/fleet-motif.ogg", "audio/immersion/fleet-defense-orders.ogg", "audio/immersion/fleet-deployed.ogg",
+    "audio/sfx_cannon.wav", "audio/sfx_combo.wav", "audio/sfx_countdown.wav", "audio/sfx_damage.wav",
+    "audio/sfx_explosion_big.wav", "audio/sfx_explosion_small.wav", "audio/sfx_gameover.wav", "audio/sfx_laser.wav",
+    "audio/sfx_levelup.wav", "audio/sfx_rocket.wav", "audio/sfx_score.wav", "audio/sfx_shoot.wav",
+    "audio/sfx_ui_select.wav", "audio/sfx_ui_swap.wav",
 }
 
-
-def is_bundled_media(name):
-    return (
-        name in BUNDLED_MEDIA
-        or name.startswith(BUNDLED_ART_PREFIXES)
-        or (name.startswith("audio/sfx_") and name.endswith(".wav"))
-        or name.startswith("audio/immersion/fleet-")
-    )
+# Only the current profile and fleet previews are needed outside Raid. Use the
+# explicitly selected version per orientation from the ship picker.
+for ship, portrait, landscape in (
+    ("coreLander", 5, 7), ("coreLanderBurning", 5, 7), ("dreadnought", 5, 7),
+    ("fast", 10, 10), ("gatling", 12, 12), ("laser", 5, 7), ("mesiahBlack", 5, 7),
+    ("mesiahWhite", 5, 7), ("rocket", 5, 7), ("spaceEt", 5, 7), ("xwing", 9, 9),
+):
+    for key in (ship, ship + "Elite"):
+        BUNDLED_MEDIA.add(f"assets/ships/previews/{key}-portrait-v{portrait}.webp")
+        BUNDLED_MEDIA.add(f"assets/ships/previews/{key}-landscape-v{landscape}.webp")
 
 
 def package(public, dist, output):
     output.mkdir(parents=True, exist_ok=True)
     files = {}
     groups = defaultdict(dict)
+    bundled_bytes = 0
     for media_root in ("assets", "audio"):
         for source in sorted((public / media_root).rglob("*")):
             name = source.relative_to(public).as_posix()
-            if not source.is_file() or is_bundled_media(name) or source.suffix.lower() in MEDIA_METADATA_SUFFIXES:
+            if not source.is_file() or source.suffix.lower() in MEDIA_METADATA_SUFFIXES:
+                continue
+            if name in BUNDLED_MEDIA:
+                bundled_bytes += (dist / name).stat().st_size
                 continue
             if source.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp", ".svg", ".glb", ".mp3", ".wav", ".ogg"}:
                 raise ValueError(f"Unrecognized Android media: {name}")
@@ -74,7 +87,7 @@ def package(public, dist, output):
     (dist / "native-assets.json").write_text(json.dumps(manifest, separators=(",", ":")), encoding="utf-8")
     for name in files:
         (dist / name).unlink()
-    print(f"Android media: {len(files)} files in {len(packs)} packs, {sum(p['bytes'] for p in packs):,} bytes")
+    print(f"Android media: {bundled_bytes:,} bytes bundled; {len(files)} files in {len(packs)} packs, {sum(p['bytes'] for p in packs):,} bytes")
 
 
 if __name__ == "__main__":

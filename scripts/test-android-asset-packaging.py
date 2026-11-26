@@ -85,7 +85,14 @@ if "--built-assets" in sys.argv:
             "audio/immersion/fleet-defense-orders.ogg", "audio/immersion/fleet-deployed.ogg",
         ):
             assert (dist / name).read_bytes() == (public / name).read_bytes()
-        assert "assets/ships/models/v1/rocket.glb" in manifest["files"]
+        for name in (
+            "assets/ships/models/v1/rocket.glb", "assets/ships/previews/rocket-portrait-v1.webp",
+            "assets/bosses/special/squid-skin-v1.png", "assets/bosses/materials/capital-armor-atlas-v1.png",
+            "audio/immersion/fleet-departure.ogg", "audio/immersion/fleet-steer.ogg",
+            "audio/immersion/fleet-charge.ogg", "audio/immersion/fleet-recovery.ogg",
+        ):
+            assert name in manifest["files"], f"Raid media should be downloadable: {name}"
+        assert not any(path.is_file() and path.suffix in {".png", ".webp"} for path in (dist / "assets/bosses").rglob("*"))
         assert (dist / "index.html").is_file()
         assert all(not (dist / name).exists() for name in manifest["files"])
         print(f"Verified real production Android payload: {len(manifest['files'])} media files; JSON metadata retained in APK")

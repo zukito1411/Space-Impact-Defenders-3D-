@@ -1,8 +1,17 @@
 name: Review normal boss lower hulls
 on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/components/games/raid/commandBossRender.ts'
+      - 'scripts/test-special-boss-geometry.mjs'
+      - 'scripts/review-raid-campaign-browser.mjs'
+      - '.github/workflows/review-boss-keels.yml'
   push:
     branches: [main, improve-boss-lower-hulls]
     paths:
+      - 'src/components/games/raid/commandBossRender.ts'
+      - 'scripts/test-special-boss-geometry.mjs'
       - 'src/components/games/raid/bossKeelDesigns.ts'
       - 'src/components/games/raid/bossVentralDetail.ts'
       - 'src/components/games/raid/bossHullDesigns.ts'

@@ -1,8 +1,17 @@
 name: Review enemy and boss banking
 on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/components/games/raid/commandBossRender.ts'
+      - 'scripts/test-special-boss-geometry.mjs'
+      - 'scripts/review-raid-campaign-browser.mjs'
+      - '.github/workflows/review-enemy-banking.yml'
   push:
     branches: [main]
     paths:
+      - 'src/components/games/raid/commandBossRender.ts'
+      - 'scripts/test-special-boss-geometry.mjs'
       - 'src/components/games/raid/enemyBanking.ts'
       - 'src/components/games/raid/enemyRender.ts'
       - 'src/components/games/raid/genericBossRender.ts'
