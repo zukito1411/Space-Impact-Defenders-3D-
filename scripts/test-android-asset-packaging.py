@@ -81,6 +81,7 @@ if "--built-assets" in sys.argv:
         assert packed_audio | bundled_audio == {entry["file"] for entry in immersion["files"]}
         for name in (
             "assets/ui/orbital-hangar-v1.png", "assets/ui/console-plate-v1.png", "assets/ui/space-door-v1.webp",
+            "assets/bosses/stage-01-crimson-bastion-v1.webp", "assets/ships/previews/mesiahRaptorBlack-portrait-v5.webp",
             "audio/bgm_scifi_loop.ogg", "audio/immersion/fleet-motif.ogg",
             "audio/immersion/fleet-defense-orders.ogg", "audio/immersion/fleet-deployed.ogg",
         ):
@@ -92,7 +93,8 @@ if "--built-assets" in sys.argv:
             "audio/immersion/fleet-charge.ogg", "audio/immersion/fleet-recovery.ogg",
         ):
             assert name in manifest["files"], f"Raid media should be downloadable: {name}"
-        assert not any(path.is_file() and path.suffix in {".png", ".webp"} for path in (dist / "assets/bosses").rglob("*"))
+        for directory in ("assets/bosses/special", "assets/bosses/materials"):
+            assert not any(path.is_file() and path.suffix in {".png", ".webp"} for path in (dist / directory).rglob("*"))
         assert (dist / "index.html").is_file()
         assert all(not (dist / name).exists() for name in manifest["files"])
         print(f"Verified real production Android payload: {len(manifest['files'])} media files; JSON metadata retained in APK")
