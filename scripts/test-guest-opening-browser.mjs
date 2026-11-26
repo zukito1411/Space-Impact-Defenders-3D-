@@ -115,23 +115,36 @@ async function main() {
 }
 
 async function testRaid() {
-  const desktop = await browser.newPage({ viewport: { width: 1220, height: 700 }, reducedMotion: 'reduce' })
+  const desktop = await browser.newPage({ viewport: { width: 844, height: 470 }, reducedMotion: 'reduce' })
   try {
     const traffic = [], errors = []
     desktop.on('pageerror', error => errors.push(error.message))
     await setUp(desktop, true, traffic)
     await title(desktop)
+    // Keep renderer initialization and the real UI, but step the sortie at a
+    // fixed rate so software-rendered builds don't depend on host frame pacing.
+    await desktop.evaluate(() => { window.openingManualFrames = true })
     await desktop.getByRole('button', { name: /Launch Gradius Raid/ }).click()
-    console.log('Waiting for the guest carrier sequence')
-    await desktop.getByText('Flight deck clear. You have the launch lane.').waitFor({ timeout: 220000 })
+    await desktop.getByText('Flight deck clear. You have the launch lane.').waitFor({ timeout: 120000 })
+    await takeSimulationControl(desktop)
+    await desktop.evaluate(() => window.openingTest.draw(performance.now()))
     await capture(desktop, 'opening-launch')
-    console.log('Guest carrier sequence reached')
-    await desktop.getByText(/Weapons fire automatically/).waitFor({ timeout: 90000 })
+    await desktop.evaluate(() => {
+      const { refs, update, draw, sync } = window.openingTest
+      for (let frame = 0; frame < 650 && refs.stageEntryRef.current > 0; frame++) update(1 / 60)
+      draw(performance.now())
+      sync()
+    })
+    await desktop.getByText(/Weapons fire automatically/).waitFor()
     assert.ok(await desktop.getByText(/WASD/).isVisible())
     await desktop.keyboard.down('ArrowUp')
-    await desktop.waitForTimeout(350)
+    await desktop.evaluate(() => {
+      const { refs, update } = window.openingTest
+      const before = refs.playerRef.current.x
+      for (let frame = 0; frame < 30; frame++) update(1 / 60)
+      if (refs.playerRef.current.x === before) throw Error('The ship did not respond to steering')
+    })
     await desktop.keyboard.up('ArrowUp')
-    await takeSimulationControl(desktop)
     await advanceToBossWarning(desktop)
     await desktop.getByText(/Move clear of the marked fire/).waitFor()
     await capture(desktop, 'opening-boss-warning')
@@ -185,7 +198,7 @@ async function testRaid() {
 async function testDefense() {
   const phone = await browser.newPage({ viewport: { width: 393, height: 852 }, hasTouch: true, isMobile: true })
   const phoneTraffic = []
-  await setUp(phone, false, phoneTraffic)
+  await setUp(phone, false, phoneTraffic, false)
   await title(phone)
   await phone.getByRole('button', { name: /Tower Defense Campaign/ }).tap()
   await phone.getByRole('button', { name: 'Skip Briefing' }).tap()

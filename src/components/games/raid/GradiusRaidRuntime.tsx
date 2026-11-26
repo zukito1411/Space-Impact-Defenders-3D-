@@ -392,6 +392,8 @@ export function GradiusRaid({
   const openingReportRef = useRef(false)
   const quickLaunchRequestedRef = useRef(false)
   const [quickLaunchPending, setQuickLaunchPending] = useState(quickLaunch)
+  const quickLaunchPendingRef = useRef(quickLaunchPending)
+  quickLaunchPendingRef.current = quickLaunchPending
   const command = getCommandText(language)
   const release = getReleaseText(language)
 
@@ -488,11 +490,12 @@ export function GradiusRaid({
   }, [])
 
   useEffect(() => {
+    if (quickLaunch) return
     void preloadRaidAssetsForMenu(true).catch(error => {
       console.warn('Raid background preparation failed:', error)
       setAssetPreload(state => ({ ...state, status: 'error' }))
     })
-  }, [preloadRaidAssetsForMenu])
+  }, [preloadRaidAssetsForMenu, quickLaunch])
 
   const resetGuestPredictionState = useCallback(() => {
     guestPositionCorrectionRef.current = { x: 0, y: 0 }
@@ -7695,7 +7698,9 @@ export function GradiusRaid({
       const phase = phaseRef.current
       const drawStart = measured ? performance.now() : 0
       frameStep = 'draw'
-      drawFxCanvas(time)
+      // The loading panel covers the flight view. Give renderer preparation
+      // the frame budget until it has a sortie to reveal.
+      if (!quickLaunchPendingRef.current || phase !== 'select') drawFxCanvas(time)
       consecutiveDrawFailures = 0
       frameStep = 'snapshot'
       const drawMs = measured ? performance.now() - drawStart : 0
