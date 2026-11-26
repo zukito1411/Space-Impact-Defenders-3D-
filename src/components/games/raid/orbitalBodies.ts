@@ -1,3 +1,4 @@
+import { applyPixiGravityWarp, gravityWarp, sampleBlackHoleCapture, type GravityField } from './blackHoleDistortion'
 import { Container, Geometry, GlProgram, Mesh, MeshGeometry, RenderTexture, Shader, Texture, UniformGroup } from 'pixi.js'
 import type { Renderer, Sprite } from 'pixi.js'
 import type { AsteroidHazard } from './types'
@@ -465,7 +466,7 @@ export class OrbitalCombatRocks {
     for (const surface of this.surfaces) this.root.addChild(surface.mesh)
   }
   update(texture: Texture | undefined, asteroids: readonly AsteroidHazard[], width: number, height: number,
-    seconds: number, bounds: RaidVisibilityBounds, incoming: readonly AsteroidHazard[] = NO_INCOMING_ASTEROIDS, approach = 1, light?: Float32Array) {
+    seconds: number, bounds: RaidVisibilityBounds, incoming: readonly AsteroidHazard[] = NO_INCOMING_ASTEROIDS, approach = 1, light?: Float32Array, field?: GravityField | null) {
     this.presented = false
     this.drawn.clear()
     if (!texture) {
@@ -475,6 +476,9 @@ export class OrbitalCombatRocks {
     this.alive.clear()
     for (const asteroid of asteroids) this.alive.add(asteroid.id)
     for (const asteroid of incoming) this.alive.add(asteroid.id)
+    if (field?.captures) for (const capture of field.captures) {
+      if (capture.kind === 'asteroid') this.alive.add(capture.body.id)
+    }
     for (const [id, surface] of this.owners) {
       if (this.alive.has(id)) continue
       surface.mesh.visible = false
@@ -485,41 +489,53 @@ export class OrbitalCombatRocks {
     const p = Math.max(0, Math.min(1, approach))
     // Fixed physical size at a receding distance, then an exact entry-plane handoff.
     const incomingScale = 1 / (1 + 8 * (1 - p) * (1 - p))
-    for (let pass = 0; pass < 2; pass++) {
-      const list = pass === 0 ? asteroids : incoming
-      for (const asteroid of list) {
-        if (pass === 0 && !raidObjectInView(bounds, asteroid.x, asteroid.y, asteroid.radius + 5)) continue
-        let surface = this.owners.get(asteroid.id)
-        if (!surface) {
-          surface = this.free.pop()
-          if (surface) this.owners.set(asteroid.id, surface)
-        }
-        // Canvas retains authoritative hazards if an unexpected overflow occurs.
-        if (!surface) continue
-        const mesh = surface.mesh
-        const nearSize = Math.max(30, asteroid.tier === 2 ? Math.min(width * .29, 280)
-          : asteroid.tier === 1 ? Math.min(width * .16, 150) : Math.min(width * .085, 78))
-        const scale = pass === 0 ? 1 : incomingScale, size = nearSize * scale
-        const actualX = asteroid.x * width / 100, actualY = asteroid.y * height / 100
-        const x = width * .5 + (actualX - width * .5) * scale
-        // Approach from beyond the forward edge, with an exact gameplay handoff.
-        const entryY = Math.min(actualY,-nearSize*.65-16)
-        const y = entryY + (actualY-entryY)*scale
-        surface.setTexture(texture)
-        if (light) surface.setLight(light)
-        surface.setPerspective(size * .48 / focal, (x - width * .5) / focal,
-          (y - height * .5) / focal, asteroid.spin * Math.PI / 180)
-        surface.pose(asteroid.phase + seconds * .085, Math.sin(asteroid.phase + seconds * .061) * .7,
-          .48, .48, ROCK_AIR)
-        mesh.position.set(x, y); mesh.scale.set(size, size * .9)
-        mesh.rotation = asteroid.spin * Math.PI / 180
-        mesh.alpha = pass === 0 ? 1 : Math.min(1, p / .12)
-        mesh.visible = true
-        this.drawn.add(asteroid.id)
-      }
+    for (const asteroid of asteroids) {
+      if (!raidObjectInView(bounds, asteroid.x, asteroid.y, asteroid.radius + 5)) continue
+      this.drawRock(asteroid, texture, width, height, seconds, focal, 1, 1, light, field)
+    }
+    for (const asteroid of incoming) this.drawRock(asteroid, texture, width, height, seconds, focal, incomingScale, Math.min(1, p / .12), light)
+    if (field?.captures) for (const capture of field.captures) {
+      if (capture.kind !== 'asteroid' || this.drawn.has(capture.body.id)) continue
+      const sample = sampleBlackHoleCapture(capture, field.age, field)
+      if (sample) this.drawRock(capture.body, texture, width, height, seconds, focal, 1, sample.alpha, light, field, sample)
     }
     for (const [id, surface] of this.owners) if (!this.drawn.has(id)) surface.mesh.visible = false
   }
+  private drawRock(asteroid: AsteroidHazard, texture: Texture, width: number, height: number, seconds: number,
+    focal: number, scale: number, alpha: number, light?: Float32Array, field?: GravityField | null,
+    capture?: NonNullable<ReturnType<typeof sampleBlackHoleCapture>>) {
+    let surface = this.owners.get(asteroid.id)
+    if (!surface) {
+      surface = this.free.pop()
+      if (surface) this.owners.set(asteroid.id, surface)
+    }
+    // Canvas retains authoritative hazards if an unexpected overflow occurs.
+    if (!surface) return
+    const mesh = surface.mesh
+    const nearSize = Math.max(30, asteroid.tier === 2 ? Math.min(width * .29, 280)
+      : asteroid.tier === 1 ? Math.min(width * .16, 150) : Math.min(width * .085, 78))
+    const size = nearSize * scale
+    const actualX = asteroid.x * width / 100, actualY = asteroid.y * height / 100
+    const x = capture?.x ?? width * .5 + (actualX - width * .5) * scale
+    const entryY = Math.min(actualY, -nearSize * .65 - 16)
+    const y = capture?.y ?? entryY + (actualY - entryY) * scale
+    surface.setTexture(texture)
+    if (light) surface.setLight(light)
+    surface.setPerspective(size * .48 / focal, (x - width * .5) / focal,
+      (y - height * .5) / focal, asteroid.spin * Math.PI / 180)
+    surface.pose(asteroid.phase + seconds * .085, Math.sin(asteroid.phase + seconds * .061) * .7,
+      .48, .48, ROCK_AIR)
+    mesh.position.set(x, y)
+    mesh.scale.set(size, size * .9)
+    mesh.rotation = asteroid.spin * Math.PI / 180
+    if (mesh.skew.x || mesh.skew.y) mesh.skew.set(0)
+    const warp = capture?.warp ?? gravityWarp(field, asteroid)
+    if (warp) applyPixiGravityWarp(mesh, warp)
+    mesh.alpha = alpha
+    mesh.visible = true
+    this.drawn.add(asteroid.id)
+  }
+
   has(id: number) { return this.presented && this.drawn.has(id) }
   destroy() {
     for (const surface of this.surfaces) surface.destroy()

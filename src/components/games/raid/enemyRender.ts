@@ -70,6 +70,7 @@ export function drawRaidEnemy(
   skipGpuStageBossBody = false,
   landscape = false,
   paused = false,
+  captured = false,
 ) {
   const x = toX(enemy.x)
   const y = toY(enemy.y)
@@ -188,7 +189,7 @@ export function drawRaidEnemy(
     ctx.translate(x, y)
     drawBossResidualHit(ctx, enemy, size)
     ctx.restore()
-    drawRaidEnemyHealthBar(ctx, enemy, x, y, size * 0.82, viewportWidth, toY(100), landscape)
+    if (!captured) drawRaidEnemyHealthBar(ctx, enemy, x, y, size * 0.82, viewportWidth, toY(100), landscape)
     return
   }
 

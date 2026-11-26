@@ -1530,7 +1530,7 @@ export class PixiRaidBackground {
       const foregroundReady = this.foregroundPrepared && this.gpuForeground.update(frame)
       this.combatRocks.update(this.orbitalBodiesReady ? this.assetTextures.get('asteroid') : undefined, frame.asteroids ?? [], frame.width, frame.height,
         this.reducedMotion ? 0 : this.celestialClock.seconds, frame.bounds, frame.incomingAsteroids,
-        this.reducedMotion ? 1 : frame.asteroidApproachProgress, this.orbitalCamera?.sunDirection)
+        this.reducedMotion ? 1 : frame.asteroidApproachProgress, this.orbitalCamera?.sunDirection, frame.gravityField)
       // Present scenery even if the GPU actor layer fails; Canvas will draw
       // those actors itself, avoiding a black screen on unsupported devices.
       this.renderWithGpuTimer(app, frame.measureGpu, frame.time)

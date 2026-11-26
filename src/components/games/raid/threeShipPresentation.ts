@@ -431,6 +431,18 @@ export class ThreeShipPresentation implements LiveHullSink {
       group.quaternion.multiply(view)
     }
     group.scale.set(draw.size*sx/448, draw.size*sy/448, draw.size*sx/448)
+    group.matrixAutoUpdate = !draw.warp
+    if (draw.warp) {
+      group.updateMatrix()
+      const { xx, xy, yy } = draw.warp
+      const basis = group.matrix.elements
+      // Three's vertical axis is opposite the logical playfield's.
+      for (let column = 0; column < 12; column += 4) {
+        const x = basis[column], y = basis[column + 1]
+        basis[column] = xx * x - xy * y
+        basis[column + 1] = yy * y - xy * x
+      }
+    }
     node.object.position.set((144*sx+ox-224)/sx,(224-144*sy-oy)/sy,0)
     let bank = draw.bank*(1-dock)
     if (draw.enemyBank && ENEMY_HULL_SPECS[key]) {

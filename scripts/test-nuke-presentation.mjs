@@ -3,7 +3,7 @@ import {readFileSync} from 'node:fs'
 import ts from 'typescript'
 const input=readFileSync(new URL('../src/components/games/raid/effectsRender.tsx',import.meta.url),'utf8')
 const ast=ts.createSourceFile('effects.ts',input,ts.ScriptTarget.Latest,true)
-const functions=ast.statements.filter(n=>ts.isFunctionDeclaration(n)&&['getNukePathPoint','getNukePathDerivative','drawNukeMissile','drawNukeBlast'].includes(n.name?.text)).map(n=>n.getText(ast)).join('\n')
+const functions=ast.statements.filter(n=>ts.isFunctionDeclaration(n)&&['getNukePathPoint','getNukePathDerivative','getNukeFlightProgress','drawNukeTarget','drawNukeMissile','drawNukeBlast'].includes(n.name?.text)).map(n=>n.getText(ast)).join('\n')
 const stubs=`
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const NUKE_FLASH_SECONDS=1.15;
@@ -27,6 +27,10 @@ assert.equal(ctx.strokes,2,'wake and target marker should be two strokes')
 assert.ok(ctx.images[0][3]>=64,'nuke sprite must be readable')
 assert.equal(ctx.depth,0)
 ctx.strokes=0
+art.drawNukeMissile(ctx,{startX:50,startY:90,targetX:40,targetY:30,age:0.4,duration:0.82},v=>v*10,v=>v*5,1000,400,true)
+assert.equal(ctx.images.length,2,'a captured missile should keep its original bitmap')
+assert.equal(ctx.strokes,0,'a captured missile should lose its guidance marks')
+assert.equal(ctx.depth,0)
 art.drawNukeBlast(ctx,1000,500,0.8,400,400,200)
 assert.equal(ctx.textures.length,1,'nuke blast should use one textured fireball')
 assert.equal(ctx.strokes,1,'nuke blast should have one shock ring')

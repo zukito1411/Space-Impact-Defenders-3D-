@@ -73,7 +73,8 @@ import type { RaidPalette } from './background'
 import { forEachDevilBossBeamLane, forEachFinalBossBeamLane, getDevilBossBeamRadius, getDevilBossChargeDuration, getFinalBossBeamLaneCount, getFinalBossBeamRadius } from './bossAttacks'
 import { clearNormalEnemyRasters, drawRaidEnemy, getNormalEnemyFilter, pruneNormalEnemyRasters } from './bossRender'
 import { ALLY_PLAYER_COLOR, ASTEROID_CLUSTER_SPAWN_DELAY_SECONDS, ASTEROID_CLUSTER_WARNING_SECONDS, BOSS_COLORS, BOSS_ENTRANCE_SLAM_SECONDS, BOSS_ENTRANCE_SLOWMO_SCALE, BOSS_RESPAWN_SECONDS, BOSS_RUSH_ATTACK_COOLDOWN_SCALE, BOSS_RUSH_ENTRY_SPEED_SCALE, BOSS_RUSH_MOTION_SCALE, BOSS_RUSH_SPECIAL_RECHARGE_SCALE, BOSS_RUSH_STAGES, CORE_LANDER_AOE_RADIUS, DARK_ENEMY_COLORS, DEG, DEVIL_BOSS_MAX_STAGE_GAP, DEVIL_BOSS_MIN_STAGE_GAP, DIFFICULTY_CONFIGS, ELITE_POWER_DROP_CHANCE, EMPTY_WEAPON_FLAGS, EMPTY_WEAPON_TIMERS, FINAL_BOSS_BEAM_CHARGE_SECONDS, FINAL_BOSS_BEAM_LIFE_SECONDS, FORCE_FIELD_ARMOR, GAMEPLAY_ALERT_SNAPSHOT_INTERVAL_MS, GAMEPLAY_SNAPSHOT_INTERVAL_MS, GOD_GUNDAM_BARRAGE_DURATION_SECONDS, GOD_GUNDAM_BARRAGE_HIT_INTERVAL_SECONDS, GOD_GUNDAM_DEFEAT_HOLD_SECONDS, GOD_GUNDAM_MELEE_DAMAGE_PER_SECOND, GOD_GUNDAM_MELEE_EXHAUST_COOLDOWN_SECONDS, GOD_GUNDAM_MELEE_EXHAUST_LIMIT_SECONDS, GOD_GUNDAM_MELEE_HEAT_RECOVERY_PER_SECOND, GOD_GUNDAM_MELEE_VISUAL_DURATION_SECONDS, GOD_GUNDAM_MELEE_VISUAL_INTERVAL_SECONDS, HEIGHT, HOMING_RETARGET_SECONDS, HOMING_RETARGET_STAGGER_SECONDS, IDLE_SNAPSHOT_INTERVAL_MS, MAX_ASTEROIDS, MAX_ION_STRIKES, MAX_METEORS, MAX_RAID_STAGE, MAX_WRECKS, MESIAH_DRONE_FIRE_INTERVAL_SECONDS, MESIAH_ROCKET_FIRE_INTERVAL_SECONDS, MINI_BOSS_COLORS, MULTIPLAYER_BOSS_HP_MULTIPLIER, MULTIPLAYER_CONNECTION_CHECK_MS, MULTIPLAYER_CORRECTION_DRAIN_RATE, MULTIPLAYER_ENTITY_MARGIN, MULTIPLAYER_GUEST_SNAP_DISTANCE_SQ, MULTIPLAYER_GUEST_STALE_MS, MULTIPLAYER_HEARTBEAT_INTERVAL_MS, MULTIPLAYER_HEARTBEAT_TIMEOUT_MS, MULTIPLAYER_MAX_ASTEROIDS, MULTIPLAYER_MAX_BUFFERED_BYTES, MULTIPLAYER_MAX_ENEMIES, MULTIPLAYER_MAX_ENEMY_SHOTS, MULTIPLAYER_MAX_GUEST_CORRECTION, MULTIPLAYER_MAX_ION_STRIKES, MULTIPLAYER_MAX_METEORS, MULTIPLAYER_MAX_POWERUPS, MULTIPLAYER_MAX_RIPPLES, MULTIPLAYER_MAX_SHOTS, MULTIPLAYER_MAX_SPARKS, MULTIPLAYER_MAX_WRECKS, MULTIPLAYER_REMOTE_BUFFER_MAX, MULTIPLAYER_REMOTE_CORRECTION_BLEND, MULTIPLAYER_REMOTE_INPUT_BLEND, MULTIPLAYER_REMOTE_INPUT_SNAP_DISTANCE_SQ, MULTIPLAYER_STATE_LOST_MS, MULTIPLAYER_STATE_STALE_MS, NORMAL_POWER_DROP_COOLDOWN, NUKE_FLASH_SECONDS, NUKE_MISSILE_SECONDS, PLAYER_COLOR, PLAYER_MAX_RANK, POWER_PITY_KILLS, RAID_BACKGROUND_THEME_COUNT, RAID_CHECKPOINTS, RANDOM_EVENT_WARNING_SECONDS, SHIP_OPTIONS, SIDE_VALUES, SPACE_ET_PASSIVE_FORCE_FIELD_CHARGES, SPIEGEL_KUNAI_DAMAGE_MULTIPLIER, SPIEGEL_KUNAI_SPLASH_DAMAGE_MULTIPLIER, SPIEGEL_SHADOW_CLONE_OFFSET, STAGE_CLEAR_SECONDS, STAGE_ENTRY_SECONDS, VICTORY_BLACKOUT_SECONDS, WEAPON_FIRE_INTERVALS, WEAPON_KEYS, WEAPON_STACK_CAPS, WIDTH, getBossRushStage, getNextBossRushStage, getShipSpriteSize, pickEndlessBossKind, shouldForceLocalDerelictWreckTest, shouldForceLocalDevilBossTest } from './constants'
-import { drawBossAttackZones, drawAsteroidHazard, drawAsteroidWarning, drawDerelictWreck, drawDevilChargeWarnings, drawFinalChargeLines, drawGodGundamBarrage, drawGodGundamPassiveStrikes, drawMeteorHazard, drawNukeBlast, drawNukeMissile, drawHomingTargetLock, drawPowerUpCanvas, drawRandomEventWarning, getHomingMissileSprite, getNukePathPoint, godBarrageDamageTargetsScratch } from './effectsRender'
+import { drawBossAttackZones, drawAsteroidHazard, drawAsteroidWarning, drawDerelictWreck, drawDevilChargeWarnings, drawFinalChargeLines, drawGodGundamBarrage, drawGodGundamPassiveStrikes, drawMeteorHazard, drawNukeBlast, drawNukeMissile, drawNukeTarget, drawHomingTargetLock, drawPowerUpCanvas, drawRandomEventWarning, getHomingMissileSprite, getNukeMissilePoint, godBarrageDamageTargetsScratch } from './effectsRender'
+import { BLACK_HOLE_CAPTURE_SECONDS, beginCanvasGravityWarp, endCanvasGravityWarp, gravityWarp, recordBlackHoleCapture, resetCanvasGravityWarp, sampleBlackHoleCapture, type GravityField } from './blackHoleDistortion'
 import { drawBlackHole, drawIonStrike, drawIonStorm, drawSolarFlare } from './eventRender'
 import {
   advanceRaidEventShot, createAsteroidHazard, crossesEventHorizon, getAsteroidClusterInterval, getAsteroidHp,
@@ -1785,6 +1786,7 @@ export function GradiusRaid({
       fxCanvasSmoothingQualityRef.current = nextSmoothingQuality
     }
     if (ctx.canvas.dataset.raidDpr !== String(dpr)) ctx.canvas.dataset.raidDpr = String(dpr)
+    resetCanvasGravityWarp(ctx)
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.clearRect(0, 0, cssWidth, cssHeight)
 
@@ -1793,6 +1795,13 @@ export function GradiusRaid({
     const playing = phaseRef.current === 'playing'
     const event = randomEventRef.current
     const reducedMotion = prefersRaidReducedMotion()
+    const gravityField: GravityField | null = event?.kind === 'rift' && event.warning <= 0
+      ? { hole: getBlackHole(event), scaleX: cssWidth / WIDTH, scaleY: cssHeight / HEIGHT, reducedMotion, age: event.age, captures: event.captures } : null
+    const startWarp = (body: Vec) => {
+      if (!gravityField) return false
+      return beginCanvasGravityWarp(ctx, gravityWarp(gravityField, body),
+        body.x * gravityField.scaleX, body.y * gravityField.scaleY)
+    }
     const briefing = phaseRef.current === 'briefing'
     const stop = carrierStopRef.current
     const approaching = Boolean(stop?.remaining)
@@ -1952,6 +1961,7 @@ export function GradiusRaid({
       guestView: Boolean(multiplayerSessionRef.current && !multiplayerSessionRef.current.isHost),
       measureGpu: measured,
       bounds: drawBounds,
+      gravityField,
       drawAdvancedShotFx: gfxProfile.drawAdvancedShotFx,
       projectileGlow,
       drawRipples: gfxProfile.drawRipples,
@@ -2713,17 +2723,22 @@ export function GradiusRaid({
     ctx.globalCompositeOperation = 'source-over'
     ctx.filter = 'none'
 
-    if (event?.kind === 'rift') drawBlackHole(ctx, event, cssWidth, cssHeight, landscapeRef.current, reducedMotion)
     if (event?.kind === 'ion') drawIonStorm(ctx, event, cssWidth, cssHeight, reducedMotion)
 
     for (const asteroid of asteroidsRef.current) {
       if (!raidObjectInView(drawBounds, asteroid.x, asteroid.y, asteroid.radius + 5)) continue
-      if (!pixiBackground?.isAsteroidGpuRendered(asteroid.id)) drawAsteroidHazard(ctx, asteroid, toX, toY, cssWidth, time)
+      if (!pixiBackground?.isAsteroidGpuRendered(asteroid.id)) {
+        const warped = startWarp(asteroid)
+        drawAsteroidHazard(ctx, asteroid, toX, toY, cssWidth, time)
+        endCanvasGravityWarp(ctx, warped)
+      }
     }
 
     for (const wreck of wrecksRef.current) {
       if (!raidObjectInView(drawBounds, wreck.x, wreck.y, wreck.width * 0.65, wreck.height * 0.65)) continue
+      const warped = startWarp(wreck)
       drawDerelictWreck(ctx, wreck, toX, toY, cssWidth, time)
+      endCanvasGravityWarp(ctx, warped)
     }
 
     worldStories.draw(ctx,time,journeyStageAgeRef.current,stageRef.current,sceneryRunTokenRef.current,
@@ -2773,8 +2788,10 @@ export function GradiusRaid({
         damagedShipsDrawn += 1
       }
       if (gpuForegroundDrawn && !enemy.isBoss && !enemy.isMiniBoss) continue
+      const warped = enemy.isBoss ? false : startWarp(enemy)
       drawRaidEnemy(ctx, enemy, toX, toY, cssWidth, time, normalEnemyFilter, dpr,
         gpuForegroundDrawn && Boolean(enemy.isBoss && pixiBackground?.isBossGpuRendered(enemy.id)), landscapeRef.current, !playing)
+      endCanvasGravityWarp(ctx, warped)
       if (enemy.bossImpactTime && enemy.hp > 0) {
         drawBossImpact(ctx, enemy, toX(enemy.x), toY(enemy.y), cssWidth / WIDTH, cssHeight / HEIGHT,
           getEnemyCanvasSize(enemy, cssWidth, landscapeRef.current), reducedMotion)
@@ -2793,13 +2810,19 @@ export function GradiusRaid({
     for (const shot of shotsRef.current) {
       if (!isGuestView && homingLockId === undefined && shot.kind === 'homing') homingLockId = shot.homingTargetId
       if (gpuForegroundDrawn && isGpuPlayerShot(shot, gfxProfile.drawAdvancedShotFx)) continue
-      if (raidObjectInView(drawBounds, shot.x, shot.y, shot.radius + 12)) drawPlayerShot(shot)
+      if (!raidObjectInView(drawBounds, shot.x, shot.y, shot.radius + 12)) continue
+      const warped = startWarp(shot)
+      drawPlayerShot(shot)
+      endCanvasGravityWarp(ctx, warped)
     }
     // Preserve immediate visual feedback for locally predicted guest shots.
     for (const shot of guestLocalShotsRef.current) {
       if (isGuestView && homingLockId === undefined && shot.kind === 'homing') homingLockId = shot.homingTargetId
       if (gpuForegroundDrawn && isGpuPlayerShot(shot, gfxProfile.drawAdvancedShotFx)) continue
-      if (raidObjectInView(drawBounds, shot.x, shot.y, shot.radius + 12)) drawPlayerShot(shot)
+      if (!raidObjectInView(drawBounds, shot.x, shot.y, shot.radius + 12)) continue
+      const warped = startWarp(shot)
+      drawPlayerShot(shot)
+      endCanvasGravityWarp(ctx, warped)
     }
 
 
@@ -2828,9 +2851,23 @@ export function GradiusRaid({
     const sunlight = pixiBackground?.getOrbitalSunlight() ?? 0
     scenePresentation.draw(ctx, time, phaseRef.current, toX, toY, cssWidth, reducedMotion, gfxQuality === 'low')
     if(!gpuForegroundDrawn)drawDestructionEffects(ctx,destructionEffects,cssWidth,cssHeight)
-    if (ownShipRef && !hideOwnShipForBarrage) drawRaidPlayer(ctx, ownShipRef, phaseRef.current, toX, toY, cssWidth, time, PLAYER_COLOR, getCachedEquippedCosmetics(ownShipRef.ship.key), getRaidPlayerVisualShipKey(ownShipRef, progressRef.current), sameScreenIdentityAura ? PLAYER_COLOR : null, journeyRim, pixiBackground?.getEclipseAt(toX(ownShipRef.x), toY(ownShipRef.y)), sunlight, reducedMotion, landscapeRef.current, undefined, projectileGlow)
-    if (allyShipRef && !hideAllyShipForBarrage) drawRaidPlayer(ctx, allyShipRef, phaseRef.current, toX, toY, cssWidth, time, ALLY_PLAYER_COLOR, getCachedEquippedCosmetics(allyShipRef.ship.key), getRaidPlayerVisualShipKey(allyShipRef, progressRef.current), sameScreenIdentityAura ? ALLY_PLAYER_COLOR : null, journeyRim, pixiBackground?.getEclipseAt(toX(allyShipRef.x), toY(allyShipRef.y)), sunlight, reducedMotion, landscapeRef.current, undefined, projectileGlow)
-    if (devilAssistShipRef && !hideDevilAssistForBarrage) drawRaidPlayer(ctx, devilAssistShipRef, phaseRef.current, toX, toY, cssWidth, time, '#facc15', getCachedEquippedCosmetics(devilAssistShipRef.ship.key), getRaidPlayerVisualShipKey(devilAssistShipRef, progressRef.current), null, journeyRim, pixiBackground?.getEclipseAt(toX(devilAssistShipRef.x), toY(devilAssistShipRef.y)), sunlight, reducedMotion, landscapeRef.current, undefined, projectileGlow)
+    const drawPilot = (pilot: Player, color: string, captured = false) => {
+      drawRaidPlayer(ctx, pilot, captured ? 'playing' : phaseRef.current, toX, toY, cssWidth, time, color,
+        getCachedEquippedCosmetics(pilot.ship.key), getRaidPlayerVisualShipKey(pilot, progressRef.current),
+        sameScreenIdentityAura && !captured && color !== '#facc15' ? color : null, journeyRim,
+        pixiBackground?.getEclipseAt(toX(pilot.x), toY(pilot.y)), sunlight, reducedMotion, landscapeRef.current,
+        captured ? { scale: 1, engine: .28, hideCombatFx: true } : undefined, projectileGlow)
+    }
+    const capturedBodies = gravityField ? event?.captures : undefined
+    const drawLivePilot = (pilot: Player | null, color: string, hidden: boolean, remote: boolean) => {
+      if (!pilot || hidden || (pilot.hp <= 0 && capturedBodies?.some(capture => capture.kind === 'pilot' && capture.remote === remote))) return
+      const warped = pilot.hp > 0 && startWarp(pilot)
+      drawPilot(pilot, color)
+      endCanvasGravityWarp(ctx, warped)
+    }
+    drawLivePilot(ownShipRef, PLAYER_COLOR, hideOwnShipForBarrage, isGuestView)
+    drawLivePilot(allyShipRef, ALLY_PLAYER_COLOR, hideAllyShipForBarrage, !isGuestView)
+    drawLivePilot(devilAssistShipRef, '#facc15', hideDevilAssistForBarrage, false)
     const flashes = muzzleFlashesRef.current
     for (let i = flashes.length - 1; i >= 0; i--) {
       const flash = flashes[i]
@@ -2845,7 +2882,6 @@ export function GradiusRaid({
       drawRaidMuzzleBloom(ctx, flash, toX(flash.owner.x + flash.x), toY(flash.owner.y + flash.y),
         visualScale, progress, projectileGlow, reducedMotion)
     }
-    shipsRef.current?.present()
 
     if (gfxProfile.drawDecorativeOverlays && !(landscapeRef.current && (isWateryWorldTheme(backgroundStageTheme) || isVolcanicWorldTheme(backgroundStageTheme)))) {
       if (isWateryWorldTheme(backgroundStageTheme)) {
@@ -2857,7 +2893,9 @@ export function GradiusRaid({
 
     for (const powerUp of powerUpsRef.current) {
       if (!raidObjectInView(drawBounds, powerUp.x, powerUp.y, powerUp.radius + 6)) continue
+      const warped = startWarp(powerUp)
       drawPowerUpCanvas(ctx, powerUp, toX, toY, cssWidth, time)
+      endCanvasGravityWarp(ctx, warped)
       if (playing && ownShipRef && powerUp.type === 'repair') {
         drawRecoveryCue(ctx, powerUp, ownShipRef, toX(powerUp.x), toY(powerUp.y), cssWidth)
       }
@@ -2869,7 +2907,9 @@ export function GradiusRaid({
 
     for (const meteor of meteorsRef.current) {
       if (!raidObjectInView(drawBounds, meteor.x, meteor.y, meteor.radius + 9)) continue
+      const warped = startWarp(meteor)
       drawMeteorHazard(ctx, meteor, toX, toY, cssWidth)
+      endCanvasGravityWarp(ctx, warped)
     }
 
     if (event?.kind === 'solar') drawSolarFlare(ctx, event, cssWidth, cssHeight, reducedMotion)
@@ -2878,7 +2918,10 @@ export function GradiusRaid({
     }
 
     if (nukeStrikeRef.current) {
-      drawNukeMissile(ctx, nukeStrikeRef.current, toX, toY, cssWidth, time)
+      const warped = gravityField ? startWarp(getNukeMissilePoint(nukeStrikeRef.current)) : false
+      drawNukeMissile(ctx, nukeStrikeRef.current, toX, toY, cssWidth, time, false, warped)
+      endCanvasGravityWarp(ctx, warped)
+      if (warped) drawNukeTarget(ctx, nukeStrikeRef.current, toX, toY, time)
     }
 
     if (nukeFlashRef.current > 0) {
@@ -2893,11 +2936,8 @@ export function GradiusRaid({
       )
     }
 
-    for (const shot of enemyShotsRef.current) {
-      // Beam columns may cross the screen even when their origin is outside.
-      if (shot.kind !== 'beam' && !raidObjectInView(drawBounds, shot.x, shot.y, shot.radius + 16)) continue
-      if (gpuForegroundDrawn && isGpuEnemyShot(shot, gfxProfile.drawAdvancedShotFx)) continue
-      if (!gpuForegroundDrawn) {
+    const drawHostileShot = (shot: Shot, capture = false) => {
+      if (!gpuForegroundDrawn || capture) {
         const spec = getGpuBossProjectileSpec(shot, visualScale, cssWidth, cssHeight, time, canvasBossArtSpec)
         const texture = spec ? applyRaidBossArtwork(spec) : undefined
         if (texture && spec) {
@@ -2906,13 +2946,13 @@ export function GradiusRaid({
           const drawn = drawRaidCombatTexture(ctx, getRaidProjectileTexture(texture, projectileGlow), spec.x, spec.y, spec.width, spec.height,
             spec.rotation, !isRaidBossArtSolid(spec.kind))
           ctx.restore()
-          if (drawn) continue
+          if (drawn) return
         }
-        if (drawAtlasShot(shot, true)) continue
+        if (drawAtlasShot(shot, true)) return
       }
       if (shot.kind === 'beam' && shot.life !== undefined) {
         drawEnemyBeamColumn(shot)
-        continue
+        return
       }
       if (!gfxProfile.drawAdvancedShotFx) {
         if (shot.kind === 'beam') drawTrail(shot, 'rgba(56,189,248,0.88)', 82, 9)
@@ -2940,6 +2980,39 @@ export function GradiusRaid({
       else if (shot.kind === 'superShot') drawOrb(shot, 'rgba(251,191,36,0.95)', 14)
       else drawOrb(shot, 'rgba(251,113,133,0.9)', 10)
     }
+
+    for (const shot of enemyShotsRef.current) {
+      // Beam columns may cross the screen even when their origin is outside.
+      if (shot.kind !== 'beam' && !raidObjectInView(drawBounds, shot.x, shot.y, shot.radius + 16)) continue
+      if (gpuForegroundDrawn && isGpuEnemyShot(shot, gfxProfile.drawAdvancedShotFx)) continue
+      const warped = startWarp(shot)
+      drawHostileShot(shot)
+      endCanvasGravityWarp(ctx, warped)
+    }
+
+    if (gravityField && capturedBodies && event) {
+      for (const capture of capturedBodies) {
+        const sample = sampleBlackHoleCapture(capture, event.age, gravityField)
+        if (!sample) continue
+        const position = capture.kind === 'nuke' ? getNukeMissilePoint(capture.body) : capture.body
+        const warped = beginCanvasGravityWarp(ctx, sample.warp, toX(position.x), toY(position.y), sample.x, sample.y, sample.alpha)
+        switch (capture.kind) {
+          case 'pilot': drawPilot(capture.body, capture.remote === isGuestView ? PLAYER_COLOR : ALLY_PLAYER_COLOR, true); break
+          case 'enemy': drawRaidEnemy(ctx, capture.body, toX, toY, cssWidth, time, normalEnemyFilter, dpr, false, landscapeRef.current, true, true); break
+          case 'shot': capture.hostile ? drawHostileShot(capture.body, true) : drawPlayerShot(capture.body); break
+          case 'asteroid':
+            if (!pixiBackground?.isAsteroidGpuRendered(capture.body.id)) drawAsteroidHazard(ctx, capture.body, toX, toY, cssWidth, time)
+            break
+          case 'meteor': drawMeteorHazard(ctx, capture.body, toX, toY, cssWidth); break
+          case 'wreck': drawDerelictWreck(ctx, capture.body, toX, toY, cssWidth, time); break
+          case 'pickup': drawPowerUpCanvas(ctx, capture.body, toX, toY, cssWidth, time); break
+          case 'nuke': drawNukeMissile(ctx, capture.body, toX, toY, cssWidth, time, true); break
+        }
+        endCanvasGravityWarp(ctx, warped)
+      }
+    }
+    shipsRef.current?.present()
+    if (event?.kind === 'rift') drawBlackHole(ctx, event, cssWidth, cssHeight, landscapeRef.current, reducedMotion)
 
     if (playing && ownShipRef && ownShipRef.hp > 0 && !stageClearActive && asteroidWarningRef.current <= 0 && !(randomEventRef.current?.warning)) {
       const incoming = findIncomingHazard(asteroidsRef.current, meteorsRef.current, ownShipRef)
@@ -4930,13 +5003,14 @@ export function GradiusRaid({
     asteroidWarningRef.current = Math.max(0, asteroidWarningRef.current - dt)
     if (nukeStrikeRef.current) {
       const strike = nukeStrikeRef.current
-      const previousAge = strike.age
-      strike.age = Math.min(strike.duration, strike.age + dt)
       const event = randomEventRef.current
       const hole = event?.kind === 'rift' && event.warning <= 0 ? getBlackHole(event) : null
-      if (hole && crossesEventHorizon(hole, getNukePathPoint(strike, previousAge / strike.duration), getNukePathPoint(strike, strike.age / strike.duration))) {
+      const from = hole ? getNukeMissilePoint(strike) : null
+      strike.age = Math.min(strike.duration, strike.age + dt)
+      const to = hole ? getNukeMissilePoint(strike) : null
+      if (event && hole && from && to && crossesEventHorizon(hole, from, to)) {
+        recordBlackHoleCapture(event, hole, { kind: 'nuke', body: strike }, to, from)
         nukeStrikeRef.current = null
-        addRipple(hole.x, hole.y, '#d8b4fe', 9)
       } else if (strike.age >= strike.duration) {
         nukeStrikeRef.current = null
         detonateNuke(strike.targetX, strike.targetY)
@@ -5449,13 +5523,21 @@ export function GradiusRaid({
         }
 
         if (activeRandomEvent.kind === 'rift' && activeRandomEvent.age < activeRandomEvent.duration) {
+          if (activeRandomEvent.captures) compactInPlace(activeRandomEvent.captures,
+            capture => capture.kind === 'pilot' || activeRandomEvent.age - capture.at < BLACK_HOLE_CAPTURE_SECONDS)
           blackHole = getBlackHole(activeRandomEvent)
+          const from = { x: previousPlayerX, y: previousPlayerY }
+          const remoteFrom = { x: previousRemoteX, y: previousRemoteY }
           if (player.hp > 0 && !playerInGodBarrage
-            && (crossesEventHorizon(blackHole, { x: previousPlayerX, y: previousPlayerY }, player)
-              || pullIntoBlackHole(player, blackHole, dt, 34))) destroyPlayer(player, blackHole)
+            && (crossesEventHorizon(blackHole, from, player) || pullIntoBlackHole(player, blackHole, dt, 34))) {
+            recordBlackHoleCapture(activeRandomEvent, blackHole, { kind: 'pilot', body: compactPlayer(player), remote: false }, player, from)
+            destroyPlayer(player, blackHole)
+          }
           if (remotePlayer && remotePlayer.hp > 0 && !remotePlayerInGodBarrage
-            && (crossesEventHorizon(blackHole, { x: previousRemoteX, y: previousRemoteY }, remotePlayer)
-              || pullIntoBlackHole(remotePlayer, blackHole, dt, 34))) destroyPlayer(remotePlayer, blackHole)
+            && (crossesEventHorizon(blackHole, remoteFrom, remotePlayer) || pullIntoBlackHole(remotePlayer, blackHole, dt, 34))) {
+            recordBlackHoleCapture(activeRandomEvent, blackHole, { kind: 'pilot', body: compactPlayer(remotePlayer), remote: true }, remotePlayer, remoteFrom)
+            destroyPlayer(remotePlayer, blackHole)
+          }
           if (player.hp <= 0 && (!remotePlayer || remotePlayer.hp <= 0)) return
         }
       }
@@ -5520,7 +5602,12 @@ export function GradiusRaid({
       if (shot.kind === 'beam' && shot.angle !== undefined && shot.spin) {
         shot.angle += shot.spin * dt
       }
-      if (!advanceRaidEventShot(shot, dt, blackHole)) continue
+      const shotX = shot.x, shotY = shot.y
+      if (!advanceRaidEventShot(shot, dt, blackHole)) {
+        if (blackHole && activeRandomEvent) recordBlackHoleCapture(activeRandomEvent, blackHole,
+          { kind: 'shot', body: shot, hostile: false }, shot, { x: shotX, y: shotY })
+        continue
+      }
       if (shot.y > -10 && shot.y < HEIGHT + 10 && shot.x > -10 && shot.x < WIDTH + 10) {
         shots[liveShotCount] = shot
         liveShotCount += 1
@@ -5556,7 +5643,12 @@ export function GradiusRaid({
         shot.vx += ((aimX / mag) * speed - shot.vx) * turn
         shot.vy += ((aimY / mag) * speed - shot.vy) * turn
       }
-      if (!advanceRaidEventShot(shot, dt, blackHole)) continue
+      const shotX = shot.x, shotY = shot.y
+      if (!advanceRaidEventShot(shot, dt, blackHole)) {
+        if (blackHole && activeRandomEvent) recordBlackHoleCapture(activeRandomEvent, blackHole,
+          { kind: 'shot', body: shot, hostile: true }, shot, { x: shotX, y: shotY })
+        continue
+      }
       const beamMargin = shot.kind === 'beam' && shot.life !== undefined ? 120 : shot.kind === 'poisonCloud' || shot.kind === 'squidBubble' ? 24 : 12
       if (shot.kind === 'poisonCloud') {
         shot.vx += Math.sin(nowSeconds * 1.4 + shot.id) * dt * 1.6
@@ -5573,7 +5665,11 @@ export function GradiusRaid({
     for (const asteroid of asteroids) {
       asteroid.x += asteroid.vx * dt
       asteroid.y += asteroid.vy * dt
-      if (blackHole && pullIntoBlackHole(asteroid, blackHole, dt, 66)) continue
+      const beforePull = blackHole ? { x: asteroid.x, y: asteroid.y } : asteroid
+      if (blackHole && pullIntoBlackHole(asteroid, blackHole, dt, 66)) {
+        if (activeRandomEvent) recordBlackHoleCapture(activeRandomEvent, blackHole, { kind: 'asteroid', body: asteroid }, asteroid, beforePull)
+        continue
+      }
       asteroid.spin += asteroid.spinSpeed * dt
       asteroid.vx += Math.sin(asteroidDriftTime + asteroid.phase) * dt * (asteroid.tier === 2 ? 1.1 : 1.8)
       const xPadding = Math.max(5, asteroid.radius * 0.72)
@@ -5606,7 +5702,11 @@ export function GradiusRaid({
     for (const meteor of meteors) {
       meteor.x += meteor.vx * dt
       meteor.y += meteor.vy * dt
-      if (blackHole && pullIntoBlackHole(meteor, blackHole, dt, 66)) continue
+      const beforePull = blackHole ? { x: meteor.x, y: meteor.y } : meteor
+      if (blackHole && pullIntoBlackHole(meteor, blackHole, dt, 66)) {
+        if (activeRandomEvent) recordBlackHoleCapture(activeRandomEvent, blackHole, { kind: 'meteor', body: meteor }, meteor, beforePull)
+        continue
+      }
       meteor.life -= dt
       meteor.vx += Math.sin(nowSeconds * 1.7 + meteor.phase) * dt * 1.7
       if (meteor.life > 0 && meteor.y < HEIGHT + 18 && meteor.x > -18 && meteor.x < WIDTH + 18) {
@@ -5635,7 +5735,11 @@ export function GradiusRaid({
     let liveWreckCount = 0
     for (const wreck of wrecks) {
       updateDerelictWreckMotion(wreck, dt, nowSeconds)
-      if (blackHole && pullIntoBlackHole(wreck, blackHole, dt, 49)) continue
+      const beforePull = blackHole ? { x: wreck.x, y: wreck.y } : wreck
+      if (blackHole && pullIntoBlackHole(wreck, blackHole, dt, 49)) {
+        if (activeRandomEvent) recordBlackHoleCapture(activeRandomEvent, blackHole, { kind: 'wreck', body: wreck }, wreck, beforePull)
+        continue
+      }
       if (wreck.hp > 0) {
         wrecks[liveWreckCount] = wreck
         liveWreckCount += 1
@@ -5657,7 +5761,10 @@ export function GradiusRaid({
         }
         continue
       }
-      if (blackHole && !enemy.isBoss && crossesEventHorizon(blackHole, enemy)) continue
+      if (blackHole && !enemy.isBoss && crossesEventHorizon(blackHole, enemy)) {
+        if (activeRandomEvent) recordBlackHoleCapture(activeRandomEvent, blackHole, { kind: 'enemy', body: enemy }, enemy)
+        continue
+      }
       const t = nowSeconds + enemy.phase
       const commandProfile = getCommandBossProfile(enemy)
       const bossKind = enemy.bossKind ?? 'carrier'
@@ -6255,7 +6362,11 @@ export function GradiusRaid({
           ? (enemy.y < miniBossYTarget ? Math.min(miniBossYTarget, enemy.y + enemy.vy * dt)
             : blackHole ? enemy.y + (miniBossYTarget - enemy.y) * Math.min(1, dt * .8) : miniBossYTarget)
           : enemy.y + enemy.vy * dt * (fighter ? getRaidFighterSpeedScale(enemy) : 1) * (enemy.tacticSpeed ?? 1)
-      if (blackHole && !enemy.isBoss && pullIntoBlackHole(enemy, blackHole, dt, 85)) continue
+      const beforePull = blackHole ? { x: enemy.x, y: enemy.y } : enemy
+      if (blackHole && !enemy.isBoss && pullIntoBlackHole(enemy, blackHole, dt, 85)) {
+        if (activeRandomEvent) recordBlackHoleCapture(activeRandomEvent, blackHole, { kind: 'enemy', body: enemy }, enemy, beforePull)
+        continue
+      }
       if (enemy.isBoss && bossMessageRef.current === 'incoming') {
         if (enemy.y >= Math.min(5, bossYTarget - 6)) {
           bossAlertRef.current = 0
@@ -6321,7 +6432,9 @@ export function GradiusRaid({
           powerUp.y += targetDy * pull * 0.42
         }
       }
+      const pickupFrom = blackHole ? { x: powerUp.x, y: powerUp.y } : powerUp
       if (blackHole && pullIntoBlackHole(powerUp, blackHole, dt, 57)) {
+        if (activeRandomEvent) recordBlackHoleCapture(activeRandomEvent, blackHole, { kind: 'pickup', body: { ...powerUp } }, powerUp, pickupFrom)
         if (powerUp.type === 'levelup') collectLevelUpReward(powerUp)
         continue
       }
@@ -7700,6 +7813,11 @@ export function GradiusRaid({
       // Tick the victory blackout on every client (host sets it in updateGame, guest in applyMultiplayerState)
       if (victoryBlackoutRef.current > 0) {
         victoryBlackoutRef.current = Math.max(0, victoryBlackoutRef.current - dt)
+      }
+      const event = randomEventRef.current
+      if (phaseRef.current === 'gameover' && event?.kind === 'rift' && event.captures?.length) {
+        // Combat already ended, but the last capture can finish beneath the results panel.
+        event.age = Math.min(event.duration, event.age + dt)
       }
       if (session?.isHost) sendMultiplayerState(time)
       else if (session) {

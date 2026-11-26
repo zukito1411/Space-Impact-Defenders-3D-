@@ -21,7 +21,7 @@ export function cloneAsteroid(asteroid: AsteroidHazard): AsteroidHazard {
 }
 
 export function cloneRaidRandomEvent(event: RaidRandomEvent | null): RaidRandomEvent | null {
-  return event ? { ...event } : null
+  return event ? { ...event, captures: Array.isArray(event.captures) ? event.captures.slice() : undefined } : null
 }
 
 export function cloneMeteor(meteor: MeteorHazard): MeteorHazard {

@@ -111,31 +111,20 @@ export function drawHomingTargetLock(ctx: CanvasRenderingContext2D, x: number, y
   ctx.restore()
 }
 
-export function drawNukeMissile(
-  ctx: CanvasRenderingContext2D, strike: NukeStrike,
-  toX: (value: number) => number, toY: (value: number) => number,
-  viewportWidth: number, time: number,
+function getNukeFlightProgress(strike: NukeStrike) {
+  return 1 - Math.pow(1 - clamp(strike.age / strike.duration, 0, 1), 2.2)
+}
+
+export function getNukeMissilePoint(strike: NukeStrike) {
+  return getNukePathPoint(strike, getNukeFlightProgress(strike))
+}
+
+export function drawNukeTarget(
+  ctx: CanvasRenderingContext2D, strike: NukeStrike, toX: (value: number) => number, toY: (value: number) => number, time: number,
 ) {
-  const raw = clamp(strike.age / strike.duration, 0, 1)
-  const progress = 1 - Math.pow(1 - raw, 2.2)
-  const point = getNukePathPoint(strike, progress)
-  const derivative = getNukePathDerivative(strike, progress)
-  const x = toX(point.x), y = toY(point.y)
-  const heading = Math.atan2(toY(point.y + derivative.y * 0.01) - y, toX(point.x + derivative.x * 0.01) - x)
   ctx.save()
   ctx.globalCompositeOperation = 'lighter'
-  ctx.strokeStyle = 'rgba(251,191,36,0.42)'
-  ctx.lineWidth = 2.2
-  ctx.lineCap = 'round'
-  ctx.beginPath()
-  for (let i = 4; i >= 0; i--) {
-    const trail = getNukePathPoint(strike, Math.max(0, progress - i * 0.025))
-    if (i === 4) ctx.moveTo(toX(trail.x), toY(trail.y))
-    else ctx.lineTo(toX(trail.x), toY(trail.y))
-  }
-  ctx.stroke()
-  // The destination remains visible until impact: no additional DOM overlay.
-  ctx.globalAlpha = (1 - raw) * 0.8
+  ctx.globalAlpha *= (1 - clamp(strike.age / strike.duration, 0, 1)) * .8
   ctx.strokeStyle = '#fbbf24'
   ctx.lineWidth = 1.4
   ctx.setLineDash([5, 5])
@@ -143,8 +132,34 @@ export function drawNukeMissile(
   ctx.beginPath()
   ctx.arc(toX(strike.targetX), toY(strike.targetY), 18 + Math.sin(time / 120) * 2, 0, Math.PI * 2)
   ctx.stroke()
-  ctx.setLineDash([])
-  ctx.globalAlpha = 1
+  ctx.restore()
+}
+
+export function drawNukeMissile(
+  ctx: CanvasRenderingContext2D, strike: NukeStrike,
+  toX: (value: number) => number, toY: (value: number) => number,
+  viewportWidth: number, time: number, captured = false, hideTarget = false,
+) {
+  const progress = getNukeFlightProgress(strike)
+  const point = getNukePathPoint(strike, progress)
+  const derivative = getNukePathDerivative(strike, progress)
+  const x = toX(point.x), y = toY(point.y)
+  const heading = Math.atan2(toY(point.y + derivative.y * 0.01) - y, toX(point.x + derivative.x * 0.01) - x)
+  ctx.save()
+  if (!captured) {
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.strokeStyle = 'rgba(251,191,36,0.42)'
+    ctx.lineWidth = 2.2
+    ctx.lineCap = 'round'
+    ctx.beginPath()
+    for (let i = 4; i >= 0; i--) {
+      const trail = getNukePathPoint(strike, Math.max(0, progress - i * 0.025))
+      if (i === 4) ctx.moveTo(toX(trail.x), toY(trail.y))
+      else ctx.lineTo(toX(trail.x), toY(trail.y))
+    }
+    ctx.stroke()
+  }
+  if (!captured && !hideTarget) drawNukeTarget(ctx, strike, toX, toY, time)
   const length = clamp(viewportWidth * 0.09, 64, 110)
   const missile = getRaidOtherCanvasSprite('nukeMissile')
   if (missile.loaded && missile.image.complete) {

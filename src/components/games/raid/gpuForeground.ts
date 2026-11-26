@@ -1,3 +1,4 @@
+import { applyPixiGravityWarp, gravityWarp, type GravityField } from './blackHoleDistortion'
 import { DESTRUCTION_FX_CAPACITY, destructionParticleTexture, type DestructionParticle } from './destructionEffects'
 import { missileVisualScale } from './missilePresentation'
 import { HOSTILE_PROJECTILE_COLOR } from './hostileProjectileArt'
@@ -34,6 +35,7 @@ export type RaidGpuForegroundFrame = {
   guestView: boolean
   measureGpu: boolean
   bounds: RaidVisibilityBounds
+  gravityField?: GravityField | null
   drawAdvancedShotFx: boolean
   projectileGlow: boolean
   drawRipples: boolean
@@ -313,9 +315,10 @@ export class RaidGpuForeground {
       }
       const key = normalEnemyHullKey(alien.variant)
       const heading = fighterHullHeading(alien.vx, alien.vy, frame.width, frame.height)
+      const warp = gravityWarp(frame.gravityField, alien)
       submitLiveHull({ id: 'enemy:' + alien.id, key,
         x: alien.x*sx, y: alien.y*sy, size, bank: 0, angle: heading, alpha: 1,
-        landscape: Boolean(frame.landscape), hit: Math.min(1, (alien.hitFlash ?? 0) / .16) })
+        landscape: Boolean(frame.landscape), warp: warp ?? undefined, hit: Math.min(1, (alien.hitFlash ?? 0) / .16) })
       pair.ship.visible = false
       {
         const hit = Math.min(1, (alien.hitFlash ?? 0) / .16)
@@ -364,6 +367,7 @@ export class RaidGpuForeground {
     if (node.parent !== layer) layer.addChild(node)
     node.visible = true
     node.tint = 0xffffff
+    if (node.skew.x || node.skew.y) node.skew.set(0)
     return node
   }
 
@@ -457,34 +461,41 @@ export class RaidGpuForeground {
     return true
   }
 
+  private showPlayerShot(frame: RaidGpuForegroundFrame, shot: Shot, id: number, predicted = false) {
+    if (this.showCombatShot(frame, shot, id, false, predicted)) return
+    if (shot.kind === 'homing') this.showHomingShot(frame, shot, id)
+    else {
+      const style = playerStyle(shot, frame.drawAdvancedShotFx, frame.visualScale)
+      if (style) this.showShot(frame, shot, id, style)
+    }
+  }
+
+  private warpShot(frame: RaidGpuForegroundFrame, shot: Shot, id: number) {
+    const warp = gravityWarp(frame.gravityField, shot)
+    if (!warp || !this.visibleShots.has(id)) return
+    const node = this.shotNodes.get(id)
+    if (node) applyPixiGravityWarp(node, warp)
+  }
+
   private updateShots(frame: RaidGpuForegroundFrame) {
     this.visibleShots.clear()
     for (const shot of frame.shots) {
       const id = shot.id * 3
-      if (this.showCombatShot(frame, shot, id)) continue
-      if (shot.kind === 'homing') {
-        this.showHomingShot(frame, shot, id)
-        continue
-      }
-      const style = playerStyle(shot, frame.drawAdvancedShotFx, frame.visualScale)
-      if (style) this.showShot(frame, shot, id, style)
+      this.showPlayerShot(frame, shot, id)
+      if (frame.gravityField) this.warpShot(frame, shot, id)
     }
     for (const shot of frame.guestShots) {
       const id = shot.id * 3 + 1
-      if (this.showCombatShot(frame, shot, id, false, true)) continue
-      if (shot.kind === 'homing') {
-        this.showHomingShot(frame, shot, id)
-        continue
-      }
-      const style = playerStyle(shot, frame.drawAdvancedShotFx, frame.visualScale)
-      if (style) this.showShot(frame, shot, id, style)
+      this.showPlayerShot(frame, shot, id, true)
+      if (frame.gravityField) this.warpShot(frame, shot, id)
     }
     for (const shot of frame.enemyShots) {
       const id = shot.id * 3 + 2
-      if (this.showSpecialShot(frame, shot, id)) continue
-      if (this.showCombatShot(frame, shot, id, true)) continue
-      const style = enemyStyle(shot, frame.drawAdvancedShotFx, frame.visualScale)
-      if (style) this.showShot(frame, shot, id, style)
+      if (!this.showSpecialShot(frame, shot, id) && !this.showCombatShot(frame, shot, id, true)) {
+        const style = enemyStyle(shot, frame.drawAdvancedShotFx, frame.visualScale)
+        if (style) this.showShot(frame, shot, id, style)
+      }
+      if (frame.gravityField) this.warpShot(frame, shot, id)
     }
     for (const [id, sprite] of this.shotNodes) {
       if (this.visibleShots.has(id)) continue

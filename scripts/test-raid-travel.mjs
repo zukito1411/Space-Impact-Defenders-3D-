@@ -152,3 +152,26 @@ assert.equal(hazards.ionStrikeIsLive(strike), false, 'charging lanes must be saf
 assert.equal(hazards.ionStrikeIsLive({ ...strike, warmup: 0, life: .6 }), true, 'the discharge should be dangerous')
 assert.equal(hazards.ionStrikeIsLive({ ...strike, warmup: 0, life: .2 }), false, 'the afterglow must be safe')
 console.log('Raid hazards: black-hole capture and deflection, solar escape gaps, and ion strike phases passed')
+
+const distortionSource = read('blackHoleDistortion.ts').replace(/^import .*\n/gm, '')
+const distortionCode = ts.transpileModule(
+  'const clamp = (n, min, max) => Math.max(min, Math.min(max, n)); class Matrix {}\n' +
+    'const BLACK_HOLE_AXIS_RATIO = ' + hazards.BLACK_HOLE_AXIS_RATIO + ';\n' + distortionSource,
+  { compilerOptions: { module: ts.ModuleKind.ESNext } },
+).outputText
+const distortion = await import('data:text/javascript;base64,' + Buffer.from(distortionCode).toString('base64'))
+const field = { hole, scaleX: 4, scaleY: 8, reducedMotion: false, age: event.age }
+const near = { x: hole.x + hole.radius + 1, y: hole.y }
+const warp = distortion.gravityWarp(field, near)
+assert.ok(warp.xx > 2.7 && warp.yy < .55 && Math.abs(warp.xy) < .001, 'gravity must stretch radially and compress transversely')
+assert.equal(distortion.gravityWarp(field, { x: hole.x + 45, y: hole.y }), null)
+assert.ok(distortion.gravityWarp({ ...field, reducedMotion: true }, near).xx < warp.xx, 'reduced motion should soften stretching')
+distortion.recordBlackHoleCapture(event, hole, { kind: 'shot', body: crossingShot, hostile: false },
+  { x: hole.x + 30, y: hole.y }, { x: hole.x - 30, y: hole.y })
+const capture = event.captures[0]
+assert.ok(Math.abs(capture.contact.x - (hole.x - hole.radius)) < .001, 'a fast shot must start dissolving at the entry side')
+const firstInfall = distortion.sampleBlackHoleCapture(capture, field.age, field)
+const laterInfall = distortion.sampleBlackHoleCapture(capture, field.age + .16, field)
+assert.ok(laterInfall.alpha < firstInfall.alpha && laterInfall.x > firstInfall.x, 'a captured object must fade toward the center')
+assert.equal(distortion.sampleBlackHoleCapture(capture, field.age + .34, field), null)
+console.log('Black-hole distortion: tidal axes, reduced motion, swept entry, and capture lifetime passed')

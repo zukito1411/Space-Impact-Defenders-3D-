@@ -1,3 +1,4 @@
+import { getCanvasGravityWarp, type GravityWarp } from './blackHoleDistortion'
 import type { DestructionStyle } from './destructionProfile'
 import type { EnemyBankMotion } from './enemyBanking'
 import { hullViewYaw } from './raidView'
@@ -8,6 +9,7 @@ import type { OrganicBossPose } from './specialBossGeometry'
 export type LiveHullDraw = {
   id: string; key: string; x: number; y: number; size: number; bank: number
   angle: number; alpha: number; landscape: boolean; attack?: number; crouch?: number; hit?: number
+  warp?: GravityWarp
   bossPose?: OrganicBossPose; spin?: number; enemyBank?: EnemyBankMotion; dock?: number; depth?: number; damageBlink?: boolean
 }
 export type LiveHullDestruction = { id: string; sourceId: string; key: string; x: number; y: number; size: number;
@@ -28,13 +30,18 @@ export function drawLiveHull(ctx: CanvasRenderingContext2D, key: string, x: numb
   pose: { attack?: number; crouch?: number; hit?: number; bossPose?: OrganicBossPose; spin?: number; enemyBank?: EnemyBankMotion; dock?: number; depth?: number; damageBlink?: boolean } = {}) {
   if (!activeSink || isRaid2DMech(key)) return false
   const transform = ctx.getTransform()
-  const density = Math.hypot(transform.a, transform.b)
+  // Remove the outer tidal transform so the original heading and size survive.
+  const warp = getCanvasGravityWarp(ctx)
+  const determinant = warp ? warp.xx * warp.yy - warp.xy ** 2 : 1
+  const a = warp ? (warp.yy * transform.a - warp.xy * transform.b) / determinant : transform.a
+  const b = warp ? (warp.xx * transform.b - warp.xy * transform.a) / determinant : transform.b
+  const density = Math.hypot(a, b)
   // Canvas transforms carry the renderer DPR, while world coordinates use CSS pixels.
   const dpr = Number(ctx.canvas.dataset.raidDpr) || window.devicePixelRatio || 1
   return activeSink.submitHull({
     id: identity, key, x: (transform.a * x + transform.c * y + transform.e) / dpr,
     y: (transform.b * x + transform.d * y + transform.f) / dpr,
-    size: size * density / dpr, bank, angle: -Math.atan2(transform.b, transform.a),
+    size: size * density / dpr, bank, angle: -Math.atan2(b, a), warp,
     alpha: alpha * ctx.globalAlpha, landscape, ...pose,
   })
 }

@@ -1,3 +1,4 @@
+import type { BlackHoleCapture } from './blackHoleDistortion'
 import type { CarrierStop } from './carrierRecovery'
 import type { CommandPattern } from './commandBoss'
 import type { CoreLanderModel } from '../../../progression'
@@ -306,6 +307,7 @@ export type AsteroidHazard = Vec & {
 }
 
 export type RaidRandomEvent = {
+  captures?: BlackHoleCapture[]
   ambushWave?: number
   solarHitMask?: number
   kind: RaidRandomEventKind
