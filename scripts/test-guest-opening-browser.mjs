@@ -78,11 +78,31 @@ async function takeSimulationControl(page) {
 }
 
 async function advanceToBossWarning(page) {
-  await page.evaluate(() => {
+  await page.evaluate(async () => {
+    const { CRUISE_FLYBY_START, GRACE_FLYBY_START, ASTROPHAGE_START, STAGE_ONE_CRUISE_SEQUENCE_END } =
+      await import('/src/components/games/raid/cruiseTiming.ts')
     const { refs, update, draw, sync } = window.openingTest
-    const player = refs.playerRef.current
-    player.invuln = 999
-    refs.bossTimerRef.current = 0
+    refs.playerRef.current.invuln = 999
+    const { cruiseFlybys, sceneryHulls, astrophage } = refs.pixiBackgroundRef.current
+    const slots = sceneryHulls.slots.filter(slot => cruiseFlybys.includes(slot.anchor))
+    const timeline = [
+      { age: CRUISE_FLYBY_START + 3.5, ships: ['rockyFlyby'], field: false },
+      { age: GRACE_FLYBY_START + 2.6, ships: ['rockyFlyby', 'graceFlyby'], field: false },
+      { age: GRACE_FLYBY_START + 6.7, ships: ['graceFlyby'], field: false },
+      { age: ASTROPHAGE_START + 4.3, ships: [], field: true },
+      { age: STAGE_ONE_CRUISE_SEQUENCE_END - .5, ships: [], field: true },
+    ]
+    for (const { age, ships, field } of timeline) {
+      for (let frame = 0; frame < 4200 && refs.journeyStageAgeRef.current < age; frame++) update(1 / 60)
+      if (refs.journeyStageAgeRef.current < age || refs.enemiesRef.current.some(enemy => enemy.isBoss)) {
+        throw Error(`Crimson Bastion interrupted the cruise sequence at ${age}s`)
+      }
+      draw(performance.now())
+      const visible = slots.filter(slot => slot.parts.some(part => part.mesh.visible)).map(slot => slot.key)
+      if (visible.join() !== ships.join() || astrophage.root.visible !== field) {
+        throw Error(`Unexpected cruise scenery at ${age}s. Ships: ${visible}; field: ${astrophage.root.visible}`)
+      }
+    }
     for (let frame = 0; frame < 900; frame++) {
       update(1 / 60)
       const boss = refs.enemiesRef.current.find(enemy => enemy.isBoss)

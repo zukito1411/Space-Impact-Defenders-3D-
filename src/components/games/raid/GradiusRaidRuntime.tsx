@@ -4,7 +4,7 @@ import { isOrganicBoss } from './destructionProfile'
 import { drawDestructionEffects } from './destructionEffects'
 import { EnemyTactics } from './enemyTactics'
 import { WorldStories } from './worldStories'
-import { ASTROPHAGE_DURATION, ASTROPHAGE_START, CRUISE_FLYBY_START } from './cruiseTiming'
+import { CRUISE_FLYBY_START, STAGE_ONE_CRUISE_SEQUENCE_END } from './cruiseTiming'
 import { isRaid2DMech } from './mechArtwork'
 import { enemyHullKey } from './enemyHulls'
 import { ThreeShipPresentation } from './threeShipPresentation'
@@ -2732,7 +2732,7 @@ export function GradiusRaid({
         && !isWateryWorldTheme(backgroundStageTheme) && !isVolcanicWorldTheme(backgroundStageTheme),
       cssWidth,cssHeight,reducedMotion,raidModeRef.current==='campaign')
     const battle = playing && !activeBoss && gfxProfile.drawDecorativeOverlays && !reducedMotion
-      && !(cruiseAge >= CRUISE_FLYBY_START && cruiseAge < ASTROPHAGE_START + ASTROPHAGE_DURATION)
+      && !(cruiseAge >= CRUISE_FLYBY_START && cruiseAge < STAGE_ONE_CRUISE_SEQUENCE_END)
       && !isWateryWorldTheme(backgroundStageTheme) && !isVolcanicWorldTheme(backgroundStageTheme)
       ? sampleDistantBattle(journeyStageAgeRef.current, stageRef.current) : -1
     if (battle >= 0) {
@@ -3475,7 +3475,8 @@ export function GradiusRaid({
     formationTimerRef.current = guidedOpening ? .85 : 1.8
     wingSerialRef.current = 0
     reserveSerialRef.current = 0
-    bossTimerRef.current = forceLocalDevilTest ? 3.2 : isBossRush ? 2.4 : guidedOpening ? 36 : BOSS_RESPAWN_SECONDS
+    // The flyby and Astrophage use the same flight clock and end when a boss appears.
+    bossTimerRef.current = forceLocalDevilTest ? 3.2 : isBossRush ? 2.4 : guidedOpening ? STAGE_ONE_CRUISE_SEQUENCE_END : BOSS_RESPAWN_SECONDS
     spawnLockRef.current = 0
     powerDropCooldownRef.current = 0
     killsSincePowerRef.current = 0
