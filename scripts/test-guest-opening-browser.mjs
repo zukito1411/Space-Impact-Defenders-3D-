@@ -217,6 +217,7 @@ async function testRaid() {
     await title(desktop)
     await desktop.getByRole('button', { name: /^Gradius Raid/ }).click()
     const raidModes = desktop.getByRole('navigation', { name: 'Gradius Raid' })
+    await raidModes.waitFor()
     for (const name of ['Single Player', 'Endless Mode', 'Boss Rush', 'Two Players']) {
       assert.ok(await raidModes.getByRole('button', { name }).isVisible())
     }
