@@ -41,6 +41,16 @@ export function drawBossImpact(ctx: CanvasRenderingContext2D, enemy: Enemy, x: n
     const tangent = Math.atan2(dy, dx) + Math.PI / 2
     drawBossFx(ctx, BOSS_FX.shield, atX, atY, diameter * (reducedMotion ? 1 : 1 + progress * .8), diameter * .67,
       .95 * (1 - progress) ** 1.15, tangent, true)
+    const normal = tangent - Math.PI / 2
+    const extent = .17 + progress * .32
+    ctx.save()
+    ctx.globalAlpha = (1 - progress) * .88
+    ctx.strokeStyle = '#abf7ff'
+    ctx.lineWidth = Math.max(1, size * .014)
+    ctx.beginPath()
+    ctx.arc(x, y, size * .52, normal - extent, normal + extent)
+    ctx.stroke()
+    ctx.restore()
     return
   }
   drawBossFx(ctx, core ? BOSS_FX.precision : BOSS_FX.impact, atX, atY,

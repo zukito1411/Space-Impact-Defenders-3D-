@@ -16,7 +16,7 @@ function load(file, imports = {}, globals = {}) {
   return exports
 }
 const manifest = JSON.parse(readFileSync('public/audio/immersion/manifest.json', 'utf8'))
-assert.equal(manifest.files.length, 44)
+assert.equal(manifest.files.length, 51)
 for (const entry of manifest.files) {
   const bytes = readFileSync(`public/${entry.file}`)
   assert.equal(bytes.subarray(0, 4).toString(), 'OggS')
@@ -123,7 +123,7 @@ function findDamage(node) {
 findDamage(runtimeAst)
 assert.ok(damageArrow)
 const damageSource = ts.transpileModule('const damage = ' + damageArrow.getText(runtimeAst), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText
-const damageContext = { enemyDamageMultRef: { current: 1 }, scenePresentation: { playerEvent: condition.recordPlayerFeedback },
+const damageContext = { raidAudioPosition: () => ({}), landscapeRef: { current: false }, enemyDamageMultRef: { current: 1 }, scenePresentation: { playerEvent: condition.recordPlayerFeedback },
   spawnSparks() {}, addRipple() {}, triggerScreenShake() {}, needsRepair: () => false, playGameSound() {} }
 vm.createContext(damageContext)
 vm.runInContext(damageSource + '\nglobalThis.damagePlayer = damage', damageContext)
@@ -165,6 +165,9 @@ assert.equal(draw('playing', 5600).length, 0, 'impact ripple never expired')
 const { RaidScenePresentation } = load('raid/scenePresentation.ts', {
   '../presentationAudio': fakeAudio, '../sound': sound, './playerCondition': condition,
   './combatArt': { COMBAT_TILE: {} }, './cosmos': { cosmicRegionIndex: () => 0 }, './flightEffects': { raidStereoPan: () => 0 },
+  './destructionProfile': load('raid/destructionProfile.ts'),
+  './destructionEffects': load('raid/destructionEffects.ts', { './combatArt': {} }),
+  './assets': {}, './fighterHulls': {}, './liveHullBridge': {}, './enemyHulls': { enemyHullKey: () => undefined, ENEMY_HULL_SPECS: {} },
 }, { document, performance: { now: () => now } })
 const scene = new RaidScenePresentation()
 for (let id = 1; id <= 40; id++) scene.defeat({ id, x: 50, y: 50, radius: 3, isBoss: id === 40 })
@@ -176,10 +179,12 @@ scene.ingest([{ serial: 9999, x: 1, y: 1, radius: 3, tier: 'fighter', seed: NaN 
 assert.equal(cues.length, count, 'duplicate or malformed destruction event replayed audio')
 for (const phase of ['gameover', 'briefing', 'victory']) {
   const before = fullStops
-  scene.update({ phase, enemies: [], player, stage: 1, landscape: false, stageClear: false })
+  scene.update({ phase, enemies: [], hostileShots: 0, player, stage: 1, landscape: false, stageClear: false })
   assert.ok(fullStops > before, 'leaving flight retained destruction one-shots or pending decodes')
 }
-const { DefensePresentation } = load('towerDefense/presentation.ts', { '../presentationAudio': fakeAudio }, { document, performance: { now: () => now } })
+const fleet = load('fleetAudio.ts', { './presentationAudio': fakeAudio }, { performance: { now: () => now } })
+const { DefensePresentation } = load('towerDefense/presentation.ts',
+  { '../presentationAudio': fakeAudio, '../fleetAudio': fleet }, { document, performance: { now: () => now } })
 const defense = new DefensePresentation()
 assert.deepEqual(Array.from(defense.update(true, true, .8, 1, [{ id: 1, active: true }], null)), [1])
 const alerts = cues.filter(cue => cue[0] === 'hq-warning').length
@@ -190,4 +195,4 @@ assert.deepEqual(Array.from(defense.update(true, true, .8, 1, [{ id: 1, active: 
 now += 7000
 defense.update(true, true, .8, 1, [], null)
 assert.equal(cues.filter(cue => cue[0] === 'hq-warning').length, alerts + 1)
-console.log('Immersion: 44 asset hashes, bounded voices, priority, immediate mute, late decode/play cancellation, score timing, pause-safe contacts, network deduplication, synergy activation and HQ cooldown passed')
+console.log('Immersion: 51 asset hashes, bounded voices, priority, immediate mute, late decode/play cancellation, score timing, pause-safe contacts, network deduplication, synergy activation and HQ cooldown passed')

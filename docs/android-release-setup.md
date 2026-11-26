@@ -49,11 +49,11 @@ In Air Raid, open **Pause → Settings → Show FPS and performance timings (Air
 
 ## Android asset downloads
 
-Android releases keep the game code and startup logo in the APK. Install the
-APK as an update to keep your saves and settings. The first launch on the split
-build needs an internet connection to download the game media. After that,
-Android reuses local files for offline play and only fetches packs containing
-missing or changed assets. If a download stops, retry from the startup screen.
+The APK includes the command deck and Ship Defense, which can be played offline
+immediately. Choosing Gradius Raid on a fresh install offers a one-time
+download of the remaining Raid media. The dialog shows how much data is
+needed and a failed download can be retried. When an update changes Raid
+media, Android reuses the installed files and fetches only the packs it needs.
 
 The signed release workflow uploads the content-addressed ZIPs to
 `android-3d-assets-v1` before making the APK available. The APK pins its exact

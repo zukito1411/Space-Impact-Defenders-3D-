@@ -305,7 +305,7 @@ export async function uploadPlayerProgress(progress: unknown): Promise<{ saved: 
 
 export async function submitLeaderboardScore(score: SubmitLeaderboardScore): Promise<{ accepted: boolean; error?: string }> {
   const apiBase = getLeaderboardApiBase()
-  if (!apiBase || score.score <= 0) return { accepted: false }
+  if (!apiBase || !hasStoredPlayerName() || score.score <= 0) return { accepted: false }
 
   try {
     const response = await fetch(`${apiBase}/leaderboards/submit`, {

@@ -1,3 +1,4 @@
+import { FleetAudio } from '../fleetAudio'
 import { AdaptiveScore, SampleScene, warmImmersionAudio } from '../presentationAudio'
 
 type Synergy = { id: number; active: boolean }
@@ -5,12 +6,26 @@ type Synergy = { id: number; active: boolean }
 export class DefensePresentation {
   private sounds = new SampleScene()
   private score = new AdaptiveScore()
+  private fleetAudio = new FleetAudio()
   private synergies = new Map<number, boolean>()
   private nextAlarm = 0
   private pressure = 0
 
-  warm() { void warmImmersionAudio() }
-  deploy(col: number) { this.sounds.play('deploy', .4, col / 7 - 1, 'ui', 2, 0, 120) }
+  warm() {
+    void warmImmersionAudio([
+      'deploy', 'synergy', 'hq-warning', 'sector-station', 'fighter-death', 'armored-death', 'capital-death',
+      'fleet-motif', 'fleet-defense-orders', 'fleet-deployed',
+    ])
+  }
+  briefing() {
+    this.fleetAudio.signal()
+    this.fleetAudio.radio('defense-orders')
+  }
+
+  deploy(col: number) {
+    this.sounds.play('deploy', .4, col / 7 - 1, 'ui', 2, 0, 120)
+    this.fleetAudio.radio('deployed')
+  }
   destroy(boss: boolean, heavy: boolean, col: number) {
     this.sounds.play(boss ? 'capital-death' : heavy ? 'armored-death' : 'fighter-death', boss ? .56 : .24,
       col / 7 - 1, 'explosion', boss ? 4 : 2, 0, boss ? 250 : 110)
@@ -38,5 +53,5 @@ export class DefensePresentation {
     return linked
   }
 
-  stop() { this.sounds.stop(); this.score.stop(); this.synergies.clear() }
+  stop() { this.sounds.stop(); this.fleetAudio.stop(); this.score.stop(); this.synergies.clear() }
 }

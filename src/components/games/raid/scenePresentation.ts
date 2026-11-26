@@ -54,6 +54,10 @@ export class RaidScenePresentation {
       raidStereoPan(player.x, player.y, this.landscape), 'impact', 3)
   }
 
+  enemyHullHit(contact: Vec) {
+    this.sounds.play('hull-hit', .22, raidStereoPan(contact.x, contact.y, this.landscape), 'impact', 1, 0, 115)
+  }
+
   defeat(enemy: Enemy) {
     if (this.defeated.has(enemy.id)) return
     this.defeated.add(enemy.id)

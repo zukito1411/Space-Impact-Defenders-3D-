@@ -142,7 +142,7 @@ function mixCommandAttack(value: number) {
   const shifted = Math.imul(value ^ (value >>> 16), 0x45d9f3b)
   return (shifted ^ (shifted >>> 16)) >>> 0
 }
-function beginAttack(enemy: Enemy, profile: CommandBossProfile, targets: readonly Vec[], difficulty: RaidDifficulty, elapsed = 0) {
+function beginAttack(enemy: Enemy, profile: CommandBossProfile, targets: readonly Vec[], difficulty: RaidDifficulty, elapsed = 0, guidedOpening = false) {
   const serial = (enemy.bossAttackSerial ?? -1) + 1
   const target = targets[serial % targets.length]
   const hpRatio = enemy.hp / Math.max(1, enemy.maxHp)
@@ -157,7 +157,8 @@ function beginAttack(enemy: Enemy, profile: CommandBossProfile, targets: readonl
   const reverse = Boolean(mixed & 256)
   const index = cycle === 0 ? (reverse && step > 0 ? count - step : step)
     : (offset + (reverse ? count - step : step)) % count
-  const pattern = profile.sequence[index]
+  const firstInterception = guidedOpening && profile.stage === 1 && serial === 0
+  const pattern = firstInterception ? 'beam' : profile.sequence[index]
   const tune = TACTICS[difficulty]
   if (changed) enemy.bossPhaseStartedAge = enemy.bossEncounterAge
   enemy.bossLastVolleyAge = undefined
@@ -169,6 +170,7 @@ function beginAttack(enemy: Enemy, profile: CommandBossProfile, targets: readonl
   enemy.bossAttackX = enemy.x; enemy.bossAttackY = enemy.y
   enemy.bossGapX = clamp(target.x + (serial % 2 ? 14 : -14), 22, 78)
   enemy.bossWarningSeconds = Math.max(getCommandWarningFloor(isCommandBeam(pattern)), profile.warning * tune.warning * (1 - phase * .065) - (difficulty === 'easy' ? 0 : .14))
+  if (firstInterception) enemy.bossWarningSeconds = Math.max(2.45, enemy.bossWarningSeconds)
   enemy.bossAttackTimer = enemy.bossWarningSeconds - elapsed
   enemy.bossShotSpeed = Math.min(COMMAND_MAX_SHOT_SPEED, (profile.speed + phase * 2.5) * tune.speed)
   enemy.bossBurstIndex = 0
@@ -176,6 +178,7 @@ function beginAttack(enemy: Enemy, profile: CommandBossProfile, targets: readonl
     (pattern === 'fan' || pattern === 'snipe' || pattern === 'pincer' || pattern === 'sweep') && mixed % 3 !== 0 ? 1 : 0
   enemy.bossBurstCount = isCommandBeam(pattern) ? 1 : pattern === 'hydra' ? 3 : Math.min(3, profile.bursts + followUp + (phase > 0 ? 1 : 0) + (phase === 2 && difficulty !== 'easy' ? 1 : 0))
   enemy.bossRecoverySeconds = Math.max(.48, profile.recovery * tune.recovery * (1 - phase * .11) - (difficulty === 'easy' ? .12 : .23))
+  if (firstInterception) enemy.bossRecoverySeconds = 2.85
   return COMMAND_WARNING | (changed ? COMMAND_PHASE : 0)
 }
 function moveDuringRecovery(enemy: Enemy, profile: CommandBossProfile, target: Vec, dt: number) {
@@ -198,20 +201,20 @@ function moveDuringRecovery(enemy: Enemy, profile: CommandBossProfile, target: V
 }
 /** Host-only, simulation-dt clock. Attack parameters and aims latch before the warning, including phase changes. */
 export function advanceCommandBoss(enemy: Enemy, dt: number, targets: readonly Vec[], difficulty: RaidDifficulty,
-  availableShots: number, emit: (shot: CommandShot) => void) {
+  availableShots: number, emit: (shot: CommandShot) => void, guidedOpening = false) {
   const profile = getCommandBossProfile(enemy)
   if (!profile || enemy.hp <= 0 || targets.length === 0 || !Number.isFinite(dt) || dt <= 0) return 0
   // Entry protection is not a free opening shot. Pauses never advance this clock.
   if (enemy.y < 16 || enemy.shieldTime > 0) return 0
   const delta = Math.min(dt, .1)
   enemy.bossEncounterAge = (enemy.bossEncounterAge ?? 0) + delta
-  if (!enemy.bossAttackState) return beginAttack(enemy, profile, targets, difficulty)
+  if (!enemy.bossAttackState) return beginAttack(enemy, profile, targets, difficulty, 0, guidedOpening)
   const state = enemy.bossAttackState
-  if (state === 'recovery') moveDuringRecovery(enemy, profile, targets[((enemy.bossAttackSerial ?? 0) + 1) % targets.length], delta)
+  if (state === 'recovery' && !(guidedOpening && enemy.bossAttackSerial === 0)) moveDuringRecovery(enemy, profile, targets[((enemy.bossAttackSerial ?? 0) + 1) % targets.length], delta)
   enemy.bossAttackTimer = (enemy.bossAttackTimer ?? 0) - delta
   if (enemy.bossAttackTimer > 1e-8) return 0
   const overshoot = Math.min(delta, Math.max(0, -enemy.bossAttackTimer))
-  if (state === 'recovery') return beginAttack(enemy, profile, targets, difficulty, overshoot)
+  if (state === 'recovery') return beginAttack(enemy, profile, targets, difficulty, overshoot, guidedOpening)
   const count = writeCommandVolley(enemy, releaseScratch)
   if (count > availableShots) {
     // Skip the entire volley instead of dropping an arbitrary safe gap or retrying without warning.

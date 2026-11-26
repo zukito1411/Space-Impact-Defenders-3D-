@@ -28,3 +28,95 @@
   .defense-game[data-hq-threat="high"] .defense-hq-threat,
   .defense-game[data-hq-threat="critical"] .defense-hq-threat { animation:none;opacity:.6; }
 }
+
+.defense-fleet-radio {
+  position: fixed;
+  inset-inline-start: max(10px, env(safe-area-inset-left));
+  bottom: max(10px, env(safe-area-inset-bottom));
+  z-index: 12;
+  pointer-events: none;
+}
+@media (max-width: 740px), (max-height: 510px) {
+  .defense-fleet-radio {
+    bottom: auto;
+    inset-block-start: max(60px, calc(env(safe-area-inset-top) + 60px));
+  }
+  .defense-fleet-radio .fleet-radio {
+    max-width: min(285px, calc(100vw - 20px));
+    padding: 4px 7px;
+  }
+}
+.defense-placement {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  --placement-color: #a1fff1;
+}
+.defense-placement--blocked {
+  --placement-color: #ff91a7;
+}
+.defense-placement__range,
+.defense-placement__footprint {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px solid var(--placement-color);
+}
+.defense-placement__range {
+  border-radius: 50%;
+  background: #4ce6c817;
+  box-shadow: inset 0 0 12px #6affe156, 0 0 0 1px #051619;
+}
+.defense-placement__range--global {
+  inset: 2px;
+  border-radius: 4px;
+}
+.defense-placement__footprint {
+  display: grid;
+  place-items: center;
+  background: #082325ad;
+}
+.defense-placement--blocked .defense-placement__footprint {
+  background: repeating-linear-gradient(135deg, #441625db 0 5px, #230d16b0 5px 10px);
+}
+.defense-placement__label {
+  position: absolute;
+  inset-inline-start: 4px;
+  top: 4px;
+  padding: 3px 6px;
+  background: #082028;
+  color: #e4fdff;
+  font: 700 .72rem/1.25 system-ui, sans-serif;
+  border: 1px solid #73d6cb;
+}
+.defense-tower-mark.fleet-mark {
+  position: absolute;
+  inset-inline-end: 2px;
+  bottom: 2px;
+  width: 10px;
+  height: 11px;
+  opacity: .9;
+  pointer-events: none;
+}
+.defense-tower-mark.fleet-mark::before { inset: 2px; }
+.defense-tower-mark.fleet-mark::after { inset: 6px 3px 2px; }
+.defense-tower-warp {
+  position: absolute;
+  inset: -35% -22%;
+  pointer-events: none;
+  border: 2px solid #aafff5;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, #dcfffdcc 0%, #4ce9d476 24%, #2b7fa629 48%, transparent 68%);
+  box-shadow: 0 0 13px #4ff1dfbb, inset 0 0 13px #4ff1dfbb;
+  opacity: 0;
+  animation: defense-warp-in .57s cubic-bezier(.12, .74, .35, 1) both;
+}
+@keyframes defense-warp-in {
+  0% { opacity: 0; transform: scale(.14, .66); }
+  21% { opacity: .88; transform: scale(.75, .32); }
+  50% { opacity: .46; transform: scale(1, .56); }
+  100% { opacity: 0; transform: scale(1.22, .82); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .defense-tower-warp { animation: none; }
+}

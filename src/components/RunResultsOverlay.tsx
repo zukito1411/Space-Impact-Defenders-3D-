@@ -3,15 +3,17 @@ import { getLanguageText, getRaidText, getReleaseText, type LanguageCode } from 
 import type { ProgressUpdate, RunResult } from '../progression'
 import { GameButton } from './ui/GameButton'
 import { GameDialog } from './ui/GameDialog'
+import { getCommandText } from '../commandText'
 
 type RunResultsOverlayProps = {
   result: RunResult
   update: ProgressUpdate
   language: LanguageCode
   onClose: () => void
+  onRetry?: () => void
 }
 
-export function RunResultsOverlay({ result, update, language, onClose }: RunResultsOverlayProps) {
+export function RunResultsOverlay({ result, update, language, onClose, onRetry }: RunResultsOverlayProps) {
   const landscape = useLandscapeScreen()
   const text = getReleaseText(language)
   const modeText = getLanguageText(language).leaderboards.modes[result.mode]
@@ -36,6 +38,11 @@ export function RunResultsOverlay({ result, update, language, onClose }: RunResu
           <h2 id="result-title">{statusLabel}</h2>
           <p>{text.combatReport}</p>
           <div className="result-overlay__score"><small>{result.teamScore ? text.teamScore : text.score}</small><strong>{scoreDisplay.toLocaleString()}</strong></div>
+        </div>
+
+        <div className="result-overlay__actions">
+          {onRetry && <GameButton tone="primary" data-dialog-initial-focus onClick={onRetry}>{getCommandText(language).retry}</GameButton>}
+          <GameButton data-dialog-dismiss tone={onRetry ? 'secondary' : 'primary'} onClick={onClose}>{text.continue}</GameButton>
         </div>
 
         <div className="result-overlay__stats">
@@ -95,7 +102,6 @@ export function RunResultsOverlay({ result, update, language, onClose }: RunResu
           </section>
         ) : null}
 
-        <GameButton data-dialog-dismiss tone="primary" onClick={onClose}>{text.continue}</GameButton>
       </div>
     </GameDialog>
   )

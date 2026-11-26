@@ -23,7 +23,7 @@ export type RaidMode = 'campaign' | 'endless' | 'bossRush'
 
 export type RaidDifficulty = 'easy' | 'normal' | 'hard' | 'expert'
 
-export type RaidAssetPreloadState = { status: 'idle' | 'loading' | 'ready'; loaded: number; total: number }
+export type RaidAssetPreloadState = { status: 'idle' | 'loading' | 'ready' | 'error'; loaded: number; total: number }
 
 export type DevilBossPose = 'idle' | 'idle2' | 'attack' | 'attack2' | 'rage'
 

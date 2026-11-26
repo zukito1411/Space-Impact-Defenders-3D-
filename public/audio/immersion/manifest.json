@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "method": "Offline editing of bundled recordings; HPSS stems stay aligned to original scores.",
+  "method": "Offline editing of bundled recordings, synthetic fleet radio, and an original fleet motif. HPSS stems stay aligned to original scores.",
   "files": [
     {
       "file": "audio/immersion/armored-death.ogg",
@@ -418,6 +418,104 @@
         "boss/venom.ogg",
         "mesiah/hostile-channel.ogg",
         "mesiah/transmission-link.ogg"
+      ]
+    },
+    {
+      "file": "audio/immersion/fleet-charge.ogg",
+      "bytes": 22396,
+      "sha256": "6d75563495574ba2a721bd8d7fca8e48426979a1b45916d90472fe2cb77cf732",
+      "seconds": 3.625,
+      "sampleRate": 32000,
+      "channels": 1,
+      "loop": false,
+      "peak": 0.56337,
+      "rms": 0.09821,
+      "sources": [
+        "Original dialogue performed by the CMU Flite SLT synthetic voice"
+      ]
+    },
+    {
+      "file": "audio/immersion/fleet-defense-orders.ogg",
+      "bytes": 23041,
+      "sha256": "cec9b6c9254fdf45747de8c2a8b2bd1eb2a7564c2de31cdfd1424d2cf7c7787a",
+      "seconds": 3.74,
+      "sampleRate": 32000,
+      "channels": 1,
+      "loop": false,
+      "peak": 0.44419,
+      "rms": 0.08584,
+      "sources": [
+        "Original dialogue performed by the CMU Flite SLT synthetic voice"
+      ]
+    },
+    {
+      "file": "audio/immersion/fleet-departure.ogg",
+      "bytes": 17774,
+      "sha256": "3d2042e282e89c0df3a56bcd712183d10b10e1aae007a9d52cce9dd72d199332",
+      "seconds": 2.82,
+      "sampleRate": 32000,
+      "channels": 1,
+      "loop": false,
+      "peak": 0.47052,
+      "rms": 0.09279,
+      "sources": [
+        "Original dialogue performed by the CMU Flite SLT synthetic voice"
+      ]
+    },
+    {
+      "file": "audio/immersion/fleet-deployed.ogg",
+      "bytes": 21577,
+      "sha256": "27161f62ce214a326295d671f427374ce0dbbbe80ad3c99105a8c0a5d0d51d71",
+      "seconds": 3.42,
+      "sampleRate": 32000,
+      "channels": 1,
+      "loop": false,
+      "peak": 0.42181,
+      "rms": 0.0887,
+      "sources": [
+        "Original dialogue performed by the CMU Flite SLT synthetic voice"
+      ]
+    },
+    {
+      "file": "audio/immersion/fleet-motif.ogg",
+      "bytes": 6803,
+      "sha256": "9cce735940a0caa28d8d5c9b6030a00a7a798dcdc68d3d9f96f53d7079263251",
+      "seconds": 1.5,
+      "sampleRate": 32000,
+      "channels": 1,
+      "loop": false,
+      "peak": 0.16048,
+      "rms": 0.05929,
+      "sources": [
+        "Original four-note motif, synthesized for Space Impact Defender"
+      ]
+    },
+    {
+      "file": "audio/immersion/fleet-recovery.ogg",
+      "bytes": 18323,
+      "sha256": "468646816bb63fcc01790c7d59e918926ed589aa926c38a10b34adb595456948",
+      "seconds": 2.86,
+      "sampleRate": 32000,
+      "channels": 1,
+      "loop": false,
+      "peak": 0.49449,
+      "rms": 0.09358,
+      "sources": [
+        "Original dialogue performed by the CMU Flite SLT synthetic voice"
+      ]
+    },
+    {
+      "file": "audio/immersion/fleet-steer.ogg",
+      "bytes": 24434,
+      "sha256": "f93704181aaf3ab414b73c040ca0c2160c494e9632a8bf43eb93731507b70654",
+      "seconds": 4.025,
+      "sampleRate": 32000,
+      "channels": 1,
+      "loop": false,
+      "peak": 0.48448,
+      "rms": 0.09138,
+      "sources": [
+        "Original dialogue performed by the CMU Flite SLT synthetic voice"
       ]
     },
     {

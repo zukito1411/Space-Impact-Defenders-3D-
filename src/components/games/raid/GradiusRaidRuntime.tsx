@@ -1,3 +1,4 @@
+import { drawHostileShotContrast } from './hostileShotContrast'
 import { CoopLink, readCoopInput } from './coopLink'
 import { isOrganicBoss } from './destructionProfile'
 import { drawDestructionEffects } from './destructionEffects'
@@ -17,7 +18,7 @@ import { getRaidBgmTrack, RAID_BGM_LEVEL } from './raidSoundtrack'
 import { CARRIER_RECOVERY_SECONDS, sampleCarrierRecovery, shouldRecoverAfterStage, shouldRecoverBeforeEndlessBoss, type CarrierStop } from './carrierRecovery'
 import { drawCarrierBoardingForeground, drawCarrierDeck, type CarrierDeckFrame } from './carrierDeck'
 import { sampleCarrierBoarding } from './carrierBoarding'
-import { sampleCarrierDockBlend, CARRIER_DEPARTURE_START, CARRIER_LAUNCH_SECONDS, MESIAH_ENTRY_SECONDS, sampleCarrierLaunch } from './carrierLaunch'
+import { sampleCarrierDockBlend, CARRIER_DEPARTURE_START, CARRIER_IGNITION_START, CARRIER_LAUNCH_SECONDS, MESIAH_ENTRY_SECONDS, sampleCarrierLaunch } from './carrierLaunch'
 import { useCarrierLaunchRequest } from './useCarrierLaunchRequest'
 import { preloadCarrierAssets } from './carrierAssets'
 import { RaidCarrierBriefing } from './RaidCarrierBriefing'
@@ -47,7 +48,11 @@ import { missileLaunchScale, homingCruiseSpeed, missileVisualScale } from './mis
 import { MissileSmokeTrails } from './missileSmoke'
 import { impactFrameProgress, explosionDiameter, impactAlpha, rippleLifetime, rippleReplacement } from './combatFeel'
 import { useDoorCallback, useDoorState, useSpaceDoor } from '../../ui/SpaceDoor'
-import { getRaidText } from '../../../i18n'
+import { getRaidText, getReleaseText } from '../../../i18n'
+import { getCommandText } from '../../../commandText'
+import { FleetAudio } from '../fleetAudio'
+import { FleetRadio } from '../FleetRadio'
+import { GameButton } from '../../ui/GameButton'
 import type { LanguageCode } from '../../../i18n'
 import { isCreatorPlayerName, submitLeaderboardScore } from '../../../leaderboards'
 import { getEquippedShipCosmetics, hasProgressionUnlockOverride, isCoreLanderUnlocked, loadProgress } from '../../../progression'
@@ -166,6 +171,7 @@ function getNormalRaidDevilAssistModel(player: Player, progress: ReturnType<type
 export function GradiusRaid({
   onClose,
   initialMode = 'campaign',
+  quickLaunch = false,
   multiplayerSession,
   sameScreenCoop = false,
   sameScreenGuestShipKey = 'fast',
@@ -176,13 +182,14 @@ export function GradiusRaid({
 }: {
   onClose: () => void
   initialMode?: RaidMode
+  quickLaunch?: boolean
   multiplayerSession?: RaidMultiplayerSession | null
   sameScreenCoop?: boolean
   sameScreenGuestShipKey?: string
   initialShipKey?: string
   playerName: string
   language?: LanguageCode
-  onRunComplete?: (result: RunResult) => void
+  onRunComplete?: (result: RunResult, retry?: () => void) => void
 }) {
   const initialRaidMode: RaidMode = multiplayerSession || sameScreenCoop ? 'campaign' : initialMode
   const initialShip = SHIP_OPTIONS.find(ship => ship.key === initialShipKey) ?? SHIP_OPTIONS[0]
@@ -377,6 +384,28 @@ export function GradiusRaid({
   const highScoreRef = useRef(getHighScore())
   const unlockedStageRef = useRef(getUnlockedStage())
   const [carrierAudio] = useState(() => new CarrierAudio())
+  const [fleetAudio] = useState(() => new FleetAudio())
+  const [openingCue, setOpeningCue] = useState<'departure' | 'steer' | 'charge' | 'recovery' | null>(null)
+  const coachOpeningRef = useRef(false)
+  const firstCounterattackRef = useRef(false)
+  const [openingReport, setOpeningReport] = useState<{ score: number; destroyed: number; hull: number; maxHull: number } | null>(null)
+  const openingReportRef = useRef(false)
+  const quickLaunchRequestedRef = useRef(false)
+  const [quickLaunchPending, setQuickLaunchPending] = useState(quickLaunch)
+  const command = getCommandText(language)
+  const release = getReleaseText(language)
+
+  const sendOpeningCue = useCallback((cue: typeof openingCue) => {
+    setOpeningCue(cue)
+    if (cue) fleetAudio.radio(cue)
+  }, [fleetAudio])
+
+  useEffect(() => () => fleetAudio.stop(), [fleetAudio])
+
+  const continueOpeningCampaign = () => {
+    openingReportRef.current = false
+    setOpeningReport(null)
+  }
   const [scenePresentation] = useState(() => new RaidScenePresentation())
   const [enemyTactics] = useState(() => new EnemyTactics())
   const [worldStories] = useState(() => new WorldStories())
@@ -459,7 +488,10 @@ export function GradiusRaid({
   }, [])
 
   useEffect(() => {
-    void preloadRaidAssetsForMenu(true)
+    void preloadRaidAssetsForMenu(true).catch(error => {
+      console.warn('Raid background preparation failed:', error)
+      setAssetPreload(state => ({ ...state, status: 'error' }))
+    })
   }, [preloadRaidAssetsForMenu])
 
   const resetGuestPredictionState = useCallback(() => {
@@ -2768,47 +2800,7 @@ export function GradiusRaid({
       if (raidObjectInView(drawBounds, shot.x, shot.y, shot.radius + 12)) drawPlayerShot(shot)
     }
 
-    for (const shot of enemyShotsRef.current) {
-      // Beam columns may cross the screen even when their origin is outside.
-      if (shot.kind !== 'beam' && !raidObjectInView(drawBounds, shot.x, shot.y, shot.radius + 16)) continue
-      if (gpuForegroundDrawn && isGpuEnemyShot(shot, gfxProfile.drawAdvancedShotFx)) continue
-      if (!gpuForegroundDrawn) {
-        const spec = getGpuBossProjectileSpec(shot, visualScale, cssWidth, cssHeight, time, canvasBossArtSpec)
-        const texture = spec ? applyRaidBossArtwork(spec) : undefined
-        if (texture && spec) {
-          ctx.save()
-          ctx.globalAlpha = spec.alpha
-          const drawn = drawRaidCombatTexture(ctx, getRaidProjectileTexture(texture, projectileGlow), spec.x, spec.y, spec.width, spec.height,
-            spec.rotation, !isRaidBossArtSolid(spec.kind))
-          ctx.restore()
-          if (drawn) continue
-        }
-        if (drawAtlasShot(shot, true)) continue
-      }
-      if (shot.kind === 'beam' && shot.life !== undefined) {
-        drawEnemyBeamColumn(shot)
-        continue
-      }
-      if (!gfxProfile.drawAdvancedShotFx) {
-        if (shot.kind === 'beam') drawTrail(shot, 'rgba(56,189,248,0.88)', 82, 9)
-        else drawOrb(shot, shot.kind === 'poisonCloud' || shot.kind === 'venomSpit' || shot.kind === 'snakeFang' || shot.kind === 'devilSnakeHead' ? 'rgba(132,204,22,0.68)' : shot.kind === 'squidInk' || shot.kind === 'squidSpine' ? 'rgba(244,114,182,0.78)' : 'rgba(251,113,133,0.78)', shot.kind === 'squidBubble' ? 12 : 8)
-      }
-      else if (shot.kind === 'squidBubble') drawSquidBubble(shot)
-      else if (shot.kind === 'squidInk') drawSquidInkShot(shot)
-      else if (shot.kind === 'squidSpine') drawSquidSpineShot(shot)
-      else if (shot.kind === 'snakeFang') drawSnakeFangShot(shot)
-      else if (shot.kind === 'devilSnakeHead') drawDevilSnakeHeadShot(shot)
-      else if (shot.kind === 'venomSpit') drawVenomSpitShot(shot)
-      else if (shot.kind === 'poisonCloud') drawPoisonCloud(shot)
-      else if (shot.kind === 'orbShot') drawOrb(shot, 'rgba(168,85,247,0.92)', 12)
-      else if (shot.kind === 'blade') drawTrail(shot, 'rgba(34,211,238,0.9)', 46, 7)
-      else if (shot.kind === 'needle') drawTrail(shot, 'rgba(190,242,100,0.92)', 42, 5)
-      else if (shot.kind === 'voidShot') drawOrb(shot, 'rgba(192,132,252,0.95)', 15)
-      else if (shot.kind === 'beam') drawTrail(shot, 'rgba(56,189,248,0.96)', 112, 14)
-      else if (shot.kind === 'scatterBoss') drawTrail(shot, 'rgba(251,146,60,0.9)', 34, 5)
-      else if (shot.kind === 'superShot') drawOrb(shot, 'rgba(251,191,36,0.95)', 14)
-      else drawOrb(shot, 'rgba(251,113,133,0.9)', 10)
-    }
+
 
     // On the guest's screen playerRef = interpolated host, remotePlayerRef = own (guest) ship.
     // Always draw the player's OWN ship in PLAYER_COLOR (red) and the ally in ALLY_PLAYER_COLOR (cyan).
@@ -2896,6 +2888,55 @@ export function GradiusRaid({
         toX(nukeBlastOriginRef.current.x),
         toY(nukeBlastOriginRef.current.y),
       )
+    }
+
+    for (const shot of enemyShotsRef.current) {
+      // Beam columns may cross the screen even when their origin is outside.
+      if (shot.kind !== 'beam' && !raidObjectInView(drawBounds, shot.x, shot.y, shot.radius + 16)) continue
+      if (gpuForegroundDrawn && isGpuEnemyShot(shot, gfxProfile.drawAdvancedShotFx)) continue
+      if (!gpuForegroundDrawn) {
+        const spec = getGpuBossProjectileSpec(shot, visualScale, cssWidth, cssHeight, time, canvasBossArtSpec)
+        const texture = spec ? applyRaidBossArtwork(spec) : undefined
+        if (texture && spec) {
+          ctx.save()
+          ctx.globalAlpha = spec.alpha
+          const drawn = drawRaidCombatTexture(ctx, getRaidProjectileTexture(texture, projectileGlow), spec.x, spec.y, spec.width, spec.height,
+            spec.rotation, !isRaidBossArtSolid(spec.kind))
+          ctx.restore()
+          if (drawn) continue
+        }
+        if (drawAtlasShot(shot, true)) continue
+      }
+      if (shot.kind === 'beam' && shot.life !== undefined) {
+        drawEnemyBeamColumn(shot)
+        continue
+      }
+      if (!gfxProfile.drawAdvancedShotFx) {
+        if (shot.kind === 'beam') drawTrail(shot, 'rgba(56,189,248,0.88)', 82, 9)
+        else drawOrb(shot, shot.kind === 'poisonCloud' || shot.kind === 'venomSpit' || shot.kind === 'snakeFang' || shot.kind === 'devilSnakeHead' ? 'rgba(132,204,22,0.68)' : shot.kind === 'squidInk' || shot.kind === 'squidSpine' ? 'rgba(244,114,182,0.78)' : 'rgba(251,113,133,0.78)', shot.kind === 'squidBubble' ? 12 : 8)
+      }
+      else if (shot.kind === 'squidBubble') drawSquidBubble(shot)
+      else if (shot.kind === 'squidInk') drawSquidInkShot(shot)
+      else if (shot.kind === 'squidSpine') drawSquidSpineShot(shot)
+      else if (shot.kind === 'snakeFang') drawSnakeFangShot(shot)
+      else if (shot.kind === 'devilSnakeHead') drawDevilSnakeHeadShot(shot)
+      else if (shot.kind === 'venomSpit') drawVenomSpitShot(shot)
+      else if (shot.kind === 'poisonCloud') drawPoisonCloud(shot)
+      else if (shot.kind === 'orbShot') drawOrb(shot, 'rgba(168,85,247,0.92)', 12)
+      else if (shot.kind === 'blade') drawTrail(shot, 'rgba(34,211,238,0.9)', 46, 7)
+      else if (shot.kind === 'needle') drawTrail(shot, 'rgba(190,242,100,0.92)', 42, 5)
+      else if (shot.kind === 'voidShot') drawOrb(shot, 'rgba(192,132,252,0.95)', 15)
+      else if (shot.kind === 'beam') drawTrail(shot, 'rgba(56,189,248,0.96)', 112, 14)
+      else if (shot.kind === 'scatterBoss') drawTrail(shot, 'rgba(251,146,60,0.9)', 34, 5)
+      else if (shot.kind === 'superShot') drawOrb(shot, 'rgba(251,191,36,0.95)', 14)
+      else drawOrb(shot, 'rgba(251,113,133,0.9)', 10)
+    }
+
+    // Pixi projectiles already sit above Pixi effects. Add a small solid
+    // contact silhouette when a brighter foreground Canvas pass overlaps them.
+    const brightForeground = nukeFlashRef.current > 0 || destructionEffects.some(particle => particle.kind === 'explosion')
+    if (playing && gpuForegroundDrawn && brightForeground) {
+      drawHostileShotContrast(ctx, enemyShotsRef.current, drawBounds, toX, toY, visualScale)
     }
 
     if (playing && ownShipRef && ownShipRef.hp > 0 && !stageClearActive && asteroidWarningRef.current <= 0 && !(randomEventRef.current?.warning)) {
@@ -3258,14 +3299,17 @@ export function GradiusRaid({
     syncSnapshot()
   }, [addRipple, spawnSparks, syncSnapshot])
 
-  const resetGame = useCarrierLaunchRequest(phaseRef, async (startStage: number = 1, fullyBuffed: boolean = false, mode: RaidMode = raidModeRef.current) => {
+  const prepareSortie = async (
+    startStage: number = 1, fullyBuffed: boolean = false, mode: RaidMode = raidModeRef.current, launchDirectly = false,
+  ) => {
     const session = multiplayerSessionRef.current
     const sameScreen = sameScreenCoopRef.current
     if (session && !session.isHost) return
     stopGameSounds()
-    await preloadRaidAssetsForMenu(true)
-    if (rendererPreparationRef.current && !await rendererPreparationRef.current) return
     try {
+      if (launchDirectly) await preloadCarrierAssets()
+      else await preloadRaidAssetsForMenu(true)
+      if (rendererPreparationRef.current && !await rendererPreparationRef.current) return
       const visual = getDefaultPlayerVisualShipKey(selectedShipRef.current.key, progressRef.current)
       if (!isRaid2DMech(visual)) {
         await loadHull(visual)
@@ -3282,7 +3326,12 @@ export function GradiusRaid({
       return
     }
     if (!rootRef.current?.isConnected) return
-    if (phaseRef.current !== 'briefing') {
+    if (launchDirectly) {
+      pendingCarrierLaunchRef.current = { startStage, fullyBuffed, mode }
+      carrierStopRef.current = null
+      hostileContactSeenRef.current = false
+      queuedBossRef.current = null
+    } else if (phaseRef.current !== 'briefing') {
       carrierStopRef.current = null
       hostileContactSeenRef.current = false
       queuedBossRef.current = null
@@ -3413,11 +3462,17 @@ export function GradiusRaid({
     stageRef.current = stage
     journeyStageAgeRef.current = 0
     waveRef.current = stage
-    spawnTimerRef.current = 3.2
-    formationTimerRef.current = 1.8
+    const guidedOpening = stage === 1 && mode === 'campaign' && !session && !sameScreen
+    coachOpeningRef.current = guidedOpening
+    firstCounterattackRef.current = false
+    openingReportRef.current = false
+    setOpeningReport(null)
+    fleetAudio.stop()
+    spawnTimerRef.current = guidedOpening ? 9 : 3.2
+    formationTimerRef.current = guidedOpening ? .85 : 1.8
     wingSerialRef.current = 0
     reserveSerialRef.current = 0
-    bossTimerRef.current = forceLocalDevilTest ? 3.2 : isBossRush ? 2.4 : BOSS_RESPAWN_SECONDS
+    bossTimerRef.current = forceLocalDevilTest ? 3.2 : isBossRush ? 2.4 : guidedOpening ? 36 : BOSS_RESPAWN_SECONDS
     spawnLockRef.current = 0
     powerDropCooldownRef.current = 0
     killsSincePowerRef.current = 0
@@ -3426,10 +3481,13 @@ export function GradiusRaid({
     bossEntranceSlamRef.current = 0
     stageClearRef.current = 0
     const underway = playerRef.current.ship.key === 'mesiah' || remotePlayerRef.current?.ship.key === 'mesiah'
-    stageEntryRef.current = underway ? MESIAH_ENTRY_SECONDS : CARRIER_LAUNCH_SECONDS
+    const launchOffset = guidedOpening && launchDirectly && !underway ? CARRIER_IGNITION_START : 0
+    stageEntryRef.current = underway ? MESIAH_ENTRY_SECONDS : CARRIER_LAUNCH_SECONDS - launchOffset
     initialLaunchRef.current = true
+    if (guidedOpening) fleetAudio.signal()
+    sendOpeningCue(guidedOpening ? 'departure' : null)
     if (stageEntryRef.current > 0) {
-      const dock = sampleCarrierLaunch(0, landscapeRef.current, prefersRaidReducedMotion(), (viewportMetricsRef.current?.cssHeight ?? 800) < 700, underway)
+      const dock = sampleCarrierLaunch(launchOffset, landscapeRef.current, prefersRaidReducedMotion(), (viewportMetricsRef.current?.cssHeight ?? 800) < 700, underway)
       playerRef.current.x = dock.x
       playerRef.current.y = dock.y
       playerRef.current.invuln = Math.max(playerRef.current.invuln, stageEntryRef.current + 0.35)
@@ -3446,7 +3504,7 @@ export function GradiusRaid({
     asteroidWarningRef.current = 0
     randomEventRef.current = null
     localDerelictWreckTestTriggeredRef.current = false
-    randomEventTimerRef.current = isBossRush ? 999 : shouldForceLocalDerelictWreckTest(stage, mode) ? 0.2 : 20 + Math.random() * 18
+    randomEventTimerRef.current = isBossRush || guidedOpening ? 999 : shouldForceLocalDerelictWreckTest(stage, mode) ? 0.2 : 20 + Math.random() * 18
     randomEventSpawnTimerRef.current = 0
     lastRandomEventKindRef.current = null
     playerRef.current.specialCooldown = 0
@@ -3496,7 +3554,20 @@ export function GradiusRaid({
     stopBGM()
     startRaidBgm(stageRef.current, 'hangar')
     syncSnapshot()
-  })
+  }
+  const resetGame = useCarrierLaunchRequest(phaseRef, prepareSortie)
+  const prepareSortieRef = useRef(prepareSortie)
+  prepareSortieRef.current = prepareSortie
+
+  useEffect(() => {
+    if (!quickLaunch || quickLaunchRequestedRef.current) return
+    quickLaunchRequestedRef.current = true
+    void prepareSortieRef.current(1, false, 'campaign', true)
+  }, [quickLaunch])
+
+  useEffect(() => {
+    if (snapshot.phase !== 'select' || shipRendererError) setQuickLaunchPending(false)
+  }, [snapshot.phase, shipRendererError])
 
   useEffect(() => {
     const session = multiplayerSessionRef.current
@@ -4478,7 +4549,7 @@ export function GradiusRaid({
     const player = playerRef.current
     const remotePlayer = remotePlayerRef.current
     const score = Math.max(player.score, remotePlayer?.score ?? 0)
-    if (score <= 0) return
+    if (status === 'exit' && score <= 0) return
 
     const session = multiplayerSessionRef.current
     const coOpRun = coOpRunRef.current
@@ -4528,8 +4599,11 @@ export function GradiusRaid({
       difficulty: raidDifficultyRef.current,
       devilBossEncountered: devilBossEncounteredRef.current,
       devilBossDefeated: devilBossDefeatedRef.current,
-    })
-  }, [onRunComplete, playerName])
+    }, status !== 'exit' && (!session || session.isHost) ? () => {
+      const { startStage, fullyBuffed, mode } = pendingCarrierLaunchRef.current
+      resetGame(startStage, fullyBuffed, mode, !coOpRun)
+    } : undefined)
+  }, [onRunComplete, playerName, resetGame])
 
   const showRaidVictory = useCallback(() => {
     carrierStopRef.current = null
@@ -4583,15 +4657,15 @@ export function GradiusRaid({
       scenePresentation.playerEvent(player, player.shield > 0 ? 'shield-hit' : 'shield-break', contact)
       return
     }
-    triggerScreenShake(player.hp <= scaledAmount ? 2.4 : 0.85, player.hp <= scaledAmount ? 230 : 100)
+    if (player.hp <= scaledAmount) triggerScreenShake(1.8, 210)
     const wasCritical = needsRepair(player)
     player.hp -= scaledAmount
     scenePresentation.playerEvent(player, 'hull-hit', contact)
     if (!wasCritical && needsRepair(player)) playRaidCue('alarm')
     player.invuln = 1.05
-    spawnSparks(player.x, player.y, '#fca5a5', 22, 6)
-    addRipple(player.x, player.y, '#ef4444', 10)
-    playGameSound('hit',raidAudioPosition(player.x,player.y,landscapeRef.current,playerRef.current))
+    spawnSparks(player.x, player.y, '#ffc18d', 22, 6,
+      contact ? Math.atan2(contact.y - player.y, contact.x - player.x) : undefined)
+    addRipple(player.x, player.y, '#ef4444', 8)
     if (player.hp <= 0) {
       player.hp = 0
       playGameSound('destroyed_explosion',raidAudioPosition(player.x,player.y,landscapeRef.current,playerRef.current))
@@ -4833,7 +4907,7 @@ export function GradiusRaid({
   }, [collectPendingLevelUpRewards, startRaidBgm, syncSnapshot])
 
   const updateGame = useCallback((dt: number) => {
-    if (phaseRef.current !== 'playing') return
+    if (phaseRef.current !== 'playing' || openingReportRef.current) return
     const stop = carrierStopRef.current
     if (stop?.remaining) {
       stop.remaining = Math.max(0, stop.remaining - dt)
@@ -4938,6 +5012,14 @@ export function GradiusRaid({
           return
         }
         const pendingNextStage = pendingNextStageRef.current
+        const reportOpening = coachOpeningRef.current && stageRef.current === 1 && pendingNextStage === 2
+        if (reportOpening) {
+          coachOpeningRef.current = false
+          sendOpeningCue(null)
+          openingReportRef.current = true
+          keysRef.current.clear()
+          setOpeningReport({ score: player.score, destroyed: enemiesDestroyedRef.current, hull: player.hp, maxHull: player.maxHp })
+        }
         if (pendingNextStage !== null) {
           pendingNextStageRef.current = null
           if (recovering) {
@@ -5014,6 +5096,7 @@ export function GradiusRaid({
           carrierStopRef.current = null
           startRaidBgm(stageRef.current, 'cruise')
           if (!stop) journeyStageAgeRef.current = 0
+          if (coachOpeningRef.current && stageRef.current === 1) sendOpeningCue('steer')
           syncSnapshot()
         }
         pointerTargetRef.current = null
@@ -5051,6 +5134,9 @@ export function GradiusRaid({
       updateRipplesInPlace(ripplesRef.current, dt)
       return
     }
+
+    if (coachOpeningRef.current && stageRef.current === 1 && journeyStageAgeRef.current >= 9.5
+      && journeyStageAgeRef.current - dt < 9.5) sendOpeningCue(null)
 
     const playerInGodBarrage = Boolean(godBarrageRef.current && isGodGundamBarragePilot(player, progressRef.current))
     if (playerInGodBarrage) {
@@ -6141,10 +6227,20 @@ export function GradiusRaid({
         }
       }
       if (commandProfile) {
+        const guidedOpening = coachOpeningRef.current && stageRef.current === 1
         const event = advanceCommandBoss(enemy, dt, livingPlayersThisTick, raidDifficultyRef.current,
-          Math.max(0, COMMAND_SHOT_LIMIT - enemyShotsRef.current.length), emitCommandBossShot)
-        if (event & COMMAND_WARNING) markBossAttack(enemy, 'charge', enemy.bossWarningSeconds)
+          Math.max(0, COMMAND_SHOT_LIMIT - enemyShotsRef.current.length), emitCommandBossShot, guidedOpening)
+        if (event & COMMAND_WARNING) {
+          markBossAttack(enemy, 'charge', enemy.bossWarningSeconds)
+          if (guidedOpening && enemy.bossAttackSerial === 0) sendOpeningCue('charge')
+          else if (guidedOpening && enemy.bossAttackSerial === 1) sendOpeningCue(null)
+        }
         if (event & COMMAND_FIRED) markBossAttack(enemy, commandBossReleaseCue(enemy))
+        if (guidedOpening && enemy.bossAttackSerial === 0 && enemy.bossAttackState === 'recovery'
+          && (enemy.bossRecoverySeconds ?? 0) - (enemy.bossAttackTimer ?? 0) >= .68 && !firstCounterattackRef.current) {
+          firstCounterattackRef.current = true
+          sendOpeningCue('recovery')
+        }
       }
       const nextFire = fireCooldown - dt * (enemy.isBoss ? bossFireDrain : 1)
       const bossInPause = !commandProfile && enemy.isBoss && bossKind !== 'devil' && (bossRushAggressive ? nowSeconds % 5 > 4.25 : nowSeconds % 6 > 3)
@@ -6945,6 +7041,9 @@ export function GradiusRaid({
           const bossShielded = (enemy.isBoss && (enemy.shieldTime > 0 || enemy.y < 15)) || (enemy.isMiniBoss && (enemy.shieldTime > 0 || enemy.y < 8))
           const impact = recordBossImpact(enemy, shot, bossShielded)
           if (impact && impact !== 'armor') playRaidCue(impact, raidStereoPan(shot.x, shot.y, landscapeRef.current))
+          if (impact === 'armor' || (!bossShielded && !enemy.isBoss && !enemy.isMiniBoss && (enemy.hitFlash ?? 0) <= .035)) {
+            scenePresentation.enemyHullHit(shot)
+          }
           if (!bossShielded) {
             enemy.hp -= shot.damage
             playBossCriticalStinger(enemy)
@@ -7354,7 +7453,7 @@ export function GradiusRaid({
     if (remotePlayerRef.current && remotePlayerRef.current.score > highScoreRef.current) {
       highScoreRef.current = remotePlayerRef.current.score
     }
-  }, [activateNuke, addRipple, beginCarrierRecovery, collectLevelUpReward, collectPendingLevelUpRewards, emitCommandBossShot, damagePlayer, destroyPlayerByBossCollision, detonateNuke, finishBarrage, fireEnemy, firePlayer, getLivingPlayers, getNearestLivingPlayer, showRaidVictory, spawnAsteroidCluster, planAsteroidCluster, spawnBoss, spawnEnemyAt, spawnFormation, spawnPowerUp, spawnLevelUpPowerUp, spawnSparks, scenePresentation, startRaidBgm, startRandomRaidEvent, stopRaidBgm, submitRaidLeaderboardScore, syncBossRushStageLevel, syncSnapshot, resolveBossKind, triggerScreenShake])
+  }, [activateNuke, addRipple, beginCarrierRecovery, sendOpeningCue, collectLevelUpReward, collectPendingLevelUpRewards, emitCommandBossShot, damagePlayer, destroyPlayerByBossCollision, detonateNuke, finishBarrage, fireEnemy, firePlayer, getLivingPlayers, getNearestLivingPlayer, showRaidVictory, spawnAsteroidCluster, planAsteroidCluster, spawnBoss, spawnEnemyAt, spawnFormation, spawnPowerUp, spawnLevelUpPowerUp, spawnSparks, scenePresentation, startRaidBgm, startRandomRaidEvent, stopRaidBgm, submitRaidLeaderboardScore, syncBossRushStageLevel, syncSnapshot, resolveBossKind, triggerScreenShake])
 
   const getRaidFocusableControls = useCallback(() => {
     const root = rootRef.current
@@ -7509,7 +7608,7 @@ export function GradiusRaid({
     const p1Pressed = p1Gamepad ? getPressedButtons(p1Gamepad) : null
     const p2Pressed = p2Gamepad ? getPressedButtons(p2Gamepad) : null
     const remotePlayer = remotePlayerRef.current
-    if (phaseRef.current === 'playing') {
+    if (phaseRef.current === 'playing' && !openingReportRef.current) {
       applyPilotMovement('p1', playerRef.current, p1Gamepad, p1Pressed)
       if (sameScreenCoopRef.current) applyPilotMovement('p2', remotePlayer, p2Gamepad, p2Pressed)
       if (p1Gamepad && p1Pressed) {
@@ -7701,6 +7800,7 @@ export function GradiusRaid({
       w: 'a', d: 'w', s: 'd', a: 's',
     } as Record<string, string>)[key] ?? key : key
     const down = (event: KeyboardEvent) => {
+      if (openingReportRef.current || quickLaunchPending) return
       const key = event.key.toLowerCase()
       if (phaseRef.current !== 'playing' && (key === 'arrowright' || key === 'arrowdown' || key === 'arrowleft' || key === 'arrowup')) {
         event.preventDefault()
@@ -7771,7 +7871,7 @@ export function GradiusRaid({
       window.removeEventListener('keydown', down)
       window.removeEventListener('keyup', up)
     }
-  }, [activateNuke, exitRaid, moveRaidMenuFocus, pauseGame, resetGame, resumeGame, syncSnapshot])
+  }, [activateNuke, exitRaid, moveRaidMenuFocus, pauseGame, quickLaunchPending, resetGame, resumeGame, syncSnapshot])
 
   useEffect(() => {
     const syncCarrierAudio = () => {
@@ -7989,7 +8089,7 @@ export function GradiusRaid({
   const endingBossesDefeated = Math.max(bossesDefeatedRef.current, snapshot.phase === 'victory' ? 3 : 0)
   const endingNukesUsed = nukesUsedRef.current
   const assetPreloadPercent = Math.min(100, Math.round(assetPreload.loaded / Math.max(1, assetPreload.total) * 100))
-  const showAssetPreloadOverlay = assetPreload.status !== 'ready' && snapshot.phase !== 'playing' && snapshot.phase !== 'paused' && snapshot.phase !== 'victory'
+  const showAssetPreloadOverlay = assetPreload.status === 'loading' && !quickLaunchPending && snapshot.phase !== 'playing' && snapshot.phase !== 'paused' && snapshot.phase !== 'victory'
   const displayedShipOptions = SHIP_OPTIONS
   const renderHullPips = (hudPlayer: Player, keyPrefix: string) => {
     const hullPips = Array.from({ length: hudPlayer.maxHp }, (_, index) => index < hudPlayer.hp)
@@ -8048,7 +8148,7 @@ export function GradiusRaid({
       ref={rootRef}
       onPointerDown={(event) => {
         if (sameScreenCoopRef.current) return
-        if (isUiPointerTarget(event.target) || phaseRef.current !== 'playing' || stageEntryRef.current > 0) return
+        if (isUiPointerTarget(event.target) || openingReportRef.current || phaseRef.current !== 'playing' || stageEntryRef.current > 0) return
         if (event.pointerType !== 'mouse' && steeringPointerIdRef.current !== null) return
         updatePointer(event.clientX, event.clientY, event.pointerType)
         if (event.pointerType !== 'mouse') {
@@ -8195,6 +8295,46 @@ export function GradiusRaid({
         >
           <img className="raid__nuke-quick-icon" src={getPublicAssetUrl(RAID_OTHER_ASSET_PATHS.nukeMissile)} alt="" aria-hidden="true" draggable={false} />
         </button>
+      )}
+
+      {quickLaunchPending && (
+        <div className="raid__asset-loading" role="status">
+          <div className="raid__asset-loading-panel">
+            <div className="raid__kicker">{command.radio}</div>
+            <p>{command.launchPreparing}</p>
+            <GameButton tone="quiet" onClick={onClose}>{hudText.exit}</GameButton>
+          </div>
+        </div>
+      )}
+
+      {openingCue && snapshot.phase === 'playing' && snapshot.stageTheme === 1 && snapshot.stageClear <= 0 && !openingReport && (
+        <div className="raid__fleet-radio">
+          <FleetRadio name={command.radio}>
+            {command[openingCue]}
+            {openingCue === 'steer' && <small>{window.matchMedia('(pointer: coarse)').matches ? command.steerTouch : command.steerKeys}</small>}
+          </FleetRadio>
+        </div>
+      )}
+
+      {openingReport && (
+        <GameDialog className="result-overlay result-overlay--victory raid__opening-report" aria-labelledby="raid-opening-report-title"
+          onDismiss={continueOpeningCampaign}>
+          <div className="result-overlay__panel">
+            <div className="result-overlay__hero">
+              <span>{command.radio}</span>
+              <h2 id="raid-opening-report-title">{command.openingReport}</h2>
+            </div>
+            <div className="result-overlay__stats">
+              <div><b>{release.score}</b><strong>{openingReport.score.toLocaleString()}</strong></div>
+              <div><b>{release.enemies}</b><strong>{openingReport.destroyed}</strong></div>
+              <div><b>{release.hull}</b><strong>{Math.ceil(openingReport.hull)}/{openingReport.maxHull}</strong></div>
+            </div>
+            <div className="result-overlay__actions">
+              <GameButton tone="primary" data-dialog-initial-focus data-dialog-dismiss onClick={continueOpeningCampaign}>{command.advance}</GameButton>
+              <GameButton onClick={() => resetGame(1, false, 'campaign', true)}>{command.retry}</GameButton>
+            </div>
+          </div>
+        </GameDialog>
       )}
 
       {showAssetPreloadOverlay && (
@@ -8508,7 +8648,7 @@ export function GradiusRaid({
           </div>
         </GameDialog>
       )}
-      {snapshot.phase !== 'playing' && snapshot.phase !== 'paused' && snapshot.phase !== 'briefing' && snapshot.phase !== 'victory' && (
+      {!quickLaunchPending && snapshot.phase !== 'playing' && snapshot.phase !== 'paused' && snapshot.phase !== 'briefing' && snapshot.phase !== 'victory' && (
         <div className="raid__overlay">
           <div className="raid__panel">
             <div className="raid__kicker">{snapshot.phase === 'gameover' ? menuText.runEnded : menuText.chooseShip}</div>
