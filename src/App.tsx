@@ -179,7 +179,6 @@ function App() {
   const [language, setLanguage] = useState<LanguageCode>(getInitialLanguage)
   const [gameMode, setGameMode] = useState<GameMode>('normal')
   const [activeGame, setActiveGame] = useState<ActiveGame>('towerDefense')
-  const [quickRaidLaunch, setQuickRaidLaunch] = useState(false)
   const [raidLaunchMode, setRaidLaunchMode] = useState<RaidLaunchMode>('campaign')
   const [raidMultiplayerConnectionMode, setRaidMultiplayerConnectionMode] = useState<RaidMultiplayerConnectionMode>('online')
   const [raidMultiplayerSession, setRaidMultiplayerSession] = useState<RaidMultiplayerSession | null>(null)
@@ -819,15 +818,14 @@ function App() {
     setScreen('rocketMode')
   }
 
-  const startRocketRaidSingle = (mode: RaidLaunchMode = 'campaign', quickLaunch = false) => {
+  const startRocketRaidSingle = (mode: RaidLaunchMode = 'campaign') => {
     if ((mode === 'endless' || mode === 'bossRush') && !canPlayGradiusEndless) return
     setCodexCutsceneMode(null)
     setRaidMultiplayerSession(null)
     setRaidSameScreenCoop(false)
     setRaidLaunchMode(mode)
-    setQuickRaidLaunch(quickLaunch)
     setActiveGame('rocketRaid')
-    if (mode === 'campaign' && !quickLaunch) {
+    if (mode === 'campaign') {
       setRaidStoryIndex(0)
       setScreen('raidStory')
       return
@@ -836,7 +834,6 @@ function App() {
   }
 
   const startSameScreenCoop = () => {
-    setQuickRaidLaunch(false)
     setCodexCutsceneMode(null)
     setRaidMultiplayerSession(null)
     setRaidSameScreenCoop(true)
@@ -1032,9 +1029,9 @@ function App() {
             <nav className="start-screen__actions" aria-label={releaseText.deckTitle}>
               <GameMenuAction
                 primary data-menu-default
-                label={command.launch}
+                label={text.title.raidTitle}
                 detail={command.launchDetail}
-                onClick={() => startRocketRaidSingle('campaign', true)}
+                onClick={startRocketRaid}
               />
               <GameMenuAction label={command.defense} detail={command.defenseDetail} onClick={startCutscene} />
               {canPlayEndless && <GameMenuAction label={text.title.endlessTitle} detail={text.leaderboards.modes.ship_defense_endless.title} onClick={startEndless} />}
@@ -1051,7 +1048,6 @@ function App() {
           </div>
 
           <nav className="start-screen__command-deck" aria-label={releaseText.deckTitle}>
-            <GameButton tone="quiet" onClick={startRocketRaid}>{command.operations}</GameButton>
             <GameButton tone="quiet" onClick={() => setScreen('leaderboards')}>{text.title.recordsTitle}</GameButton>
             <GameButton tone="quiet" onClick={() => setScreen('profile')}>{releaseText.profile}</GameButton>
             <GameButton tone="quiet" onClick={() => setScreen('achievements')}>{releaseText.achievements}</GameButton>
@@ -1721,7 +1717,6 @@ function App() {
           connectionMode={raidMultiplayerConnectionMode}
           onBack={() => setScreen('raidCoopMode')}
           onStart={(session) => {
-            setQuickRaidLaunch(false)
             setCodexCutsceneMode(null)
             setRaidMultiplayerSession(session)
             setRaidSameScreenCoop(false)
@@ -1742,7 +1737,6 @@ function App() {
         <GradiusRaid
           onClose={closeRocketRaid}
           initialMode={raidLaunchMode}
-          quickLaunch={quickRaidLaunch}
           initialShipKey={raidMultiplayerSession || raidSameScreenCoop || (hangarShipKey === 'mesiah' && !canPlayGradiusEndless) || (hangarShipKey === 'coreLander' && !isCoreLanderUnlocked(progress)) ? undefined : hangarShipKey}
           multiplayerSession={raidMultiplayerSession}
           sameScreenCoop={raidSameScreenCoop}

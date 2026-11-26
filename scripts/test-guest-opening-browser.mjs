@@ -215,10 +215,22 @@ async function testRaid() {
     desktop.on('pageerror', error => errors.push(error.message))
     await setUp(desktop, true, traffic)
     await title(desktop)
+    await desktop.getByRole('button', { name: /^Gradius Raid/ }).click()
+    const raidModes = desktop.getByRole('navigation', { name: 'Gradius Raid' })
+    await raidModes.waitFor()
+    for (const name of ['Single Player', 'Endless Mode', 'Boss Rush', 'Two Players']) {
+      assert.ok(await raidModes.getByRole('button', { name }).isVisible())
+    }
+    assert.equal(await desktop.locator('.raid').count(), 0, 'Opening Raid modes must not launch a sortie')
+    await raidModes.getByRole('button', { name: /Single Player/ }).click()
+    await desktop.getByRole('button', { name: 'Skip To Launch' }).click()
+    await desktop.getByRole('button', { name: 'Start Raid', exact: true }).click({ timeout: 120000 })
+    const carrierSkip = desktop.locator('.raid__carrier-skip')
+    await carrierSkip.waitFor({ timeout: 120000 })
     // Keep renderer initialization and the real UI, but step the sortie at a
     // fixed rate so software-rendered builds don't depend on host frame pacing.
     await desktop.evaluate(() => { window.openingManualFrames = true })
-    await desktop.getByRole('button', { name: /Launch Gradius Raid/ }).click()
+    await carrierSkip.click()
     await desktop.getByText('Flight deck clear. You have the launch lane.').waitFor({ timeout: 120000 })
     await takeSimulationControl(desktop)
     await desktop.evaluate(() => window.openingTest.draw(performance.now()))
@@ -397,7 +409,7 @@ async function testNativeDownload() {
     assert.equal(await phone.locator('.start-screen').count(), 0)
     await phone.evaluate(() => window.testGameAssets.finish())
     await splash.waitFor({ state: 'detached', timeout: 30000 })
-    await phone.getByRole('button', { name: 'Launch Gradius Raid' }).waitFor()
+    await phone.getByRole('button', { name: /^Gradius Raid/ }).waitFor()
     await phone.getByRole('button', { name: 'Tower Defense Campaign' }).waitFor()
     await phone.reload()
     await splash.waitFor({ state: 'detached', timeout: 30000 })
