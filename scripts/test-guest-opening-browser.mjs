@@ -35,16 +35,19 @@ async function assertCompactCaption(caption) {
 
 async function assertProjectileColors(page) {
   await page.evaluate(async () => {
-    const { applyRaidBossArtwork, getRaidProjectileMaterial, getRaidProjectileTexture } =
+    const { RAID_BOSS_ATLAS_URL, RAID_BOSS_BEAM_URL, applyRaidBossArtwork, getRaidProjectileMaterial,
+      getRaidProjectileTexture, sharesPlayerProjectileArt } =
       await import('/src/components/games/raid/combatArt.ts')
     const { createGpuBossProjectileCanvas } = await import('/src/components/games/raid/gpuBossProjectiles.ts')
     const canvas = document.createElement('canvas')
     canvas.width = canvas.height = 48
     const context = canvas.getContext('2d', { willReadFrequently: true })
-    const sample = (source, x, y, width, height) => {
+    const read = (source, x, y, width, height) => {
       context.clearRect(0, 0, 48, 48)
       context.drawImage(source, x, y, width, height, 0, 0, 48, 48)
-      const { data } = context.getImageData(0, 0, 48, 48)
+      return context.getImageData(0, 0, 48, 48).data
+    }
+    const pinkFraction = data => {
       let pink = 0, total = 0
       for (let i = 0; i < data.length; i += 4) {
         if (data[i + 3] < 20) continue
@@ -57,20 +60,44 @@ async function assertProjectileColors(page) {
       const texture = getRaidProjectileTexture(base, glow)
       const { x, y, width, height } = texture.frame
       const scale = texture.source.resolution
-      return sample(texture.source.resource, x * scale, y * scale, width * scale, height * scale)
+      return pinkFraction(read(texture.source.resource, x * scale, y * scale, width * scale, height * scale))
     }
+    const matching = ['blade', 'needle', 'scatterBoss']
     for (const glow of [false, true]) {
-      for (const kind of ['enemy', 'blade', 'needle', 'scatterBoss', 'superShot']) {
-        if (fromTexture(getRaidProjectileMaterial(kind, true).texture, glow) < .85) throw Error(`Hostile ${kind} lost its color`)
+      for (const kind of matching) {
+        if (!sharesPlayerProjectileArt(kind) || fromTexture(getRaidProjectileMaterial(kind, true).texture, glow) < .85) {
+          throw Error(`Shared hostile projectile ${kind} should be magenta`)
+        }
       }
-      for (const kind of ['beam', 'snakeFang', 'poisonCloud', 'squidBubble']) {
-        const texture = applyRaidBossArtwork({ kind, width: 50, height: 20, rotation: 0, alpha: 1, x: 0, y: 0 })
-        if (!texture || fromTexture(texture, glow) < .85) throw Error(`Boss ${kind} lost its color`)
+      for (const kind of ['pulse', 'scatter', 'spread']) {
+        if (fromTexture(getRaidProjectileMaterial(kind).texture, glow) > .2) throw Error(`Player ${kind} picked up the hostile color`)
       }
-      if (fromTexture(getRaidProjectileMaterial('pulse').texture, glow) > .2) throw Error('Friendly fire picked up the hostile color')
     }
-    const fallback = createGpuBossProjectileCanvas('beam')
-    if (sample(fallback, 0, 0, fallback.width, fallback.height) < .85) throw Error('Enemy beam fallback lost its color')
+    const bossAtlas = await createImageBitmap(await (await fetch(RAID_BOSS_ATLAS_URL)).blob())
+    const originalBeam = await createImageBitmap(await (await fetch(RAID_BOSS_BEAM_URL)).blob())
+    const expectOriginal = (kind, texture, original) => {
+      if (sharesPlayerProjectileArt(kind) || !texture) throw Error(`${kind} should keep its original enemy-only artwork`)
+      const { x, y, width, height } = texture.frame
+      const actual = read(texture.source.resource, x, y, width, height)
+      const expected = read(original, x, y, width, height)
+      if (actual.some((byte, i) => Math.abs(byte - expected[i]) > 1)) throw Error(`${kind} was recolored`)
+    }
+    try {
+      for (const kind of ['enemy', 'boss', 'plasma', 'orbShot', 'voidShot', 'superShot']) {
+        expectOriginal(kind, getRaidProjectileMaterial(kind, true).texture, bossAtlas)
+      }
+      for (const kind of ['beam', 'poisonCloud', 'snakeFang', 'venomSpit', 'squidBubble', 'squidInk', 'squidSpine']) {
+        const texture = applyRaidBossArtwork({ kind, width: 50, height: 20, rotation: 0, alpha: 1, x: 0, y: 0 })
+        expectOriginal(kind, texture, kind === 'beam' ? originalBeam : bossAtlas)
+      }
+    } finally {
+      bossAtlas.close()
+      originalBeam.close()
+    }
+    const beamFallback = createGpuBossProjectileCanvas('beam')
+    if (pinkFraction(read(beamFallback, 0, 0, beamFallback.width, beamFallback.height)) > .1) {
+      throw Error('The procedural boss beam should keep its original blue color')
+    }
   })
 }
 
