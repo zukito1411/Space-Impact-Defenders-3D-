@@ -49,11 +49,11 @@ In Air Raid, open **Pause → Settings → Show FPS and performance timings (Air
 
 ## Android asset downloads
 
-The APK includes the command deck and Ship Defense, which can be played offline
-immediately. Choosing Gradius Raid on a fresh install offers a one-time
-download of the remaining Raid media. The dialog shows how much data is
-needed and a failed download can be retried. When an update changes Raid
-media, Android reuses the installed files and fetches only the packs it needs.
+On a fresh install, the Android startup screen asks players to download the
+required game files before opening the command deck. It shows the download size
+and progress, and lets players retry an interrupted download. After the files
+are installed, the app opens directly on later launches. When an update needs
+additional media, Android reuses the files it has and fetches only missing packs.
 
 The signed release workflow uploads the content-addressed ZIPs to
 the versioned asset release named by the APK's manifest before making the APK

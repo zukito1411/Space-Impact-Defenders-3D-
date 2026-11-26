@@ -4356,14 +4356,3 @@ body {
 .raid-lobby__listed-room small, .raid-lobby__directory p { color: #a5bfd2; font-size: .8rem; }
 .raid-lobby__visibility { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: .85rem; }
 .raid-lobby__visibility input { width: 18px; height: 18px; padding: 0; flex: 0 0 18px; accent-color: #67e8f9; }
-
-.raid-download-progress {
-  display: grid;
-  gap: 6px;
-  color: #c5dce8;
-  font-variant-numeric: tabular-nums;
-}
-.raid-download-progress progress {
-  width: 100%;
-  accent-color: #8be4e4;
-}

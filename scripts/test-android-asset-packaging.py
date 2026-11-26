@@ -76,25 +76,16 @@ if "--built-assets" in sys.argv:
         assert (dist / "audio/immersion/manifest.json").read_bytes() == (public / "audio/immersion/manifest.json").read_bytes()
         immersion = json.loads((public / "audio/immersion/manifest.json").read_text())
         packed_audio = {name for name in manifest["files"] if name.startswith("audio/immersion/")}
-        bundled_audio = {path.relative_to(dist).as_posix() for path in (dist / "audio/immersion").glob("*.ogg")}
-        assert packed_audio.isdisjoint(bundled_audio)
-        assert packed_audio | bundled_audio == {entry["file"] for entry in immersion["files"]}
-        for name in (
-            "assets/ui/orbital-hangar-v1.png", "assets/ui/console-plate-v1.png", "assets/ui/space-door-v1.webp",
-            "assets/bosses/stage-01-crimson-bastion-v1.webp", "assets/ships/previews/mesiahRaptorBlack-portrait-v5.webp",
-            "audio/bgm_scifi_loop.ogg", "audio/immersion/fleet-motif.ogg",
-            "audio/immersion/fleet-defense-orders.ogg", "audio/immersion/fleet-deployed.ogg",
-        ):
-            assert (dist / name).read_bytes() == (public / name).read_bytes()
-        for name in (
-            "assets/ships/models/v1/rocket.glb", "assets/ships/previews/rocket-portrait-v1.webp",
-            "assets/bosses/special/squid-skin-v1.png", "assets/bosses/materials/capital-armor-atlas-v1.png",
-            "audio/immersion/fleet-departure.ogg", "audio/immersion/fleet-steer.ogg",
-            "audio/immersion/fleet-charge.ogg", "audio/immersion/fleet-recovery.ogg",
-        ):
-            assert name in manifest["files"], f"Raid media should be downloadable: {name}"
-        for directory in ("assets/bosses/special", "assets/bosses/materials"):
-            assert not any(path.is_file() and path.suffix in {".png", ".webp"} for path in (dist / directory).rglob("*"))
+        assert packed_audio == {entry["file"] for entry in immersion["files"]}
+        logo = "assets/brand/zuki-logo-v1.png"
+        assert (dist / logo).read_bytes() == (public / logo).read_bytes()
+        expected_media = {
+            path.relative_to(public).as_posix()
+            for folder in ("assets", "audio")
+            for path in (public / folder).rglob("*")
+            if path.is_file() and path.suffix.lower() not in {".json", ".txt"}
+        }
+        assert set(manifest["files"]) == expected_media - {logo}
         assert (dist / "index.html").is_file()
         assert all(not (dist / name).exists() for name in manifest["files"])
         print(f"Verified real production Android payload: {len(manifest['files'])} media files; JSON metadata retained in APK")

@@ -107,6 +107,7 @@ async function main() {
 
   const mobileChecks = [testDefense, testCallsign, testNativeDownload]
   const checks = process.argv.includes('--raid-only') ? [testRaid]
+    : process.argv.includes('--android-startup-only') ? [testNativeDownload]
     : process.argv.includes('--defense-only') ? mobileChecks : [testRaid, ...mobileChecks]
   const failures = []
   for (const check of checks) {
@@ -244,36 +245,72 @@ async function testCallsign() {
 }
 
 async function testNativeDownload() {
-  const phone = await browser.newPage({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true })
+  const phone = await browser.newPage({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, locale: 'en-US' })
   try {
-    await setUp(phone, true, [])
-    await phone.route(url => url.pathname.endsWith('/src/androidAssetDownload.ts'), route => route.fulfill({
-      contentType: 'text/javascript',
-      body: `
-        let ready = false, pending = null;
-        export const needsNativeRaidAssets = () => true;
-        export const getAndroidRaidAssetsStatus = async () => ({ ready, bytes: ready ? 0 : 7000000 });
-        export const getPendingAndroidRaidInstall = () => pending;
-        export const observeAndroidRaidInstall = () => () => {};
-        export function installAndroidRaidAssets() {
-          return pending ??= new Promise(resolve => {
-            window.completeTestRaidDownload = () => { ready = true; pending = null; resolve(); };
-          });
-        }
-      `,
-    }))
-    await title(phone)
-    await phone.getByRole('button', { name: 'Raid Operations' }).tap()
-    const offer = phone.getByRole('dialog', { name: 'Gradius Raid files' })
-    await offer.getByRole('button', { name: 'Download for offline play' }).tap()
-    await phone.waitForFunction(() => typeof window.completeTestRaidDownload === 'function')
-    await offer.getByRole('button', { name: 'Close' }).tap()
-    await phone.getByRole('button', { name: /Tower Defense Campaign/ }).tap()
-    await phone.getByRole('button', { name: 'Skip Briefing' }).tap()
-    await phone.locator('.defense-board').waitFor()
-    await phone.evaluate(() => window.completeTestRaidDownload())
-    assert.ok(await phone.locator('.defense-board').isVisible(), 'background completion must not interrupt another mode')
-    console.log('Android bridge fixture passed optional download and uninterrupted Ship Defense')
+    await setUp(phone, true, [], false)
+    await phone.addInitScript(() => {
+      window.androidBridge = {}
+      const fixture = { progress: null, finish: null, fail: null, started: 0, failStatus: true }
+      window.testGameAssets = fixture
+      window.Capacitor = {
+        PluginHeaders: [{ name: 'GameAssets', methods: [
+          { name: 'status', rtype: 'promise' }, { name: 'prepare', rtype: 'promise' },
+          { name: 'addListener', rtype: 'callback' }, { name: 'removeListener', rtype: 'promise' },
+        ] }],
+        async nativePromise(plugin, method) {
+          if (plugin !== 'GameAssets') throw Error(plugin)
+          if (method === 'status') {
+            if (fixture.failStatus && !sessionStorage.getItem('fixture-status-checked')) {
+              sessionStorage.setItem('fixture-status-checked', '1')
+              throw Error('Asset status temporarily unavailable')
+            }
+            const ready = sessionStorage.getItem('fixture-assets-ready') === '1'
+            return { ready, bytes: ready ? 0 : 7000000 }
+          }
+          if (method === 'removeListener') { fixture.progress = null; return }
+          if (method !== 'prepare') throw Error(method)
+          fixture.started++
+          return new Promise((resolve, reject) => {
+            fixture.progress({ done: 2000000, total: 7000000 })
+            fixture.finish = () => { sessionStorage.setItem('fixture-assets-ready', '1'); resolve() }
+            fixture.fail = () => reject(new Error('Network interrupted'))
+          })
+        },
+        async nativeCallback(plugin, method, { eventName }, callback) {
+          if (plugin !== 'GameAssets' || method !== 'addListener' || eventName !== 'progress') throw Error(method)
+          fixture.progress = callback
+          return 'listener-1'
+        },
+      }
+    })
+    await phone.goto(origin)
+    const splash = phone.locator('#startup-splash')
+    const retry = splash.getByRole('button', { name: 'Retry', exact: true })
+    await splash.getByText('The game could not check its files. Try again.').waitFor()
+    assert.equal(await phone.locator('#root').evaluate(el => el.childElementCount), 0)
+    await retry.tap()
+    await splash.getByText('Download 7 MB of game files to start playing.').waitFor()
+    assert.equal(await phone.evaluate(() => window.testGameAssets.started), 0, 'Downloads need player consent')
+    const offer = splash.getByRole('button', { name: 'Download game files' })
+    await offer.tap()
+    await splash.getByText('2 MB / 7 MB').waitFor()
+    assert.equal(await phone.locator('.start-screen, .defense-board, .raid').count(), 0)
+    assert.equal(await phone.locator('#root').evaluate(el => el.inert), true)
+    await phone.evaluate(() => window.testGameAssets.fail())
+    await splash.getByText(/The download could not finish/).waitFor()
+    assert.equal(await phone.locator('.start-screen').count(), 0)
+    await retry.tap()
+    await phone.waitForFunction(() => window.testGameAssets.started === 2)
+    assert.equal(await phone.locator('.start-screen').count(), 0)
+    await phone.evaluate(() => window.testGameAssets.finish())
+    await splash.waitFor({ state: 'detached', timeout: 30000 })
+    await phone.getByRole('button', { name: 'Launch Gradius Raid' }).waitFor()
+    await phone.getByRole('button', { name: 'Tower Defense Campaign' }).waitFor()
+    await phone.reload()
+    await splash.waitFor({ state: 'detached', timeout: 30000 })
+    assert.equal(await phone.evaluate(() => window.testGameAssets.started), 0, 'Already-ready installs must skip the download')
+    assert.ok(await phone.getByText('Guest pilot', { exact: true }).isVisible())
+    console.log('Android startup blocked both modes until installation, handled status and download retries, then skipped the prompt on relaunch')
   } finally { await phone.close() }
 }
 
