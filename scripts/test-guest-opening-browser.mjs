@@ -67,7 +67,8 @@ async function takeSimulationControl(page) {
     }
     const offset = refs.findIndex(ref => typeof ref.current?.getShipStats === 'function') - names.indexOf('shipsRef')
     const refsByName = Object.fromEntries(names.map((name, index) => [name, refs[index + offset]]))
-    const update = callbacks.find(fn => fn.toString().includes('const scoreMult = scoreMultRef.current'))
+    const update = callbacks.find(fn => fn.toString().includes('const scoreMult = scoreMultRef.current')
+      && fn.toString().includes('nearMissCooldownRef.current'))
     const draw = callbacks.find(fn => fn.toString().includes('RAID_FX_CANVAS_CONTEXT_SETTINGS'))
     const sync = callbacks.find(fn => fn.toString().includes('const bossAlertBucket'))
     if (!update || !draw || !sync || refsByName.phaseRef.current !== 'playing') throw Error('Invalid opening fixture mapping')
@@ -174,21 +175,22 @@ async function testRaid() {
     assert.equal(await desktop.evaluate(() => window.openingTest.refs.stageRef.current), 2)
     await desktop.evaluate(() => {
       const { refs, update, sync } = window.openingTest
-      refs.stageEntryRef.current = 0
-      refs.carrierStopRef.current = null
+      for (let frame = 0; frame < 650 && refs.stageEntryRef.current > 0; frame++) update(1 / 60)
       const player = refs.playerRef.current
       Object.assign(player, { hp: 1, invuln: 0, shield: 0, forceField: 0 })
       refs.enemyShotsRef.current = [{ id: -2, x: player.x, y: player.y, vx: 0, vy: 0, kind: 'enemy', damage: 3, radius: 3, life: 2 }]
       update(1 / 60)
+      if (refs.phaseRef.current !== 'gameover') throw Error('The final shot did not end the run')
       sync()
     })
     const runReport = desktop.getByRole('dialog').filter({ hasText: 'Combat Report' })
     await runReport.getByRole('button', { name: 'Retry', exact: true }).click()
     await desktop.getByText('Flight deck clear. You have the launch lane.').waitFor({ timeout: 30000 })
+    await takeSimulationControl(desktop)
     assert.equal(await desktop.evaluate(() => window.openingTest.refs.stageRef.current), 1)
     assert.deepEqual(traffic, [], 'a guest run must not call the online profile or leaderboard APIs')
     assert.deepEqual(errors, [])
-    console.log('Desktop guest launch, timed boss warning, counterattack, results and campaign continuation passed')
+    console.log('Desktop guest launch, boss warning, counterattack, reports, campaign continuation and retry passed')
   } catch (error) {
     const visible = await desktop.locator('body').innerText({ timeout: 4000 }).catch(() => '')
     throw new Error(`Raid did not complete its opening check. Visible state: ${visible.slice(0, 1000)}`, { cause: error })
