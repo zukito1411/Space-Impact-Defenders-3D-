@@ -107,13 +107,13 @@ function buildMaterials(specs: Partial<Record<Shot['kind'], MaterialSpec>>, targ
 }
 
 /** Bake the halo into each cell so both renderers still draw one sprite per shot. */
-function bakeProjectileGlow(root: Texture, frames: readonly Texture[], solidFrames: readonly Texture[] = []) {
+function bakeProjectileGlow(root: Texture, frames: readonly Texture[], solidFrames: readonly Texture[] = [], hostile = false) {
   const image = root.source.resource as CanvasImageSource | undefined
   if (!image) return
   const canvas = document.createElement('canvas')
   canvas.width = root.source.pixelWidth
   canvas.height = root.source.pixelHeight
-  const ctx = canvas.getContext('2d')
+  const ctx = canvas.getContext('2d', { willReadFrequently: hostile })
   if (!ctx) return
   const resolution = root.source.resolution
   for (const texture of frames) {
@@ -137,6 +137,7 @@ function bakeProjectileGlow(root: Texture, frames: readonly Texture[], solidFram
     }
     ctx.restore()
   }
+  if (hostile) colorHostileProjectilePixels(ctx)
   const atlas = Texture.from(canvas, true)
   rootTextures.push(atlas)
   for (const texture of frames) {
@@ -175,7 +176,7 @@ function prepareHostileArtwork(original: Texture, frames: Texture[], solidIndice
     frames = bounds.map(frame => new Texture({ source: root.source, frame }))
   }
   if (root !== original || !rootTextures.includes(original)) rootTextures.push(root)
-  if (root !== original || !glowFrames.has(frames[0])) bakeProjectileGlow(root, frames, solidIndices.map(i => frames[i]))
+  if (root !== original || !glowFrames.has(frames[0])) bakeProjectileGlow(root, frames, solidIndices.map(i => frames[i]), true)
   return frames
 }
 
