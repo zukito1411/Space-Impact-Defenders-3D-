@@ -1,3 +1,4 @@
+import type { CruiseManeuver } from './cruiseEncounters'
 import type { BlackHoleCapture } from './blackHoleDistortion'
 import type { CarrierStop } from './carrierRecovery'
 import type { CommandPattern } from './commandBoss'
@@ -186,6 +187,9 @@ export type Enemy = Vec & {
   amplitude: number
   trainSlot: number
   squadId?: number
+  cruiseManeuver?: CruiseManeuver
+  cruiseFlank?: number
+  cruiseEliteAge?: number
   tacticX?: number
   tacticSpeed?: number
   tacticHoldFire?: boolean
@@ -216,6 +220,9 @@ export type Enemy = Vec & {
 }
 
 export type EnemySpawnProfile = {
+  cruiseManeuver?: CruiseManeuver
+  cruiseFlank?: number
+  cruiseElite?: boolean
   squadId?: number
   variant: number
   motion?: number

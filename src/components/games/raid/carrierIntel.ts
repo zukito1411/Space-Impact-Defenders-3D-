@@ -2,7 +2,7 @@ import { getRaidText, getReleaseText, type LanguageCode } from '../../../i18n'
 import { getCampaignBossKind, getGenericBossArt } from './bossCatalog'
 import { cosmicArrival } from './cosmos'
 import { getCampaignOpeningIntel, getCampaignRiftIntel } from './campaignComms'
-import { getRaidStageEncounter } from './stageEncounters'
+import { getCruiseOpeningLayout } from './cruiseEncounters'
 import type { BossKind, RaidMode } from './types'
 
 const bossCodex = {
@@ -28,7 +28,7 @@ export function getCarrierSectorIntel(language: LanguageCode, mode: RaidMode, st
   const codexKey = kind === 'squid' || kind === 'snake' || kind === 'final' || kind === 'devil' ? bossCodex[kind] : undefined
   const target = codexKey ? getReleaseText(language).codexMap[codexKey].title : kind ? getGenericBossArt(kind, stage)?.name : undefined
   const arrival = mode === 'endless' || recoveryBoss === 'devil' ? undefined : cosmicArrival(stage, true).name
-  const formation = (mode === 'campaign' && recoveryBoss !== 'devil') || (!recoveryBoss && mode === 'endless') ? text.hud.formationIntel[getRaidStageEncounter(stage).wings[0][0]] : undefined
+  const formation = (mode === 'campaign' && recoveryBoss !== 'devil') || (!recoveryBoss && mode === 'endless') ? text.hud.formationIntel[getCruiseOpeningLayout(stage)] : undefined
   const campaignBossStage = mode === 'campaign' && (stage === 5 || stage === 10 || stage === 15)
   const showTarget = recoveryBoss || campaignBossStage
   return {

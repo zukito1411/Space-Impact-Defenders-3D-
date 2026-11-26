@@ -7,6 +7,7 @@ const clamp=(n:number,min:number,max:number)=>Math.max(min,Math.min(max,n))
  * shot budgets and committed aim; clients receive the authoritative positions. */
 export class EnemyTactics {
   private readonly wings=new Map<number,Wing>()
+  private readonly cruiseLeaders = new Map<number, Enemy>()
   private frame=0
   private epoch=''
   update(enemies:readonly Enemy[],dt:number,stage:number,run:number,target:Vec) {
@@ -14,12 +15,16 @@ export class EnemyTactics {
     if(this.epoch!==epoch){this.wings.clear();this.epoch=epoch}
     this.frame++
     for(const wing of this.wings.values())wing.members.length=0
+    this.cruiseLeaders.clear()
     let protectedHull:Enemy|undefined
     for(const enemy of enemies) {
       enemy.tacticX=undefined;enemy.tacticSpeed=1;enemy.tacticHoldFire=false
       if(enemy.hp<=0)continue
       if((enemy.isBoss || enemy.isMiniBoss) && enemy.hp/enemy.maxHp<.48) {
         if(!protectedHull || enemy.isBoss && !protectedHull.isBoss || enemy.isBoss===protectedHull.isBoss && enemy.hp/enemy.maxHp<protectedHull.hp/protectedHull.maxHp)protectedHull=enemy
+      }
+      if (enemy.isMiniBoss && enemy.squadId !== undefined && enemy.cruiseEliteAge !== undefined) {
+        this.cruiseLeaders.set(enemy.squadId, enemy)
       }
       if(enemy.isBoss || enemy.isMiniBoss)continue
       const id=enemy.squadId ?? -enemy.id
@@ -38,13 +43,46 @@ export class EnemyTactics {
       }
       center/=wing.members.length
       if(!leaderAlive){wing.regroup=2.4;wing.leader=leader.id}
+      const elite = this.cruiseLeaders.get(id)
       const cycle=Math.floor(wing.age/10)
-      if(cycle!==wing.cycle){wing.cycle=cycle;wing.attackX=target.x}
+      if(cycle!==wing.cycle){wing.cycle=cycle;if(!wing.members[0].cruiseManeuver)wing.attackX=target.x}
       const phase=wing.age%10
       for(let i=0;i<wing.members.length;i++) {
         const enemy=wing.members[i],role=enemy.variant-LEGACY_FIGHTER_COUNT
-        if(enemy.y<4 || enemy.y>76)continue
         const side=(enemy.trainSlot%2 ? 1 : -1)
+        const flank = enemy.cruiseFlank ?? side
+        if (enemy.cruiseManeuver === 'escort' && !elite) {
+          enemy.tacticX = flank < 0 ? 5 : 95
+          enemy.tacticSpeed = 1.45
+          enemy.tacticHoldFire = true
+          continue
+        }
+        if (enemy.cruiseManeuver === 'barrage') {
+          enemy.tacticX = enemy.originX
+          enemy.tacticSpeed = enemy.y < 24 ? .87 : enemy.y < 43 ? .53 : 1.14
+          enemy.tacticHoldFire = enemy.y < 21
+          continue
+        }
+        if(enemy.y<4 || enemy.y>76)continue
+        if (enemy.cruiseManeuver === 'escort' && elite) {
+          enemy.tacticX = clamp(elite.x + flank * (11 + Math.floor(i / 2) * 6), 6, 94)
+          enemy.tacticSpeed = enemy.y > elite.y + 9 ? .12 : enemy.y > elite.y ? .52 : .95
+          continue
+        }
+        if (enemy.cruiseManeuver === 'pincer') {
+          const rank = Math.floor(enemy.trainSlot / 2)
+          enemy.tacticX = clamp(wing.attackX + flank * (enemy.y < 40 ? 16 + rank * 5 : 7 + rank * 5), 7, 93)
+          enemy.tacticSpeed = enemy.y < 25 ? .88 : 1.23
+          continue
+        }
+        if (enemy.cruiseManeuver === 'dive') {
+          if (enemy.y >= 20) {
+            enemy.tacticX = clamp(wing.attackX + flank * (10 - enemy.trainSlot * 3), 8, 92)
+            enemy.tacticSpeed = enemy.y < 32 ? .72 : 1.49
+            enemy.tacticHoldFire = enemy.y < 32
+          }
+          continue
+        }
         if(wing.regroup>0 && wing.members.length>1) {
           enemy.tacticX=clamp(center+(i-(wing.members.length-1)/2)*6,7,93)
           enemy.tacticSpeed=.78;enemy.tacticHoldFire=wing.regroup>1.65

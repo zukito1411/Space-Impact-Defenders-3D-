@@ -4,7 +4,10 @@ import ts from 'typescript'
 
 const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8')
 const raid = 'src/components/games/raid/'
-const profileSource = read(raid + 'stageEncounters.ts').replace(/^import .*\n/gm, '')
+const withoutImports = source => source.replace(/^import .*\n/gm, '')
+const profileSource = withoutImports(read(raid + 'stageEncounters.ts'))
+const cruiseSource = withoutImports(read(raid + 'cruiseEncounters.ts'))
+const tacticsSource = withoutImports(read(raid + 'enemyTactics.ts')).replace('const clamp=', 'const clampTactic=').replaceAll('clamp(', 'clampTactic(')
 const runtime = read(raid + 'GradiusRaidRuntime.tsx')
 const section = (start, end) => {
   const first = runtime.indexOf(start)
@@ -20,7 +23,7 @@ const markBossAttack = () => {}
 let enemyId = 0, shotId = 0
 const stageRef = { current: 1 }, waveRef = { current: 1 }, wingSerialRef = { current: 0 }
 const playerRef = { current: { x: 50, y: 83 } }, enemyHpMultRef = { current: 1 }
-const enemiesRef = { current: [] }, enemyShotsRef = { current: [] }
+const enemiesRef = { current: [] }, enemyShotsRef = { current: [] }, bossTimerRef = { current: 90 }
 const getPowerScore = () => 4, isCoOpActive = () => false
 const getMaxActiveEliteEnemies = () => 2, getEliteEnemyChance = () => 1
 const pickEliteEnemyKind = () => 'lancer', RAID_ELITE_SPRITE_COUNT = 5
@@ -37,13 +40,21 @@ export function formation(stage, serial, liveEnemies = 0) {
   spawnFormation()
   return { enemies: enemiesRef.current.slice(liveEnemies), next: wingSerialRef.current }
 }
+export function cruise(stage, serial, { liveEnemies = 0, hazard = false, bossRemaining = 90 } = {}) {
+  stageRef.current = waveRef.current = stage
+  wingSerialRef.current = serial
+  bossTimerRef.current = bossRemaining
+  enemiesRef.current = Array.from({ length: liveEnemies }, () => ({ hp: 1 }))
+  const interval = spawnCruiseEncounter(hazard)
+  return { enemies: enemiesRef.current.slice(liveEnemies), next: wingSerialRef.current, interval }
+}
 export function fire(enemy, target, queued = 0) {
   enemyShotsRef.current = Array.from({ length: queued }, () => ({}))
   fireEnemy(enemy, target, 0)
   return enemyShotsRef.current.slice(queued)
 }
 `
-const code = ts.transpileModule(profileSource + harness + spawnSource + fireSource + wrapper, {
+const code = ts.transpileModule(profileSource + cruiseSource + tacticsSource + harness + spawnSource + fireSource + wrapper, {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
 }).outputText
 const api = await import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'))
@@ -118,3 +129,57 @@ assert.equal(ram.fighterAimX,70,'committed ram must not retarget after warning')
 assert.ok(api.getRaidFighterSpeedScale(ram)<1)
 assert.ok(api.getRaidFighterCharge({...ram,y:35})>0)
 assert.ok(api.getRaidFighterSpeedScale({...ram,y:41})>1)
+
+const routes = new Set()
+for (let stage = 2; stage <= 15; stage++) {
+  const route = Array.from({ length: 11 }, (_, slot) => api.getCruiseEncounter(stage, slot))
+  routes.add(route.map(beat => beat.elite ?? beat.maneuver).join(','))
+  assert.ok(new Set(route.map(beat => beat.maneuver)).size >= 4)
+  const eliteSlots = route.flatMap((beat, slot) => beat.elite ? [slot] : [])
+  assert.equal(eliteSlots.length, 2)
+  assert.notEqual(route[eliteSlots[0]].elite, route[eliteSlots[1]].elite)
+  for (const slot of eliteSlots) {
+    const { enemies, next, interval } = api.cruise(stage, slot)
+    assert.equal(next, slot + 1)
+    assert.equal(interval, route[slot].interval)
+    assert.equal(enemies.filter(enemy => enemy.isMiniBoss).length, 1)
+    assert.ok(enemies.every(enemy => enemy.squadId === enemies[0].squadId))
+    assert.ok(enemies.slice(1).every(enemy => enemy.cruiseManeuver === 'escort'))
+    assert.deepEqual(api.cruise(stage, slot, { hazard: true }).enemies, [])
+    assert.equal(api.cruise(stage, slot, { hazard: true }).next, slot)
+    assert.equal(api.cruise(stage, slot, { bossRemaining: 14 }).next, slot + 1)
+  }
+  assert.equal(api.cruise(stage, 0, { liveEnemies: 31 }).next, 0)
+}
+assert.equal(routes.size, 14)
+assert.equal(api.getCruiseOpeningLayout(1), 'chevron')
+assert.equal(api.getCruiseOpeningLayout(3), 'line')
+assert.equal(api.getCruiseOpeningLayout(4), 'echelon')
+assert.equal(api.getCruiseOpeningLayout(5), 'split')
+
+const pincer = api.cruise(2, 1).enemies
+assert.ok(pincer[0].y > pincer[1].y)
+assert.ok(pincer[0].x < 50 && pincer[1].x > 50)
+const artillery = api.cruise(3, 0).enemies.map(enemy => ({ ...enemy, y: 19 }))
+new api.EnemyTactics().update(artillery, .1, 3, 1, { x: 62, y: 85 })
+assert.ok(artillery.every(enemy => Math.abs(enemy.x - 50) >= 16 && enemy.tacticHoldFire))
+const escortGroup = api.cruise(2, 3).enemies
+const elite = escortGroup[0]
+escortGroup.slice(1).forEach(enemy => { enemy.y = 26 })
+const tactics = new api.EnemyTactics()
+tactics.update(escortGroup, .1, 2, 1, { x: 50, y: 85 })
+assert.ok(escortGroup.slice(1).every(enemy => !enemy.tacticHoldFire))
+elite.hp = 0
+tactics.update(escortGroup, .1, 2, 1, { x: 50, y: 85 })
+assert.ok(escortGroup.slice(1).every(enemy => enemy.tacticHoldFire && enemy.tacticSpeed > 1))
+api.beginCruiseEliteAttack(elite, { x: 48, y: 82 })
+assert.equal(elite.chargeLane, 48)
+assert.ok(elite.chargeTimer >= 1)
+const charges = []
+assert.equal(api.fireCruiseLancer(elite, 3, shot => charges.push(shot)), false)
+assert.equal(api.fireCruiseLancer(elite, 4, shot => charges.push(shot)), true)
+assert.ok(charges.every(shot => shot.vx === 0 && Math.abs(shot.x - 48) < 4))
+assert.equal(api.cruiseEliteShouldWithdraw(21, 60), true)
+assert.equal(api.cruiseEliteShouldWithdraw(3, 2), true)
+assert.equal(api.cruiseEliteShouldWithdraw(3, 12), false)
+console.log('Cruise: 14 authored routes, staggered pincers, firing lines, elite escorts, warning timing, and shot caps passed')
