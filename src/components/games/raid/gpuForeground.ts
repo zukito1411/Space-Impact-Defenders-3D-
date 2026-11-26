@@ -1,5 +1,6 @@
 import { DESTRUCTION_FX_CAPACITY, destructionParticleTexture, type DestructionParticle } from './destructionEffects'
 import { missileVisualScale } from './missilePresentation'
+import { HOSTILE_PROJECTILE_COLOR } from './hostileProjectileArt'
 import { MISSILE_SMOKE_CAPACITY } from './missileSmoke'
 import type { MissileSmokePuff } from './missileSmoke'
 import { normalEnemyHullKey } from './enemyHulls'
@@ -90,18 +91,14 @@ function playerStyle(shot: Shot, advanced: boolean, scale: number): ShotStyle | 
 
 function enemyStyle(shot: Shot, advanced: boolean, scale: number): ShotStyle | null {
   if (!isGpuEnemyShot(shot, advanced)) return null
-  if (!advanced) {
-    const green = shot.kind === 'poisonCloud' || shot.kind === 'venomSpit' || shot.kind === 'snakeFang' || shot.kind === 'devilSnakeHead'
-    const pink = shot.kind === 'squidInk' || shot.kind === 'squidSpine'
-    return orb(green ? 'rgba(132,204,22,0.68)' : pink ? 'rgba(244,114,182,0.78)' : 'rgba(251,113,133,0.78)', (shot.kind === 'squidBubble' ? 12 : 8) * scale)
-  }
-  if (shot.kind === 'blade') return trail('rgba(34,211,238,0.9)', 46 * scale, 7 * scale)
-  if (shot.kind === 'needle') return trail('rgba(190,242,100,0.92)', 42 * scale, 5 * scale)
-  if (shot.kind === 'scatterBoss') return trail('rgba(251,146,60,0.9)', 34 * scale, 5 * scale)
-  if (shot.kind === 'orbShot') return orb('rgba(168,85,247,0.92)', 12 * scale)
-  if (shot.kind === 'voidShot') return orb('rgba(192,132,252,0.95)', 15 * scale)
-  if (shot.kind === 'superShot') return orb('rgba(251,191,36,0.95)', 14 * scale)
-  return orb('rgba(251,113,133,0.9)', 10 * scale)
+  if (!advanced) return orb(HOSTILE_PROJECTILE_COLOR, (shot.kind === 'squidBubble' ? 12 : 8) * scale)
+  if (shot.kind === 'blade') return trail(HOSTILE_PROJECTILE_COLOR, 46 * scale, 7 * scale)
+  if (shot.kind === 'needle') return trail(HOSTILE_PROJECTILE_COLOR, 42 * scale, 5 * scale)
+  if (shot.kind === 'scatterBoss') return trail(HOSTILE_PROJECTILE_COLOR, 34 * scale, 5 * scale)
+  if (shot.kind === 'orbShot') return orb(HOSTILE_PROJECTILE_COLOR, 12 * scale)
+  if (shot.kind === 'voidShot') return orb(HOSTILE_PROJECTILE_COLOR, 15 * scale)
+  if (shot.kind === 'superShot') return orb(HOSTILE_PROJECTILE_COLOR, 14 * scale)
+  return orb(HOSTILE_PROJECTILE_COLOR, 10 * scale)
 }
 
 type OwnedTexture = { texture: Texture; canvas: HTMLCanvasElement; owned: boolean }
@@ -215,7 +212,7 @@ export class RaidGpuForeground {
       node.anchor.set(.5);node.visible=false;node.eventMode='none'
       this.destructionLayer.addChild(node);this.destructionNodes.push(node)
     }
-    // Frame textures use the same two underlying sources; upload each once.
+    // Frame textures share their atlas sources; upload each once.
     await renderer.prepare.upload([...getRaidCombatRootTextures(), ...Array.from(this.textures.values(), (record) => record.texture)])
   }
 

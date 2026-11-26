@@ -41,10 +41,6 @@
     bottom: auto;
     inset-block-start: max(60px, calc(env(safe-area-inset-top) + 60px));
   }
-  .defense-fleet-radio .fleet-radio {
-    max-width: min(285px, calc(100vw - 20px));
-    padding: 4px 7px;
-  }
 }
 .defense-placement {
   position: absolute;

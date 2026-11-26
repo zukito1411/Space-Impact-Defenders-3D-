@@ -2309,7 +2309,7 @@ export function SpaceImpactDefense({ availableCoins, onClose, initialMode = 'nor
 
       {deploymentCue && !activeOverlay && (
         <div className="defense-fleet-radio">
-          <FleetRadio name={command.radio}>{command[deploymentCue]}</FleetRadio>
+          <FleetRadio>{command[deploymentCue]}</FleetRadio>
         </div>
       )}
 
