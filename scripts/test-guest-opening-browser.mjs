@@ -35,7 +35,7 @@ async function assertCompactCaption(caption) {
 
 async function assertProjectileColors(page) {
   await page.evaluate(async () => {
-    const { RAID_BOSS_ATLAS_URL, RAID_BOSS_BEAM_URL, applyRaidBossArtwork, getRaidProjectileMaterial,
+    const { RAID_BOSS_ATLAS_URL, RAID_BOSS_BEAM_URL, applyRaidBossArtwork, getRaidCombatRootTextures, getRaidProjectileMaterial,
       getRaidProjectileTexture, sharesPlayerProjectileArt } =
       await import('/src/components/games/raid/combatArt.ts')
     const { createGpuBossProjectileCanvas } = await import('/src/components/games/raid/gpuBossProjectiles.ts')
@@ -73,26 +73,20 @@ async function assertProjectileColors(page) {
         if (fromTexture(getRaidProjectileMaterial(kind).texture, glow) > .2) throw Error(`Player ${kind} picked up the hostile color`)
       }
     }
-    const bossAtlas = await createImageBitmap(await (await fetch(RAID_BOSS_ATLAS_URL)).blob())
-    const originalBeam = await createImageBitmap(await (await fetch(RAID_BOSS_BEAM_URL)).blob())
-    const expectOriginal = (kind, texture, original) => {
-      if (sharesPlayerProjectileArt(kind) || !texture) throw Error(`${kind} should keep its original enemy-only artwork`)
-      const { x, y, width, height } = texture.frame
-      const actual = read(texture.source.resource, x, y, width, height)
-      const expected = read(original, x, y, width, height)
-      if (actual.some((byte, i) => Math.abs(byte - expected[i]) > 1)) throw Error(`${kind} was recolored`)
+    const originalSource = url => getRaidCombatRootTextures().find(texture =>
+      texture.source.label === new URL(url, document.baseURI).href)?.source
+    const expectOriginal = (kind, texture, url) => {
+      const source = originalSource(url)
+      if (sharesPlayerProjectileArt(kind) || !source || texture?.source !== source) {
+        throw Error(`${kind} should use the original enemy-only texture source`)
+      }
     }
-    try {
-      for (const kind of ['enemy', 'boss', 'plasma', 'orbShot', 'voidShot', 'superShot']) {
-        expectOriginal(kind, getRaidProjectileMaterial(kind, true).texture, bossAtlas)
-      }
-      for (const kind of ['beam', 'poisonCloud', 'snakeFang', 'venomSpit', 'squidBubble', 'squidInk', 'squidSpine']) {
-        const texture = applyRaidBossArtwork({ kind, width: 50, height: 20, rotation: 0, alpha: 1, x: 0, y: 0 })
-        expectOriginal(kind, texture, kind === 'beam' ? originalBeam : bossAtlas)
-      }
-    } finally {
-      bossAtlas.close()
-      originalBeam.close()
+    for (const kind of ['enemy', 'boss', 'plasma', 'orbShot', 'voidShot', 'superShot']) {
+      expectOriginal(kind, getRaidProjectileMaterial(kind, true).texture, RAID_BOSS_ATLAS_URL)
+    }
+    for (const kind of ['beam', 'poisonCloud', 'snakeFang', 'venomSpit', 'squidBubble', 'squidInk', 'squidSpine']) {
+      const texture = applyRaidBossArtwork({ kind, width: 50, height: 20, rotation: 0, alpha: 1, x: 0, y: 0 })
+      expectOriginal(kind, texture, kind === 'beam' ? RAID_BOSS_BEAM_URL : RAID_BOSS_ATLAS_URL)
     }
     const beamFallback = createGpuBossProjectileCanvas('beam')
     if (pinkFraction(read(beamFallback, 0, 0, beamFallback.width, beamFallback.height)) > .1) {
