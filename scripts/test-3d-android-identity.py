@@ -5,7 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 APP_ID = "com.zukito.spaceimpactdefender3d"
 APP_NAME = "Space Impact Defenders 3D"
-MEDIA_URL = "https://github.com/zukito1411/Space-Impact-Defenders-3D-/releases/download/android-3d-assets-v1/"
+MEDIA_URL = "https://github.com/zukito1411/Space-Impact-Defenders-3D-/releases/download/android-3d-assets-v2/"
 
 def source(name: str) -> str:
     return (ROOT / name).read_text(encoding="utf-8")
@@ -27,7 +27,8 @@ assert f'<string name="package_name">{APP_ID}</string>' in labels
 assert f'<string name="custom_url_scheme">{APP_ID}</string>' in labels
 assert MEDIA_URL in native_assets
 assert "Space-Impact-Defenders-3D-/releases/download/{RELEASE}/" in packager
-assert 'RELEASE = "android-3d-assets-v1"' in packager
+assert 'RELEASE = "android-3d-assets-v2"' in packager
+assert '"game-assets-v1"' in native_assets  # Keep installed, hash-addressed media across release tags.
 assert "SpaceImpactDefenders3D-release.apk" in workflow
 assert "SpaceImpactDefenders3D-release.apk" in verify
 assert 'TAG="android-3d-v${GITHUB_RUN_NUMBER}"' in workflow
