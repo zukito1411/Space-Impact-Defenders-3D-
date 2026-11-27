@@ -146,14 +146,63 @@ for (const role of [0,1,2,3,4,5]) {
 console.log('Raid stages: 15 unique rotations, six layouts and aircraft, formation integrity, authored shots and live caps passed')
 
 
-const ram = { ...formationEnemy, y: 24, variant: api.LEGACY_FIGHTER_COUNT+3 }
-api.commitRaidFighterManeuver(ram,{x:70,y:80})
-assert.equal(ram.fighterAimX,70)
-api.commitRaidFighterManeuver(ram,{x:10,y:80})
-assert.equal(ram.fighterAimX,70,'committed ram must not retarget after warning')
-assert.ok(api.getRaidFighterSpeedScale(ram)<1)
-assert.ok(api.getRaidFighterCharge({...ram,y:35})>0)
-assert.ok(api.getRaidFighterSpeedScale({...ram,y:41})>1)
+for (const fps of [30, 60, 120]) {
+  const dt = 1 / fps
+  const pilot = { x: 65, y: 85 }
+  const wing = api.formation(2, 0).enemies
+  const scout = { ...wing[0], x: 40, y: 89, fireCooldown: 1.2 }
+  const tailShots = []
+  for (let frame = 0; frame < fps; frame++) {
+    api.advanceRaidFighterFire(scout, pilot, dt, 1, 8, shot => tailShots.push(shot))
+    scout.y = api.advanceRaidFighterY(scout, pilot, dt)
+  }
+  assert.equal(tailShots.length, 1, 'a passing scout gets a tail shot while visible')
+  assert.ok(tailShots[0].vy < 0 && tailShots[0].vx > 0 && tailShots[0].y < 100)
+  assert.ok(scout.y > 100, 'the scout still flies offscreen')
+  assert.equal(api.fire(scout, pilot).length, 0)
+
+  const trailingPilot = { ...pilot, y: 88 }
+  const nearEdgeScout = { ...wing[0], x: trailingPilot.x, y: 89, fireCooldown: 1.2 }
+  const nearEdgeShots = []
+  for (let frame = 0; frame < fps; frame++) {
+    api.advanceRaidFighterFire(nearEdgeScout, trailingPilot, dt, 1, 8, shot => nearEdgeShots.push(shot))
+    nearEdgeScout.y = api.advanceRaidFighterY(nearEdgeScout, trailingPilot, dt)
+  }
+  assert.equal(nearEdgeShots.length, 1, 'the tail warning starts in time for an aligned scout near the exit')
+
+  const ram = { ...wing[1], variant: api.LEGACY_FIGHTER_COUNT + 3, y: 49 }
+  let charges = 0
+  let closestY = 0
+  for (let frame = 0; frame < fps * 11; frame++) {
+    const wasCharging = api.getRaidRamAttackLane(ram) !== undefined
+    const dodgingPilot = { ...pilot, x: wasCharging ? 12 : pilot.x }
+    ram.y = api.advanceRaidFighterY(ram, dodgingPilot, dt)
+    if (!wasCharging && api.getRaidRamAttackLane(ram) !== undefined) charges++
+    if (api.getRaidRamAttackLane(ram) !== undefined) assert.equal(api.getRaidRamAttackLane(ram), pilot.x)
+    closestY = Math.max(closestY, ram.y)
+    assert.ok(ram.y < pilot.y, 'a ram must stop short of passing its target and rearm')
+  }
+  assert.ok(charges >= 3 && closestY >= 79, 'the ram must repeat credible, committed charges')
+
+  for (const variant of [0, 9, 10, 12, 13]) {
+    const enemy = { ...wing[1], x: 50, y: -7, variant }
+    const shots = []
+    for (let frame = 0; frame < 18 * fps; frame++) {
+      const target = frame < 7 * fps ? pilot : { x: 50, y: 13 }
+      enemy.tacticHoldFire = false
+      api.advanceRaidFighterDefense(enemy, target, dt)
+      api.advanceRaidFighterFire(enemy, target, dt, 1, 16, shot => shots.push(shot))
+      enemy.y = api.advanceRaidFighterY(enemy, target, dt)
+      if (frame === 6 * fps) {
+        assert.ok(enemy.y > 20 && enemy.y <= pilot.y - 10)
+        assert.ok(shots.length >= 2, `variant ${variant} stopped firing after it reached its lane`)
+        shots.length = 0
+      }
+    }
+    assert.ok(enemy.y >= 3 && enemy.y < 6, 'an outflown fighter repositions ahead of the pilot')
+    assert.ok(shots.length >= 2 && shots.every(shot => shot.vy > 0), 'the fighter resumes combat once in range')
+  }
+}
 
 const routes = new Set()
 for (let stage = 2; stage <= 15; stage++) {
@@ -173,6 +222,9 @@ for (let stage = 2; stage <= 15; stage++) {
     assert.equal(api.cruise(stage, slot, { bossRemaining: 14 }).next, slot + 1)
   }
   assert.equal(api.cruise(stage, 0, { liveEnemies: 31 }).next, 0)
+  const wingSize = api.cruise(stage, 0).enemies.length
+  assert.equal(api.cruise(stage, 0, { liveEnemies: 12 - wingSize }).enemies.length, wingSize)
+  assert.equal(api.cruise(stage, 0, { liveEnemies: 13 - wingSize }).next, 0)
 }
 assert.equal(routes.size, 14)
 assert.equal(api.getCruiseOpeningLayout(1), 'chevron')
@@ -194,7 +246,7 @@ tactics.update(escortGroup, .1, 2, 1, { x: 50, y: 85 })
 assert.ok(escortGroup.slice(1).every(enemy => !enemy.tacticHoldFire))
 elite.hp = 0
 tactics.update(escortGroup, .1, 2, 1, { x: 50, y: 85 })
-assert.ok(escortGroup.slice(1).every(enemy => enemy.tacticHoldFire && enemy.tacticSpeed > 1))
+assert.ok(escortGroup.slice(1).every(enemy => !enemy.tacticHoldFire && !enemy.cruiseManeuver))
 const attackCycles = {
   lancer: [['drill', 4], ['crossfire', 6], ['rail', 3]],
   stalker: [['knives', 4], ['flank', 3], ['fan', 6]],
@@ -286,7 +338,7 @@ for (const fps of [30, 60, 120]) {
         assert.ok(crossfire.every(enemy => api.getRaidFighterCharge(enemy) > 0))
       }
       for (const enemy of crossfire) {
-        if (enemy.hp <= 0 || enemy.tacticHoldFire) continue
+        if (enemy.hp <= 0 || enemy.tacticHoldFire || enemy.cruiseManeuver !== 'crossfire') continue
         assert.equal(enemy.chargeTargetY, 83)
         assert.ok(Math.abs(enemy.chargeLane - 53) >= 8)
         assert.equal(api.fire(enemy, pilot, 132).length, 0)
@@ -294,13 +346,15 @@ for (const fps of [30, 60, 120]) {
       }
     }
     assert.equal(shots.length, disrupted ? 0 : crossfire.length)
+    assert.ok(crossfire.filter(enemy => enemy.hp > 0).every(enemy => !enemy.cruiseManeuver && !enemy.tacticHoldFire),
+      'surviving crossfire fighters return to ordinary combat')
     for (const shot of shots) {
       const xAtTarget = shot.x + shot.vx / shot.vy * (83 - shot.y)
       assert.ok(Math.abs(Math.abs(xAtTarget - 53) - 8) < 1e-6, 'the marked center corridor stays open')
     }
   }
 }
-console.log('Campaign cadence, banked sweeps and locked, interruptible crossfire passed at 30/60/120 Hz')
+console.log('Campaign cadence, fighter engagements, tail fire, ram cycles and interruptible crossfire passed at 30/60/120 Hz')
 
 const defenses = api.RAID_FIGHTERS.map((_, index) => api.getRaidFighterDurability(api.LEGACY_FIGHTER_COUNT + index, 10, 1))
 assert.equal(new Set(defenses.map(fighter => fighter.hp)).size, 6)

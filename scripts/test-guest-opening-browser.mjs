@@ -377,6 +377,11 @@ async function testRaid() {
         const lane = shot.x + shot.vx / shot.vy * (83 - shot.y)
         if (Math.abs(Math.abs(lane - 52) - 8) > .01) throw Error('Crossfire retargeted a dodging pilot')
       }
+      refs.enemyShotsRef.current.length = 0
+      for (let frame = 0; frame < 120; frame++) update(1 / 60)
+      if (!refs.enemyShotsRef.current.some(shot => shot.kind === 'plasma' || shot.kind === 'blade')) {
+        throw Error('Crossfire survivors did not resume their regular attacks')
+      }
     })
     await desktop.evaluate(() => {
       const { refs, update, draw, sync } = window.openingTest
@@ -431,9 +436,61 @@ async function testRaid() {
       sync()
     })
     await capture(desktop, 'phase-and-cloak')
+    await desktop.evaluate(() => {
+      const { refs, update, draw, sync } = window.openingTest
+      const scout = refs.enemiesRef.current.find(enemy => enemy.variant === 8)
+      const interceptor = refs.enemiesRef.current.find(enemy => enemy.variant === 9)
+      if (!scout || !interceptor) throw Error('Missing scout and interceptor from the stage 5 wing')
+      refs.enemiesRef.current = [scout, interceptor]
+      refs.enemyShotsRef.current.length = 0
+      refs.shotsRef.current.length = 0
+      refs.formationTimerRef.current = refs.randomEventTimerRef.current = 100
+      refs.randomEventsRef.current.length = 0
+      refs.asteroidsRef.current.length = 0
+      const pilot = refs.playerRef.current
+      Object.assign(pilot, { x: 66, y: 74, invuln: 100, fireCooldown: 100 })
+      Object.assign(scout, { x: 31, originX: 31, y: 84, fireCooldown: 1 })
+      Object.assign(interceptor, { x: 77, originX: 77, y: 34, fighterPhaseSide: undefined, fighterDefenseAge: 4 })
+      for (let frame = 0; frame < 24; frame++) update(1 / 60)
+      const tailShot = refs.enemyShotsRef.current.find(shot => shot.kind === 'needle' && shot.vy < 0)
+      if (!tailShot || scout.y <= pilot.y || scout.y >= 100 || !refs.enemiesRef.current.includes(scout)) {
+        throw Error('An on-screen scout must fire back towards the pilot after a pass')
+      }
+      pilot.invuln = 0
+      draw(performance.now())
+      // The Three hull pass presents the submissions made by the foreground pass.
+      draw(performance.now())
+      sync()
+    })
+    await capture(desktop, 'scout-tail-fire')
+    await desktop.evaluate(() => {
+      const { refs, update } = window.openingTest
+      const scout = refs.enemiesRef.current.find(enemy => enemy.variant === 8)
+      const interceptor = refs.enemiesRef.current.find(enemy => enemy.variant === 9)
+      const pilot = refs.playerRef.current
+      pilot.invuln = 100
+      const shots = new Set()
+      for (let frame = 0; frame < 820; frame++) {
+        if (frame === 360) pilot.y = 16
+        update(1 / 60)
+        for (const shot of refs.enemyShotsRef.current) if (shot.kind === 'blade') shots.add(shot.id)
+        if ((frame === 359 || frame === 819) && interceptor.y >= pilot.y - 8) {
+          throw Error('The interceptor did not take a combat position ahead of the pilot')
+        }
+      }
+      if (refs.enemiesRef.current.includes(scout) || !refs.enemiesRef.current.includes(interceptor) || shots.size < 6) {
+        throw Error('The scout should fly offscreen while the interceptor remains and fires repeated volleys')
+      }
+      interceptor.fighterDefenseAge = 4
+      interceptor.fighterPhaseSide = undefined
+      refs.shotsRef.current = [{ id: -7, x: interceptor.x, y: interceptor.y, vx: 0, vy: 0, kind: 'pulse', damage: interceptor.hp + 1, radius: 3 }]
+      update(1 / 60)
+      update(1 / 60)
+      if (interceptor.hp > 0 || refs.enemiesRef.current.includes(interceptor)) throw Error('Destroying the interceptor should clear it from combat')
+    })
     assert.deepEqual(traffic, [], 'a guest run must not call the online profile or leaderboard APIs')
     assert.deepEqual(errors, [])
-    console.log('Desktop guest launch, stage advance, retry, ordinary fighter fire, crossfire, shields, phase and cloak passed')
+    console.log('Desktop guest launch, stage advance, retry, sustained fighter combat, scout tail fire, crossfire, shields, phase and cloak passed')
   } catch (error) {
     const visible = await desktop.locator('body').innerText({ timeout: 4000 }).catch(() => '')
     throw new Error(`Raid did not complete its opening check. Visible state: ${visible.slice(0, 1000)}`, { cause: error })

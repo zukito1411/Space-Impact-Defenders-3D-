@@ -147,6 +147,10 @@ export type Enemy = Vec & {
   fighterAimX?: number
   fighterBankVx?: number
   fighterShotFlash?: number
+  fighterShotAngle?: number
+  fighterRearGun?: boolean
+  fighterRamAge?: number
+  fighterRamTargetY?: number
   fighterShield?: number
   fighterShieldFlash?: number
   fighterDefenseAge?: number

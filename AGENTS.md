@@ -1,5 +1,6 @@
 # Raid development
 
+- Commit and push completed user-requested changes directly to `main` by default, unless the user asks for a different branch or a local-only change.
 - Before changing Raid rendering, inspect the current simulation, Canvas, Pixi, Three.js, loading and cleanup paths affected by the change.
 - Run focused gameplay tests and the production build for gameplay or rendering changes.
 - Performance analysis must cover the whole campaign and both orientations, including formations, bosses, heavy weapons/effects, asteroid clusters, atmospheric worlds, stage entries/clears and co-op. A reported slow stage is a reproduction case, not the entire scope.

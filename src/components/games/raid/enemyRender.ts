@@ -1,10 +1,10 @@
 import { authoredDefeatAlpha } from './destructionProfile'
 import type { EnemyBankMotion } from './enemyBanking'
 import { enemyHullKey } from './enemyHulls'
-import { fighterHullHeading } from './fighterHulls'
+import { fighterGunHeading, fighterHullHeading } from './fighterHulls'
 import { drawLiveHull } from './liveHullBridge'
 import { BOSS_FX, COMBAT_TILE, drawBossFx, drawRaidCombatTexture, getRaidCombatFrame } from './combatArt'
-import { FIGHTER_FIRE_FLASH, getRaidFighter, getRaidFighterCharge, getRaidFighterOpacity } from './stageEncounters'
+import { FIGHTER_FIRE_FLASH, getRaidFighterCharge, getRaidFighterOpacity } from './stageEncounters'
 import { drawCommandBossEnergy, drawCommandBossHealthBar, drawCommandBossTelegraph, drawCommandPhaseAfterimages, getCommandBossHullOpacity, prefersRaidReducedMotion } from './commandBossRender'
 import { sampleCommandBossCloak } from './commandBoss'
 import { drawGenericBossShip } from './genericBossRender'
@@ -217,13 +217,14 @@ export function drawRaidEnemy(
     ctx.restore()
   }
   const hit = Math.min(1, (enemy.hitFlash ?? 0) / .16)
-  const charge = getRaidFighter(enemy.variant) ? getRaidFighterCharge(enemy) : 0
+  const charge = getRaidFighterCharge(enemy)
   const muzzle = Math.min(1, (enemy.fighterShotFlash ?? 0) / FIGHTER_FIRE_FLASH)
   const texture = hit ? getRaidCombatFrame(COMBAT_TILE.ionImpact)
     : muzzle ? getRaidCombatFrame(COMBAT_TILE.muzzle) : charge ? getRaidCombatFrame(COMBAT_TILE.charge) : undefined
   if (texture) {
     const edge = size * (hit ? .74 : muzzle ? .76 : .46)
-    drawRaidCombatTexture(ctx, texture, x+Math.sin(heading)*size*(hit ? .02 : .34),
-      y+Math.cos(heading)*size*(hit ? .02 : .34), edge, edge, 0, true, hit || muzzle || charge)
+    const gunHeading = fighterGunHeading(enemy.fighterShotAngle, heading, viewportWidth, toY(100))
+    drawRaidCombatTexture(ctx, texture, x+Math.sin(gunHeading)*size*(hit ? .02 : .34),
+      y+Math.cos(gunHeading)*size*(hit ? .02 : .34), edge, edge, 0, true, hit || muzzle || charge)
   }
 }

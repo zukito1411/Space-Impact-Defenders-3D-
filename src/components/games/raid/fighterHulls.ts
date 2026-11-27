@@ -13,3 +13,7 @@ export function fighterHullKey(variant: number) {
 export function fighterHullHeading(vx: number, vy: number, width: number, height: number) {
   return Math.abs(vx)+Math.abs(vy) < .001 ? 0 : Math.atan2(vx * width, vy * height)
 }
+
+export function fighterGunHeading(shotAngle: number | undefined, hullHeading: number, width: number, height: number) {
+  return shotAngle === undefined ? hullHeading : fighterHullHeading(Math.sin(shotAngle), Math.cos(shotAngle), width, height)
+}

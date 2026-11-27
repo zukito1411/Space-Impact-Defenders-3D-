@@ -1,6 +1,6 @@
 import type { Enemy, Vec } from './types'
 import { CROSSFIRE_LOCK_AGE, CROSSFIRE_WARNING_SECONDS } from './cruiseEncounters'
-import { getRaidFighter, LEGACY_FIGHTER_COUNT } from './stageEncounters'
+import { getRaidFighter, isRaidScout, LEGACY_FIGHTER_COUNT } from './stageEncounters'
 
 type Wing = { seen:number; leader:number; members:Enemy[]; regroup:number; age:number; attackX:number; attackY:number; cycle:number; disrupted:boolean }
 const clamp=(n:number,min:number,max:number)=>Math.max(min,Math.min(max,n))
@@ -61,10 +61,16 @@ export class EnemyTactics {
           // Both flanks fire toward fixed marks on either side of the pilot's
           // lane. Destroying the lead ship aborts any shots still winding up.
           const fireAge = CROSSFIRE_LOCK_AGE + CROSSFIRE_WARNING_SECONDS + Math.floor(enemy.trainSlot / 2) * .14
-          const ready = !wing.disrupted && (enemy.trainSlot === 0 || Boolean(getRaidFighter(enemy.variant)?.shots))
+          if (wing.disrupted || previousAge >= fireAge) {
+            enemy.cruiseManeuver = undefined
+            enemy.chargeTimer = 0
+            enemy.fireCooldown = .82 + enemy.trainSlot * .11
+            continue
+          }
+          const ready = enemy.trainSlot === 0 || Boolean(getRaidFighter(enemy.variant)?.shots)
           const fire = ready && Boolean(getRaidFighter(enemy.variant)?.shots) && previousAge < fireAge && wing.age >= fireAge
-          enemy.tacticX = wing.disrupted ? enemy.originX + flank * 15 : enemy.originX
-          enemy.tacticSpeed = wing.disrupted ? 1.3 : enemy.y >= 20 && wing.age < fireAge ? .35 : 1
+          enemy.tacticX = enemy.originX
+          enemy.tacticSpeed = enemy.y >= 20 && wing.age < fireAge ? .35 : 1
           enemy.tacticHoldFire = !fire
           enemy.chargeTimer = ready && wing.age >= CROSSFIRE_LOCK_AGE ? Math.max(0, fireAge - wing.age) : 0
           enemy.chargeLane = wing.attackX - flank * 8
@@ -73,7 +79,9 @@ export class EnemyTactics {
           continue
         }
         if (enemy.cruiseManeuver === 'sweep' && enemy.y >= 8) {
-          const progress = clamp((enemy.y - 8) / 44, 0, 1)
+          const approach = isRaidScout(enemy) ? enemy.y
+            : Math.max(enemy.y, (enemy.formationAge ?? 0) * enemy.vy - 6 - enemy.trainSlot * 4)
+          const progress = clamp((approach - 8) / 44, 0, 1)
           const arc = progress * progress * (3 - 2 * progress)
           const spread = (enemy.trainSlot % 3 - 1) * 5
           const sweepX = enemy.originX - flank * 60 * arc
@@ -83,9 +91,7 @@ export class EnemyTactics {
           continue
         }
         if (enemy.cruiseManeuver === 'escort' && !elite) {
-          enemy.tacticX = flank < 0 ? 5 : 95
-          enemy.tacticSpeed = 1.45
-          enemy.tacticHoldFire = true
+          enemy.cruiseManeuver = undefined
           continue
         }
         if (enemy.cruiseManeuver === 'barrage') {

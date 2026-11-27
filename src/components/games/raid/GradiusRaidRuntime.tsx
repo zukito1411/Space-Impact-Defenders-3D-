@@ -34,7 +34,7 @@ import { createRaidMainShotEmitter } from './playerMuzzle'
 import { clampRaidShipSize, getRaidPlayerHitRadius, useRaidShipSize } from './shipSize'
 import { ShipSizeControls } from '../../ui/ShipSizeControls'
 import { getRaidShipBaseVisualKey } from './shipArtwork'
-import { absorbRaidFighterShield, advanceRaidFighterDefense, advanceRaidFighterFire, commitRaidFighterManeuver, FIGHTER_FIRE_FLASH, getRaidFighterSpeedScale, fireRaidFighter, getRaidFighter, getRaidFighterDurability, getRaidFighterPathX, getRaidFighterPhaseShift, getRaidReserveVariant, getRaidStageEncounter, getRaidWingSize, getRaidWingSlot, isRaidFighterPhased, LEGACY_FIGHTER_COUNT, RAID_STAGE_ENEMY_LIMIT } from './stageEncounters'
+import { absorbRaidFighterShield, advanceRaidFighterDefense, advanceRaidFighterFire, advanceRaidFighterY, commitRaidFighterManeuver, FIGHTER_FIRE_FLASH, fireRaidFighter, getRaidFighter, getRaidFighterDurability, getRaidFighterPathX, getRaidFighterPhaseShift, getRaidRamAttackLane, getRaidReserveVariant, getRaidStageEncounter, getRaidWingSize, getRaidWingSlot, isRaidFighterPhased, LEGACY_FIGHTER_COUNT, RAID_STAGE_ENEMY_LIMIT } from './stageEncounters'
 import { drawBossImpact, recordBossImpact } from './bossDamageFx'
 import { prefersRaidReducedMotion } from './commandBossRender'
 import { drawIncomingHazard, drawRecoveryCue, findIncomingHazard, needsRepair, passesNearPilot } from './flightCues'
@@ -4472,7 +4472,10 @@ export function GradiusRaid({
       return .3
     }
     if (elite && (scriptedEliteActive || liveElites >= getMaxActiveEliteEnemies(stage, isCoOpActive()))) return .8
-    if (liveEnemies >= RAID_STAGE_ENEMY_LIMIT - 2) return .55
+    // Fighters holding the field count against the next wing's full roster.
+    const nextWingSize = maneuver === 'patrol' ? getRaidWingSize(stage, serial, 0)
+      : getCruiseWingSize(stage, serial, 0, maneuver) + (elite ? 1 : 0)
+    if (liveEnemies + nextWingSize > (isCoOpActive() ? 14 : 12)) return .55
 
     if (maneuver === 'patrol') {
       spawnFormation()
@@ -4971,20 +4974,11 @@ export function GradiusRaid({
       return
     }
 
-    if (getRaidFighter(enemy.variant)) {
-      const available = MULTIPLAYER_MAX_ENEMY_SHOTS - 8 - enemyShotsRef.current.length
-      if (enemy.cruiseManeuver === 'crossfire') {
-        if (fireCruiseCrossfire(enemy, available, emitCommandBossShot)) enemy.fighterShotFlash = FIGHTER_FIRE_FLASH
-      }
-      else fireRaidFighter(enemy, player, available, emitCommandBossShot)
-      return
-    }
-
-    if (Math.random() < 0.76) {
-      const aimX = player.x - enemy.x
-      const aimY = player.y - enemy.y
-      const mag = Math.sqrt((aimX) * (aimX) + (aimY) * (aimY)) || 1
-      enemyShotsRef.current.push({ id: shotId++, x: enemy.x, y: enemy.y + 2, vx: (aimX / mag) * 29, vy: (aimY / mag) * 29, damage: 1, kind: 'enemy', radius: 1.25 })
+    const available = MULTIPLAYER_MAX_ENEMY_SHOTS - 8 - enemyShotsRef.current.length
+    if (enemy.cruiseManeuver === 'crossfire') {
+      if (fireCruiseCrossfire(enemy, available, emitCommandBossShot)) enemy.fighterShotFlash = FIGHTER_FIRE_FLASH
+    } else {
+      fireRaidFighter(enemy, player, available, emitCommandBossShot)
     }
   }, [emitCommandBossShot])
 
@@ -5893,16 +5887,17 @@ export function GradiusRaid({
                         bossKind === 'serpent' ? 20 + Math.cos(bossMotionT * 1.1) * 5 :
                           bossKind === 'orb' ? 17 + Math.sin(bossMotionT * 1.8) * 4 :
                             18
-      const fighter = !enemy.isBoss && !enemy.isMiniBoss ? getRaidFighter(enemy.variant) : undefined
-      const fighterTarget = fighter ? getNearestLivingPlayerThisTick(enemy) : undefined
-      if (fighterTarget) {
+      const ordinaryEnemy = !enemy.isBoss && !enemy.isMiniBoss
+      const fighter = ordinaryEnemy ? getRaidFighter(enemy.variant) : undefined
+      const fighterTarget = ordinaryEnemy ? getNearestLivingPlayerThisTick(enemy) : undefined
+      if (fighter && fighterTarget) {
         enemy.formationAge = (enemy.formationAge ?? 0) + dt
         commitRaidFighterManeuver(enemy, fighterTarget)
         advanceRaidFighterDefense(enemy, fighterTarget, dt)
       }
       const trainT = (enemy.y - enemy.trainSlot * 6.2) * enemy.pathSpeed + enemy.phase
       const trainX = enemy.isBoss || enemy.isMiniBoss ? enemy.x :
-        fighterTarget ? getRaidFighterPathX(enemy, fighterTarget) :
+        fighter ? getRaidFighterPathX(enemy, fighterTarget) :
         enemy.pattern === 0 ? enemy.originX + Math.sin(trainT) * enemy.amplitude :
           enemy.pattern === 1 ? enemy.originX + Math.sin(trainT) * enemy.amplitude + Math.sin(trainT * 2.1) * 5 :
             enemy.pattern === 2 ? enemy.originX + Math.sin(trainT * 0.72) * enemy.amplitude * 0.7 :
@@ -6468,15 +6463,15 @@ export function GradiusRaid({
         }
       }
       const cruiseAttackX = enemy.miniBossAttackOriginX !== undefined && chargeTimer > 0 ? enemy.miniBossAttackOriginX : miniBossX
-      const freeFiringFighter = fighter && enemy.cruiseManeuver !== 'crossfire'
-      if (fighter && enemy.fighterShotFlash) enemy.fighterShotFlash = Math.max(0, enemy.fighterShotFlash - dt)
+      const freeFiringFighter = fighterTarget && enemy.cruiseManeuver !== 'crossfire'
+      if (enemy.fighterShotFlash) enemy.fighterShotFlash = Math.max(0, enemy.fighterShotFlash - dt)
       const nextFire = fireCooldown - dt * (enemy.isBoss ? bossFireDrain : 1)
       const bossInPause = !commandProfile && enemy.isBoss && bossKind !== 'devil' && (bossRushAggressive ? nowSeconds % 5 > 4.25 : nowSeconds % 6 > 3)
       const biteRetracting = attackBossKind === 'snake' && chargePattern === 'cross' && beamVolleyRecovery > 0
       if (freeFiringFighter) {
         const difficulty = raidDifficultyRef.current
         const cadence = difficulty === 'easy' ? 1.23 : difficulty === 'expert' ? .84 : difficulty === 'hard' ? .92 : 1
-        advanceRaidFighterFire(enemy, getNearestLivingPlayerThisTick(enemy), dt, cadence,
+        advanceRaidFighterFire(enemy, fighterTarget, dt, cadence,
           MULTIPLAYER_MAX_ENEMY_SHOTS - 8 - enemyShotsRef.current.length, emitCommandBossShot)
       } else if (!commandProfile && !enemy.isMiniBoss && !enemy.tacticHoldFire && nextFire <= 0 && enemy.y > 0 && chargeTimer <= 0 && !biteRetracting && !bossInPause && (bossKind !== 'final' || mirageActive)) {
         fireEnemy(enemy, getNearestLivingPlayerThisTick(enemy), now)
@@ -6484,14 +6479,16 @@ export function GradiusRaid({
       }
 
       const enemyBeforeMoveX = enemy.x
+      const fighterY = fighterTarget ? advanceRaidFighterY(enemy, fighterTarget, dt) : enemy.y
+      const fighterX = getRaidRamAttackLane(enemy) ?? enemy.tacticX ?? trainX
       const phaseShift = getRaidFighterPhaseShift(enemy)
       const steeringRate = isRaidFighterPhased(enemy) ? 15 : 5.8
       enemy.x = commandProfile && enemy.bossEncounterAge !== undefined ? enemy.x : enemy.isBoss
         ? clamp(bossX, bossKind === 'devil' ? 50 : bossKind === 'final' ? 14 : bossKind === 'snake' ? 15 : bossKind === 'super' ? 20 : 16, bossKind === 'devil' ? 50 : bossKind === 'final' ? 86 : bossKind === 'snake' ? 85 : bossKind === 'super' ? 80 : 84)
         : enemy.isMiniBoss
           ? clamp(enemy.x + (cruiseAttackX - enemy.x) * Math.min(1, dt * 3.6) + enemy.vx * dt * 0.24, 10, 90)
-          : clamp(enemy.x + ((enemy.tacticX ?? trainX) + phaseShift - enemy.x) * Math.min(1, dt * steeringRate) + enemy.vx * dt, 4, 96)
-      if (fighter && (enemy.cruiseManeuver === 'sweep' || enemy.fighterPhaseSide) && dt > 0) {
+          : clamp(enemy.x + (fighterX + phaseShift - enemy.x) * Math.min(1, dt * steeringRate) + enemy.vx * dt, 4, 96)
+      if (fighter && (enemy.cruiseManeuver === 'sweep' || fighter.defense === 'phase' || fighter.defense === 'ram') && dt > 0) {
         enemy.fighterBankVx = (enemy.x - enemyBeforeMoveX) / dt
       }
       enemy.y = commandProfile && enemy.bossEncounterAge !== undefined ? enemy.y : enemy.isBoss
@@ -6499,7 +6496,7 @@ export function GradiusRaid({
         : enemy.isMiniBoss
           ? (enemy.y < miniBossYTarget ? Math.min(miniBossYTarget, enemy.y + enemy.vy * dt)
             : blackHole ? enemy.y + (miniBossYTarget - enemy.y) * Math.min(1, dt * .8) : miniBossYTarget)
-          : enemy.y + enemy.vy * dt * (fighter ? getRaidFighterSpeedScale(enemy) : 1) * (enemy.tacticSpeed ?? 1)
+          : fighterY
       const beforePull = blackHole ? { x: enemy.x, y: enemy.y } : enemy
       if (blackHole && !enemy.isBoss && pullIntoBlackHole(enemy, blackHole, dt, 85)) {
         if (riftEvent) recordBlackHoleCapture(riftEvent, blackHole, { kind: 'enemy', body: enemy }, enemy, beforePull)

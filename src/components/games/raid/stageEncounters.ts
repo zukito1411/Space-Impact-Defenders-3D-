@@ -63,6 +63,13 @@ export function getRaidFighterDurability(variant: number, base: number, difficul
     shield: Math.ceil(base * (fighter?.shield ?? 0) * difficulty) }
 }
 
+const LEGACY_GUN = { cooldown: 1.65, shots: 1, boltSpeed: 29, spread: 0, aim: 1, kind: 'enemy' } as const
+const FIGHTER_GAPS = [0, 27, 42, 32, 35, 51] as const
+const RAM_WARNING = .68
+const RAM_LUNGE_END = 1.56
+const RAM_RECOVERY_END = 3.15
+const WORLD_DEPTH = 100
+
 const PHASE_WINDUP = .31
 const PHASE_END = .65
 const PHASE_RETURN = 1.6
@@ -77,10 +84,15 @@ export function getRaidFighterDefenseTime(enemy: Enemy) {
 
 export function advanceRaidFighterDefense(enemy: Enemy, target: Vec, dt: number) {
   if (enemy.fighterShieldFlash) enemy.fighterShieldFlash = Math.max(0, enemy.fighterShieldFlash - dt)
-  if (enemy.y < 8 || enemy.cruiseManeuver === 'crossfire') return
+  const entryDepth = Math.max(2, Math.min(8, target.y - 11))
+  if (enemy.cruiseManeuver === 'crossfire' || (enemy.fighterDefenseAge === undefined && enemy.y < entryDepth)) return
   const role = getRaidFighter(enemy.variant)?.defense
   if (role !== 'phase' && role !== 'cloak') return
-  enemy.fighterDefenseAge = Math.min(4, (enemy.fighterDefenseAge ?? 0) + dt)
+  enemy.fighterDefenseAge = (enemy.fighterDefenseAge ?? 0) + dt
+  if (getRaidFighterDefenseTime(enemy) >= (role === 'phase' ? 5.6 : 7.1)) {
+    enemy.fighterDefenseAge = 0
+    enemy.fighterPhaseSide = undefined
+  }
   const time = getRaidFighterDefenseTime(enemy)
   if (role === 'phase' && enemy.fighterPhaseSide === undefined && time >= 0) {
     enemy.fighterPhaseSide = enemy.x < 17 ? 1 : enemy.x > 83 ? -1 : enemy.x < target.x ? -1 : 1
@@ -186,14 +198,36 @@ export function getRaidFighterPathX(enemy: Enemy, target?: Vec) {
   return Math.max(4, Math.min(96, enemy.originX + (base - enemy.originX) * heavyScale + (pursuit + personality) * release))
 }
 
+export function isRaidScout(enemy: Enemy) {
+  return !enemy.isBoss && !enemy.isMiniBoss && enemy.variant === LEGACY_FIGHTER_COUNT + SCOUT
+}
+
+function isRaidFighterOnscreen(enemy: Enemy) {
+  return enemy.y >= 2 && enemy.y <= WORLD_DEPTH
+}
+
+function canRaidFighterFire(enemy: Enemy, target: Vec) {
+  const dx = target.x - enemy.x
+  const dy = target.y - enemy.y
+  return (isRaidScout(enemy) || dy >= 6) && dx * dx + dy * dy >= 9.5 ** 2
+}
+
+function getRaidFighterFireAngle(enemy: Enemy, target: Vec, aim: number) {
+  const dy = target.y - enemy.y
+  return isRaidScout(enemy) ? Math.atan2(target.x - enemy.x, dy)
+    : Math.atan2((target.x - enemy.x) * aim, Math.max(13, dy))
+}
+
 export function fireRaidFighter(enemy: Enemy, target: Vec, available: number, emit: (shot: Omit<Shot, 'id'>) => void) {
-  const fighter = getRaidFighter(enemy.variant)
-  if (!fighter || !fighter.shots || available < fighter.shots || target.y < enemy.y + 13) return false
-  const aim = Math.atan2((target.x - enemy.x) * fighter.aim, Math.max(19, target.y - enemy.y))
+  const fighter = getRaidFighter(enemy.variant) ?? LEGACY_GUN
+  if (!fighter.shots || available < fighter.shots || !isRaidFighterOnscreen(enemy) || !canRaidFighterFire(enemy, target)) return false
+  const aim = getRaidFighterFireAngle(enemy, target, fighter.aim)
+  const scout = isRaidScout(enemy)
   for (let i = 0; i < fighter.shots; i++) {
     const side = i - (fighter.shots - 1) / 2
     const angle = aim + side * fighter.spread
-    emit({ x: enemy.x + side * 5, y: enemy.y + 2.5, vx: Math.sin(angle) * fighter.boltSpeed,
+    emit({ x: enemy.x + (scout ? Math.sin(angle) * 2.5 : side * 5),
+      y: enemy.y + (scout ? Math.cos(angle) * 2.5 : 2.5), vx: Math.sin(angle) * fighter.boltSpeed,
       vy: Math.cos(angle) * fighter.boltSpeed, radius: 1.22, damage: 1, kind: fighter.kind })
   }
   return true
@@ -204,17 +238,29 @@ export const FIGHTER_FIRE_FLASH = .13
 
 export function advanceRaidFighterFire(enemy: Enemy, target: Vec, dt: number, cadence: number, available: number,
   emit: (shot: Omit<Shot, 'id'>) => void) {
-  const fighter = getRaidFighter(enemy.variant)
-  if (!fighter?.shots) return
-  // Start the attack clock once the ship is visible, and keep a short warning
-  // when a turn, missing target, or full projectile budget holds the volley.
-  if (enemy.y < 2 || enemy.tacticHoldFire || target.y < enemy.y + 13) {
+  const fighter = getRaidFighter(enemy.variant) ?? LEGACY_GUN
+  if (!fighter.shots) return
+  if (enemy.tacticHoldFire || !isRaidFighterOnscreen(enemy)) {
     enemy.fireCooldown = Math.max(FIGHTER_FIRE_WARNING, enemy.fireCooldown)
     return
   }
-  enemy.fireCooldown = Math.max(0, enemy.fireCooldown - dt)
+  const scout = isRaidScout(enemy)
+  // Start the tail-gun warning before the scout clears the safe firing distance.
+  if (scout) {
+    const rear = target.y < enemy.y - 2
+    if (rear && !enemy.fighterRearGun) enemy.fireCooldown = Math.min(FIGHTER_FIRE_WARNING, enemy.fireCooldown)
+    enemy.fighterRearGun = rear
+    if (!enemy.fighterShotFlash) enemy.fighterShotAngle = getRaidFighterFireAngle(enemy, target, fighter.aim)
+  }
+  const canFire = canRaidFighterFire(enemy, target)
+  if (!canFire && !enemy.fighterRearGun) {
+    enemy.fireCooldown = Math.max(FIGHTER_FIRE_WARNING, enemy.fireCooldown)
+    return
+  }
+  enemy.fireCooldown = Math.max(canFire ? 0 : .025, enemy.fireCooldown - dt)
   if (enemy.fireCooldown > 0) return
   if (fireRaidFighter(enemy, target, available, emit)) {
+    if (scout) enemy.fighterShotAngle = getRaidFighterFireAngle(enemy, target, fighter.aim)
     enemy.fireCooldown = fighter.cooldown * cadence
     enemy.fighterShotFlash = FIGHTER_FIRE_FLASH
   } else {
@@ -225,23 +271,55 @@ export function advanceRaidFighterFire(enemy: Enemy, target: Vec, dt: number, ca
 /** These frames are shared by the Pixi foreground and Canvas fallback. */
 export function getRaidFighterCharge(enemy: Enemy) {
   if (enemy.cruiseManeuver === 'crossfire') return enemy.chargeTimer > 0 ? Math.max(.25, 1 - enemy.chargeTimer) : 0
-  if (enemy.variant === LEGACY_FIGHTER_COUNT + RAM && enemy.fighterAimX !== undefined && enemy.y >= 24 && enemy.y < 40) return (enemy.y - 24) / 16
-  if (enemy.y < 2 || enemy.fireCooldown <= 0 || enemy.fireCooldown >= FIGHTER_FIRE_WARNING || !getRaidFighter(enemy.variant)?.shots) return 0
+  if (enemy.fighterRamAge !== undefined) return enemy.fighterRamAge < RAM_WARNING ? .25 + .75 * enemy.fighterRamAge / RAM_WARNING : 0
+  if (!isRaidFighterOnscreen(enemy) || enemy.fireCooldown <= 0 || enemy.fireCooldown >= FIGHTER_FIRE_WARNING
+    || !(getRaidFighter(enemy.variant) ?? LEGACY_GUN).shots) return 0
   return 1 - enemy.fireCooldown / FIGHTER_FIRE_WARNING
 }
 
-
-/** Host commits the maneuver once: enemies cannot keep chasing a dodging pilot. */
+/** Lock the interceptor's attack lane for its initial approach. */
 export function commitRaidFighterManeuver(enemy: Enemy, target: Vec) {
-  const role = enemy.variant - LEGACY_FIGHTER_COUNT
-  if ((role === RAM || role === INTERCEPTOR) && enemy.y >= 24 && enemy.fighterAimX === undefined) {
+  if (enemy.variant === LEGACY_FIGHTER_COUNT + INTERCEPTOR && enemy.y >= 24 && enemy.fighterAimX === undefined) {
     enemy.fighterAimX = Math.max(8, Math.min(92, target.x))
   }
 }
-export function getRaidFighterSpeedScale(enemy: Enemy) {
+
+export function advanceRaidFighterY(enemy: Enemy, target: Vec, dt: number) {
+  const speed = enemy.vy * (enemy.tacticSpeed ?? 1)
+  if (isRaidScout(enemy)) return enemy.y + speed * dt
+
   const role = enemy.variant - LEGACY_FIGHTER_COUNT
-  if (enemy.y < 24) return 1
-  if (role === RAM) return enemy.y < 40 ? .65 : 1.35
-  if (role === INTERCEPTOR) return enemy.y >= 40 ? 1.15 : 1
-  return role === ARTILLERY ? .86 : role === GUNSHIP ? .92 : 1
+  const lane = Math.min(65, Math.max(3, target.y - (FIGHTER_GAPS[role] ?? 36)
+    + (enemy.trainSlot % 3 - 1) * 4 + Math.sin((enemy.formationAge ?? 0) * 1.4 + enemy.phase) * 2.6))
+  const frontLimit = Math.max(3, target.y - 10)
+  let destination = Math.min(lane, frontLimit)
+  let forwardSpeed = speed
+  let response = 2.75
+  if (role === RAM && enemy.cruiseManeuver !== 'crossfire') {
+    if (enemy.fighterRamAge === undefined && enemy.y >= destination - 4 && enemy.y >= 2) {
+      enemy.fighterRamAge = 0
+      enemy.fighterAimX = Math.max(7, Math.min(93, target.x))
+      enemy.fighterRamTargetY = target.y - 4
+    }
+    if (enemy.fighterRamAge !== undefined) {
+      enemy.fighterRamAge += dt
+      if (enemy.fighterRamAge < RAM_WARNING) {
+        destination = Math.min(enemy.y, frontLimit)
+      } else if (enemy.fighterRamAge < RAM_LUNGE_END) {
+        destination = Math.max(3, Math.min(enemy.fighterRamTargetY ?? destination, target.y - 4))
+        forwardSpeed = 78
+        response = 10
+      } else if (enemy.fighterRamAge >= RAM_RECOVERY_END) {
+        enemy.fighterRamAge = undefined
+        enemy.fighterRamTargetY = undefined
+        enemy.fighterAimX = undefined
+      }
+    }
+  }
+  const closingSpeed = Math.max(-enemy.vy * 1.85, Math.min(forwardSpeed, (destination - enemy.y) * response))
+  return enemy.y + closingSpeed * dt
+}
+
+export function getRaidRamAttackLane(enemy: Enemy) {
+  return enemy.fighterRamAge !== undefined && enemy.fighterRamAge < RAM_LUNGE_END ? enemy.fighterAimX : undefined
 }

@@ -5,9 +5,9 @@ import { HOSTILE_PROJECTILE_COLOR } from './hostileProjectileArt'
 import { MISSILE_SMOKE_CAPACITY } from './missileSmoke'
 import type { MissileSmokePuff } from './missileSmoke'
 import { normalEnemyHullKey } from './enemyHulls'
-import { fighterHullHeading } from './fighterHulls'
+import { fighterGunHeading, fighterHullHeading } from './fighterHulls'
 import { submitLiveHull } from './liveHullBridge'
-import { FIGHTER_FIRE_FLASH, getRaidFighter, getRaidFighterCharge, getRaidFighterOpacity } from './stageEncounters'
+import { FIGHTER_FIRE_FLASH, getRaidFighterCharge, getRaidFighterOpacity } from './stageEncounters'
 import { impactFrameProgress, explosionDiameter, impactAlpha } from './combatFeel'
 import { Color, Container, Sprite, Texture } from 'pixi.js'
 import type { Renderer } from 'pixi.js'
@@ -327,7 +327,7 @@ export class RaidGpuForeground {
       pair.ship.visible = false
       {
         const hit = Math.min(1, (alien.hitFlash ?? 0) / .16)
-        const charge = getRaidFighter(alien.variant) ? getRaidFighterCharge(alien) : 0
+        const charge = getRaidFighterCharge(alien)
         const muzzle = Math.min(1, (alien.fighterShotFlash ?? 0) / FIGHTER_FIRE_FLASH)
         const effect = hit ? getRaidCombatFrame(COMBAT_TILE.ionImpact)
           : muzzle ? getRaidCombatFrame(COMBAT_TILE.muzzle) : charge ? getRaidCombatFrame(COMBAT_TILE.charge) : undefined
@@ -339,8 +339,9 @@ export class RaidGpuForeground {
           pair.glow.blendMode = 'add'
           pair.glow.width = edge
           pair.glow.height = edge
-          pair.glow.position.set(alien.x*sx+Math.sin(heading)*size*(hit ? .02 : .34),
-            alien.y*sy+Math.cos(heading)*size*(hit ? .02 : .34))
+          const gunHeading = fighterGunHeading(alien.fighterShotAngle, heading, frame.width, frame.height)
+          pair.glow.position.set(alien.x*sx+Math.sin(gunHeading)*size*(hit ? .02 : .34),
+            alien.y*sy+Math.cos(gunHeading)*size*(hit ? .02 : .34))
           pair.glow.alpha = hit || muzzle || charge
         }
       }
