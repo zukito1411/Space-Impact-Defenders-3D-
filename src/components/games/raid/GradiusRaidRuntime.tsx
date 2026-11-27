@@ -49,7 +49,7 @@ import { missileLaunchScale, homingCruiseSpeed, missileVisualScale } from './mis
 import { MissileSmokeTrails } from './missileSmoke'
 import { impactFrameProgress, explosionDiameter, impactAlpha, rippleLifetime, rippleReplacement } from './combatFeel'
 import { useDoorCallback, useDoorState, useSpaceDoor } from '../../ui/SpaceDoor'
-import { getRaidText } from '../../../i18n'
+import { getLanguageText, getRaidText } from '../../../i18n'
 import { getCommandText } from '../../../commandText'
 import { FleetAudio } from '../fleetAudio'
 import { FleetRadio } from '../FleetRadio'
@@ -440,6 +440,7 @@ export function GradiusRaid({
   }, [landscape, selectedShipKey])
   const pendingCarrierLaunchRef = useRef<{ startStage: number; fullyBuffed: boolean; mode: RaidMode }>({ startStage: 1, fullyBuffed: false, mode: initialRaidMode })
   const [stagePickerOpen, setStagePickerOpen] = useDoorState(false)
+  const [launchMenu, setLaunchMenu] = useState<'setup' | 'ships' | null>(null)
   const { sequence: doorSequence } = useSpaceDoor()
   const [settingsOpen, setSettingsOpen] = useDoorState(false)
   const [difficultyOpen, setDifficultyOpen] = useDoorState(false)
@@ -7778,7 +7779,8 @@ export function GradiusRaid({
       active.click()
       return
     }
-    controls[0]?.focus()
+    const defaultControl = controls.find(control => control.classList.contains('raid__launch-primary')) ?? controls[0]
+    defaultControl?.focus()
   }, [getRaidFocusableControls])
 
   const activateRaidBackControl = useCallback(() => {
@@ -8109,7 +8111,12 @@ export function GradiusRaid({
         event.preventDefault()
         if (!event.repeat) rootRef.current?.querySelector<HTMLButtonElement>('.raid__carrier-advance')?.click()
       }
-      else if (key === 'enter' && phaseRef.current !== 'playing' && phaseRef.current !== 'victory') resetGame()
+      else if (key === 'enter' && (phaseRef.current === 'select' || phaseRef.current === 'gameover')) {
+        if (!(event.target instanceof HTMLButtonElement) && !event.repeat) {
+          event.preventDefault()
+          rootRef.current?.querySelector<HTMLButtonElement>('.raid__launch-primary')?.click()
+        }
+      }
       if (key === 'p') {
         if (phaseRef.current === 'playing') pauseGame()
         else if (phaseRef.current === 'paused') resumeGame()
@@ -8168,7 +8175,7 @@ export function GradiusRaid({
       window.removeEventListener('keydown', down)
       window.removeEventListener('keyup', up)
     }
-  }, [activateNuke, exitRaid, moveRaidMenuFocus, pauseGame, resetGame, resumeGame, syncSnapshot])
+  }, [activateNuke, exitRaid, moveRaidMenuFocus, pauseGame, resumeGame, syncSnapshot])
 
   useEffect(() => {
     const syncCarrierAudio = () => {
@@ -8336,10 +8343,17 @@ export function GradiusRaid({
   const canControlOverlay = !isNetworkMultiplayer || Boolean(multiplayerSession?.isHost)
   const canUseCampaignStageTools = !isEndlessRun && !isBossRushRun && !isMultiplayer && completedCampaign && canControlOverlay
   const canContinueCampaignCheckpoint = !isEndlessRun && !isBossRushRun && !isMultiplayer && (snapshot.phase === 'gameover' || snapshot.phase === 'select') && checkpointStage > 1
+  const showLaunchMenu = snapshot.phase === 'select' || snapshot.phase === 'gameover'
+  useEffect(() => {
+    if (!showLaunchMenu) setLaunchMenu(null)
+  }, [showLaunchMenu])
+  const modeText = getLanguageText(language).rocketMode
+  const launchTitle = isMultiplayer ? modeText.coop : isBossRushRun ? modeText.bossRush : isEndlessRun ? modeText.endless : modeText.story
   const primaryRaidMenuLabel = snapshot.phase === 'gameover'
     ? isMultiplayer ? menuText.restartCoop : isBossRushRun ? menuText.restartBossRush : isEndlessRun ? menuText.restartEndless : menuText.restartStage1
     : isBossRushRun ? menuText.startBossRushRaid : isEndlessRun ? menuText.startEndlessRaid : menuText.startRaid
   const startCurrentRaidMode = () => {
+    setLaunchMenu(null)
     if (snapshot.phase === 'gameover') {
       resetGame(isBossRushRun ? BOSS_RUSH_STAGES[0] : 1, isBossRushRun, isBossRushRun ? 'bossRush' : isEndlessRun ? 'endless' : 'campaign')
       return
@@ -8400,7 +8414,9 @@ export function GradiusRaid({
   const endingNukesUsed = nukesUsedRef.current
   const assetPreloadPercent = Math.min(100, Math.round(assetPreload.loaded / Math.max(1, assetPreload.total) * 100))
   const showAssetPreloadOverlay = assetPreload.status === 'loading' && snapshot.phase !== 'playing' && snapshot.phase !== 'paused' && snapshot.phase !== 'victory'
-  const displayedShipOptions = SHIP_OPTIONS
+  const selectedShipArtwork = showLaunchMenu ? getDefaultPlayerVisualShipKey(selectedShipKey, progressRef.current) : selectedShipKey
+  const selectedShipCopy = raidText.ships[selectedShipKey as keyof typeof raidText.ships]
+  const selectedShipName = selectedShipKey === 'coreLander' ? getRaidGundamName(selectedShipArtwork) : selectedShipCopy?.name ?? player.ship.name
   const renderHullPips = (hudPlayer: Player, keyPrefix: string) => {
     const hullPips = Array.from({ length: hudPlayer.maxHp }, (_, index) => index < hudPlayer.hp)
     const fieldPips = Array.from({ length: Math.max(FORCE_FIELD_ARMOR, Math.ceil(hudPlayer.forceField)) }, (_, index) => index < hudPlayer.forceField)
@@ -8455,6 +8471,7 @@ export function GradiusRaid({
   return (
     <div
       className={`raid raid--theme-${((snapshot.stageTheme - 1) % RAID_BACKGROUND_THEME_COUNT) + 1}${sameScreenCoop ? ' raid--same-screen' : ''}${isMultiplayer ? ' raid--coop' : ''}${landscape ? ' raid--landscape' : ''}`}
+      data-launch-menu={showLaunchMenu || undefined}
       ref={rootRef}
       onPointerDown={(event) => {
         if (sameScreenCoopRef.current) return
@@ -8912,6 +8929,7 @@ export function GradiusRaid({
                   className={stage === MAX_RAID_STAGE ? 'raid__stage-button raid__stage-button--final' : 'raid__stage-button'}
                   onClick={() => {
                     setStagePickerOpen(false)
+                    setLaunchMenu(null)
                     resetGame(stage)
                   }}
                 >
@@ -8927,78 +8945,104 @@ export function GradiusRaid({
           </div>
         </GameDialog>
       )}
-      {snapshot.phase !== 'playing' && snapshot.phase !== 'paused' && snapshot.phase !== 'briefing' && snapshot.phase !== 'victory' && (
-        <div className="raid__overlay">
-          <div className="raid__panel">
-            <div className="raid__kicker">{snapshot.phase === 'gameover' ? menuText.runEnded : menuText.chooseShip}</div>
-            <h2>{snapshot.phase === 'gameover' ? menuText.shipDestroyed : menuText.rocketRaid}</h2>
-            <div className="raid__ship-grid">
-              {displayedShipOptions.map((ship) => (
-                (() => {
-                  const shipCopy = raidText.ships[ship.key as keyof typeof raidText.ships] ?? ship
-                  const locked = (ship.key === 'mesiah' && !mesiahUnlocked) || (ship.key === 'coreLander' && !coreLanderUnlocked)
-                  const shipSpriteKey = getDefaultPlayerVisualShipKey(ship.key, progressRef.current, locked ? false : undefined)
-                  const lockedCopy = ship.key === 'coreLander' ? raidText.menu.coreLanderUnlock : raidText.menu.clearRaidToUnlock
-                  return (
-                    <button
-                      key={ship.key}
-                      type="button"
-                      className={[
-                        'raid__ship-card',
-                        selectedShipKey === ship.key ? 'raid__ship-card--active' : '',
-                        locked ? 'raid__ship-card--locked' : '',
-                      ].filter(Boolean).join(' ')}
-                      disabled={locked}
-                      aria-pressed={selectedShipKey === ship.key}
-                      aria-label={locked ? `${shipCopy.name}: ${lockedCopy}` : shipCopy.name}
-                      title={locked ? lockedCopy : shipCopy.name}
-                      onClick={() => {
-                        if (!locked) chooseShip(ship)
-                      }}
-                    >
-                      <RaidShipPickerPreview shipKey={shipSpriteKey} landscape={landscape} />
-                      <span className="raid__ship-name">{ship.key === 'coreLander' ? getRaidGundamName(shipSpriteKey) : shipCopy.name}</span>
-                    </button>
-                  )
-                })()
-              ))}
-            </div>
-            {canUseCampaignStageTools ? (
-              <div className="raid__stage-picker-row">
-                <button type="button" className="raid__menu-button raid__menu-button--wide" onClick={() => setStagePickerOpen(true)}>
-                  {menuText.selectStage}
-                </button>
+      {showLaunchMenu && (
+        <div className="raid__overlay raid__launch-overlay">
+          <section className="raid__panel raid__launch-panel" aria-labelledby="raid-launch-title">
+            <header className="raid__launch-heading">
+              <div>
+                <span className="raid__kicker">{snapshot.phase === 'gameover' ? menuText.shipDestroyed : menuText.rocketRaid}</span>
+                <h2 id="raid-launch-title">{launchTitle}</h2>
               </div>
-            ) : null}
-            <div className="raid__pause-actions raid__pause-actions--pre">
+              {canControlOverlay && <button type="button" className="raid__menu-button" onClick={exitRaid}>{menuText.back}</button>}
+            </header>
+            {canControlOverlay && (
+              <button
+                type="button"
+                className="raid__launch-ship"
+                aria-haspopup="dialog"
+                aria-label={`${menuText.chooseShip} · ${selectedShipName}`}
+                onClick={() => setLaunchMenu('ships')}
+              >
+                <RaidShipPickerPreview shipKey={selectedShipArtwork} landscape={landscape} />
+                <span className="raid__launch-ship-copy">
+                  <strong>{selectedShipName}</strong>
+                  <span>{menuText.changeShip}</span>
+                </span>
+                <span className="raid__launch-chevron" aria-hidden="true" />
+              </button>
+            )}
+            <footer className="raid__launch-actions">
+              <button type="button" className="raid__start raid__launch-primary" onClick={canControlOverlay
+                ? canContinueCampaignCheckpoint ? () => resetGame(checkpointStage, true) : startCurrentRaidMode
+                : exitRaid}>
+                {canControlOverlay
+                  ? canContinueCampaignCheckpoint ? `${menuText.continueStage} ${checkpointStage}` : primaryRaidMenuLabel
+                  : menuText.exitCoop}
+              </button>
+              <button type="button" className="raid__menu-button" aria-haspopup="dialog" onClick={() => setLaunchMenu('setup')}>
+                {menuText.flightSetup}
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
+      {showLaunchMenu && launchMenu === 'ships' && (
+        <GameDialog className="raid__settings-overlay raid__launch-overlay" aria-labelledby="raid-ship-picker-title" onDismiss={() => setLaunchMenu(null)}>
+          <section className="raid__panel raid__launch-panel raid__launch-panel--fleet">
+            <header className="raid__launch-heading">
+              <h2 id="raid-ship-picker-title">{menuText.chooseShip}</h2>
+              <button type="button" className="raid__menu-button" data-dialog-dismiss onClick={() => setLaunchMenu(null)}>{menuText.back}</button>
+            </header>
+            <div className="raid__ship-grid">
+              {SHIP_OPTIONS.map((ship) => {
+                const shipCopy = raidText.ships[ship.key as keyof typeof raidText.ships] ?? ship
+                const locked = (ship.key === 'mesiah' && !mesiahUnlocked) || (ship.key === 'coreLander' && !coreLanderUnlocked)
+                const artwork = getDefaultPlayerVisualShipKey(ship.key, progressRef.current, locked ? false : undefined)
+                const name = ship.key === 'coreLander' ? getRaidGundamName(artwork) : shipCopy.name
+                const lockedCopy = ship.key === 'coreLander' ? menuText.coreLanderUnlock : menuText.clearRaidToUnlock
+                const selected = selectedShipKey === ship.key
+                return (
+                  <button
+                    key={ship.key}
+                    type="button"
+                    className={`raid__ship-card${selected ? ' raid__ship-card--active' : ''}${locked ? ' raid__ship-card--locked' : ''}`}
+                    disabled={locked}
+                    aria-pressed={selected}
+                    aria-label={locked ? `${name} · ${lockedCopy}` : name}
+                    title={locked ? lockedCopy : name}
+                    onClick={() => { chooseShip(ship); setLaunchMenu(null) }}
+                  >
+                    <RaidShipPickerPreview shipKey={artwork} landscape={landscape} />
+                    <span className="raid__ship-name">{name}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </section>
+        </GameDialog>
+      )}
+      {showLaunchMenu && launchMenu === 'setup' && !stagePickerOpen && !settingsOpen && !difficultyOpen && (
+        <GameDialog className="raid__settings-overlay raid__launch-overlay" aria-labelledby="raid-launch-setup-title" onDismiss={() => setLaunchMenu(null)}>
+          <section className="raid__panel raid__launch-panel raid__launch-panel--setup">
+            <header className="raid__launch-heading">
+              <h2 id="raid-launch-setup-title">{menuText.flightSetup}</h2>
+              <button type="button" className="raid__menu-button" data-dialog-dismiss onClick={() => setLaunchMenu(null)}>{menuText.back}</button>
+            </header>
+            <div className="raid__launch-options">
               <button type="button" className="raid__menu-button raid__menu-button--difficulty" onClick={() => setDifficultyOpen(true)}>
-                <span className="raid__menu-button-fit-text">{menuText.selectDifficulty} : {selectedDifficultyLabel}</span>
+                <span>{menuText.difficulty}</span>
+                <strong>{selectedDifficultyLabel}</strong>
               </button>
               <button type="button" className="raid__menu-button" onClick={() => setSettingsOpen(true)}>{menuText.settings}</button>
-            </div>
-            <div className="raid__pause-actions">
+              {canUseCampaignStageTools && (
+                <button type="button" className="raid__menu-button" onClick={() => setStagePickerOpen(true)}>{menuText.selectStage}</button>
+              )}
               {canContinueCampaignCheckpoint && (
-                <button type="button" className="raid__start" onClick={() => resetGame(checkpointStage, true)}>
-                  {menuText.continueStage} {checkpointStage}
-                </button>
+                <button type="button" className="raid__menu-button" onClick={startCurrentRaidMode}>{menuText.restartStage1}</button>
               )}
-              {canControlOverlay ? (
-                <button
-                  type="button"
-                  className={canContinueCampaignCheckpoint ? 'raid__menu-button' : 'raid__start'}
-                  onClick={startCurrentRaidMode}
-                >
-                  {primaryRaidMenuLabel}
-                </button>
-              ) : (
-                <button type="button" className="raid__start" onClick={exitRaid}>{menuText.exitCoop}</button>
-              )}
-              {canControlOverlay ? (
-                <button type="button" className="raid__menu-button" data-dialog-dismiss onClick={exitRaid}>{hudText.exit}</button>
-              ) : null}
             </div>
-          </div>
-        </div>
+          </section>
+        </GameDialog>
       )}
     </div>
   )

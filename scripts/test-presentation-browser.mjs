@@ -97,12 +97,14 @@ try {
     page.on('pageerror',e=>errors.push(e.message))
     await page.goto('http://127.0.0.1:5173/scripts/presentation-fixture.html'+(item.model?'?model='+item.model:''))
     if(name==='landscape'){
+      await page.getByRole('button', { name: 'Flight Setup', exact: true }).click({timeout:120000})
       await page.locator('.raid__menu-button--difficulty').click({timeout:120000})
       await page.locator('.space-door--idle').waitFor({state:'attached'})
       await page.locator('.raid__difficulty-card--expert').click()
       await page.locator('.raid__panel--difficulty .raid__start[data-dialog-dismiss]').click()
       await page.locator('.raid__panel--difficulty').waitFor({state:'hidden'})
       await page.locator('.space-door--idle').waitFor({state:'attached'})
+      await page.getByRole('dialog', { name: 'Flight Setup' }).getByRole('button', { name: 'Back', exact: true }).click()
     }
     await page.locator('button.raid__start').first().click({timeout:120000})
     await page.locator('.raid__carrier-briefing').waitFor({timeout:30000})

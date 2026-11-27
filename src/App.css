@@ -48,39 +48,6 @@ body {
     linear-gradient(180deg, #03060d 0%, #07101f 48%, #03070d 100%);
 }
 
-.language-picker {
-  position: absolute;
-  z-index: 8;
-  top: max(14px, calc(env(safe-area-inset-top, 0px) + 12px));
-  right: max(14px, calc(env(safe-area-inset-right, 0px) + 12px));
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 9px;
-  border: 1px solid rgba(147, 197, 253, 0.28);
-  border-radius: 8px;
-  background: rgba(5, 14, 28, 0.82);
-  color: #b8cbd7;
-  font-family: 'Orbitron', 'Rajdhani', 'Segoe UI', sans-serif;
-  font-size: 0.68rem;
-  font-weight: 900;
-  text-transform: uppercase;
-  backdrop-filter: blur(12px);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
-}
-
-.language-picker select {
-  min-height: 30px;
-  border: 1px solid rgba(110, 245, 203, 0.28);
-  border-radius: 6px;
-  background: rgba(6, 20, 36, 0.95);
-  color: #eefcff;
-  font: inherit;
-  font-size: 0.72rem;
-  text-transform: none;
-  cursor: pointer;
-}
-
 .start-screen__stars,
 .start-screen__nebula,
 .start-screen__battlefield {
@@ -398,45 +365,6 @@ body {
   color: #93c5fd;
   background: rgba(11, 24, 44, 0.72);
   letter-spacing: 0.14rem;
-}
-
-.start-screen__pilot {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  justify-self: center;
-  width: fit-content;
-  max-width: 100%;
-  padding: 8px 12px;
-  border: 1px solid rgba(110, 245, 203, 0.24);
-  border-radius: 8px;
-  background: rgba(6, 20, 36, 0.68);
-  color: #b8cbd7;
-  font-size: 0.78rem;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.start-screen__pilot strong {
-  max-width: min(34vw, 220px);
-  overflow: hidden;
-  color: #ffffff;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.start-screen__pilot button {
-  min-height: 30px;
-  padding: 6px 9px;
-  border: 1px solid rgba(147, 197, 253, 0.34);
-  border-radius: 6px;
-  background: rgba(14, 29, 52, 0.86);
-  color: #9bdcff;
-  font: inherit;
-  font-size: 0.66rem;
-  cursor: pointer;
-  text-transform: uppercase;
 }
 
 .start-screen__title-lockup {
@@ -4027,16 +3955,6 @@ body {
     scroll-padding-top: max(44px, calc(env(safe-area-inset-top, 0px) + 16px));
   }
 
-  .language-picker {
-    left: 12px;
-    right: 12px;
-    justify-content: space-between;
-  }
-
-  .language-picker select {
-    max-width: 58%;
-  }
-
   .start-screen__command-panel {
     padding: 18px 16px 22px;
   }
@@ -4045,11 +3963,6 @@ body {
     grid-template-columns: auto 1fr;
     font-size: 0.62rem;
     letter-spacing: 0.12rem;
-  }
-
-  .start-screen__pilot {
-    width: 100%;
-    justify-content: space-between;
   }
 
   .start-screen__version {

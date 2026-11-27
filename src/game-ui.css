@@ -194,21 +194,9 @@
 }
 #root .start-screen__title-lockup p { max-width: 42ch; color: var(--ui-muted); font-size: 0.84rem; line-height: 1.5; }
 #root .start-screen__actions { display: grid; grid-template-columns: 1fr; width: 100%; gap: 10px; margin: 0; }
-#root .start-screen__pilot { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; width: 100%; justify-self: start; padding: 14px 0 0; border: 0; border-top: 1px solid var(--ui-line-soft); border-radius: 0; background: none; font-family: var(--ui-font); text-align: left; }
-.start-screen__pilot-identity { display: grid; gap: 3px; min-width: 0; }
-#root .start-screen__pilot-identity > span { font-size: 0.6rem; color: var(--ui-muted); letter-spacing: 0.15em; }
-#root .start-screen__pilot strong { max-width: 100%; font-size: 0.9rem; }
-#root .start-screen__pilot .game-button { min-height: 36px; padding: 7px 12px; font-size: 0.65rem; }
-.start-screen__sync { grid-column: 1 / -1; display: flex; align-items: center; gap: 7px; color: var(--ui-muted); font-size: 0.65rem; font-weight: 400; text-transform: none; }
-.start-screen__sync i { width: 5px; height: 5px; border-radius: 50%; background: #8b9bae; flex-shrink: 0; }
-.start-screen__sync--connected i { background: var(--ui-cyan); }
-.start-screen__sync--conflict i { background: var(--ui-gold); }
 #root .start-screen__command-deck { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 8px; width: 100%; margin: 0; }
 #root .start-screen__command-deck button { display: inline-flex; gap: 8px; min-height: 42px; padding: 9px 13px; font-size: 0.68rem; letter-spacing: 0.04em; }
 #root .start-screen__footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 20px; width: 100%; margin: 0; padding: 0; border: 0; color: #6e879d; font-size: 0.6rem; letter-spacing: 0.025em; }
-#root .language-picker { top: max(14px, env(safe-area-inset-top, 0px)); right: max(18px, env(safe-area-inset-right, 0px)); gap: 8px; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; backdrop-filter: none; font-family: var(--ui-font); }
-#root .language-picker > span { font-size: 0.6rem; color: var(--ui-muted); }
-#root .language-picker select { min-height: 34px; font-size: 0.67rem; padding: 5px 9px; }
 
 #root .start-screen__asset-loading { position: static; transform: none; width: min(560px, 52%); margin: 0; }
 #root .start-screen__asset-loading-panel { grid-template-columns: 1fr auto; gap: 7px; padding: 10px 0; border: 0; border-radius: 0; box-shadow: none; background: none; }
@@ -417,7 +405,6 @@
   #root .start-screen h1 { font-size: clamp(2.8rem, 4vw, 4rem); }
   #root .start-screen__title-lockup { gap: 8px; }
   #root .start-screen__actions .game-menu-action { min-height: 70px; padding-block: 12px; }
-  #root .start-screen__pilot { padding-top: 10px; }
 }
 @media (max-height: 520px) and (min-width: 641px) {
   #root .start-screen__content { padding: max(36px, env(safe-area-inset-top, 0px)) 24px 16px; gap: 14px; }

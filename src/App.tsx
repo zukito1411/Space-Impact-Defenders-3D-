@@ -25,7 +25,6 @@ import {
   getRaidText,
   getReleaseText,
   isLanguageCode,
-  LANGUAGE_OPTIONS,
   saveLanguage,
   type LanguageCode,
 } from './i18n'
@@ -869,17 +868,24 @@ function App() {
   ) : null
 
   if (screen === 'title') {
+    const commander = guestPilot ? command.guest : playerName
+    const syncLabel = guestPilot ? command.localSave : cloudSyncStatus === 'connected' ? 'Cloud connected' : cloudSyncStatus === 'conflict' ? 'Name conflict · local save safe' : 'Offline · local save'
     return (
       <div className="start-screen">
-        <div className="start-screen__topbar">
+        <header className="start-screen__topbar">
+          <div className="start-screen__pilot">
+            <span className={`start-screen__sync start-screen__sync--${cloudSyncStatus}`} role="status" title={syncLabel}>
+              <i aria-hidden="true" />
+              <span>{syncLabel}</span>
+            </span>
+            <div className="start-screen__pilot-identity">
+              <span>{text.player.commander}</span>
+              <strong title={commander}>{commander}</strong>
+            </div>
+            {!guestPilot && <GameButton tone="quiet" onClick={() => setShowPlayerNamePrompt(true)}>{text.player.change}</GameButton>}
+          </div>
           <GameButton tone="quiet" className="start-screen__settings" aria-haspopup="dialog" aria-expanded={homeSettingsOpen} onClick={() => setHomeSettingsOpen(true)}>{raidText.menu.settings}</GameButton>
-          <label className="language-picker">
-            <span>{text.language}</span>
-            <select value={language} onChange={(event) => handleLanguageChange(event.target.value)}>
-              {LANGUAGE_OPTIONS.map((option) => <option key={option.code} value={option.code}>{option.label}</option>)}
-            </select>
-          </label>
-        </div>
+        </header>
         <main className="start-screen__content">
           <div className="start-screen__command-panel">
             <div className="start-screen__brand">
@@ -903,14 +909,6 @@ function App() {
               <GameMenuAction className="start-screen__rankings" label={text.title.recordsTitle} onClick={() => setScreen('leaderboards')} />
             </nav>
 
-            <div className="start-screen__pilot">
-              <div className="start-screen__pilot-identity"><span>{text.player.commander}</span><strong>{guestPilot ? command.guest : playerName}</strong></div>
-              {!guestPilot && <GameButton tone="quiet" onClick={() => setShowPlayerNamePrompt(true)}>{text.player.change}</GameButton>}
-              <span className={`start-screen__sync start-screen__sync--${cloudSyncStatus}`} role="status" title={guestPilot ? command.localSave : cloudSyncStatus === 'connected' ? 'Cloud profile connected' : cloudSyncStatus === 'conflict' ? 'Name already taken online. Choose a different name to sync.' : 'Offline pilot: progress saved locally and will reconnect automatically.'}>
-                <i aria-hidden="true" />
-                {guestPilot ? command.localSave : cloudSyncStatus === 'connected' ? 'Cloud connected' : cloudSyncStatus === 'conflict' ? 'Name conflict · local save safe' : 'Offline · local save'}
-              </span>
-            </div>
             <div className="start-screen__command-deck">
               <GameButton tone="quiet" onClick={() => setScreen('commandDeck')}>{releaseText.deckTitle}</GameButton>
             </div>
@@ -924,7 +922,7 @@ function App() {
         </main>
         {playerNamePrompt}
         {runResultsOverlay}
-        {homeSettingsOpen && <HomeSettingsDialog language={language} onClose={() => setHomeSettingsOpen(false)} />}
+        {homeSettingsOpen && <HomeSettingsDialog language={language} onLanguageChange={handleLanguageChange} onClose={() => setHomeSettingsOpen(false)} />}
       </div>
     )
   }

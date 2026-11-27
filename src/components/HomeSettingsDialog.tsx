@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { getRaidText, type LanguageCode } from '../i18n'
+import { getLanguageText, getRaidText, LANGUAGE_OPTIONS, type LanguageCode } from '../i18n'
 import { getGameAudioMixSettings, getGraphicsQuality, setGameAudioMixSettings, setGraphicsQuality, type AudioMixSettings, type GraphicsQuality } from './games/sound'
 import { useRaidFlightView } from './games/raid/flightView'
 import { GameDialog } from './ui/GameDialog'
@@ -8,7 +8,13 @@ import { FlightViewControls } from './ui/FlightViewControls'
 import { ShipSizeControls } from './ui/ShipSizeControls'
 import './HomeSettingsDialog.css'
 
-export function HomeSettingsDialog({ language, onClose }: { language: LanguageCode; onClose: () => void }) {
+type HomeSettingsDialogProps = {
+  language: LanguageCode
+  onLanguageChange: (language: string) => void
+  onClose: () => void
+}
+
+export function HomeSettingsDialog({ language, onLanguageChange, onClose }: HomeSettingsDialogProps) {
   const text = getRaidText(language).menu
   const [landscape, setLandscape] = useRaidFlightView()
   const [quality, setQuality] = useState(getGraphicsQuality)
@@ -27,6 +33,12 @@ export function HomeSettingsDialog({ language, onClose }: { language: LanguageCo
           <GameButton tone="quiet" data-dialog-dismiss onClick={onClose}>{text.close}</GameButton>
         </header>
         <div className="home-settings__sections">
+          <label className="raid__settings-section home-settings__language">
+            <span className="raid__settings-heading">{getLanguageText(language).language}</span>
+            <select value={language} onChange={event => onLanguageChange(event.target.value)}>
+              {LANGUAGE_OPTIONS.map(({ code, label }) => <option key={code} value={code}>{label}</option>)}
+            </select>
+          </label>
           <FlightViewControls language={language} landscape={landscape} onChange={setLandscape} />
           <ShipSizeControls language={language} />
           <div className="raid__settings-section">

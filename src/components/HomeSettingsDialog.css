@@ -7,11 +7,94 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: clamp(8px, 2vw, 16px);
 }
-#root .start-screen__topbar .language-picker { position: static; min-width: 0; margin-left: auto; }
-#root .start-screen__topbar .language-picker select { max-width: 100%; }
-#root .start-screen__topbar .start-screen__settings { min-height: 36px; padding: 7px 14px; font-size: .68rem; }
+#root .start-screen__topbar .start-screen__settings {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 7px 12px;
+  font-size: .7rem;
+}
+.start-screen__pilot {
+  display: flex;
+  align-items: center;
+  gap: clamp(6px, 1.3vw, 12px);
+  min-width: 0;
+  min-height: 44px;
+  padding-inline: 9px 0;
+  border: 1px solid #3b718488;
+  border-left: 2px solid #68dce5;
+  border-radius: 4px;
+  background: linear-gradient(100deg, #112e3ce8, #081724dc);
+  box-shadow: inset 0 1px #c8f6ff15, 0 4px 12px #0006;
+  font-family: var(--ui-font);
+}
+.start-screen__pilot-identity {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  padding-block: 3px;
+}
+.start-screen__pilot-identity > span {
+  overflow: hidden;
+  color: #98c7d4;
+  font-size: .57rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.start-screen__pilot-identity strong {
+  overflow: hidden;
+  max-width: 24ch;
+  color: #f2fbff;
+  font-size: clamp(.77rem, 1.85vw, .95rem);
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#root .start-screen__pilot .game-button {
+  flex: 0 0 auto;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 5px 9px;
+  border: 0;
+  border-image: none;
+  border-left: 1px solid #486d7f;
+  border-radius: 0 3px 3px 0;
+  background: #122b3a;
+  box-shadow: none;
+  color: #cde4ed;
+  font-size: .66rem;
+  letter-spacing: .025em;
+}
+#root .start-screen__pilot .game-button:hover { background: #204354; color: #fff; }
+.start-screen__pilot:not(:has(button)) { padding-right: 10px; }
+.start-screen__sync { position: relative; display: flex; align-items: center; min-height: 24px; }
+.start-screen__sync i { width: 6px; height: 6px; border-radius: 50%; background: #8b9bae; }
+.start-screen__sync--connected i { background: var(--ui-cyan); box-shadow: 0 0 8px #73e5ee66; }
+.start-screen__sync--conflict i { background: var(--ui-gold); }
+.start-screen__sync > span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+@media (min-width: 700px) {
+  .start-screen__pilot-identity { display: flex; align-items: baseline; gap: 7px; }
+  .start-screen__sync { gap: 6px; order: 1; }
+  .start-screen__sync > span {
+    position: static;
+    width: auto;
+    height: auto;
+    clip-path: none;
+    color: #acc1ce;
+    font-size: .65rem;
+  }
+  #root .start-screen__pilot .game-button { order: 2; }
+}
 #root .home-settings .home-settings__panel {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -24,28 +107,39 @@
   text-align: left;
 }
 .home-settings__heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-#root .home-settings__heading h2 { margin: 0; font-size: 1.6rem; }
-#root .home-settings__heading .game-button { min-height: 40px; padding: 8px 12px; }
+#root .home-settings .home-settings__heading h2 { margin: 0; font-size: clamp(1.45rem, 3.5vw, 1.85rem); }
+#root .home-settings__heading .game-button { min-height: 44px; padding: 8px 12px; }
 .home-settings__sections { display: grid; min-height: 0; gap: 10px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 #root .home-settings__sections .raid__settings-section { min-width: 0; margin: 0; padding: 12px; }
+#root .home-settings__language {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+#root .home-settings__language select {
+  min-width: 0;
+  width: min(62%, 210px);
+  font-size: .85rem;
+}
 #root .home-settings__sections .raid__flight-view-hint { margin: 10px 0 0; color: var(--ui-muted); font-size: .72rem; line-height: 1.4; }
 #root .home-settings__sections .raid__gfx-row { margin-top: 10px; }
 #root .home-settings__sections .raid__gfx-btn { min-height: 44px; }
 #root .home-settings__sections .raid__volume-control { grid-template-columns: minmax(70px, .8fr) minmax(0, 1fr) 38px; gap: 8px; }
 
 @media (orientation: landscape) {
-  #root .start-screen__topbar { top: var(--compact-top); left: var(--compact-left); right: var(--compact-right); }
+  #root .start-screen__topbar {
+    top: var(--compact-top);
+    left: calc(max(0px, (100% - 1180px) / 2) + var(--compact-left));
+    right: calc(max(0px, (100% - 1180px) / 2) + var(--compact-right));
+  }
   #root .home-settings .home-settings__panel { padding: 12px; gap: 10px; max-height: calc(100dvh - var(--compact-top) - var(--compact-bottom)); }
   .home-settings__sections { grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; }
-  #root .home-settings__audio { grid-column: 2; grid-row: 1 / span 2; }
+  #root .home-settings__audio { grid-column: 2; grid-row: 1 / span 4; align-self: start; }
   #root .home-settings__sections .raid__settings-section { padding: 10px; }
   #root .home-settings__sections .raid__settings-heading { font-size: .65rem; }
   #root .home-settings__sections .raid__gfx-btn { padding: 7px 9px; font-size: .68rem; }
   #root .home-settings__sections .raid__volume-control { font-size: .65rem; }
-}
-
-@media (max-width: 400px) {
-  #root .start-screen__topbar .language-picker > span { display: none; }
 }
 
 #root .raid__ship-size-warning { margin: 8px 0 0; color: #f7c978; font-size: .72rem; line-height: 1.4; }

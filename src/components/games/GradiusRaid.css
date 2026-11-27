@@ -4612,6 +4612,125 @@
 }
 
 /* Ships alone use live 3D; retain the released scenery and 2D FX layers. */
+
+#root .raid[data-launch-menu] { touch-action: pan-y; }
+#root .raid[data-launch-menu] .raid__hud { visibility: hidden; }
+#root .raid__launch-overlay {
+  padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+}
+#root .raid__launch-panel {
+  display: grid;
+  gap: clamp(10px, 3dvh, 22px);
+  width: min(720px, 100%);
+  max-height: 100%;
+  padding: clamp(14px, 3.4dvh, 26px);
+  overflow: auto;
+  text-align: left;
+}
+.raid__launch-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: clamp(10px, 2.2dvh, 18px);
+  border-bottom: 1px solid #74c8dc46;
+}
+#root .raid__launch-panel .raid__launch-heading h2 {
+  margin: 0;
+  font-size: clamp(1.35rem, min(5.7vw, 8dvh), 2.55rem);
+  line-height: 1.04;
+  overflow-wrap: anywhere;
+}
+.raid__launch-heading .raid__kicker {
+  display: block;
+  margin-bottom: 5px;
+  color: #99c9d9;
+  font-size: .65rem;
+  letter-spacing: .13em;
+}
+#root .raid__launch-heading button {
+  flex: 0 0 auto;
+  min-height: 44px;
+}
+#root .raid__launch-ship {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 8px 12px;
+  padding: clamp(10px, 2dvh, 20px);
+  border: 1px solid #578799a8;
+  border-radius: 5px;
+  background: radial-gradient(ellipse at 45% 35%, #194357b3, transparent 74%), #091825;
+  color: #edf8ff;
+  text-align: left;
+}
+.raid__launch-ship .raid__ship-preview {
+  position: relative;
+  grid-column: 1 / -1;
+  display: block;
+  height: clamp(92px, 23dvh, 184px);
+  pointer-events: none;
+}
+.raid__launch-ship .raid__ship-preview img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  max-width: 290px;
+  height: 100%;
+  margin: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 12px #030c16b3);
+}
+.raid__launch-ship-copy { display: grid; gap: 4px; min-width: 0; }
+.raid__launch-ship-copy strong { font-size: clamp(1rem, 3.2vw, 1.48rem); line-height: 1.16; }
+.raid__launch-ship-copy > span { color: #a9c6d5; font-size: .75rem; }
+.raid__launch-chevron {
+  justify-self: center;
+  width: 8px;
+  height: 8px;
+  border-top: 2px solid #8fdfec;
+  border-right: 2px solid #8fdfec;
+  transform: rotate(45deg);
+}
+.raid__launch-actions, .raid__launch-options { display: grid; gap: 8px; }
+#root .raid__launch-panel :is(.raid__launch-actions, .raid__launch-options) > button {
+  width: 100%;
+  min-height: 44px;
+  margin: 0;
+}
+#root .raid__launch-panel .raid__launch-primary {
+  min-height: 50px;
+  border: 1px solid #e4b775;
+  border-left: 3px solid #ffc66a;
+  border-radius: 4px;
+  background: linear-gradient(110deg, #60431e, #172832 65%);
+  color: #ffe0a2;
+}
+#root .raid__launch-panel--setup { width: min(540px, 100%); }
+#root .raid__launch-options .raid__menu-button--difficulty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.raid__launch-options strong { color: #9bdef0; }
+#root .raid__launch-panel--fleet { width: min(880px, 100%); }
+#root .raid__launch-panel--fleet .raid__ship-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+#root .raid__launch-panel--fleet .raid__ship-card { min-height: 104px; }
+#root .raid__launch-panel--fleet .raid__ship-preview { height: clamp(58px, 14dvh, 112px); }
+@media (orientation: landscape) and (min-width: 560px) {
+  #root .raid__launch-ship {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) 24px;
+    padding: clamp(8px, 1.8dvh, 18px) clamp(14px, 3.5vw, 30px);
+  }
+  .raid__launch-ship .raid__ship-preview { grid-column: auto; }
+  .raid__launch-actions { grid-template-columns: minmax(0, 1fr) minmax(0, .48fr); }
+  #root .raid__launch-panel--fleet .raid__ship-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
 .raid__ships-3d {
   position: absolute; inset: 0; z-index: 4; overflow: hidden;
   pointer-events: none; contain: strict;
