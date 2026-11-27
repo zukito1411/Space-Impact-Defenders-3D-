@@ -39,7 +39,7 @@ A polished tower defense game built with React and TypeScript. Defend against wa
 
 ## Signed Android APK releases
 
-Every push to `main` publishes one production-signed Android APK and automatically keeps only the **three latest Android releases** (after GitHub Actions signing secrets are configured). See [Android release setup](docs/android-release-setup.md) for the one-time signing configuration and update requirements.
+Game updates pushed to `main` publish a production-signed Android APK and keep the **three latest Android releases**. Changes limited to workflow files, documentation, or review captures skip the APK release and Pages deployment. Both workflows can also be run manually. See [Android release setup](docs/android-release-setup.md) for signing and update requirements.
 
 ## Getting Started
 

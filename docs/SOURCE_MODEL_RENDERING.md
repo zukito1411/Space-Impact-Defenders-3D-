@@ -11,7 +11,7 @@ Two original Blender 4.3 project files were recovered from the project's previou
 | Crosswing Nova | `crosswing-nova-open-x.blend` | `a42ff60597b6f1b207a5cc4eaa42d6d3dc237bd44ea6c3a6306c31c32c23375f` |
 | Space Jet | `space-jet-3d-tail-fin.blend` | `16773487a63e815c26cb1798be8f4d8703328b2b55ec323b27512dcba0eebb9e` |
 
-**These files have not been copied into GitHub.** The repository's connected GitHub file editor cannot upload binary `.blend` bytes. Save the original files into `art/3d/models/` when adding them to the repository. Do not rename or alter them; the manual workflow validates SHA-256. The rendered game remains intact without them.
+**These files have not been copied into GitHub.** The repository's connected GitHub file editor cannot upload binary `.blend` bytes. Save the original files into `art/3d/models/` when adding them to the repository. Keep their original names and verify their SHA-256 against the table above. The rendered game remains intact without them.
 
 No authored Blender source was recovered for the other ships. Do not describe their existing baked atlases as high-polygon models.
 
@@ -35,8 +35,6 @@ blender -b -t 4 --python scripts/render_source_model_banking.py -- \
 python3 scripts/pack_source_model_banking.py \
   --frames model-preview/xwing --out model-preview/xwing-source-v6.webp
 ```
-
-Or open **Actions → Render source Blender ship models (review only) → Run workflow** after uploading the verified `.blend` files to the repository. The workflow creates reviewable PNG renders and one `-source-v6.webp` test atlas as artifacts; it **does not** silently update game artwork, physics, main, or the signed Android APK. This prevents a new render from unexpectedly misaligning weapons/collisions.
 
 The original 2D ships are retained in selection screens; Gundam and Spiegel remain 2D in landscape.
 

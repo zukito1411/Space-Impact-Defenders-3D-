@@ -27,6 +27,12 @@ jobs:
         run: python3 scripts/test-source-model-pipeline.py
       - name: Test Stage 13 AT-5 encounter timing and presentation
         run: node --experimental-strip-types scripts/test-at5-encounter.mjs
+      - name: Test Raid boss attacks, stage encounters, hazards, and frame recovery
+        run: |
+          node scripts/test-command-bosses.mjs
+          node scripts/test-raid-stage-profiles.mjs
+          node scripts/test-raid-travel.mjs
+          node scripts/test-raid-frame-loop.mjs
       - name: Typecheck and build
         run: npm run build
       - name: Verify Android media packaging with production assets

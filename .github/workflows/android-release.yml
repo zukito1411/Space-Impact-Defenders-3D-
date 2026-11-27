@@ -4,6 +4,12 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - '.github/workflows/**'
+      - 'docs/**'
+      - 'presentation-review/**'
+      - 'AGENTS.md'
+      - 'README.md'
   workflow_dispatch:
 
 # Releases and their tags are created/removed by the built-in GitHub token.

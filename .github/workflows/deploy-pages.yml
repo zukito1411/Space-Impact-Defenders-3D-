@@ -1,11 +1,16 @@
 name: Deploy Space Impact Defenders to GitHub Pages
 
-# Publish the browser game after every push to main, including ordinary game commits.
 on:
   workflow_dispatch:
   push:
     branches:
       - main
+    paths-ignore:
+      - '.github/workflows/**'
+      - 'docs/**'
+      - 'presentation-review/**'
+      - 'AGENTS.md'
+      - 'README.md'
 
 permissions:
   contents: read
