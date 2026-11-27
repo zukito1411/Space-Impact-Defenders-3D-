@@ -352,6 +352,7 @@ export function drawBossBar(ctx: CanvasRenderingContext2D, enemy: Enemy, x: numb
   const isSuper = enemy.bossKind === 'super' || isStageBoss
   const isFinal = enemy.bossKind === 'final'
   const isDevil = enemy.bossKind === 'devil'
+  const isElite = enemy.isMiniBoss || enemy.eliteFighter
   const devilDesktopBar = isDevil && size > 560
   const maxContainedWidth = Math.max(120, x * 2 - 18)
   const width = Math.min(size * (isDevil ? 1.18 : isFinal ? 1.28 : isStageBoss ? 1.12 : isSuper ? 1.04 : 0.9), isDevil ? maxContainedWidth : Number.POSITIVE_INFINITY)
@@ -402,7 +403,7 @@ export function drawBossBar(ctx: CanvasRenderingContext2D, enemy: Enemy, x: numb
 
   traceRoundedRect(ctx, barX, barY, width, height, 999)
   ctx.fillStyle = isDevil ? 'rgba(15,3,8,0.98)' : isFinal ? 'rgba(3,7,18,0.98)' : isSuper ? 'rgba(18,8,16,0.95)' : 'rgba(20,10,20,0.92)'
-  ctx.strokeStyle = isDevil ? 'rgba(252,165,165,0.78)' : isFinal ? 'rgba(125,249,255,0.72)' : isSuper ? 'rgba(251,191,36,0.65)' : 'rgba(255,255,255,0.2)'
+  ctx.strokeStyle = isDevil ? 'rgba(252,165,165,0.78)' : isFinal ? 'rgba(125,249,255,0.72)' : isSuper || isElite ? 'rgba(251,191,36,0.65)' : 'rgba(255,255,255,0.2)'
   ctx.lineWidth = isDevil ? 1.6 : isFinal ? 1.5 : 1
   ctx.fill()
   ctx.stroke()
@@ -432,6 +433,10 @@ export function drawBossBar(ctx: CanvasRenderingContext2D, enemy: Enemy, x: numb
     gradient.addColorStop(0, '#581c87')
     gradient.addColorStop(0.46, '#ef233c')
     gradient.addColorStop(1, '#fbbf24')
+  } else if (isElite) {
+    gradient.addColorStop(0, '#9b5b1b')
+    gradient.addColorStop(0.58, '#efad44')
+    gradient.addColorStop(1, '#fff1b4')
   } else {
     gradient.addColorStop(0, '#7f1d1d')
     gradient.addColorStop(0.55, '#ef233c')
@@ -439,7 +444,7 @@ export function drawBossBar(ctx: CanvasRenderingContext2D, enemy: Enemy, x: numb
   }
   ctx.fillStyle = gradient
   ctx.shadowBlur = isDevil ? 22 : isFinal ? 24 : isSuper ? 18 : 14
-  ctx.shadowColor = isDevil ? 'rgba(239,68,68,0.9)' : isFinal ? 'rgba(56,189,248,0.9)' : isSuper ? 'rgba(251,191,36,0.82)' : 'rgba(239,35,60,0.8)'
+  ctx.shadowColor = isDevil ? 'rgba(239,68,68,0.9)' : isFinal ? 'rgba(56,189,248,0.9)' : isSuper || isElite ? 'rgba(251,191,36,0.82)' : 'rgba(239,35,60,0.8)'
   ctx.fillRect(barX, barY, width * fill, height)
   ctx.globalCompositeOperation = 'screen'
   ctx.fillStyle = isDevil ? 'rgba(255,255,255,0.18)' : isFinal ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.14)'

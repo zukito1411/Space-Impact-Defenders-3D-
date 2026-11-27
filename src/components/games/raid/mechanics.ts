@@ -36,7 +36,7 @@ export function getNukeCooldownSeconds(stage: number) {
 }
 
 export function getNukeBossDamage(enemy: Enemy, stage: number) {
-  if (enemy.isMiniBoss) return Math.floor(enemy.maxHp * NUKE_MINI_BOSS_DAMAGE_RATIO)
+  if (enemy.isMiniBoss || enemy.eliteFighter) return Math.floor(enemy.maxHp * NUKE_MINI_BOSS_DAMAGE_RATIO)
   const scale = getNukeStageScale(stage)
   const ratio = NUKE_BOSS_DAMAGE_MIN_RATIO + (NUKE_BOSS_DAMAGE_MAX_RATIO - NUKE_BOSS_DAMAGE_MIN_RATIO) * scale
   const resistance = enemy.bossKind === 'final' ? FINAL_BOSS_NUKE_DAMAGE_MULTIPLIER

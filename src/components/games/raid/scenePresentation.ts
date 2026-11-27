@@ -64,7 +64,7 @@ export class RaidScenePresentation {
     if (this.defeated.size > 512) this.defeated.delete(this.defeated.values().next().value!)
     const event: DestructionPresentationEvent = { serial: ++this.sequence, x: enemy.x, y: enemy.y,
       radius: Math.max(1, Math.min(20, enemy.radius)), tier: enemy.isBoss ? 'capital' : enemy.isMiniBoss || enemy.radius >= 4 ? 'armored' : 'fighter', seed: enemy.id % 997, enemyId:enemy.id,hull:enemyHullKey(enemy) ?? undefined,
-      elite:enemy.isMiniBoss,variant:enemy.variant,bossKind:enemy.bossKind,vx:enemy.isBoss?0:enemy.vx,vy:enemy.isBoss?3.5:enemy.isMiniBoss?5:enemy.vy*(enemy.tacticSpeed ?? 1) }
+      elite:enemy.isMiniBoss,eliteFighter:enemy.eliteFighter,variant:enemy.variant,bossKind:enemy.bossKind,vx:enemy.isBoss?0:enemy.vx,vy:enemy.isBoss?3.5:enemy.isMiniBoss?5:enemy.vy*(enemy.tacticSpeed ?? 1) }
     this.stream.push(event)
     if (this.stream.length>12) {
       // Keep a fresh capital event in co-op packets during simultaneous kills.
@@ -166,7 +166,7 @@ export class RaidScenePresentation {
       if(burst.tier!==tier)continue
       const seconds=(this.clock-burst.at)/1000
       if(seconds>burst.profile.lifetime || seconds<0 || burst.profile.style===6)continue
-      const shape={isBoss:tier==='capital',isMiniBoss:Boolean(burst.elite),variant:burst.variant ?? 0,bossKind:burst.bossKind ?? null} as Enemy
+      const shape={isBoss:tier==='capital',isMiniBoss:Boolean(burst.elite),eliteFighter:burst.eliteFighter,variant:burst.variant ?? 0,bossKind:burst.bossKind ?? null} as Enemy
       const size=getEnemyCanvasSize(shape,width,this.landscape)*(shape.isBoss && !['squid','snake','final','devil'].includes(shape.bossKind ?? '')?1.04:width>1100?.96:1)
       this.destructionEffects.add(burst,seconds,size,width,height,reduced,burst.profile)
       if(!burst.finalePlayed && burst.profile.finale>0 && seconds>=burst.profile.finale && phase==='playing') {
@@ -192,7 +192,7 @@ export class RaidScenePresentation {
       const burst=this.bursts[i]
       if(burst.tier!==tier || !burst.hull)continue
       const seconds=(this.clock-burst.at)/1000,profile=burst.profile
-      const shape={isBoss:tier==='capital',isMiniBoss:Boolean(burst.elite),variant:burst.variant ?? 0,bossKind:burst.bossKind ?? null} as Enemy
+      const shape={isBoss:tier==='capital',isMiniBoss:Boolean(burst.elite),eliteFighter:burst.eliteFighter,variant:burst.variant ?? 0,bossKind:burst.bossKind ?? null} as Enemy
       const size=getEnemyCanvasSize(shape,width,this.landscape)*(shape.isBoss && !['squid','snake','final','devil'].includes(shape.bossKind ?? '')?1.04:width>1100?.96:1)
       if(profile.style===6) {
         const t=Math.min(1,seconds/2.85),side=burst.seed%2?1:-1,escape=t*t

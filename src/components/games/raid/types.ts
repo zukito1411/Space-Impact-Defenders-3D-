@@ -115,7 +115,7 @@ export type Player = Vec & {
 
 export type PlayerFeedbackKind = 'field-hit' | 'shield-hit' | 'combined-hit' | 'field-break' | 'shield-break' | 'combined-break' | 'hull-hit' | 'repair'
 export type PlayerFeedback = { serial: number; kind: PlayerFeedbackKind; dx: number; dy: number }
-export type DestructionPresentationEvent = { serial: number; x: number; y: number; radius: number; tier: 'fighter' | 'armored' | 'capital'; seed: number; enemyId?: number; hull?: string; elite?: boolean; variant?: number; bossKind?: BossKind | null; vx?: number; vy?: number }
+export type DestructionPresentationEvent = { serial: number; x: number; y: number; radius: number; tier: 'fighter' | 'armored' | 'capital'; seed: number; enemyId?: number; hull?: string; elite?: boolean; eliteFighter?: boolean; variant?: number; bossKind?: BossKind | null; vx?: number; vy?: number }
 
 export type Shot = Vec & {
   id: number
@@ -151,6 +151,7 @@ export type Enemy = Vec & {
   fighterRearGun?: boolean
   fighterRamAge?: number
   fighterRamTargetY?: number
+  eliteFighter?: boolean
   fighterShield?: number
   fighterShieldFlash?: number
   fighterDefenseAge?: number

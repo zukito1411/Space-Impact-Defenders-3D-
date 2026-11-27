@@ -34,7 +34,7 @@ import { createRaidMainShotEmitter } from './playerMuzzle'
 import { clampRaidShipSize, getRaidPlayerHitRadius, useRaidShipSize } from './shipSize'
 import { ShipSizeControls } from '../../ui/ShipSizeControls'
 import { getRaidShipBaseVisualKey } from './shipArtwork'
-import { absorbRaidFighterShield, advanceRaidFighterDefense, advanceRaidFighterFire, advanceRaidFighterY, commitRaidFighterManeuver, FIGHTER_FIRE_FLASH, fireRaidFighter, getRaidFighter, getRaidFighterDurability, getRaidFighterPathX, getRaidFighterPhaseShift, getRaidRamAttackLane, getRaidReserveVariant, getRaidStageEncounter, getRaidWingSize, getRaidWingSlot, isRaidFighterPhased, LEGACY_FIGHTER_COUNT, RAID_STAGE_ENEMY_LIMIT } from './stageEncounters'
+import { absorbRaidFighterShield, advanceRaidFighterDefense, advanceRaidFighterFire, advanceRaidFighterY, commitRaidFighterManeuver, FIGHTER_FIRE_FLASH, fireRaidFighter, getRaidFighter, getRaidCruiseHullHp, getRaidFighterDurability, getRaidFighterPathX, getRaidFighterPhaseShift, getRaidRamAttackLane, getRaidReserveVariant, getRaidStageEncounter, getRaidWingSize, getRaidWingSlot, isRaidFighterPhased, LEGACY_FIGHTER_COUNT, RAID_MINI_BOSS_HP_SCALE, RAID_STAGE_ENEMY_LIMIT } from './stageEncounters'
 import { drawBossImpact, recordBossImpact } from './bossDamageFx'
 import { prefersRaidReducedMotion } from './commandBossRender'
 import { drawIncomingHazard, drawRecoveryCue, findIncomingHazard, needsRepair, passesNearPilot } from './flightCues'
@@ -71,7 +71,7 @@ import { playCoreLanderPhysicalAttackSound, playPickupVoiceLine, warmPickupVoice
 import { PixiRaidBackground, RAID_BOSS_BACKGROUND_THEME_FINAL, RAID_BOSS_BACKGROUND_THEME_SNAKE, RAID_BOSS_BACKGROUND_THEME_SQUID, drawVolcanicWorldForegroundClouds, drawWateryWorldForegroundClouds, getRaidCameraShakeOffset, isVolcanicWorldTheme, isWateryWorldTheme } from './background'
 import { DEFAULT_RAID_PALETTE, type RaidPalette } from './raidPalette'
 import { forEachDevilBossBeamLane, forEachFinalBossBeamLane, getDevilBossBeamRadius, getDevilBossChargeDuration, getFinalBossBeamLaneCount, getFinalBossBeamRadius } from './bossAttacks'
-import { clearNormalEnemyRasters, drawRaidEnemy, getNormalEnemyFilter, pruneNormalEnemyRasters } from './bossRender'
+import { clearNormalEnemyRasters, drawRaidEliteFighterBar, drawRaidEnemy, getNormalEnemyFilter, pruneNormalEnemyRasters } from './bossRender'
 import { ALLY_PLAYER_COLOR, ASTEROID_CLUSTER_SPAWN_DELAY_SECONDS, ASTEROID_CLUSTER_WARNING_SECONDS, BOSS_COLORS, BOSS_ENTRANCE_SLAM_SECONDS, BOSS_ENTRANCE_SLOWMO_SCALE, BOSS_RESPAWN_SECONDS, BOSS_RUSH_ATTACK_COOLDOWN_SCALE, BOSS_RUSH_ENTRY_SPEED_SCALE, BOSS_RUSH_MOTION_SCALE, BOSS_RUSH_SPECIAL_RECHARGE_SCALE, BOSS_RUSH_STAGES, CORE_LANDER_AOE_RADIUS, DARK_ENEMY_COLORS, DEG, DEVIL_BOSS_MAX_STAGE_GAP, DEVIL_BOSS_MIN_STAGE_GAP, DIFFICULTY_CONFIGS, ELITE_POWER_DROP_CHANCE, EMPTY_WEAPON_FLAGS, EMPTY_WEAPON_TIMERS, FINAL_BOSS_BEAM_CHARGE_SECONDS, FINAL_BOSS_BEAM_LIFE_SECONDS, FORCE_FIELD_ARMOR, GAMEPLAY_ALERT_SNAPSHOT_INTERVAL_MS, GAMEPLAY_SNAPSHOT_INTERVAL_MS, GOD_GUNDAM_BARRAGE_DURATION_SECONDS, GOD_GUNDAM_BARRAGE_HIT_INTERVAL_SECONDS, GOD_GUNDAM_DEFEAT_HOLD_SECONDS, GOD_GUNDAM_MELEE_DAMAGE_PER_SECOND, GOD_GUNDAM_MELEE_EXHAUST_COOLDOWN_SECONDS, GOD_GUNDAM_MELEE_EXHAUST_LIMIT_SECONDS, GOD_GUNDAM_MELEE_HEAT_RECOVERY_PER_SECOND, GOD_GUNDAM_MELEE_VISUAL_DURATION_SECONDS, GOD_GUNDAM_MELEE_VISUAL_INTERVAL_SECONDS, HEIGHT, HOMING_RETARGET_SECONDS, HOMING_RETARGET_STAGGER_SECONDS, IDLE_SNAPSHOT_INTERVAL_MS, MAX_ASTEROIDS, MAX_ION_STRIKES, MAX_METEORS, MAX_RAID_STAGE, MAX_WRECKS, MESIAH_DRONE_FIRE_INTERVAL_SECONDS, MESIAH_ROCKET_FIRE_INTERVAL_SECONDS, MINI_BOSS_COLORS, MULTIPLAYER_BOSS_HP_MULTIPLIER, MULTIPLAYER_CONNECTION_CHECK_MS, MULTIPLAYER_CORRECTION_DRAIN_RATE, MULTIPLAYER_ENTITY_MARGIN, MULTIPLAYER_GUEST_SNAP_DISTANCE_SQ, MULTIPLAYER_GUEST_STALE_MS, MULTIPLAYER_HEARTBEAT_INTERVAL_MS, MULTIPLAYER_HEARTBEAT_TIMEOUT_MS, MULTIPLAYER_MAX_ASTEROIDS, MULTIPLAYER_MAX_BUFFERED_BYTES, MULTIPLAYER_MAX_ENEMIES, MULTIPLAYER_MAX_ENEMY_SHOTS, MULTIPLAYER_MAX_GUEST_CORRECTION, MULTIPLAYER_MAX_ION_STRIKES, MULTIPLAYER_MAX_METEORS, MULTIPLAYER_MAX_POWERUPS, MULTIPLAYER_MAX_RIPPLES, MULTIPLAYER_MAX_SHOTS, MULTIPLAYER_MAX_SPARKS, MULTIPLAYER_MAX_WRECKS, MULTIPLAYER_REMOTE_BUFFER_MAX, MULTIPLAYER_REMOTE_CORRECTION_BLEND, MULTIPLAYER_REMOTE_INPUT_BLEND, MULTIPLAYER_REMOTE_INPUT_SNAP_DISTANCE_SQ, MULTIPLAYER_STATE_LOST_MS, MULTIPLAYER_STATE_STALE_MS, NORMAL_POWER_DROP_COOLDOWN, NUKE_FLASH_SECONDS, NUKE_MISSILE_SECONDS, PLAYER_COLOR, PLAYER_MAX_RANK, POWER_PITY_KILLS, RAID_BACKGROUND_THEME_COUNT, RAID_CHECKPOINTS, RANDOM_EVENT_WARNING_SECONDS, SHIP_OPTIONS, SIDE_VALUES, SPACE_ET_PASSIVE_FORCE_FIELD_CHARGES, SPIEGEL_KUNAI_DAMAGE_MULTIPLIER, SPIEGEL_KUNAI_SPLASH_DAMAGE_MULTIPLIER, SPIEGEL_SHADOW_CLONE_OFFSET, STAGE_CLEAR_SECONDS, STAGE_ENTRY_SECONDS, VICTORY_BLACKOUT_SECONDS, WEAPON_FIRE_INTERVALS, WEAPON_KEYS, WEAPON_STACK_CAPS, WIDTH, getBossRushStage, getNextBossRushStage, getShipSpriteSize, pickEndlessBossKind, shouldForceLocalDerelictWreckTest, shouldForceLocalDevilBossTest } from './constants'
 import { drawBossAttackZones, drawAsteroidHazard, drawAsteroidWarning, drawDerelictWreck, drawDevilChargeWarnings, drawFinalChargeLines, drawGodGundamBarrage, drawGodGundamPassiveStrikes, drawMeteorHazard, drawNukeBlast, drawNukeMissile, drawNukeTarget, drawHomingTargetLock, drawPowerUpCanvas, drawRandomEventWarning, getHomingMissileSprite, getNukeMissilePoint, godBarrageDamageTargetsScratch } from './effectsRender'
 import { BLACK_HOLE_CAPTURE_SECONDS, beginCanvasGravityWarp, endCanvasGravityWarp, gravityWarp, recordBlackHoleCapture, resetCanvasGravityWarp, sampleBlackHoleCapture, type GravityField } from './blackHoleDistortion'
@@ -162,7 +162,7 @@ function getRaidEnemyScoreValue(enemy: Enemy, wave: number) {
   if (enemy.bossKind === 'snake') return 65000
   if (enemy.bossKind === 'squid') return 25000
   if (enemy.isBoss) return 2800 + wave * 220
-  if (enemy.isMiniBoss) return 260 + wave * 32
+  if (enemy.isMiniBoss || enemy.eliteFighter) return 260 + wave * 32
   return 95 + wave * 14
 }
 
@@ -2792,7 +2792,7 @@ export function GradiusRaid({
     let damagedShipsDrawn = 0
     for (const enemy of enemiesRef.current) {
       if (enemy.hp<=0 && enemyHullKey(enemy)) continue
-      const spriteMargin = enemy.isBoss ? 26 : enemy.isMiniBoss ? 12 : landscapeRef.current ? 8 : 5
+      const spriteMargin = enemy.isBoss ? 26 : enemy.isMiniBoss || enemy.eliteFighter ? 12 : landscapeRef.current ? 8 : 5
       if (!raidObjectInView(drawBounds, enemy.x, enemy.y, enemy.radius + spriteMargin)) continue
       if (damageSmoke && damagedShipsDrawn < 4 && !enemy.isBoss && enemy.hp > 0 && enemy.maxHp > 0 && enemy.hp / enemy.maxHp <= .4) {
         const size = getEnemyCanvasSize(enemy, cssWidth, landscapeRef.current)
@@ -2812,7 +2812,13 @@ export function GradiusRaid({
       if (enemy.hp > 0 && (enemy.fighterShield || enemy.fighterShieldFlash || enemy.fighterDefenseAge !== undefined)) {
         drawRaidFighterDefense(ctx, enemy, toX(enemy.x), toY(enemy.y), getEnemyCanvasSize(enemy, cssWidth, landscapeRef.current), reducedMotion)
       }
-      if (gpuForegroundDrawn && !enemy.isBoss && !enemy.isMiniBoss) continue
+      if (gpuForegroundDrawn && !enemy.isBoss && !enemy.isMiniBoss) {
+        if (enemy.eliteFighter) {
+          const size = getEnemyCanvasSize(enemy, cssWidth, landscapeRef.current) * (cssWidth > 1100 ? .96 : 1)
+          drawRaidEliteFighterBar(ctx, enemy, toX(enemy.x), toY(enemy.y), size, cssWidth, cssHeight, landscapeRef.current)
+        }
+        continue
+      }
       const warped = enemy.isBoss ? false : startWarp(enemy)
       drawRaidEnemy(ctx, enemy, toX, toY, cssWidth, time, normalEnemyFilter, dpr,
         gpuForegroundDrawn && Boolean(enemy.isBoss && pixiBackground?.isBossGpuRendered(enemy.id)), landscapeRef.current, !playing)
@@ -3219,12 +3225,16 @@ export function GradiusRaid({
         spawnSparks(enemy.x, enemy.y, '#fbbf24', 48, 9)
         continue
       }
-      if (enemy.isMiniBoss) {
+      if (enemy.isMiniBoss || enemy.eliteFighter) {
         const damage = getNukeBossDamage(enemy, stageRef.current)
         enemy.shieldTime = 0
         enemy.hp = Math.max(1, enemy.hp - damage)
         survivors.push(enemy)
-        addRipple(enemy.x, enemy.y, '#a855f7', 16)
+        if (enemy.fighterShield) {
+          enemy.fighterShield = 0
+          enemy.fighterShieldFlash = .34
+        }
+        addRipple(enemy.x, enemy.y, enemy.eliteFighter ? '#fbbf24' : '#a855f7', 16)
         spawnSparks(enemy.x, enemy.y, '#c084fc', 34, 7)
         continue
       }
@@ -4372,38 +4382,37 @@ export function GradiusRaid({
   const spawnEnemyAt = useCallback((x: number, y: number, wave: number, pattern: number, trainSlot = 0, profile?: EnemySpawnProfile, eliteKind?: MiniBossKind | null) => {
     const powerPressure = getPowerScore(playerRef.current)
     const stage = stageRef.current
-    let activeEliteCount = 0
-    for (const enemy of enemiesRef.current) {
-      if (enemy.isMiniBoss && enemy.hp > 0) activeEliteCount += 1
-    }
-    const eliteCap = getMaxActiveEliteEnemies(stage, isCoOpActive())
-    const randomEliteKind = eliteKind === undefined && activeEliteCount < eliteCap && Math.random() < getEliteEnemyChance(stage, wave, trainSlot, profile?.motion !== undefined)
-      ? pickEliteEnemyKind(stage, wave, trainSlot)
-      : null
-    const kind = eliteKind === undefined ? randomEliteKind : eliteKind
+    const isMultiplayer = isCoOpActive()
+    const kind = eliteKind ?? null
     const isElite = Boolean(kind)
+    const eliteFighter = eliteKind === undefined
+      && Math.random() < getEliteEnemyChance(stage, wave, trainSlot, profile?.motion !== undefined)
+      && !enemiesRef.current.some(enemy => enemy.hp > 0 && (enemy.eliteFighter || enemy.isMiniBoss))
     const variant = profile?.variant ?? (enemyId + 1) % LEGACY_FIGHTER_COUNT
     const fighter = isElite ? undefined : getRaidFighter(variant)
     const color = fighter?.color ?? DARK_ENEMY_COLORS[Math.floor(Math.random() * DARK_ENEMY_COLORS.length)]
     const eliteX = profile?.cruiseElite ? x : clamp(Math.random() < 0.62 ? x + (Math.random() - 0.5) * 32 : 8 + Math.random() * 84, 8, 92)
     const originX = isElite && !profile?.cruiseElite ? clamp(eliteX + (Math.random() - 0.5) * 18, 12, 88) : x
-    const hp = 2 + Math.floor(wave / 2) + Math.floor(powerPressure / 4)
-    const eliteHpMultiplier = kind === 'brood' ? 12 : kind === 'lancer' ? 9.2 : 10.4
-    const eliteStagePressure = Math.max(0, stage - 1)
-    const eliteHp = Math.round((38 + hp * eliteHpMultiplier + eliteStagePressure * 11.5 + wave * 3.4 + powerPressure * 4.2) * (isCoOpActive() ? 1.36 : 1) * enemyHpMultRef.current * (profile?.cruiseElite ? .84 : 1))
-    const durability = getRaidFighterDurability(variant, hp, enemyHpMultRef.current)
+    const toughness = enemyHpMultRef.current * (isMultiplayer ? 1.36 : 1)
+    // The old cruise mini-boss hull is the baseline for regular fighters.
+    const hull = getRaidCruiseHullHp(stage, wave, powerPressure, kind ?? 'stalker')
+    const durability = getRaidFighterDurability(variant, hull * .84, toughness, eliteFighter)
+    const hp = isElite ? Math.round(hull * RAID_MINI_BOSS_HP_SCALE * toughness * (profile?.cruiseElite ? .84 : 1)) : durability.hp
+    const fighterRadius = fighter?.radius ?? 3.7
     enemiesRef.current.push({
       id: enemyId++,
       x: isElite ? eliteX : x,
       y: isElite && !profile?.cruiseElite ? Math.min(y, -7 - Math.random() * 16) : y,
       vx: fighter ? 0 : kind === 'lancer' ? (Math.random() < 0.5 ? -1 : 1) * 10 : (Math.random() - 0.5) * (isElite ? 7 : 4),
       vy: isElite ? kind === 'brood' ? 10.4 : kind === 'lancer' ? 13.2 : 11.8 : (profile?.speed ?? fighter?.speed ?? (14 + Math.random() * 7 + wave * 0.38)),
-      hp: isElite ? eliteHp : durability.hp,
-      maxHp: isElite ? eliteHp : durability.hp,
-      radius: isElite ? kind === 'brood' ? 6.4 : kind === 'lancer' ? 5.7 : 6 : (fighter?.radius ?? 3.7),
+      hp,
+      maxHp: hp,
+      radius: isElite ? kind === 'brood' ? 6.9 : kind === 'lancer' ? 6.15 : 6.5
+        : eliteFighter ? Math.max(4.8, fighterRadius * 1.22) : fighterRadius,
       variant: isElite ? enemyId % RAID_ELITE_SPRITE_COUNT : variant,
       isBoss: false,
       isMiniBoss: isElite,
+      eliteFighter: eliteFighter || undefined,
       fireCooldown: isElite ? kind === 'lancer' ? 0.95 : kind === 'brood' ? 1.28 : 1.08
         : fighter ? .43 + trainSlot * .115 : .85 + Math.random() * .55,
       phase: profile?.phase ?? Math.random() * Math.PI * 2,
@@ -4448,7 +4457,7 @@ export function GradiusRaid({
       spawnEnemyAt(x, y, waveRef.current, 0, i, {
         ...slot, squadId: stage * 4096 + serial,
         ...(openingSweep && { cruiseManeuver: 'sweep', cruiseFlank: flank }),
-      }, null)
+      })
     }
   }, [spawnEnemyAt])
 
@@ -4493,7 +4502,7 @@ export function GradiusRaid({
       spawnEnemyAt(position.x, position.y, waveRef.current, 0, slot, {
         ...wing, squadId, cruiseManeuver: maneuver, cruiseFlank: flank,
         speed: elite ? wing.speed * .86 : wing.speed,
-      }, null)
+      }, elite ? null : undefined)
     }
     return interval
   }, [spawnEnemyAt, spawnFormation])
@@ -6727,10 +6736,10 @@ export function GradiusRaid({
           if (enemy.hp <= 0 && !enemy.isBoss) {
             enemiesDestroyedRef.current += 1
             scenePresentation.defeat(enemy)
-            const scoreValue = enemy.isMiniBoss ? 260 + waveRef.current * 32 : 95 + waveRef.current * 14
+            const scoreValue = getRaidEnemyScoreValue(enemy, waveRef.current)
             player.score += Math.round(scoreValue * scoreMult)
             if (remotePlayer) remotePlayer.score += Math.round(scoreValue * scoreMult)
-            if (enemy.isMiniBoss) {
+            if (enemy.isMiniBoss || enemy.eliteFighter) {
               spawnPowerUp(enemy.x, enemy.y, enemy.cruiseEliteAge !== undefined || Math.random() < ELITE_POWER_DROP_CHANCE)
             } else {
               spawnPowerUp(enemy.x, enemy.y)
@@ -6884,7 +6893,7 @@ export function GradiusRaid({
       if (remotePlayerRef.current) {
         remotePlayerRef.current.score += Math.round(scoreValue * scoreMult)
       }
-      if (enemy.isMiniBoss) {
+      if (enemy.isMiniBoss || enemy.eliteFighter) {
         spawnPowerUp(enemy.x, enemy.y, enemy.cruiseEliteAge !== undefined || Math.random() < ELITE_POWER_DROP_CHANCE)
       } else if (!enemy.isBoss) spawnPowerUp(enemy.x, enemy.y)
       if (!enemy.isBoss) enemy.defeatTimer = Math.max(enemy.defeatTimer ?? 0, GOD_GUNDAM_DEFEAT_HOLD_SECONDS)
@@ -7382,7 +7391,7 @@ export function GradiusRaid({
             if (remotePlayerRef.current) {
               remotePlayerRef.current.score += Math.round(scoreValue * scoreMult)
             }
-            if (enemy.isMiniBoss) {
+            if (enemy.isMiniBoss || enemy.eliteFighter) {
               spawnPowerUp(enemy.x, enemy.y, enemy.cruiseEliteAge !== undefined || Math.random() < ELITE_POWER_DROP_CHANCE)
             } else if (!enemy.isBoss) spawnPowerUp(enemy.x, enemy.y)
             if (enemy.isBoss) {
@@ -7567,9 +7576,10 @@ export function GradiusRaid({
     spawnedSquidBubbles.length = 0
 
     for (const enemy of enemiesRef.current) {
-      if (isRaidFighterPhased(enemy)) continue
+      if (enemy.hp <= 0 || isRaidFighterPhased(enemy)) continue
+      const armoredElite = enemy.isMiniBoss || enemy.eliteFighter
       for (const targetPlayer of livingPlayersThisTick) {
-        if (targetPlayer.hp <= 0 || (targetPlayer.barrageRecovery ?? 0) > 0) continue
+        if (targetPlayer.hp <= 0 || (targetPlayer.barrageRecovery ?? 0) > 0 || (enemy.eliteFighter && targetPlayer.invuln > 0)) continue
         const hitRange = enemy.radius + getRaidPlayerHitRadius(targetPlayer)
         if (
           Math.abs(enemy.x - targetPlayer.x) <= hitRange &&
@@ -7581,31 +7591,31 @@ export function GradiusRaid({
             spawnSparks(enemy.x, enemy.y, '#fb7185', 42, 7)
             addRipple(targetPlayer.x, targetPlayer.y, '#fb7185', 16)
           } else if (targetPlayer.forceField > 0) {
-            if ((enemy.isBoss || enemy.isMiniBoss) && targetPlayer.invuln > 0) continue
+            if ((enemy.isBoss || armoredElite) && targetPlayer.invuln > 0) continue
             const armorCost = enemy.isBoss ? 2 : 1
             targetPlayer.forceField = Math.max(0, targetPlayer.forceField - armorCost)
             scenePresentation.playerEvent(targetPlayer, targetPlayer.forceField <= 0
               ? targetPlayer.shield > 0 ? 'combined-break' : 'field-break'
               : targetPlayer.shield > 0 ? 'combined-hit' : 'field-hit', enemy)
             targetPlayer.invuln = 0.16
-            if (enemy.isBoss || enemy.isMiniBoss) {
+            if (enemy.isBoss || armoredElite) {
               enemy.hp = Math.max(1, enemy.hp - (enemy.isBoss ? 28 + waveRef.current * 8 : 34 + waveRef.current * 7))
             } else {
               enemy.hp = 0
               targetPlayer.score += Math.round((70 + waveRef.current * 10) * scoreMult)
               spawnPowerUp(enemy.x, enemy.y)
             }
-            spawnSparks(enemy.x, enemy.y, '#22d3ee', enemy.isBoss || enemy.isMiniBoss ? 40 : 18, 7)
-            addRipple(enemy.x, enemy.y, '#22d3ee', enemy.isBoss || enemy.isMiniBoss ? 15 : 10)
-            if (enemy.isBoss || enemy.isMiniBoss) playGameSound('hit',raidAudioPosition(enemy.x,enemy.y,landscapeRef.current,playerRef.current))
+            spawnSparks(enemy.x, enemy.y, '#22d3ee', enemy.isBoss || armoredElite ? 40 : 18, 7)
+            addRipple(enemy.x, enemy.y, '#22d3ee', enemy.isBoss || armoredElite ? 15 : 10)
+            if (enemy.isBoss || armoredElite) playGameSound('hit',raidAudioPosition(enemy.x,enemy.y,landscapeRef.current,playerRef.current))
           } else {
-            if (enemy.isBoss || enemy.isMiniBoss) {
+            if (enemy.isBoss || armoredElite) {
               enemy.hp = Math.max(1, enemy.hp - (enemy.isBoss ? 22 + waveRef.current * 6 : 30 + waveRef.current * 6))
             } else {
               enemy.hp = 0
             }
             damagePlayer(enemy.isBoss ? 2 : 1, targetPlayer, enemy)
-            spawnSparks(enemy.x, enemy.y, '#fb7185', enemy.isBoss || enemy.isMiniBoss ? 35 : 14, 6)
+            spawnSparks(enemy.x, enemy.y, '#fb7185', enemy.isBoss || armoredElite ? 35 : 14, 6)
           }
           if (enemy.hp <= 0 && !enemy.isBoss) scenePresentation.defeat(enemy)
           break

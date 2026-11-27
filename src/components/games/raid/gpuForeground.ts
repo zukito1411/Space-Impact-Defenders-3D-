@@ -297,7 +297,8 @@ export class RaidGpuForeground {
     const sy = frame.height / 100
     for (const alien of frame.enemies) {
       if (alien.hp<=0 || alien.isBoss || alien.isMiniBoss) continue
-      if (!raidObjectInView(frame.bounds, alien.x, alien.y, alien.radius + (frame.landscape ? 8 : 5))) continue
+      const spriteMargin = alien.eliteFighter ? 12 : frame.landscape ? 8 : 5
+      if (!raidObjectInView(frame.bounds, alien.x, alien.y, alien.radius + spriteMargin)) continue
       const size = getEnemyCanvasSize(alien, frame.width, frame.landscape) * (frame.width > 1100 ? 0.96 : 1)
       this.visibleEnemies.add(alien.id)
       let pair = this.enemyNodes.get(alien.id)

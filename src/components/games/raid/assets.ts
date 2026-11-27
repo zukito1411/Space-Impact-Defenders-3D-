@@ -1,5 +1,5 @@
 import { getCoreLanderBarrageFilter } from './state'
-import { getRaidFighter, LEGACY_FIGHTER_COUNT } from './stageEncounters'
+import { getRaidFighter, RAID_ELITE_FIGHTER_SIZE, LEGACY_FIGHTER_COUNT } from './stageEncounters'
 import { getRaidSideShipSpriteUrl } from './sideArtwork'
 import { getGenericBossArt } from './bossCatalog'
 import { getWreckCanvasSprite } from './wreckArt'
@@ -1441,10 +1441,11 @@ export function getEnemyCanvasSize(enemy: Enemy, viewportWidth: number, landscap
     if (enemy.isMiniBoss) {
       const miniSize = isMobileView ? Math.min(viewportWidth * .18, 150) : Math.min(viewportWidth * .15, 132)
       const smallestBossSize = Math.min(viewportWidth * (isMobileView ? .34 : .30), 260)
-      return (Math.min(miniSize * 1.12, smallestBossSize * .72)) * visualScale
+      return (Math.min(miniSize * 1.24, smallestBossSize * .72)) * visualScale
     }
     const normalSize = isMobileView ? Math.min(viewportWidth * .125, 92) : Math.min(viewportWidth * .105, 82)
-    return (normalSize * (getRaidFighter(enemy.variant) ? 1.18 * 1.10 : 1.15)) * visualScale
+    const fighterSize = normalSize * (getRaidFighter(enemy.variant) ? 1.18 * 1.10 : 1.15)
+    return fighterSize * (enemy.eliteFighter ? RAID_ELITE_FIGHTER_SIZE : 1) * visualScale
   }
   if (enemy.bossKind === 'devil') return (Math.min(viewportWidth * (isMobileView ? 0.94 : 0.68), isMobileView ? 520 : 720)) * visualScale
   if (enemy.bossKind === 'final') return (Math.min(viewportWidth * 0.64, 620)) * visualScale

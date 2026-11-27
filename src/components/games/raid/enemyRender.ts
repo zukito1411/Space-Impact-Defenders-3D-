@@ -59,6 +59,16 @@ function drawRaidEnemyHealthBar(
   ctx.restore()
 }
 
+export function drawRaidEliteFighterBar(
+  ctx: CanvasRenderingContext2D, enemy: Enemy, x: number, y: number, size: number,
+  viewportWidth: number, viewportHeight: number, landscape: boolean,
+) {
+  ctx.save()
+  ctx.globalAlpha *= getRaidFighterOpacity(enemy, prefersRaidReducedMotion())
+  drawRaidEnemyHealthBar(ctx, enemy, x, y, size * .82, viewportWidth, viewportHeight, landscape)
+  ctx.restore()
+}
+
 export function drawRaidEnemy(
   ctx: CanvasRenderingContext2D,
   enemy: Enemy,
@@ -227,4 +237,5 @@ export function drawRaidEnemy(
     drawRaidCombatTexture(ctx, texture, x+Math.sin(gunHeading)*size*(hit ? .02 : .34),
       y+Math.cos(gunHeading)*size*(hit ? .02 : .34), edge, edge, 0, true, hit || muzzle || charge)
   }
+  if (enemy.eliteFighter && !captured) drawRaidEliteFighterBar(ctx, enemy, x, y, size, viewportWidth, toY(100), landscape)
 }

@@ -443,6 +443,13 @@ nukeHarness.enemiesRef.current.push(charged);nukeHarness.enemyShotsRef.current.p
 nukeHarness.detonateNuke()
 assert.equal(nukeHarness.enemyShotsRef.current.length,0)
 assert.equal(charged.bossLastVolleyAge,undefined);assert.equal(charged.hp,10000-nukeHarness.getNukeBossDamage(charged,12));assert.equal(charged.bossAttackState,'recovery');assert.equal(charged.bossAttackTimer,.9)
+const promoted = { eliteFighter: true, x: 64, y: 30, hp: 320, maxHp: 320, fighterShield: 30 }
+nukeHarness.enemiesRef.current.push(promoted)
+nukeHarness.detonateNuke()
+assert.ok(nukeHarness.enemiesRef.current.includes(promoted))
+assert.equal(promoted.hp, 320 - nukeHarness.getNukeBossDamage({ ...promoted, eliteFighter: false, isMiniBoss: true }, 12))
+assert.equal(promoted.fighterShield, 0)
+
 for (const hp of [12, 100, 1800, 150000]) {
  const normal = { isBoss: true, maxHp: hp }
  const damage = (enemy, stage) => nukeHarness.getNukeBossDamage(enemy, stage)

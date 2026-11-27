@@ -1,4 +1,4 @@
-import type { Enemy, Shot, Vec } from './types'
+import type { Enemy, MiniBossKind, Shot, Vec } from './types'
 
 export const LEGACY_FIGHTER_COUNT = 8
 export const RAID_STAGE_ENEMY_LIMIT = 32
@@ -12,12 +12,12 @@ export const RAID_FIGHTER_ASSETS = [
 ] as const
 
 export const RAID_FIGHTERS = [
-  { color: '#7ce4eb', hull: .77, shield: 0, defense: 'scout', radius: 2.65, speed: 25, cooldown: 1.26, shots: 1, boltSpeed: 38, spread: 0, aim: .82, kind: 'needle' },
-  { color: '#f9a15d', hull: 1.38, shield: 0, defense: 'phase', radius: 3.4, speed: 23, cooldown: 1.5, shots: 2, boltSpeed: 34, spread: .20, aim: .73, kind: 'blade' },
-  { color: '#c4a4fe', hull: 2.85, shield: 1.15, defense: 'tank', radius: 3.9, speed: 15, cooldown: 1.68, shots: 2, boltSpeed: 30, spread: .08, aim: .24, kind: 'plasma' },
-  { color: '#f8777f', hull: 2.5, shield: 0, defense: 'ram', radius: 4.15, speed: 24, cooldown: 4.0, shots: 0, boltSpeed: 0, spread: 0, aim: 0, kind: 'enemy' },
-  { color: '#85eac5', hull: 1.08, shield: 0, defense: 'cloak', radius: 3.45, speed: 19, cooldown: 1.82, shots: 2, boltSpeed: 29, spread: .29, aim: .68, kind: 'orbShot' },
-  { color: '#f9d486', hull: 1.92, shield: .62, defense: 'battery', radius: 3.8, speed: 16, cooldown: 2.05, shots: 3, boltSpeed: 27, spread: .27, aim: .58, kind: 'scatterBoss' },
+  { color: '#7ce4eb', hull: .81, shield: 0, defense: 'scout', radius: 2.65, speed: 25, cooldown: 1.26, shots: 1, boltSpeed: 38, spread: 0, aim: .82, kind: 'needle' },
+  { color: '#f9a15d', hull: 1.02, shield: 0, defense: 'phase', radius: 3.4, speed: 23, cooldown: 1.5, shots: 2, boltSpeed: 34, spread: .20, aim: .73, kind: 'blade' },
+  { color: '#c4a4fe', hull: 1.33, shield: .27, defense: 'tank', radius: 3.9, speed: 15, cooldown: 1.68, shots: 2, boltSpeed: 30, spread: .08, aim: .24, kind: 'plasma' },
+  { color: '#f8777f', hull: 1.22, shield: 0, defense: 'ram', radius: 4.15, speed: 24, cooldown: 4.0, shots: 0, boltSpeed: 0, spread: 0, aim: 0, kind: 'enemy' },
+  { color: '#85eac5', hull: .93, shield: 0, defense: 'cloak', radius: 3.45, speed: 19, cooldown: 1.82, shots: 2, boltSpeed: 29, spread: .29, aim: .68, kind: 'orbShot' },
+  { color: '#f9d486', hull: 1.12, shield: .16, defense: 'battery', radius: 3.8, speed: 16, cooldown: 2.05, shots: 3, boltSpeed: 27, spread: .27, aim: .58, kind: 'scatterBoss' },
 ] as const
 
 type Layout = 'chevron' | 'line' | 'echelon' | 'split' | 'escort' | 'weave'
@@ -57,14 +57,24 @@ export function getRaidFighter(variant: number): (typeof RAID_FIGHTERS)[number] 
   return RAID_FIGHTERS[variant - LEGACY_FIGHTER_COUNT]
 }
 
-export function getRaidFighterDurability(variant: number, base: number, difficulty: number) {
+export function getRaidCruiseHullHp(stage: number, wave: number, power: number, kind: MiniBossKind = 'stalker') {
+  const base = 2 + Math.floor(wave / 2) + Math.floor(power / 4)
+  const multiplier = kind === 'brood' ? 12 : kind === 'lancer' ? 9.2 : 10.4
+  return 38 + base * multiplier + Math.max(0, stage - 1) * 11.5 + wave * 3.4 + power * 4.2
+}
+
+export const RAID_MINI_BOSS_HP_SCALE = 2.15
+export const RAID_ELITE_FIGHTER_SIZE = 1.36
+
+export function getRaidFighterDurability(variant: number, base: number, difficulty: number, elite = false) {
   const fighter = getRaidFighter(variant)
-  return { hp: Math.max(1, Math.round(base * (fighter?.hull ?? 1) * difficulty)),
-    shield: Math.ceil(base * (fighter?.shield ?? 0) * difficulty) }
+  const scaledHull = base * difficulty * (elite ? 2.3 : 1)
+  return { hp: Math.max(1, Math.round(scaledHull * (fighter?.hull ?? 1))),
+    shield: Math.ceil(scaledHull * (fighter?.shield ?? 0)) }
 }
 
 const LEGACY_GUN = { cooldown: 1.65, shots: 1, boltSpeed: 29, spread: 0, aim: 1, kind: 'enemy' } as const
-const FIGHTER_GAPS = [0, 27, 42, 32, 35, 51] as const
+const FIGHTER_GAPS = [24, 27, 42, 32, 35, 51] as const
 const RAM_WARNING = .68
 const RAM_LUNGE_END = 1.56
 const RAM_RECOVERY_END = 3.15
@@ -199,7 +209,7 @@ export function getRaidFighterPathX(enemy: Enemy, target?: Vec) {
 }
 
 export function isRaidScout(enemy: Enemy) {
-  return !enemy.isBoss && !enemy.isMiniBoss && enemy.variant === LEGACY_FIGHTER_COUNT + SCOUT
+  return !enemy.isBoss && !enemy.isMiniBoss && !enemy.eliteFighter && enemy.variant === LEGACY_FIGHTER_COUNT + SCOUT
 }
 
 function isRaidFighterOnscreen(enemy: Enemy) {

@@ -6,6 +6,7 @@ const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8'
 const raid = 'src/components/games/raid/'
 const withoutImports = source => source.replace(/^import .*\n/gm, '')
 const profileSource = withoutImports(read(raid + 'stageEncounters.ts'))
+const sizeSource = read(raid + 'assets.ts').split('export function getEnemyCanvasSize')[1]
 const cruiseSource = withoutImports(read(raid + 'cruiseEncounters.ts'))
 const tacticsSource = withoutImports(read(raid + 'enemyTactics.ts')).replace('const clamp=', 'const clampTactic=').replaceAll('clamp(', 'clampTactic(')
 const runtime = read(raid + 'GradiusRaidRuntime.tsx')
@@ -25,7 +26,9 @@ const stageRef = { current: 1 }, waveRef = { current: 1 }, wingSerialRef = { cur
 const playerRef = { current: { x: 50, y: 83 } }, enemyHpMultRef = { current: 1 }
 const enemiesRef = { current: [] }, enemyShotsRef = { current: [] }, bossTimerRef = { current: 90 }
 const getPowerScore = () => 4, isCoOpActive = () => false
-const getMaxActiveEliteEnemies = () => 2, getEliteEnemyChance = () => 1
+let promoteFighter = false
+const getMaxActiveEliteEnemies = () => 2
+const getEliteEnemyChance = stage => stage >= 2 && promoteFighter ? 1 : 0
 const pickEliteEnemyKind = () => 'lancer', RAID_ELITE_SPRITE_COUNT = 5
 const DARK_ENEMY_COLORS = ['#a05'], MINI_BOSS_COLORS = { lancer: '#f80' }
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value))
@@ -33,11 +36,12 @@ const MULTIPLAYER_MAX_ENEMY_SHOTS = 140
 const emitCommandBossShot = shot => enemyShotsRef.current.push({ ...shot, id: ++shotId })
 `
 const wrapper = `
-export function formation(stage, serial, liveEnemies = 0) {
+export function formation(stage, serial, liveEnemies = 0, promote = false) {
   stageRef.current = waveRef.current = stage
   wingSerialRef.current = serial
   enemiesRef.current = Array.from({ length: liveEnemies }, () => ({ hp: 1 }))
-  spawnFormation()
+  promoteFighter = promote
+  try { spawnFormation() } finally { promoteFighter = false }
   return { enemies: enemiesRef.current.slice(liveEnemies), next: wingSerialRef.current }
 }
 export function cruise(stage, serial, { liveEnemies = 0, bossRemaining = 90 } = {}) {
@@ -54,7 +58,7 @@ export function fire(enemy, target, queued = 0) {
   return enemyShotsRef.current.slice(queued)
 }
 `
-const code = ts.transpileModule(profileSource + cruiseSource + tacticsSource + harness + spawnSource + fireSource + wrapper, {
+const code = ts.transpileModule(profileSource + '\nexport function getEnemyCanvasSize' + sizeSource + cruiseSource + tacticsSource + harness + spawnSource + fireSource + wrapper, {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
 }).outputText
 const api = await import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'))
@@ -355,6 +359,33 @@ for (const fps of [30, 60, 120]) {
   }
 }
 console.log('Campaign cadence, fighter engagements, tail fire, ram cycles and interruptible crossfire passed at 30/60/120 Hz')
+
+for (const stage of [2, 6, 13, 15]) {
+  const wing = api.formation(stage, 0).enemies
+  const promotedWing = api.formation(stage, 0, 0, true).enemies
+  const regular = wing[0]
+  const promoted = promotedWing[0]
+  const oldEliteHp = api.getRaidCruiseHullHp(stage, stage, 4) * .84
+  assert.ok(wing.every(enemy => enemy.hp >= oldEliteHp * .79 && enemy.hp <= oldEliteHp * 1.35))
+  assert.equal(promotedWing.filter(enemy => enemy.eliteFighter).length, 1)
+  assert.equal(promoted.variant, regular.variant)
+  assert.equal(promoted.isMiniBoss, false)
+  assert.ok(promoted.hp > regular.hp * 2 && promoted.radius > regular.radius)
+  assert.ok(promoted.hp > Math.max(...wing.map(enemy => enemy.hp + (enemy.fighterShield ?? 0))))
+  assert.equal(api.isRaidScout(promoted), false)
+  const eliteSerial = Array.from({ length: 11 }, (_, serial) => serial).find(serial => api.getCruiseEncounter(stage, serial).elite)
+  const miniBoss = api.cruise(stage, eliteSerial).enemies[0]
+  assert.ok(miniBoss.isMiniBoss && miniBoss.hp >= oldEliteHp * 1.9)
+  for (const width of [280, 393, 640, 844, 1366]) {
+    for (const landscape of [false, true]) {
+      const size = enemy => api.getEnemyCanvasSize(enemy, width, landscape)
+      assert.ok(size(promoted) >= size(regular) * 1.35, 'promoted hull must read larger in either orientation')
+      assert.ok(size(miniBoss) > size(regular) * 1.28, 'mini-boss silhouette must remain distinct')
+    }
+  }
+}
+assert.ok(api.formation(1, 0, 0, true).enemies.every(enemy => !enemy.eliteFighter))
+console.log('Former mini-boss health band, promoted hull identity, per-wing promotion cap and elite scale verified')
 
 const defenses = api.RAID_FIGHTERS.map((_, index) => api.getRaidFighterDurability(api.LEGACY_FIGHTER_COUNT + index, 10, 1))
 assert.equal(new Set(defenses.map(fighter => fighter.hp)).size, 6)

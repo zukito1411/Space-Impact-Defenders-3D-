@@ -143,9 +143,10 @@ async function takeSimulationControl(page) {
       && fn.toString().includes('nearMissCooldownRef.current'))
     const draw = callbacks.find(fn => fn.toString().includes('RAID_FX_CANVAS_CONTEXT_SETTINGS'))
     const sync = callbacks.find(fn => fn.toString().includes('const bossAlertBucket'))
-    if (!update || !draw || !sync || refsByName.phaseRef.current !== 'playing') throw Error('Invalid opening fixture mapping')
+    const spawnEnemy = callbacks.find(fn => fn.toString().includes('const fighterRadius'))
+    if (!update || !draw || !sync || !spawnEnemy || refsByName.phaseRef.current !== 'playing') throw Error('Invalid opening fixture mapping')
     window.openingManualFrames = true
-    window.openingTest = { refs: refsByName, update, draw, sync }
+    window.openingTest = { refs: refsByName, update, draw, sync, spawnEnemy }
   }, raidRefs)
 }
 
@@ -392,7 +393,10 @@ async function testRaid() {
       update(1 / 60)
       const gunship = refs.enemiesRef.current.find(enemy => enemy.variant === 10)
       const scout = refs.enemiesRef.current.find(enemy => enemy.variant === 8)
-      if (!gunship || !scout || gunship.hp <= scout.hp * 2 || !gunship.fighterShield) throw Error('The gunship did not spawn with heavy hull and shields')
+      const baseHull = enemy => enemy.hp / (enemy.eliteFighter ? 2.3 : 1)
+      if (!gunship || !scout || baseHull(gunship) <= baseHull(scout) * 1.5 || !gunship.fighterShield) {
+        throw Error('The gunship did not spawn with heavy hull and shields')
+      }
       gunship.y = 25
       const hit = damage => {
         refs.shotsRef.current = [{ id: -3, x: gunship.x, y: gunship.y, vx: 0, vy: 0, kind: 'pulse', damage, radius: 2 }]
@@ -449,7 +453,7 @@ async function testRaid() {
       refs.asteroidsRef.current.length = 0
       const pilot = refs.playerRef.current
       Object.assign(pilot, { x: 66, y: 74, invuln: 100, fireCooldown: 100 })
-      Object.assign(scout, { x: 31, originX: 31, y: 84, fireCooldown: 1 })
+      Object.assign(scout, { eliteFighter: undefined, x: 31, originX: 31, y: 84, fireCooldown: 1 })
       Object.assign(interceptor, { x: 77, originX: 77, y: 34, fighterPhaseSide: undefined, fighterDefenseAge: 4 })
       for (let frame = 0; frame < 24; frame++) update(1 / 60)
       const tailShot = refs.enemyShotsRef.current.find(shot => shot.kind === 'needle' && shot.vy < 0)
@@ -488,9 +492,56 @@ async function testRaid() {
       update(1 / 60)
       if (interceptor.hp > 0 || refs.enemiesRef.current.includes(interceptor)) throw Error('Destroying the interceptor should clear it from combat')
     })
+    await desktop.evaluate(async () => {
+      const { refs, spawnEnemy, draw, sync } = window.openingTest
+      const { getRaidCruiseHullHp } = await import('/src/components/games/raid/stageEncounters.ts')
+      const stage = 3
+      refs.stageRef.current = refs.waveRef.current = stage
+      refs.enemiesRef.current.length = 0
+      refs.shotsRef.current.length = 0
+      refs.enemyShotsRef.current.length = 0
+      refs.asteroidsRef.current.length = 0
+      refs.wrecksRef.current.length = 0
+      refs.randomEventsRef.current.length = 0
+      refs.powerUpsRef.current.length = 0
+      refs.sparksRef.current.length = 0
+      refs.ripplesRef.current.length = 0
+      refs.asteroidApproachRef.current.length = 0
+      refs.asteroidWarningRef.current = refs.bossAlertRef.current = 0
+      const pilot = refs.playerRef.current
+      Object.assign(pilot, { x: 55, y: 82, invuln: 0 })
+      draw(performance.now())
+      const roll = Math.random
+      try {
+        spawnEnemy(27, 38, stage, 0, 0, { variant: 9 }, null)
+        Math.random = () => 0
+        spawnEnemy(52, 38, stage, 0, 0, { variant: 9 })
+        spawnEnemy(75, 38, stage, 0, 0, { variant: 9 })
+        if (refs.enemiesRef.current[2].eliteFighter) throw Error('A second promotion escaped the active cap')
+        refs.enemiesRef.current.pop()
+      } finally { Math.random = roll }
+      spawnEnemy(76, 38, stage, 0, 0, { variant: 0, cruiseElite: true }, 'lancer')
+      const [regular, promoted, miniBoss] = refs.enemiesRef.current
+      const oldEliteFloor = getRaidCruiseHullHp(stage, stage, 0) * .84
+      if (regular.hp < oldEliteFloor || regular.eliteFighter || !promoted.eliteFighter || promoted.variant !== regular.variant
+        || promoted.hp <= regular.hp * 2 || miniBoss.hp < oldEliteFloor * 1.9) throw Error('Incorrect hull health or promotion tier')
+
+      let eliteBars = 0
+      const addColorStop = CanvasGradient.prototype.addColorStop
+      CanvasGradient.prototype.addColorStop = function (offset, color) {
+        if (color === '#9b5b1b') eliteBars++
+        return addColorStop.call(this, offset, color)
+      }
+      try {
+        draw(performance.now())
+        if (eliteBars !== 2) throw Error('Only the promoted fighter and scripted mini-boss should draw elite health bars')
+      } finally { CanvasGradient.prototype.addColorStop = addColorStop }
+      sync()
+    })
+    await capture(desktop, 'raid-elite-comparison')
     assert.deepEqual(traffic, [], 'a guest run must not call the online profile or leaderboard APIs')
     assert.deepEqual(errors, [])
-    console.log('Desktop guest launch, stage advance, retry, sustained fighter combat, scout tail fire, crossfire, shields, phase and cloak passed')
+    console.log('Desktop guest launch, stage advance, retry, sustained fighter combat, scout tail fire, crossfire, shields, phase, cloak and both elite tiers passed')
   } catch (error) {
     const visible = await desktop.locator('body').innerText({ timeout: 4000 }).catch(() => '')
     throw new Error(`Raid did not complete its opening check. Visible state: ${visible.slice(0, 1000)}`, { cause: error })
