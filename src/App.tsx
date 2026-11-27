@@ -17,7 +17,6 @@ import { RaidMultiplayerLobby, type RaidMultiplayerConnectionMode, type RaidMult
 import { RunResultsOverlay } from './components/RunResultsOverlay'
 import { GradiusRaid, preloadGradiusRaidAssets } from './components/games/GradiusRaid'
 import { getRaidAlienSpriteUrl, getRaidEliteSpriteUrl, RaidShipSprite, useLandscapeScreen } from './components/games/RaidShipSprite'
-import { SpaceImpactDefense } from './components/games/SpaceImpactDefense'
 import { getPublicAssetUrl } from './components/games/sound'
 import { useHangarAmbience, useTransmission } from './components/games/raid/carrierAudio'
 import {
@@ -31,41 +30,12 @@ import {
   type LanguageCode,
 } from './i18n'
 import { getOrCreateStoredPlayerId, getStoredPlayerName, getStoredRecoveryCode, hasStoredPlayerName, isCreatorPlayerName, registerPlayerName, restorePlayerName, sanitizePlayerName, saveStoredPlayerId, saveStoredPlayerName, saveStoredRecoveryCode, uploadPlayerProgress, type PlayerNameRegistrationResult } from './leaderboards'
-import { CORE_LANDER_GOD_GUNDAM_UNLOCK_SCORE, CORE_LANDER_UNLOCK_GRADIUS_ENDLESS_SCORE, getEquippedShipCosmetics, getStoredTowerDefenseEndlessUnlock, isCoreLanderGodGundamUnlocked, isCoreLanderUnlocked, isGradiusRaidEndlessUnlocked, isShipCosmeticUnlocked, loadProgress, normalizeProgress, mergeProgressForSync, markProgressSyncPending, getPendingProgressSyncToken, clearPendingProgressSyncToken, recordRunResult, resetProgressForNewAccount, saveProgress, setCoreLanderModel, SHIP_COSMETIC_SINGLE_RUN_SCORE, SHIP_COSMETIC_TOTAL_SCORE, type ProgressState, type ProgressUpdate, type RunResult } from './progression'
+import { CORE_LANDER_GOD_GUNDAM_UNLOCK_SCORE, CORE_LANDER_UNLOCK_GRADIUS_ENDLESS_SCORE, getEquippedShipCosmetics, isCoreLanderGodGundamUnlocked, isCoreLanderUnlocked, isGradiusRaidEndlessUnlocked, isShipCosmeticUnlocked, loadProgress, normalizeProgress, mergeProgressForSync, markProgressSyncPending, getPendingProgressSyncToken, clearPendingProgressSyncToken, recordRunResult, resetProgressForNewAccount, saveProgress, setCoreLanderModel, SHIP_COSMETIC_SINGLE_RUN_SCORE, SHIP_COSMETIC_TOTAL_SCORE, type ProgressState, type ProgressUpdate, type RunResult } from './progression'
 import { useEffect, useMemo, useState, useRef, type CSSProperties } from 'react'
 
-// Placeholder coins (not displayed - kept for prop compatibility)
-const DEFAULT_COINS = [
-  { id: '1', name: 'Alpha', symbol: 'A', image: '' },
-]
-
-const CUTSCENE_SCENES = [
-  {
-    eyebrow: 'Emergency Transmission',
-    title: 'Earth Is Under Siege',
-    text: 'Long-range orbital arrays confirm a hostile armada emerging from deep-space rifts on multiple approach vectors.',
-    accent: 'cyan',
-  },
-  {
-    eyebrow: 'Threat Assessment',
-    title: 'Motherships Are Deploying Strike Waves',
-    text: 'Alien carriers are launching assault craft by the thousands. Civilian corridors are collapsing faster than command can evacuate.',
-    accent: 'amber',
-  },
-  {
-    eyebrow: 'Command Directive',
-    title: 'Establish The Defense Grid',
-    text: 'Deploy warships, intercept the fleet, and hold the Earth line at all costs. If the HQ falls, the planet falls with it.',
-    accent: 'teal',
-  },
-] as const
-
 type ProgressionView = 'profile' | 'missions' | 'achievements' | 'codex' | 'stageMap'
-type ScreenState = 'title' | 'cutscene' | 'game' | 'rocketMode' | 'raidHangar' | 'raidStory' | 'raidEndingArchive' | 'defenseEndingArchive' | 'raidCoopMode' | 'raidSameScreenBriefing' | 'raidMultiplayer' | 'leaderboards' | ProgressionView
-type GameMode = 'normal' | 'endless'
-type ActiveGame = 'towerDefense' | 'rocketRaid'
+type ScreenState = 'title' | 'game' | 'rocketMode' | 'raidHangar' | 'raidStory' | 'raidEndingArchive' | 'raidCoopMode' | 'raidSameScreenBriefing' | 'raidMultiplayer' | 'leaderboards' | ProgressionView
 type RaidLaunchMode = 'campaign' | 'endless' | 'bossRush'
-type CodexCutsceneMode = 'raid' | 'defense' | null
 
 const PROGRESSION_VIEWS: ProgressionView[] = ['profile', 'missions', 'achievements', 'codex', 'stageMap']
 
@@ -177,8 +147,6 @@ function App() {
   const landscapeScreen = useLandscapeScreen()
   const [screen, setScreen] = useDoorState<ScreenState>('title')
   const [language, setLanguage] = useState<LanguageCode>(getInitialLanguage)
-  const [gameMode, setGameMode] = useState<GameMode>('normal')
-  const [activeGame, setActiveGame] = useState<ActiveGame>('towerDefense')
   const [raidLaunchMode, setRaidLaunchMode] = useState<RaidLaunchMode>('campaign')
   const [raidMultiplayerConnectionMode, setRaidMultiplayerConnectionMode] = useState<RaidMultiplayerConnectionMode>('online')
   const [raidMultiplayerSession, setRaidMultiplayerSession] = useState<RaidMultiplayerSession | null>(null)
@@ -187,7 +155,7 @@ function App() {
   const [hangarShipKey, setHangarShipKey] = useState('rocket')
   const [raidStoryIndex, setRaidStoryIndex] = useState(0)
   const [raidStoryFading, setRaidStoryFading] = useState(false)
-  const [codexCutsceneMode, setCodexCutsceneMode] = useState<CodexCutsceneMode>(null)
+  const [playingCodexStory, setPlayingCodexStory] = useState(false)
   const [codexEndingIndex, setCodexEndingIndex] = useState(0)
   const [codexEndingFading, setCodexEndingFading] = useState(false)
   const menuGamepadButtonsRef = useRef(new Map<number, Set<number>>())
@@ -199,7 +167,6 @@ function App() {
   const codexEndingTransitionTimerRef = useRef<number | null>(null)
   const codexEndingAutoFadeTimerRef = useRef<number | null>(null)
   const codexEndingAutoSceneTimerRef = useRef<number | null>(null)
-  const [cutsceneIndex, setCutsceneIndex] = useState(0)
   const [playerName, setPlayerName] = useState(getStoredPlayerName)
   const [playerNameDraft, setPlayerNameDraft] = useState(playerName === 'Pilot' && !hasStoredPlayerName() ? '' : playerName)
   const [showPlayerNamePrompt, setShowPlayerNamePrompt] = useState(false)
@@ -209,7 +176,6 @@ function App() {
   const [playerNameRestoreMode, setPlayerNameRestoreMode] = useState(false)
   const [recoveryCode, setRecoveryCode] = useState(getStoredRecoveryCode)
   const [recoveryCodeDraft, setRecoveryCodeDraft] = useState('')
-  const [endlessUnlocked, setEndlessUnlocked] = useState(getStoredTowerDefenseEndlessUnlock)
   const [progress, setProgress] = useState<ProgressState>(() => loadProgress())
   const [lastRunUpdate, setLastRunUpdate] = useState<{ result: RunResult; update: ProgressUpdate; retry?: () => void } | null>(null)
   const [cloudSyncStatus, setCloudSyncStatus] = useState<'offline' | 'connected' | 'conflict'>('offline')
@@ -222,7 +188,6 @@ function App() {
   const raidText = useMemo(() => getRaidText(language), [language])
   const releaseText = useMemo(() => getReleaseText(language), [language])
   const creatorUnlock = isCreatorPlayerName(playerName)
-  const canPlayEndless = endlessUnlocked || creatorUnlock
   const canPlayGradiusEndless = progress.gradiusRaidEndlessUnlocked || creatorUnlock
   const sameScreenShipOptions = useMemo(() => (
     RAID_COOP_SHIP_OPTIONS.filter((ship) => {
@@ -231,38 +196,21 @@ function App() {
       return true
     })
   ), [progress])
-  const currentScene = useMemo(
-    () => ({
-      ...text.cutscene.scenes[cutsceneIndex],
-      accent: CUTSCENE_SCENES[cutsceneIndex].accent,
-    }),
-    [cutsceneIndex, text],
-  )
   const currentRaidStoryScene = text.raidStory.scenes[raidStoryIndex] ?? text.raidStory.scenes[0]
-  const currentCodexEndingScenes = codexCutsceneMode === 'defense'
-    ? releaseText.cutsceneArchive.defenseEndingScenes
-    : releaseText.cutsceneArchive.raidEndingScenes
+  const currentCodexEndingScenes = releaseText.cutsceneArchive.raidEndingScenes
   const currentCodexEndingScene = currentCodexEndingScenes[codexEndingIndex] ?? currentCodexEndingScenes[0]
   const command = getCommandText(language)
   const guestPilot = !hasStoredPlayerName()
   const closeCodexCutsceneArchive = () => {
-    setCodexCutsceneMode(null)
+    setPlayingCodexStory(false)
     setCodexEndingIndex(0)
     setCodexEndingFading(false)
     setScreen('codex')
   }
-  const openCodexEndingArchive = (mode: Exclude<CodexCutsceneMode, null>) => {
-    setCodexCutsceneMode(mode)
+  const openCodexEndingArchive = () => {
     setCodexEndingIndex(0)
     setCodexEndingFading(false)
-    setScreen(mode === 'raid' ? 'raidEndingArchive' : 'defenseEndingArchive')
-  }
-  const finishDefenseCutsceneIntro = () => {
-    if (codexCutsceneMode === 'defense') {
-      openCodexEndingArchive('defense')
-      return
-    }
-    setScreen('game')
+    setScreen('raidEndingArchive')
   }
   const transitionCodexEnding = (target: 'close' | 'next' | number) => {
     const sceneCount = Math.max(1, currentCodexEndingScenes.length)
@@ -314,14 +262,14 @@ function App() {
     raidStoryTransitionTimerRef.current = window.setTimeout(() => {
       raidStoryTransitionTimerRef.current = null
       if (target === 'back') {
-        if (codexCutsceneMode === 'raid') {
+        if (playingCodexStory) {
           closeCodexCutsceneArchive()
           setRaidStoryFading(false)
           return
         }
         setScreen('rocketMode')
       } else if (target === 'game' || (target === 'next' && raidStoryIndex >= text.raidStory.scenes.length - 1)) {
-        if (codexCutsceneMode === 'raid') openCodexEndingArchive('raid')
+        if (playingCodexStory) openCodexEndingArchive()
         else setScreen('game')
       } else if (typeof target === 'number') {
         setRaidStoryIndex(Math.max(0, Math.min(target, text.raidStory.scenes.length - 1)))
@@ -404,7 +352,6 @@ function App() {
       : localProgress
     saveProgress(nextProgress, false)
     setProgress(nextProgress)
-    setEndlessUnlocked(nextProgress.towerDefenseEndlessUnlocked)
     if (keepGuestProgress || (!result.offline && !cloudProgress && !pending)) markProgressSyncPending()
   }
 
@@ -439,7 +386,6 @@ function App() {
             const nextProgress = pending ? mergeProgressForSync(loadProgress(), cloudProgress) : cloudProgress
             saveProgress(nextProgress, false)
             setProgress(nextProgress)
-            setEndlessUnlocked(nextProgress.towerDefenseEndlessUnlocked)
           } else if (!pending) {
             markProgressSyncPending()
           }
@@ -671,39 +617,6 @@ function App() {
       window.removeEventListener('keydown', handleKeydown)
     }
   }, [screen, startupReady])
-  // =========================
-  // CUTSCENE TIMER LOGIC
-  // =========================
-  useEffect(() => {
-    if (screen !== 'cutscene') return
-
-    const sceneTimer = window.setTimeout(() => {
-      setCutsceneIndex((current) => {
-        if (current >= CUTSCENE_SCENES.length - 1) {
-          finishDefenseCutsceneIntro()
-          return current
-        }
-        return current + 1
-      })
-    }, 2600)
-
-    const handleKeydown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        if (codexCutsceneMode === 'defense') closeCodexCutsceneArchive()
-        else setScreen('game')
-      } else if (event.key === 'Enter' || event.key === ' ') {
-        finishDefenseCutsceneIntro()
-      }
-    }
-
-    window.addEventListener('keydown', handleKeydown)
-
-    return () => {
-      window.clearTimeout(sceneTimer)
-      window.removeEventListener('keydown', handleKeydown)
-    }
-  }, [screen, cutsceneIndex, codexCutsceneMode])
-
   useEffect(() => {
     if (screen !== 'raidStory') return
     setRaidStoryFading(false)
@@ -717,7 +630,7 @@ function App() {
       raidStoryAutoSceneTimerRef.current = null
       setRaidStoryIndex((current) => {
         if (current >= text.raidStory.scenes.length - 1) {
-          if (codexCutsceneMode === 'raid') openCodexEndingArchive('raid')
+          if (playingCodexStory) openCodexEndingArchive()
           else setScreen('game')
           return current
         }
@@ -751,10 +664,10 @@ function App() {
       }
       window.removeEventListener('keydown', handleKeydown)
     }
-  }, [screen, raidStoryIndex, text.raidStory.scenes.length, codexCutsceneMode])
+  }, [screen, raidStoryIndex, text.raidStory.scenes.length, playingCodexStory])
 
   useEffect(() => {
-    if (screen !== 'raidEndingArchive' && screen !== 'defenseEndingArchive') return
+    if (screen !== 'raidEndingArchive') return
     setCodexEndingFading(false)
 
     if (codexEndingIndex < currentCodexEndingScenes.length - 1) {
@@ -797,34 +710,12 @@ function App() {
     }
   }, [screen, codexEndingIndex, currentCodexEndingScenes.length])
 
-  const startCutscene = () => {
-    setCodexCutsceneMode(null)
-    setActiveGame('towerDefense')
-    setGameMode('normal')
-    setCutsceneIndex(0)
-    setScreen('cutscene')
-  }
-
-  const startEndless = () => {
-    if (!canPlayEndless) return
-    setCodexCutsceneMode(null)
-    setActiveGame('towerDefense')
-    setGameMode('endless')
-    setScreen('game')
-  }
-
-  const startRocketRaid = () => {
-    setCodexCutsceneMode(null)
-    setScreen('rocketMode')
-  }
-
   const startRocketRaidSingle = (mode: RaidLaunchMode = 'campaign') => {
     if ((mode === 'endless' || mode === 'bossRush') && !canPlayGradiusEndless) return
-    setCodexCutsceneMode(null)
+    setPlayingCodexStory(false)
     setRaidMultiplayerSession(null)
     setRaidSameScreenCoop(false)
     setRaidLaunchMode(mode)
-    setActiveGame('rocketRaid')
     if (mode === 'campaign') {
       setRaidStoryIndex(0)
       setScreen('raidStory')
@@ -834,36 +725,24 @@ function App() {
   }
 
   const startSameScreenCoop = () => {
-    setCodexCutsceneMode(null)
+    setPlayingCodexStory(false)
     setRaidMultiplayerSession(null)
     setRaidSameScreenCoop(true)
     setRaidLaunchMode('campaign')
-    setActiveGame('rocketRaid')
     setScreen('game')
   }
 
-  const startCodexCutscenePlayback = (mode: Exclude<CodexCutsceneMode, null>) => {
-    setCodexCutsceneMode(mode)
-    setCodexEndingIndex(0)
-    setCodexEndingFading(false)
+  const startCodexCutscenePlayback = () => {
+    setPlayingCodexStory(true)
     setLastRunUpdate(null)
-    if (mode === 'raid') {
-      setActiveGame('rocketRaid')
-      setRaidStoryIndex(0)
-      setRaidStoryFading(false)
-      setScreen('raidStory')
-      return
-    }
-    setActiveGame('towerDefense')
-    setGameMode('normal')
-    setCutsceneIndex(0)
-    setScreen('cutscene')
+    setRaidStoryIndex(0)
+    setRaidStoryFading(false)
+    setScreen('raidStory')
   }
 
   const handleRunComplete = (result: RunResult, retry?: () => void) => {
     const update = recordRunResult(result)
     setProgress(update.progress)
-    setEndlessUnlocked(update.progress.towerDefenseEndlessUnlocked)
     syncCloudProgress(update.progress)
     setLastRunUpdate({ result, update, retry })
   }
@@ -966,26 +845,14 @@ function App() {
     </GameDialog>
   ) : null
 
-  const closeGame = () => {
-    const nextProgress = loadProgress()
-    setProgress(nextProgress)
-    setEndlessUnlocked(nextProgress.towerDefenseEndlessUnlocked)
-    syncCloudProgress(nextProgress)
-    raidMultiplayerSession?.socket.close()
-    setRaidMultiplayerSession(null)
-    setRaidSameScreenCoop(false)
-    setScreen('title')
-  }
-
   const closeRocketRaid = () => {
     const nextProgress = loadProgress()
     setProgress(nextProgress)
-    setEndlessUnlocked(nextProgress.towerDefenseEndlessUnlocked)
     syncCloudProgress(nextProgress)
     raidMultiplayerSession?.socket.close()
     setRaidMultiplayerSession(null)
     setRaidSameScreenCoop(false)
-    setScreen('rocketMode')
+    setScreen(raidMultiplayerSession || raidSameScreenCoop ? 'raidCoopMode' : 'rocketMode')
   }
 
   const runResultsOverlay = lastRunUpdate ? (
@@ -1029,12 +896,10 @@ function App() {
             <nav className="start-screen__actions" aria-label={releaseText.deckTitle}>
               <GameMenuAction
                 primary data-menu-default
-                label={text.title.raidTitle}
-                detail={command.launchDetail}
-                onClick={startRocketRaid}
+                label={text.rocketMode.single}
+                onClick={() => setScreen('rocketMode')}
               />
-              <GameMenuAction label={command.defense} detail={command.defenseDetail} onClick={startCutscene} />
-              {canPlayEndless && <GameMenuAction label={text.title.endlessTitle} detail={text.leaderboards.modes.ship_defense_endless.title} onClick={startEndless} />}
+              <GameMenuAction label={text.rocketMode.coop} onClick={() => setScreen('raidCoopMode')} />
             </nav>
 
             <div className="start-screen__pilot">
@@ -1047,13 +912,6 @@ function App() {
             </div>
           </div>
 
-          <nav className="start-screen__command-deck" aria-label={releaseText.deckTitle}>
-            <GameButton tone="quiet" onClick={() => setScreen('leaderboards')}>{text.title.recordsTitle}</GameButton>
-            <GameButton tone="quiet" onClick={() => setScreen('profile')}>{releaseText.profile}</GameButton>
-            <GameButton tone="quiet" onClick={() => setScreen('achievements')}>{releaseText.achievements}</GameButton>
-            <GameButton tone="quiet" onClick={() => setScreen('codex')}>{releaseText.codex}</GameButton>
-            <GameButton tone="quiet" onClick={() => setScreen('stageMap')}>{releaseText.stageMap}</GameButton>
-          </nav>
           <GameMenuHints language={language} showBack={false} />
           <div className="start-screen__footer">
             <span>{text.title.copyright}</span>
@@ -1064,130 +922,6 @@ function App() {
         {runResultsOverlay}
         {homeSettingsOpen && <HomeSettingsDialog language={language} onClose={() => setHomeSettingsOpen(false)} />}
       </div>
-    )
-  }
-
-  if (screen === 'cutscene') {
-    return (
-      <>
-        <div className={`cutscene cutscene--${currentScene.accent}`}>
-          <div className="cutscene__stars" />
-          <div className="cutscene__scanlines" />
-          <div className="cutscene__planet" />
-          <div className="cutscene__hazard cutscene__hazard--one" />
-          <div className="cutscene__hazard cutscene__hazard--two" />
-          <div className="cutscene__hazard cutscene__hazard--three" />
-
-          <div className="cutscene__fleet cutscene__fleet--allied">
-            <div className="cutscene__vessel cutscene__vessel--capital" />
-            <div className="cutscene__vessel cutscene__vessel--escort" />
-          </div>
-
-          <div className="cutscene__fleet cutscene__fleet--hostile">
-            <div className="cutscene__vessel cutscene__vessel--raider" />
-            <div className="cutscene__vessel cutscene__vessel--mothership" />
-          </div>
-
-          <div className="cutscene__hud">
-            <div className="cutscene__tag">{text.cutscene.commandFeed}</div>
-            <button className="cutscene__skip" onClick={finishDefenseCutsceneIntro}>
-              {text.cutscene.skip}
-            </button>
-          </div>
-
-          <div className="cutscene__content">
-            <div className="cutscene__eyebrow">{currentScene.eyebrow}</div>
-            <h2>{currentScene.title}</h2>
-            <p>{currentScene.text}</p>
-
-            <div className="cutscene__meta">
-              <div className="cutscene__progress">
-                {text.cutscene.scenes.map((scene, index) => (
-                  <span
-                    key={scene.title}
-                    className={
-                      index === cutsceneIndex
-                        ? 'cutscene__dot cutscene__dot--active'
-                        : 'cutscene__dot'
-                    }
-                  />
-                ))}
-              </div>
-              <div className="cutscene__hint">
-                {text.cutscene.deployHint}
-              </div>
-            </div>
-          </div>
-        </div>
-        {playerNamePrompt}
-        {runResultsOverlay}
-      </>
-    )
-  }
-
-  if (screen === 'defenseEndingArchive') {
-    const isLastEndingScene = codexEndingIndex >= currentCodexEndingScenes.length - 1
-    const endingAccent = codexEndingIndex === 0 ? 'teal' : codexEndingIndex === 1 ? 'cyan' : 'amber'
-
-    return (
-      <>
-        <div className={codexEndingFading ? `cutscene cutscene--${endingAccent} cutscene--ending-archive cutscene--archive-fading` : `cutscene cutscene--${endingAccent} cutscene--ending-archive`}>
-          <div className="cutscene__stars" />
-          <div className="cutscene__scanlines" />
-          <div className="cutscene__planet" />
-          <img className="cutscene__asset cutscene__asset--earth" src={getPublicAssetUrl('assets/others/planet_1.webp')} alt="" draggable={false} />
-          <img className="cutscene__asset cutscene__asset--station" src={getPublicAssetUrl('assets/others/space_station.webp')} alt="" draggable={false} />
-          <img className="cutscene__asset cutscene__asset--sun" src={getPublicAssetUrl('assets/others/sun.webp')} alt="" draggable={false} />
-          <div className="cutscene__asset-fleet" aria-hidden="true">
-            {['rocket', 'fast', 'xwing', 'spaceEt'].map((shipKey, index) => (
-              <span key={shipKey} style={{ '--fleet-index': index } as CSSProperties}>
-                <RaidShipSprite shipKey={shipKey} size={index === 0 ? 54 : 44} />
-              </span>
-            ))}
-          </div>
-          <div className="cutscene__asset-enemies" aria-hidden="true">
-            {[0, 3, 6].map((variant, index) => (
-              <img key={`defense-ending-alien-${variant}`} src={getRaidAlienSpriteUrl(variant)} alt="" draggable={false} style={{ '--retreat-index': index } as CSSProperties} />
-            ))}
-            <img className="cutscene__asset-enemy--elite" src={getRaidEliteSpriteUrl(2)} alt="" draggable={false} />
-          </div>
-          <div className="cutscene__hazard cutscene__hazard--one" />
-          <div className="cutscene__hazard cutscene__hazard--two" />
-          <div className="cutscene__fleet cutscene__fleet--allied">
-            <div className="cutscene__vessel cutscene__vessel--capital" />
-            <div className="cutscene__vessel cutscene__vessel--escort" />
-          </div>
-          <div className="cutscene__hud">
-            <div className="cutscene__tag">{releaseText.cutsceneArchive.ending}</div>
-            <button className="cutscene__skip" type="button" onClick={() => transitionCodexEnding('close')}>
-              {releaseText.close}
-            </button>
-          </div>
-          <section className="cutscene__content cutscene__content--ending" aria-labelledby="defense-ending-archive-title">
-            <div className="cutscene__eyebrow">{currentCodexEndingScene.eyebrow}</div>
-            <h2 id="defense-ending-archive-title">{currentCodexEndingScene.title}</h2>
-            <p>{currentCodexEndingScene.text}</p>
-            <div className="cutscene__meta cutscene__meta--archive">
-              <div className="cutscene__progress" aria-label={releaseText.cutsceneArchive.progress.replace('{current}', String(codexEndingIndex + 1)).replace('{total}', String(currentCodexEndingScenes.length))}>
-                {currentCodexEndingScenes.map((scene, index) => (
-                  <button
-                    key={scene.title}
-                    type="button"
-                    className={index === codexEndingIndex ? 'cutscene__dot cutscene__dot--active' : 'cutscene__dot'}
-                    aria-current={index === codexEndingIndex ? 'step' : undefined}
-                    aria-label={releaseText.cutsceneArchive.progress.replace('{current}', String(index + 1)).replace('{total}', String(currentCodexEndingScenes.length))}
-                    onClick={() => transitionCodexEnding(index)}
-                  />
-                ))}
-              </div>
-              <button className="cutscene__next" type="button" onClick={() => transitionCodexEnding(isLastEndingScene ? 'close' : 'next')}>
-                {isLastEndingScene ? releaseText.close : releaseText.cutsceneArchive.next}
-              </button>
-            </div>
-          </section>
-        </div>
-        {playerNamePrompt}
-      </>
     )
   }
 
@@ -1558,14 +1292,19 @@ function App() {
           </div>
 
           <div className="mode-screen__eyebrow">{text.rocketMode.eyebrow}</div>
-          <h1>{text.rocketMode.title}</h1>
-          <p>{text.rocketMode.copy}</p>
+          <h1>{text.rocketMode.single}</h1>
 
-          <nav className="mode-screen__actions mode-screen__actions--raid" aria-label={text.rocketMode.title}>
-            <GameMenuAction primary data-menu-default label={text.rocketMode.single} detail={text.rocketMode.start} onClick={() => startRocketRaidSingle('campaign')} />
+          <nav className="mode-screen__actions mode-screen__actions--raid" aria-label={text.rocketMode.single}>
+            <GameMenuAction primary data-menu-default label={text.rocketMode.story} detail={text.rocketMode.start} onClick={() => startRocketRaidSingle('campaign')} />
             <GameMenuAction label={text.rocketMode.endless} detail={canPlayGradiusEndless ? text.rocketMode.startEndless : text.rocketMode.endlessLocked} disabled={!canPlayGradiusEndless} onClick={() => startRocketRaidSingle('endless')} />
             <GameMenuAction label={text.rocketMode.bossRush} detail={canPlayGradiusEndless ? text.rocketMode.startBossRush : text.rocketMode.bossRushLocked} disabled={!canPlayGradiusEndless} onClick={() => startRocketRaidSingle('bossRush')} />
-            <GameMenuAction label={text.rocketMode.twoPlayers} detail={text.rocketMode.multiplayer} onClick={() => setScreen('raidCoopMode')} />
+          </nav>
+          <nav className="start-screen__command-deck mode-screen__command-deck" aria-label={releaseText.deckTitle}>
+            <GameButton tone="quiet" onClick={() => setScreen('leaderboards')}>{text.title.recordsTitle}</GameButton>
+            <GameButton tone="quiet" onClick={() => setScreen('profile')}>{releaseText.profile}</GameButton>
+            <GameButton tone="quiet" onClick={() => setScreen('achievements')}>{releaseText.achievements}</GameButton>
+            <GameButton tone="quiet" onClick={() => setScreen('codex')}>{releaseText.codex}</GameButton>
+            <GameButton tone="quiet" onClick={() => setScreen('stageMap')}>{releaseText.stageMap}</GameButton>
           </nav>
           <GameMenuHints language={language} />
         </div>
@@ -1577,32 +1316,20 @@ function App() {
   }
 
   if (screen === 'raidCoopMode') {
-    const canUseLocalCoop = true
-    const canUseSameScreenCoop = true
-    const touchCoop = window.matchMedia('(pointer: coarse)').matches
-    const choices = [
-      {key:'local',available:canUseLocalCoop,label:text.lobby.localCoopTitle,detail:text.lobby.localCoopDesc,launch:()=>openMultiplayerLobby('local')},
-      {key:'online',available:true,label:text.lobby.onlineCoopTitle,detail:text.lobby.onlineCoopDesc,launch:()=>openMultiplayerLobby('online')},
-      {key:'shared',available:canUseSameScreenCoop,label:text.lobby.sameScreenCoopTitle,detail:text.lobby.sameScreenCoopDesc,launch:()=>setScreen('raidSameScreenBriefing')},
-    ]
-    const orderedChoices = touchCoop ? choices : [choices[2],choices[0],choices[1]]
-
     return (
       <div className="mode-screen coop-mode-screen">
         <div className="mode-screen__panel">
-          <GameButton tone="quiet" className="mode-screen__back" onClick={() => setScreen('rocketMode')}>
+          <GameButton tone="quiet" className="mode-screen__back" onClick={() => setScreen('title')}>
             {text.lobby.back}
           </GameButton>
 
           <div className="mode-screen__eyebrow">{text.lobby.modeEyebrow}</div>
-          <h1>{text.lobby.modeTitle}</h1>
-          <p>{canUseLocalCoop ? text.lobby.modeCopy : canUseSameScreenCoop ? text.lobby.sameScreenModeCopy : text.lobby.onlineCoopDesc}</p>
+          <h1>{text.rocketMode.coop}</h1>
 
-          <nav className="mode-screen__actions mode-screen__actions--coop" aria-label={text.lobby.modeTitle}>
-            {orderedChoices.filter(choice=>choice.available).map((choice,index)=>(
-              <GameMenuAction key={choice.key} primary={index===0} data-menu-default={index===0?true:undefined}
-                label={choice.label} detail={choice.detail} onClick={choice.launch} />
-            ))}
+          <nav className="mode-screen__actions mode-screen__actions--coop" aria-label={text.rocketMode.coop}>
+            <GameMenuAction primary data-menu-default label={text.lobby.localCoopTitle} detail={text.lobby.localCoopDesc} onClick={() => openMultiplayerLobby('local')} />
+            <GameMenuAction label={text.lobby.onlineCoopTitle} detail={text.lobby.onlineCoopDesc} onClick={() => openMultiplayerLobby('online')} />
+            <GameMenuAction label={text.lobby.sameScreenCoopTitle} detail={text.lobby.sameScreenCoopDesc} onClick={() => setScreen('raidSameScreenBriefing')} />
           </nav>
           <GameMenuHints language={language} />
         </div>
@@ -1624,7 +1351,7 @@ function App() {
           </GameButton>
 
           <div className="mode-screen__eyebrow">{text.lobby.sameScreenEyebrow}</div>
-          <h1>{text.lobby.sameScreenTitle}</h1>
+          <h1>{text.lobby.sameScreenCoopTitle}</h1>
           <p>{text.lobby.sameScreenCopy}</p>
 
           <div className="same-screen-briefing">
@@ -1679,7 +1406,7 @@ function App() {
   if (screen === 'leaderboards') {
     return (
       <>
-        <LeaderboardsScreen playerName={guestPilot ? null : playerName} language={language} onBack={() => setScreen('title')} onChooseCallsign={() => setShowPlayerNamePrompt(true)} />
+        <LeaderboardsScreen playerName={guestPilot ? null : playerName} language={language} onBack={() => setScreen('rocketMode')} onChooseCallsign={() => setShowPlayerNamePrompt(true)} />
         {playerNamePrompt}
         {runResultsOverlay}
       </>
@@ -1695,7 +1422,7 @@ function App() {
           language={language}
           playerName={playerName}
           recoveryCode={recoveryCode}
-          onBack={() => setScreen(screen === 'missions' ? 'rocketMode' : 'title')}
+          onBack={() => setScreen('rocketMode')}
           onPlayCutscenes={startCodexCutscenePlayback}
           onProgressChange={(nextProgress) => {
             setProgress(nextProgress)
@@ -1717,11 +1444,10 @@ function App() {
           connectionMode={raidMultiplayerConnectionMode}
           onBack={() => setScreen('raidCoopMode')}
           onStart={(session) => {
-            setCodexCutsceneMode(null)
+            setPlayingCodexStory(false)
             setRaidMultiplayerSession(session)
             setRaidSameScreenCoop(false)
             setRaidLaunchMode('campaign')
-            setActiveGame('rocketRaid')
             setScreen('game')
           }}
         />
@@ -1733,28 +1459,17 @@ function App() {
 
   return (
     <div className="app">
-      {activeGame === 'rocketRaid' ? (
-        <GradiusRaid
-          onClose={closeRocketRaid}
-          initialMode={raidLaunchMode}
-          initialShipKey={raidMultiplayerSession || raidSameScreenCoop || (hangarShipKey === 'mesiah' && !canPlayGradiusEndless) || (hangarShipKey === 'coreLander' && !isCoreLanderUnlocked(progress)) ? undefined : hangarShipKey}
-          multiplayerSession={raidMultiplayerSession}
-          sameScreenCoop={raidSameScreenCoop}
-          sameScreenGuestShipKey={sameScreenGuestShipKey}
-          playerName={playerName}
-          language={language}
-          onRunComplete={handleRunComplete}
-        />
-      ) : (
-        <SpaceImpactDefense
-          availableCoins={DEFAULT_COINS}
-          onClose={closeGame}
-          initialMode={gameMode}
-          playerName={playerName}
-          language={language}
-          onRunComplete={handleRunComplete}
-        />
-      )}
+      <GradiusRaid
+        onClose={closeRocketRaid}
+        initialMode={raidLaunchMode}
+        initialShipKey={raidMultiplayerSession || raidSameScreenCoop || (hangarShipKey === 'mesiah' && !canPlayGradiusEndless) || (hangarShipKey === 'coreLander' && !isCoreLanderUnlocked(progress)) ? undefined : hangarShipKey}
+        multiplayerSession={raidMultiplayerSession}
+        sameScreenCoop={raidSameScreenCoop}
+        sameScreenGuestShipKey={sameScreenGuestShipKey}
+        playerName={playerName}
+        language={language}
+        onRunComplete={handleRunComplete}
+      />
       {playerNamePrompt}
       {runResultsOverlay}
     </div>

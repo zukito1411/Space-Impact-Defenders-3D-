@@ -497,7 +497,7 @@ export function RaidMultiplayerLobby({ playerName, language, connectionMode, onB
           <GameButton tone="quiet" onClick={onBack}>{text.back}</GameButton>
           <div className="coop-lobby__intro">
             <span className="mode-screen__eyebrow">{isLocalMode ? text.localEyebrow : text.eyebrow}</span>
-            <h1>{isLocalMode ? text.localTitle : text.title}</h1>
+            <h1>{isLocalMode ? text.localCoopTitle : text.onlineCoopTitle}</h1>
             <div className="coop-lobby__identity"><span>{getLanguageText(language).player.pilotName}</span><strong title={playerName}>{playerName}</strong></div>
           </div>
         </header>
@@ -518,7 +518,7 @@ export function RaidMultiplayerLobby({ playerName, language, connectionMode, onB
             </div>
           </section>
 
-          <section className="coop-lobby__session" aria-label={isLocalMode?text.localTitle:text.title}>
+          <section className="coop-lobby__session" aria-label={isLocalMode ? text.localCoopTitle : text.onlineCoopTitle}>
             {room ? (
               <div className="coop-lobby__room">
                 <div className="coop-lobby__code"><span>{text.roomCode}</span><strong>{room.code}</strong></div>

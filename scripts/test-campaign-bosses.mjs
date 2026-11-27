@@ -136,7 +136,7 @@ const hasProgressionUnlockOverride=()=>false;
 const getRaidAlienSpriteUrl=i=>'normal:'+i,getRaidEliteSpriteUrl=i=>'elite:'+i,getPublicAssetUrl=p=>p;
 function BossBriefingCanvas(){}
 `+part('const NORMAL_ALIEN_VARIANTS','type ShipPreviewVisualStyle')+
-part('const RAID_BOSS_STAGES:','const DEFENSE_ACHIEVEMENT_IDS:')+
+part('const RAID_BOSS_STAGES:','export function ProgressionScreen(')+
 part('function getRaidBestStage(','function getViewTitle(')+
 part('function getStageBossEntries(','function maskRecoveryCode(')+
 part('function EnemyAlmanac(','function CodexCutsceneLauncher(')+

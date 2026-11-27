@@ -82,6 +82,8 @@ export const LEADERBOARD_MODES: Array<{
   },
 ]
 
+export const RAID_LEADERBOARD_MODES = LEADERBOARD_MODES.filter(({ key }) => key.startsWith('gradius_'))
+
 export const EMPTY_LEADERBOARDS = LEADERBOARD_MODES.reduce((boards, mode) => {
   boards[mode.key] = []
   return boards

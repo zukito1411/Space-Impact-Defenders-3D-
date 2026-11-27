@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   EMPTY_LEADERBOARDS,
   fetchLeaderboards,
-  LEADERBOARD_MODES,
+  RAID_LEADERBOARD_MODES,
   type LeaderboardMap,
   type LeaderboardMode,
 } from '../leaderboards'
@@ -19,13 +19,13 @@ type LeaderboardsScreenProps = {
 
 export function LeaderboardsScreen({ playerName, language, onBack, onChooseCallsign }: LeaderboardsScreenProps) {
   const text = getLanguageText(language).leaderboards
-  const [activeMode, setActiveMode] = useState<LeaderboardMode>('ship_defense_normal')
+  const [activeMode, setActiveMode] = useState<LeaderboardMode>('gradius_solo')
   const [leaderboards, setLeaderboards] = useState<LeaderboardMap>({ ...EMPTY_LEADERBOARDS })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   const activeModeInfo = useMemo(
-    () => LEADERBOARD_MODES.find((mode) => mode.key === activeMode) ?? LEADERBOARD_MODES[0],
+    () => RAID_LEADERBOARD_MODES.find((mode) => mode.key === activeMode) ?? RAID_LEADERBOARD_MODES[0],
     [activeMode],
   )
   const activeModeText = text.modes[activeModeInfo.key]
@@ -71,7 +71,7 @@ export function LeaderboardsScreen({ playerName, language, onBack, onChooseCalls
         </header>
 
         <div className="leaderboards-screen__modes" aria-label="Leaderboard modes">
-          {LEADERBOARD_MODES.map((mode) => (
+          {RAID_LEADERBOARD_MODES.map((mode) => (
             <button
               key={mode.key}
               type="button"

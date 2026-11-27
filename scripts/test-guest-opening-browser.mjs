@@ -154,7 +154,6 @@ async function advanceToBossWarning(page) {
     const { CRUISE_FLYBY_START, GRACE_FLYBY_START, ASTROPHAGE_START, STAGE_ONE_CRUISE_SEQUENCE_END } =
       await import('/src/components/games/raid/cruiseTiming.ts')
     const { refs, update, draw, sync } = window.openingTest
-    refs.playerRef.current.invuln = 999
     const { cruiseFlybys, sceneryHulls, astrophage } = refs.pixiBackgroundRef.current
     const slots = sceneryHulls.slots.filter(slot => cruiseFlybys.includes(slot.anchor))
     const timeline = [
@@ -165,9 +164,14 @@ async function advanceToBossWarning(page) {
       { age: STAGE_ONE_CRUISE_SEQUENCE_END - .5, ships: [], field: true },
     ]
     for (const { age, ships, field } of timeline) {
-      for (let frame = 0; frame < 4200 && refs.journeyStageAgeRef.current < age; frame++) update(1 / 60)
+      for (let frame = 0; frame < 4200 && refs.journeyStageAgeRef.current < age; frame++) {
+        // A pickup or collision can replace the pilot's invulnerability timer.
+        // Keep this stationary scenery check independent of combat damage.
+        refs.playerRef.current.invuln = 999
+        update(1 / 60)
+      }
       if (refs.journeyStageAgeRef.current < age || refs.enemiesRef.current.some(enemy => enemy.isBoss)) {
-        throw Error(`Crimson Bastion interrupted the cruise sequence at ${age}s`)
+        throw Error(`Cruise at ${refs.journeyStageAgeRef.current.toFixed(1)}s did not reach the ${age}s checkpoint in ${refs.phaseRef.current} phase`)
       }
       draw(performance.now())
       const visible = slots.filter(slot => slot.parts.some(part => part.mesh.visible)).map(slot => slot.key)
@@ -197,10 +201,10 @@ async function main() {
   browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH,
     args: ['--no-sandbox', '--enable-unsafe-swiftshader', '--use-angle=swiftshader'] })
 
-  const mobileChecks = [testDefense, testCallsign, testNativeDownload]
+  const mobileChecks = [testCoopMenu, testCallsign, testNativeDownload]
   const checks = process.argv.includes('--raid-only') ? [testRaid]
     : process.argv.includes('--android-startup-only') ? [testNativeDownload]
-    : process.argv.includes('--defense-only') ? mobileChecks : [testRaid, ...mobileChecks]
+    : process.argv.includes('--menu-only') ? mobileChecks : [testRaid, ...mobileChecks]
   const failures = []
   for (const check of checks) {
     try { await check() } catch (error) { failures.push(error) }
@@ -215,14 +219,15 @@ async function testRaid() {
     desktop.on('pageerror', error => errors.push(error.message))
     await setUp(desktop, true, traffic)
     await title(desktop)
-    await desktop.getByRole('button', { name: /^Gradius Raid/ }).click()
-    const raidModes = desktop.getByRole('navigation', { name: 'Gradius Raid' })
+    await desktop.getByRole('button', { name: 'Single Player', exact: true }).click()
+    const raidModes = desktop.getByRole('navigation', { name: 'Single Player' })
     await raidModes.waitFor()
-    for (const name of ['Single Player', 'Endless Mode', 'Boss Rush', 'Two Players']) {
+    for (const name of ['Story Mode', 'Endless Mode', 'Boss Rush']) {
       assert.ok(await raidModes.getByRole('button', { name }).isVisible())
     }
     assert.equal(await desktop.locator('.raid').count(), 0, 'Opening Raid modes must not launch a sortie')
-    await raidModes.getByRole('button', { name: /Single Player/ }).click()
+    assert.equal(await raidModes.getByRole('button').count(), 3)
+    await raidModes.getByRole('button', { name: /Story Mode/ }).click()
     await desktop.getByRole('button', { name: 'Skip To Launch' }).click()
     await desktop.getByRole('button', { name: 'Start Raid', exact: true }).click({ timeout: 120000 })
     const carrierSkip = desktop.locator('.raid__carrier-skip')
@@ -302,32 +307,42 @@ async function testRaid() {
   } finally { await desktop.close() }
 }
 
-async function testDefense() {
+async function testCoopMenu() {
   const phone = await browser.newPage({ viewport: { width: 393, height: 852 }, hasTouch: true, isMobile: true })
-  const phoneTraffic = []
-  await setUp(phone, false, phoneTraffic, false)
-  await title(phone)
-  await phone.getByRole('button', { name: /Tower Defense Campaign/ }).tap()
-  await phone.getByRole('button', { name: 'Skip Briefing' }).tap()
-  await phone.locator('.defense-board').waitFor()
-  await phone.getByText(/Dispatch a ship to cover the approach/).waitFor()
-  await assertCompactCaption(phone.locator('.defense-fleet-radio .fleet-radio'))
-  await phone.locator('.defense-shop button').first().tap()
-  for (const [col, row] of [[3, 2], [2, 3], [4, 2], [1, 0], [5, 4]]) {
-    const cell = phone.locator(`[data-grid-col="${col}"][data-grid-row="${row}"]`)
-    await cell.tap()
-    if (!await phone.getByText(/Tap again to deploy/).isVisible()) continue
-    await capture(phone, 'defense-touch-range')
-    assert.equal(await phone.locator('.defense-tower-mark').count(), 0)
-    await cell.tap()
-    break
-  }
-  await phone.getByText(/Warship on station/).waitFor()
-  assert.equal(await phone.locator('.defense-tower-mark').count(), 1)
-  await capture(phone, 'defense-tower-deployed')
-  assert.deepEqual(phoneTraffic, [])
-  await phone.close()
-  console.log('Android-sized touch layout, two-tap range preview and warship dispatch passed')
+  const traffic = []
+  try {
+    await setUp(phone, false, traffic, false)
+    await title(phone)
+    assert.deepEqual(await phone.locator('.start-screen__actions button').allTextContents(), ['Single Player', 'Co-op'])
+    await phone.getByRole('button', { name: 'Co-op', exact: true }).tap()
+    const menu = phone.getByRole('navigation', { name: 'Co-op', exact: true })
+    await menu.waitFor()
+    assert.deepEqual(await menu.locator('button strong').allTextContents(), ['Same Wi-Fi', 'Online Co-op', 'Shared Screen'])
+    await menu.getByRole('button', { name: /Shared Screen/ }).tap()
+    await phone.getByRole('heading', { name: 'Shared Screen', exact: true }).waitFor()
+    assert.equal(await phone.getByRole('dialog').count(), 0)
+    await phone.locator('.mode-screen__back').tap()
+    for (const name of [/Same Wi-Fi/, /Online Co-op/]) {
+      await menu.getByRole('button', { name }).tap()
+      const dialog = phone.getByRole('dialog')
+      await dialog.waitFor()
+      await dialog.getByRole('button', { name: 'Close', exact: true }).tap()
+      await dialog.waitFor({ state: 'hidden' })
+    }
+    await phone.locator('.mode-screen__back').tap()
+    await phone.getByRole('button', { name: 'Single Player', exact: true }).waitFor()
+    assert.deepEqual(traffic, [])
+    await phone.evaluate(() => localStorage.setItem('space-defenders-player-name', 'Menu Cadet'))
+    await phone.reload()
+    await phone.locator('#startup-splash').waitFor({ state: 'detached', timeout: 30000 })
+    await phone.getByRole('button', { name: 'Co-op', exact: true }).tap()
+    for (const name of ['Same Wi-Fi', 'Online Co-op']) {
+      await menu.getByRole('button', { name: new RegExp('^' + name) }).tap()
+      await phone.getByRole('heading', { name, exact: true }).waitFor()
+      await phone.getByRole('button', { name: 'Back', exact: true }).tap()
+    }
+    console.log('Mobile Raid-only menu and all three co-op routes passed')
+  } finally { await phone.close() }
 }
 
 async function testCallsign() {
@@ -337,7 +352,11 @@ async function testCallsign() {
     await setUp(phone, false, traffic, false)
     await title(phone)
     await phone.evaluate(() => localStorage.setItem('space-impact-release-progress', JSON.stringify({ totalRuns: 2, totalScore: 650 })))
+    await phone.getByRole('button', { name: 'Single Player', exact: true }).tap()
     await phone.getByRole('button', { name: 'Leaderboards', exact: true }).tap()
+    const leaderboardModes = phone.locator('.leaderboards-screen__mode')
+    await leaderboardModes.first().waitFor()
+    assert.equal(await leaderboardModes.count(), 4)
     const callsign = phone.getByRole('button', { name: 'Choose a callsign', exact: true })
     await callsign.tap()
     await phone.getByRole('textbox', { name: 'Commander name' }).fill('Test Cadet')
@@ -346,6 +365,20 @@ async function testCallsign() {
     assert.equal(await phone.evaluate(() => JSON.parse(localStorage.getItem('space-impact-release-progress')).totalScore), 650)
     assert.ok(traffic.some(path => path.endsWith('/players/register')))
     console.log('Optional callsign registration preserved the guest save')
+
+    await phone.locator('.leaderboards-screen__back').tap()
+    for (const [screen, selector] of [
+      ['Profile', '.progress-card--scores'],
+      ['Achievements', '.unlock-section'],
+      ['Codex', '.codex-cutscene-launcher'],
+      ['Almanac', '.enemy-almanac'],
+    ]) {
+      await phone.getByRole('button', { name: screen, exact: true }).tap()
+      await phone.locator(selector).waitFor()
+      assert.doesNotMatch(await phone.locator('.progress-panel').innerText(), /Ship Defense|Tower Defense|Endless Defense|Earth Defense Grid/)
+      await phone.locator('.progress-panel__back').tap()
+    }
+    console.log('Raid profile, achievements, Codex and enemy Almanac passed')
   } finally { await phone.close() }
 }
 
@@ -399,7 +432,7 @@ async function testNativeDownload() {
     const offer = splash.getByRole('button', { name: 'Download game files' })
     await offer.tap()
     await splash.getByText('2 MB / 7 MB').waitFor()
-    assert.equal(await phone.locator('.start-screen, .defense-board, .raid').count(), 0)
+    assert.equal(await phone.locator('.start-screen, .raid').count(), 0)
     assert.equal(await phone.locator('#root').evaluate(el => el.inert), true)
     await phone.evaluate(() => window.testGameAssets.fail())
     await splash.getByText(/The download could not finish/).waitFor()
@@ -409,8 +442,8 @@ async function testNativeDownload() {
     assert.equal(await phone.locator('.start-screen').count(), 0)
     await phone.evaluate(() => window.testGameAssets.finish())
     await splash.waitFor({ state: 'detached', timeout: 30000 })
-    await phone.getByRole('button', { name: /^Gradius Raid/ }).waitFor()
-    await phone.getByRole('button', { name: 'Tower Defense Campaign' }).waitFor()
+    await phone.getByRole('button', { name: 'Single Player', exact: true }).waitFor()
+    await phone.getByRole('button', { name: 'Co-op', exact: true }).waitFor()
     await phone.reload()
     await splash.waitFor({ state: 'detached', timeout: 30000 })
     assert.equal(await phone.evaluate(() => window.testGameAssets.started), 0, 'Already-ready installs must skip the download')

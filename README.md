@@ -1,41 +1,6 @@
-# Space Impact Defender
+# Space Impact Defenders 3D
 
-A polished tower defense game built with React and TypeScript. Defend against waves of cryptocurrency-themed enemies by strategically placing towers.
-
-## Features
-
-- **Strategic Tower Placement**: 10 unique tower types with different abilities
-- **Procedurally Generated Paths**: Unique multi-spawn paths for each stage
-- **Dynamic Difficulty**: 10 stages with increasing complexity and boss enemies
-- **Polished Effects**: 
-  - Wave announcements with scaling animations
-  - Lightning attack effects for boss tower destruction
-  - Particle systems for impact, explosions, and particle effects
-  - Smooth health bar tweening
-  - Screen flashes and visual feedback
-  - Victory and stage transition effects
-  - Coin flow animations
-- **Endless Mode**: Available from the title screen as a separate mode
-- **Endless Heavy Bosses**: Heavy tower-destroying bosses return every 5 endless stages
-- **Commander Abilities**: Ion Storm, Orbital Freeze, and Emergency Repair cooldown powers
-- **Elite Enemy Traits**: Shielded, armored, phase, splitter, and blink enemies appear in later waves
-- **HQ Upgrades**: Spend CR to reinforce Earth HQ and increase repair capacity
-- **Ship Synergies**: Nearby specialist ships unlock rate, damage, range, and barrage bonuses
-- **Sound Design**: Procedurally generated audio feedback (toggle with button)
-- **High Score Tracking**: Local storage for persistent high scores
-
-## Tower Types
-
-- **Fast**: High fire rate, low range (60 cost)
-- **Sniper**: Long range, heavy damage (120 cost)
-- **AoE**: Splash damage nearby enemies (100 cost)
-- **Slow**: Slows enemies by 50% (80 cost)
-- **Burst**: High burst damage, slow reload (200 cost)
-- **Gatling**: Extremely fast fire rate (400 cost)
-- **Rocket**: Huge AOE blast (600 cost)
-- **Laser**: Beam tower with 10s fire + 5s exhaust (2000 cost)
-- **Artillery**: Global range with 3-rocket barrage (3500 cost)
-- **Dreadnought**: 2x2 capital ship with global range, AOE lance barrage, 3s attack interval, and scaling returning Gatling drones every 10s (5000 cost)
+Gradius Raid is a scrolling space shooter. Fly the story campaign, survive Endless Mode, or take on the Boss Rush. Co-op supports Same Wi-Fi play, Online Co-op, and a shared screen.
 
 ## Signed Android APK releases
 

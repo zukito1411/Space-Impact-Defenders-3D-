@@ -1,6 +1,6 @@
 import { ENDLESS_UNLOCK_STORAGE_KEY } from './components/games/towerDefense/config'
 import { RAID_CHECKPOINT_STORAGE_KEY, RAID_UNLOCK_STORAGE_KEY } from './components/games/raid/progressStorage'
-import { isCreatorPlayerName, PLAYER_NAME_STORAGE_KEY, type LeaderboardMode } from './leaderboards'
+import { isCreatorPlayerName, PLAYER_NAME_STORAGE_KEY, RAID_LEADERBOARD_MODES, type LeaderboardMode } from './leaderboards'
 
 export type RunStatus = 'victory' | 'gameover' | 'exit'
 export type RaidDifficultyKey = 'easy' | 'normal' | 'hard' | 'expert'
@@ -376,6 +376,128 @@ export const CODEX_IDS: CodexId[] = [
   'mission_contracts',
 ]
 
+export const RAID_ACHIEVEMENT_IDS: AchievementId[] = [
+  'first_sortie',
+  'raid_clear',
+  'raid_hard_clear',
+  'raid_expert_clear',
+  'expert_clean_reactor',
+  'raid_score_vanguard',
+  'raid_score_overlord',
+  'raid_expert_ace',
+  'raid_endless_launch',
+  'raid_endless_survivor',
+  'raid_endless_vanguard',
+  'raid_endless_legend',
+  'raid_endless_boss_reaper',
+  'raid_endless_score_ace',
+  'raid_endless_super_junkie',
+  'raid_endless_ultimate_junkie',
+  'raid_endless_deep_space',
+  'raid_endless_void_cartographer',
+  'raid_endless_boss_hunter',
+  'boss_rush_launch',
+  'boss_rush_clear',
+  'boss_rush_no_nuke',
+  'boss_rush_expert',
+  'devil_contact',
+  'devil_breaker',
+  'devil_clean_break',
+  'coop_wingman',
+  'coop_clear',
+  'coop_veteran',
+  'nuke_saver',
+  'nuke_commander',
+  'restraint_protocol',
+  'ship_specialist',
+  'ship_adept',
+  'ship_elite',
+  'ship_legend',
+  'fleet_captain',
+  'fleet_legend',
+  'fleet_paragon',
+  'all_ships_sortie',
+  'fleet_mastery_circle',
+  'mesiah_commander',
+  'mesiah_ace',
+  'core_lander_awakening',
+  'god_frame_unlocked',
+  'core_lander_devotee',
+  'squid_hunter',
+  'squid_breaker',
+  'serpent_breaker',
+  'serpent_slayer',
+  'fortress_fall',
+  'fortress_ace',
+  'campaign_marathon',
+  'arsenal_runner',
+  'ace_master',
+  'boss_breaker',
+  'boss_executioner',
+  'boss_annihilator',
+  'swarm_reaper',
+  'swarm_extinction',
+  'supply_magnet',
+  'supply_chain_master',
+  'battle_hardened',
+  'run_centurion',
+  'score_chaser',
+  'score_legend',
+  'score_mythic',
+  'score_transcendent',
+  'all_modes',
+]
+
+export const RAID_CODEX_IDS: CodexId[] = [
+  'alien_swarm',
+  'boss_anatomy',
+  'supply_routes',
+  'commander_records',
+  'difficulty_protocols',
+  'score_multiplier_table',
+  'expert_ops_manual',
+  'elite_contacts',
+  'elite_hunter_cells',
+  'asteroid_cluster',
+  'asteroid_debris',
+  'rift_weather',
+  'derelict_wrecks',
+  'planetary_routes',
+  'abyss_squid',
+  'squid_biology',
+  'serpent_guardian',
+  'serpent_scales',
+  'orbital_fortress',
+  'devil_gundam',
+  'devil_cells',
+  'master_projectile_trace',
+  'devil_break_report',
+  'fortress_beam_core',
+  'final_gauntlet',
+  'ship_hangar',
+  'fleet_registry',
+  'mastery_lab',
+  'pilot_academy',
+  'boss_defeat_chain',
+  'mesiah_battleship',
+  'mesiah_command_log',
+  'comet_drone_protocol',
+  'core_lander_frame',
+  'core_frame_variants',
+  'burning_mode',
+  'god_barrage_art',
+  'spiegel_mirage_system',
+  'deep_endless_chart',
+  'weapon_lab',
+  'pickup_arsenal',
+  'nuke_protocol',
+  'nuke_failsafe',
+  'coop_link',
+  'raid_events',
+  'boss_rush_protocol',
+  'mission_contracts',
+]
+
 export const DAILY_MISSION_POOL: MissionDefinition[] = [
   { id: 'daily_raid_sortie', cadence: 'daily', target: 1 },
   { id: 'daily_boss_break', cadence: 'daily', target: 1 },
@@ -428,15 +550,6 @@ export const SHIP_COSMETIC_SINGLE_RUN_SCORE = 500000
 export const SHIP_COSMETIC_TOTAL_SCORE = 5000000
 export const CORE_LANDER_UNLOCK_GRADIUS_ENDLESS_SCORE = 5000000
 export const CORE_LANDER_GOD_GUNDAM_UNLOCK_SCORE = 1000000
-
-const LEADERBOARD_MODES: LeaderboardMode[] = [
-  'ship_defense_normal',
-  'ship_defense_endless',
-  'gradius_solo',
-  'gradius_endless',
-  'gradius_boss_rush',
-  'gradius_multiplayer',
-]
 
 export function createEmptyProgress(): ProgressState {
   return {
@@ -690,7 +803,7 @@ export function recordRunResult(result: RunResult): ProgressUpdate {
   unlockAchievement('campaign_marathon', (result.mode === 'gradius_solo' || result.mode === 'gradius_multiplayer') && result.stage >= 12 && (result.durationMs ?? 0) >= 600000)
   unlockAchievement('arsenal_runner', progress.pickupsCollected >= 50)
   unlockAchievement('ace_master', Object.values(progress.shipMastery).some((ship) => ship.level >= 5))
-  unlockAchievement('all_modes', LEADERBOARD_MODES.every((mode) => progress.bestScoreByMode[mode] > 0))
+  unlockAchievement('all_modes', RAID_LEADERBOARD_MODES.every(({ key }) => progress.bestScoreByMode[key] > 0))
 
   const unlockCodex = (id: CodexId, condition: boolean) => {
     if (!condition || progress.codex[id]) return
@@ -820,9 +933,9 @@ function getIsoWeekKey(date: Date) {
 
 export function getCompletionPercent(progress: ProgressState) {
   if (hasProgressionUnlockOverride()) return 100
-  const achievements = ACHIEVEMENT_IDS.filter((id) => progress.achievements[id]).length
-  const codex = CODEX_IDS.filter((id) => progress.codex[id]).length
-  return Math.round(((achievements + codex) / (ACHIEVEMENT_IDS.length + CODEX_IDS.length)) * 100)
+  const achievements = RAID_ACHIEVEMENT_IDS.filter((id) => progress.achievements[id]).length
+  const codex = RAID_CODEX_IDS.filter((id) => progress.codex[id]).length
+  return Math.round(((achievements + codex) / (RAID_ACHIEVEMENT_IDS.length + RAID_CODEX_IDS.length)) * 100)
 }
 
 export function isLocalProgressionTestHost() {

@@ -3,9 +3,11 @@ import { getDefaultPlayerVisualShipKey, getRaidGundamName } from './games/raid/s
 import { getRaidExhaustScale, getRaidShipBaseVisualKey, getRaidShipNozzles } from './games/raid/shipArtwork'
 import { LEGACY_FIGHTER_COUNT, RAID_FIGHTER_DEBUT_STAGES } from './games/raid/stageEncounters'
 import { GameButton } from './ui/GameButton'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   getCompletionPercent,
+  RAID_ACHIEVEMENT_IDS,
+  RAID_CODEX_IDS,
   getCoreLanderModel,
   getEquippedShipCosmetics,
   getMesiahShipColor,
@@ -34,6 +36,7 @@ import {
   type CoreLanderModel,
 } from '../progression'
 import { getLanguageText, getRaidText, getReleaseText, type LanguageCode } from '../i18n'
+import { RAID_LEADERBOARD_MODES } from '../leaderboards'
 import { BossBriefingCanvas } from './games/GradiusRaid'
 import type { BossKind } from './games/raid/types'
 import { CAMPAIGN_BOSS_ART, GENERIC_BOSS_KINDS, getGenericBossArt } from './games/raid/bossCatalog'
@@ -42,15 +45,6 @@ import { getPublicAssetUrl } from './games/sound'
 import './ProgressionScreen.css'
 
 type ProgressionView = 'profile' | 'missions' | 'achievements' | 'codex' | 'stageMap'
-type UnlockTab = 'raid' | 'defense'
-type UnlockTabEntry = {
-  key: UnlockTab
-  title: string
-  unlockedCount: number
-  total: number
-  content: ReactNode
-}
-
 type ProgressionScreenProps = {
   view: ProgressionView
   progress: ProgressState
@@ -59,7 +53,7 @@ type ProgressionScreenProps = {
   recoveryCode: string
   onBack: () => void
   onProgressChange: (progress: ProgressState) => void
-  onPlayCutscenes: (mode: UnlockTab) => void
+  onPlayCutscenes: () => void
 }
 
 const ALL_COSMETICS_PREVIEW = { trail: true, aura: true, frame: true }
@@ -169,142 +163,6 @@ const RAID_BOSS_STAGES: Partial<Record<BossKind, number>> = {
   final: 15,
   devil: 1,
 }
-const DEFENSE_ACHIEVEMENT_IDS: AchievementId[] = [
-  'first_sortie',
-  'defense_clear',
-  'defense_veteran',
-  'defense_legend',
-  'defense_score_elite',
-  'endless_survivor',
-  'endless_warden',
-  'endless_legend',
-  'defense_overwatch',
-  'defense_endless_commander',
-  'boss_breaker',
-  'boss_executioner',
-  'boss_annihilator',
-  'swarm_reaper',
-  'swarm_extinction',
-  'supply_magnet',
-  'supply_chain_master',
-  'battle_hardened',
-  'run_centurion',
-  'score_chaser',
-  'score_legend',
-  'score_mythic',
-  'score_transcendent',
-]
-const RAID_ACHIEVEMENT_IDS: AchievementId[] = [
-  'raid_clear',
-  'raid_hard_clear',
-  'raid_expert_clear',
-  'expert_clean_reactor',
-  'raid_score_vanguard',
-  'raid_score_overlord',
-  'raid_expert_ace',
-  'raid_endless_launch',
-  'raid_endless_survivor',
-  'raid_endless_vanguard',
-  'raid_endless_legend',
-  'raid_endless_boss_reaper',
-  'raid_endless_score_ace',
-  'raid_endless_super_junkie',
-  'raid_endless_ultimate_junkie',
-  'raid_endless_deep_space',
-  'raid_endless_void_cartographer',
-  'raid_endless_boss_hunter',
-  'boss_rush_launch',
-  'boss_rush_clear',
-  'boss_rush_no_nuke',
-  'boss_rush_expert',
-  'devil_contact',
-  'devil_breaker',
-  'devil_clean_break',
-  'coop_wingman',
-  'coop_clear',
-  'coop_veteran',
-  'nuke_saver',
-  'nuke_commander',
-  'restraint_protocol',
-  'ship_specialist',
-  'ship_adept',
-  'ship_elite',
-  'ship_legend',
-  'fleet_captain',
-  'fleet_legend',
-  'fleet_paragon',
-  'all_ships_sortie',
-  'fleet_mastery_circle',
-  'mesiah_commander',
-  'mesiah_ace',
-  'core_lander_awakening',
-  'god_frame_unlocked',
-  'core_lander_devotee',
-  'squid_hunter',
-  'squid_breaker',
-  'serpent_breaker',
-  'serpent_slayer',
-  'fortress_fall',
-  'fortress_ace',
-  'campaign_marathon',
-  'arsenal_runner',
-  'ace_master',
-  'all_modes',
-]
-const DEFENSE_CODEX_IDS: CodexId[] = [
-  'earth_defense_grid',
-  'tower_command',
-  'alien_swarm',
-  'boss_anatomy',
-  'supply_routes',
-  'commander_records',
-  'endless_swarm',
-]
-const RAID_CODEX_IDS: CodexId[] = [
-  'difficulty_protocols',
-  'score_multiplier_table',
-  'expert_ops_manual',
-  'elite_contacts',
-  'elite_hunter_cells',
-  'asteroid_cluster',
-  'asteroid_debris',
-  'rift_weather',
-  'derelict_wrecks',
-  'planetary_routes',
-  'abyss_squid',
-  'squid_biology',
-  'serpent_guardian',
-  'serpent_scales',
-  'orbital_fortress',
-  'devil_gundam',
-  'devil_cells',
-  'master_projectile_trace',
-  'devil_break_report',
-  'fortress_beam_core',
-  'final_gauntlet',
-  'ship_hangar',
-  'fleet_registry',
-  'mastery_lab',
-  'pilot_academy',
-  'boss_defeat_chain',
-  'mesiah_battleship',
-  'mesiah_command_log',
-  'comet_drone_protocol',
-  'core_lander_frame',
-  'core_frame_variants',
-  'burning_mode',
-  'god_barrage_art',
-  'spiegel_mirage_system',
-  'deep_endless_chart',
-  'weapon_lab',
-  'pickup_arsenal',
-  'nuke_protocol',
-  'nuke_failsafe',
-  'coop_link',
-  'raid_events',
-  'boss_rush_protocol',
-  'mission_contracts',
-]
 
 export function ProgressionScreen({
   view,
@@ -322,14 +180,8 @@ export function ProgressionScreen({
   const title = getViewTitle(view, text)
   const [previewCosmeticShip, setPreviewCosmeticShip] = useState<string | null>(null)
   const [showRecoveryCode, setShowRecoveryCode] = useState(false)
-  const [activeUnlockTab, setActiveUnlockTab] = useState<UnlockTab>('raid')
   const stageBossEntries = getStageBossEntries(raidText.briefingPanels, text.enemyAlmanac.devilBoss, text.enemyAlmanac, text.stage)
   const raidModeTitle = languageText.leaderboards.modes.gradius_solo.title
-  const defenseModeTitle = languageText.leaderboards.modes.ship_defense_normal.title
-
-  useEffect(() => {
-    if (view === 'achievements' || view === 'codex') setActiveUnlockTab('raid')
-  }, [view])
 
   return (
     <div className="progress-screen">
@@ -385,12 +237,15 @@ export function ProgressionScreen({
             <article className="progress-card progress-card--wide progress-card--scores">
               <span>{text.bestScores}</span>
               <div className="progress-list">
-                {Object.entries(languageText.leaderboards.modes).map(([mode, copy]) => (
-                  <div key={mode}>
-                    <b>{copy.title} {copy.label}</b>
-                    <span>{progress.bestScoreByMode[mode as keyof typeof progress.bestScoreByMode].toLocaleString()}</span>
-                  </div>
-                ))}
+                {RAID_LEADERBOARD_MODES.map(({ key }) => {
+                  const { title, label } = languageText.leaderboards.modes[key]
+                  return (
+                    <div key={key}>
+                      <b>{title} {label}</b>
+                      <span>{progress.bestScoreByMode[key].toLocaleString()}</span>
+                    </div>
+                  )
+                })}
               </div>
             </article>
             <article className="progress-card progress-card--wide progress-card--mastery">
@@ -491,109 +346,36 @@ export function ProgressionScreen({
         )}
 
         {view === 'achievements' && (
-          <UnlockTabbedSections
-            activeTab={activeUnlockTab}
-            onTabChange={setActiveUnlockTab}
-            tabs={[
-              {
-                key: 'raid',
-                title: raidModeTitle,
-                unlockedCount: getUnlockedCount(RAID_ACHIEVEMENT_IDS, progress.achievements),
-                total: RAID_ACHIEVEMENT_IDS.length,
-                content: (
-                  <UnlockSection
-                    title={raidModeTitle}
-                    ids={RAID_ACHIEVEMENT_IDS}
-                    unlockedMap={progress.achievements}
-                    copyMap={text.achievementsMap}
-                    unlockedLabel={text.unlocked}
-                    lockedLabel={text.locked}
-                  />
-                ),
-              },
-              {
-                key: 'defense',
-                title: defenseModeTitle,
-                unlockedCount: getUnlockedCount(DEFENSE_ACHIEVEMENT_IDS, progress.achievements),
-                total: DEFENSE_ACHIEVEMENT_IDS.length,
-                content: (
-                  <UnlockSection
-                    title={defenseModeTitle}
-                    ids={DEFENSE_ACHIEVEMENT_IDS}
-                    unlockedMap={progress.achievements}
-                    copyMap={text.achievementsMap}
-                    unlockedLabel={text.unlocked}
-                    lockedLabel={text.locked}
-                  />
-                ),
-              },
-            ]}
+          <UnlockSection
+            title={raidModeTitle}
+            ids={RAID_ACHIEVEMENT_IDS}
+            unlockedMap={progress.achievements}
+            copyMap={text.achievementsMap}
+            unlockedLabel={text.unlocked}
+            lockedLabel={text.locked}
           />
         )}
 
-        {view === 'missions' && (
-          <MissionBoard text={text} progress={progress} />
-        )}
+        {view === 'missions' && <MissionBoard text={text} progress={progress} />}
 
         {view === 'codex' && (
-          <UnlockTabbedSections
-            activeTab={activeUnlockTab}
-            onTabChange={setActiveUnlockTab}
-            tabs={[
-              {
-                key: 'raid',
-                title: raidModeTitle,
-                unlockedCount: getUnlockedCount(RAID_CODEX_IDS, progress.codex),
-                total: RAID_CODEX_IDS.length,
-                content: (
-                  <div className="codex-tab-content">
-                    <CodexCutsceneLauncher
-                      mode="raid"
-                      title={text.cutsceneArchive.raidTitle}
-                      kicker={text.cutsceneArchive.kicker}
-                      copy={text.cutsceneArchive.raidCopy}
-                      text={text}
-                      onPlay={onPlayCutscenes}
-                    />
-                    <UnlockSection
-                      title={raidModeTitle}
-                      ids={RAID_CODEX_IDS}
-                      unlockedMap={progress.codex}
-                      copyMap={text.codexMap}
-                      unlockedLabel={text.unlocked}
-                      lockedLabel={text.locked}
-                    />
-                  </div>
-                ),
-              },
-              {
-                key: 'defense',
-                title: defenseModeTitle,
-                unlockedCount: getUnlockedCount(DEFENSE_CODEX_IDS, progress.codex),
-                total: DEFENSE_CODEX_IDS.length,
-                content: (
-                  <div className="codex-tab-content">
-                    <CodexCutsceneLauncher
-                      mode="defense"
-                      title={text.cutsceneArchive.defenseTitle}
-                      kicker={text.cutsceneArchive.kicker}
-                      copy={text.cutsceneArchive.defenseCopy}
-                      text={text}
-                      onPlay={onPlayCutscenes}
-                    />
-                    <UnlockSection
-                      title={defenseModeTitle}
-                      ids={DEFENSE_CODEX_IDS}
-                      unlockedMap={progress.codex}
-                      copyMap={text.codexMap}
-                      unlockedLabel={text.unlocked}
-                      lockedLabel={text.locked}
-                    />
-                  </div>
-                ),
-              },
-            ]}
-          />
+          <div className="codex-tab-content">
+            <CodexCutsceneLauncher
+              title={text.cutsceneArchive.raidTitle}
+              kicker={text.cutsceneArchive.kicker}
+              copy={text.cutsceneArchive.raidCopy}
+              text={text}
+              onPlay={onPlayCutscenes}
+            />
+            <UnlockSection
+              title={raidModeTitle}
+              ids={RAID_CODEX_IDS}
+              unlockedMap={progress.codex}
+              copyMap={text.codexMap}
+              unlockedLabel={text.unlocked}
+              lockedLabel={text.locked}
+            />
+          </div>
         )}
 
         {view === 'stageMap' && (
@@ -722,76 +504,32 @@ function EnemyAlmanac({
 }
 
 function CodexCutsceneLauncher({
-  mode,
   title,
   kicker,
   copy,
   text,
   onPlay,
 }: {
-  mode: UnlockTab
   title: string
   kicker: string
   copy: string
   text: ReturnType<typeof getReleaseText>
-  onPlay: (mode: UnlockTab) => void
+  onPlay: () => void
 }) {
   return (
-    <section className="codex-cutscene-launcher" aria-labelledby={`${mode}-cutscene-launcher-title`}>
+    <section className="codex-cutscene-launcher" aria-labelledby="raid-cutscene-launcher-title">
       <header className="codex-cutscene-launcher__header">
         <span>{kicker}</span>
         <div>
-          <h2 id={`${mode}-cutscene-launcher-title`}>{title}</h2>
+          <h2 id="raid-cutscene-launcher-title">{title}</h2>
           <p>{copy}</p>
         </div>
       </header>
-      <button className="codex-cutscene-launcher__button" type="button" onClick={() => onPlay(mode)}>
+      <button className="codex-cutscene-launcher__button" type="button" onClick={onPlay}>
         {text.cutsceneArchive.play}
       </button>
     </section>
   )
-}
-
-function UnlockTabbedSections({
-  tabs,
-  activeTab,
-  onTabChange,
-}: {
-  tabs: UnlockTabEntry[]
-  activeTab: UnlockTab
-  onTabChange: (tab: UnlockTab) => void
-}) {
-  const currentTab = tabs.find((tab) => tab.key === activeTab) ?? tabs[0]
-
-  return (
-    <div className="unlock-tabbed">
-      <div className="unlock-tabs" role="tablist" aria-label={currentTab.title}>
-        {tabs.map((tab) => {
-          const active = tab.key === currentTab.key
-          return (
-            <button
-              key={tab.key}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              className={active ? 'unlock-tab unlock-tab--active' : 'unlock-tab'}
-              onClick={() => onTabChange(tab.key)}
-            >
-              <span>{tab.title}</span>
-              <b>{tab.unlockedCount}/{tab.total}</b>
-            </button>
-          )
-        })}
-      </div>
-      <div className="unlock-tabbed__panel" role="tabpanel">
-        {currentTab.content}
-      </div>
-    </div>
-  )
-}
-
-function getUnlockedCount<TId extends AchievementId | CodexId>(ids: TId[], unlockedMap: Partial<Record<TId, string>>) {
-  return ids.filter((id) => unlockedMap[id]).length
 }
 
 function MissionBoard({ text, progress }: { text: ReturnType<typeof getReleaseText>; progress: ProgressState }) {
