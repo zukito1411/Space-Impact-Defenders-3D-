@@ -5,7 +5,7 @@ import { HOSTILE_PROJECTILE_COLOR } from './hostileProjectileArt'
 import { MISSILE_SMOKE_CAPACITY } from './missileSmoke'
 import type { MissileSmokePuff } from './missileSmoke'
 import { normalEnemyHullKey } from './enemyHulls'
-import { fighterGunHeading, fighterHullHeading } from './fighterHulls'
+import { fighterGunHeading, fighterHullBank, fighterHullHeading } from './fighterHulls'
 import { submitLiveHull } from './liveHullBridge'
 import { FIGHTER_FIRE_FLASH, getRaidFighterCharge, getRaidFighterOpacity } from './stageEncounters'
 import { impactFrameProgress, explosionDiameter, impactAlpha } from './combatFeel'
@@ -322,7 +322,7 @@ export class RaidGpuForeground {
       const heading = fighterHullHeading(alien.fighterBankVx ?? alien.vx, alien.vy, frame.width, frame.height)
       const warp = gravityWarp(frame.gravityField, alien)
       submitLiveHull({ id: 'enemy:' + alien.id, key,
-        x: alien.x*sx, y: alien.y*sy, size, bank: Math.max(-.24, Math.min(.24, (alien.fighterBankVx ?? 0) * .007)), angle: heading,
+        x: alien.x*sx, y: alien.y*sy, size, bank: fighterHullBank(alien.fighterBankVx), angle: heading,
         alpha: getRaidFighterOpacity(alien, frame.reducedMotion),
         landscape: Boolean(frame.landscape), warp: warp ?? undefined, hit: Math.min(1, (alien.hitFlash ?? 0) / .16) })
       pair.ship.visible = false

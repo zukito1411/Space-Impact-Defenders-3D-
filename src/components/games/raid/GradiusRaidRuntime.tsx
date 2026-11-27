@@ -76,7 +76,7 @@ import { ALLY_PLAYER_COLOR, ASTEROID_CLUSTER_SPAWN_DELAY_SECONDS, ASTEROID_CLUST
 import { drawBossAttackZones, drawAsteroidHazard, drawAsteroidWarning, drawDerelictWreck, drawDevilChargeWarnings, drawFinalChargeLines, drawGodGundamBarrage, drawGodGundamPassiveStrikes, drawMeteorHazard, drawNukeBlast, drawNukeMissile, drawNukeTarget, drawHomingTargetLock, drawPowerUpCanvas, drawRandomEventWarning, getHomingMissileSprite, getNukeMissilePoint, godBarrageDamageTargetsScratch } from './effectsRender'
 import { BLACK_HOLE_CAPTURE_SECONDS, beginCanvasGravityWarp, endCanvasGravityWarp, gravityWarp, recordBlackHoleCapture, resetCanvasGravityWarp, sampleBlackHoleCapture, type GravityField } from './blackHoleDistortion'
 import { beginCruiseEliteAttack, CRUISE_BOSS_APPROACH_SECONDS, cruiseEliteShouldWithdraw, fireCruiseCrossfire, fireCruiseEliteAttack, getCampaignCruiseSeconds, getCruiseEncounter, getCruiseOpeningLayout, getCruiseWingSize, placeCruiseWing } from './cruiseEncounters'
-import { drawCruiseAttackWarnings, drawCruiseCrossfireStatus, drawRaidFighterDefense } from './cruiseEncounterRender'
+import { drawCruiseAttackWarnings, drawCruiseCrossfireStatus, drawRaidFighterDefense, drawRaidFighterShield } from './cruiseEncounterRender'
 import { drawBlackHole, drawIonStrike, drawIonStorm, drawSolarFlare } from './eventRender'
 import {
   advanceRaidEventShot, createAsteroidHazard, crossesEventHorizon, getAsteroidClusterInterval, getAsteroidHp,
@@ -2809,8 +2809,13 @@ export function GradiusRaid({
         if (plume) drawRaidCombatTexture(ctx, plume, toX(enemy.x) - Math.sin(heading) * size * .42,
           toY(enemy.y) - Math.cos(heading) * size * .42, size * .32, size * (.6 + throttle * .45), -heading, true, throttle * .86)
       }
-      if (enemy.hp > 0 && (enemy.fighterShield || enemy.fighterShieldFlash || enemy.fighterDefenseAge !== undefined)) {
+      if (enemy.hp > 0 && enemy.fighterDefenseAge !== undefined) {
         drawRaidFighterDefense(ctx, enemy, toX(enemy.x), toY(enemy.y), getEnemyCanvasSize(enemy, cssWidth, landscapeRef.current), reducedMotion)
+      }
+      if (enemy.hp > 0 && (enemy.fighterShield || enemy.fighterShieldFlash)) {
+        const warped = startWarp(enemy)
+        drawRaidFighterShield(ctx, enemy, toX(enemy.x), toY(enemy.y), cssWidth, cssHeight, time, landscapeRef.current, reducedMotion)
+        endCanvasGravityWarp(ctx, warped)
       }
       if (gpuForegroundDrawn && !enemy.isBoss && !enemy.isMiniBoss) {
         if (enemy.eliteFighter) {
@@ -3030,7 +3035,10 @@ export function GradiusRaid({
         const warped = beginCanvasGravityWarp(ctx, sample.warp, toX(position.x), toY(position.y), sample.x, sample.y, sample.alpha)
         switch (capture.kind) {
           case 'pilot': drawPilot(capture.body, capture.remote === isGuestView ? PLAYER_COLOR : ALLY_PLAYER_COLOR, true); break
-          case 'enemy': drawRaidEnemy(ctx, capture.body, toX, toY, cssWidth, time, normalEnemyFilter, dpr, false, landscapeRef.current, true, true); break
+          case 'enemy':
+            drawRaidFighterShield(ctx, capture.body, toX(capture.body.x), toY(capture.body.y), cssWidth, cssHeight, time, landscapeRef.current, reducedMotion)
+            drawRaidEnemy(ctx, capture.body, toX, toY, cssWidth, time, normalEnemyFilter, dpr, false, landscapeRef.current, true, true)
+            break
           case 'shot': capture.hostile ? drawHostileShot(capture.body, true) : drawPlayerShot(capture.body); break
           case 'asteroid':
             if (!pixiBackground?.isAsteroidGpuRendered(capture.body.id)) drawAsteroidHazard(ctx, capture.body, toX, toY, cssWidth, time)
@@ -7367,7 +7375,6 @@ export function GradiusRaid({
             }
             shot.y = -999
           }
-          if (fighterShielded && !enemy.fighterShield) addRipple(enemy.x, enemy.y, '#8eeaff', 10)
           if (bossShielded) break
           if (shot.kind === 'rocket') {
             addRipple(enemy.x, enemy.y, '#fb923c', 8)

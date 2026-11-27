@@ -1,7 +1,10 @@
 import type { LanguageCode } from '../../../i18n'
-import { getCanvasSpriteSource, getNormalAlienCanvasSprite } from './assets'
+import { getCanvasSpriteSource, getEnemyCanvasSize, getNormalAlienCanvasSprite } from './assets'
 import { BOSS_FX, drawBossFx } from './combatArt'
 import { forEachMiniBossLane, getMiniBossWarningSeconds } from './cruiseEncounters'
+import { fighterHullBank, fighterHullHeading, fighterHullKey } from './fighterHulls'
+import { sampleLiveProtection } from './liveProtection'
+import { drawShipProtection } from './shipProtection'
 import { getRaidFighter, getRaidFighterDefenseTime, isRaidFighterPhased } from './stageEncounters'
 import type { Enemy } from './types'
 
@@ -28,14 +31,29 @@ export function drawCruiseCrossfireStatus(ctx: CanvasRenderingContext2D, width: 
   ctx.restore()
 }
 
+export function drawRaidFighterShield(ctx: CanvasRenderingContext2D, enemy: Enemy, x: number, y: number,
+  width: number, height: number, time: number, landscape: boolean, reducedMotion: boolean) {
+  const shielded = (enemy.fighterShield ?? 0) > 0
+  const flashDuration = shielded ? .18 : .34
+  const flash = Math.min(1, Math.max(0, (enemy.fighterShieldFlash ?? 0) / flashDuration))
+  if (enemy.hp <= 0 || (!shielded && !flash)) return
+
+  const key = fighterHullKey(enemy.variant)
+  const bank = reducedMotion ? 0 : fighterHullBank(enemy.fighterBankVx)
+  const contours = key ? sampleLiveProtection(key, bank, landscape) : undefined
+  const sprite = getNormalAlienCanvasSprite(enemy.variant)
+  const size = getEnemyCanvasSize(enemy, width, landscape) * (width > 1100 ? .96 : 1)
+  const heading = fighterHullHeading(enemy.fighterBankVx ?? enemy.vx, enemy.vy, width, height)
+  ctx.save()
+  ctx.translate(x, y)
+  ctx.rotate(-heading)
+  ctx.globalAlpha *= shielded ? .74 + flash * .26 : flash * .86
+  drawShipProtection(ctx, 0, 0, size, time, 1, 0, { sprite, contours, contain: true }, reducedMotion, 0)
+  ctx.restore()
+}
+
 export function drawRaidFighterDefense(ctx: CanvasRenderingContext2D, enemy: Enemy, x: number, y: number,
   size: number, reducedMotion: boolean) {
-  const shield = (enemy.fighterShield ?? 0) > 0
-  const impact = Math.min(1, (enemy.fighterShieldFlash ?? 0) * 4)
-  if (shield || impact > 0) {
-    const span = size * (shield ? 1.4 : 1.55 + (1 - impact) * .36)
-    drawBossFx(ctx, BOSS_FX.shield, x, y, span, span, (shield ? .43 : 0) + impact * .42, -.35, true)
-  }
   if (enemy.fighterDefenseAge === undefined) return
   const age = getRaidFighterDefenseTime(enemy)
   if (age < 0 || age > 1.6) return

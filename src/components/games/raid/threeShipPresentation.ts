@@ -8,6 +8,7 @@ import { HullInstances } from './hullInstances'
 import { hullViewYaw, ORGANIC_BOSS_VIEW_YAW, RAID_CAMERA_FOV, raidCameraFocal } from './raidView'
 import { isRaid2DMech } from './mechArtwork'
 import { prepareLiveProtection } from './liveProtection'
+import { SHIELDED_FIGHTER_HULLS } from './fighterHulls'
 import { poseOrganicBoss } from './specialBossGeometry'
 import {
   DirectionalLight, Mesh, Group, HemisphereLight, NeutralToneMapping, Quaternion, Vector3,
@@ -138,8 +139,10 @@ export class ThreeShipPresentation implements LiveHullSink {
     warmup.add(asset.object)
     let compiled = false
     try {
-      await Promise.all([renderer.compileAsync(warmup, this.camera, this.world),
-        ENEMY_HULL_SPECS[key] ? Promise.resolve() : prepareLiveProtection(key === 'mesiah' ? 'mesiahBlack' : key,source)])
+      await Promise.all([
+        renderer.compileAsync(warmup, this.camera, this.world),
+        !ENEMY_HULL_SPECS[key] || SHIELDED_FIGHTER_HULLS.has(key) ? prepareLiveProtection(key, source) : undefined,
+      ])
       compiled = !this.disposed
     } finally {
       if (compiled) {

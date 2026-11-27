@@ -1,6 +1,7 @@
 import { hullDistanceField, protectionContour } from './protectionGeometry'
 
 export const PROTECTION_BANKS = 43
+export const PROTECTION_DEFAULT_BANK_RANGE = .14
 export const PROTECTION_POINTS = 256
 export const PROTECTION_STRIDE = PROTECTION_POINTS * 2 * 3
 const EDGE = 192, HULL = 144
@@ -60,9 +61,10 @@ export function projectProtection(vertices: Float32Array, indices: Uint32Array,
 
 /** Continuous bank/pose interpolation; reuse output storage on every frame. */
 export function blendProtection(frames: Float32Array, poses: number, bank: number,
-  landscape: boolean, attack: number, crouch: number, output: Float32Array) {
-  const position = Math.max(0,Math.min(42,21+bank*150))
-  const low = Math.floor(position), high = Math.min(42,low+1), t = position-low
+  landscape: boolean, attack: number, crouch: number, output: Float32Array, bankRange = PROTECTION_DEFAULT_BANK_RANGE) {
+  const last = PROTECTION_BANKS - 1
+  const position = Math.max(0, Math.min(last, (1 + bank / bankRange) * last / 2))
+  const low = Math.floor(position), high = Math.min(last, low + 1), t = position - low
   output.fill(0)
   for (let pose = 0; pose < poses; pose++) {
     const weight = poses === 1 ? 1 : ((pose&1) ? attack : 1-attack)*((pose&2) ? crouch : 1-crouch)

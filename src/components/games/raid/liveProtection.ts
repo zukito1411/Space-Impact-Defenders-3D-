@@ -1,10 +1,11 @@
 import { Mesh, Vector3, type Object3D } from 'three'
+import { RAID_FIGHTER_MAX_BANK, SHIELDED_FIGHTER_HULLS } from './fighterHulls'
 import { loadHull } from './liveHullAssets'
-import { blendProtection, PROTECTION_POINTS, PROTECTION_STRIDE } from './liveProtectionGeometry'
+import { blendProtection, PROTECTION_DEFAULT_BANK_RANGE, PROTECTION_POINTS, PROTECTION_STRIDE } from './liveProtectionGeometry'
 import type { ProtectionContour } from './protectionGeometry'
 
 export type LiveProtectionContours = { hull: ProtectionContour; field: ProtectionContour; shield: ProtectionContour }
-type Entry = { frames: Float32Array; poses: number; output: Float32Array; contours: LiveProtectionContours }
+type Entry = { frames: Float32Array; poses: number; bankRange: number; output: Float32Array; contours: LiveProtectionContours }
 const entries = new Map<string,Entry>()
 const pending = new Map<string,Promise<void>>()
 const warming = new Set<string>()
@@ -48,15 +49,22 @@ export function prepareLiveProtection(key: string, asset: { object: Object3D; re
         jobs.clear(); worker?.terminate(); worker = null
       }
     }
+    const bankRange = SHIELDED_FIGHTER_HULLS.has(key) ? RAID_FIGHTER_MAX_BANK : PROTECTION_DEFAULT_BANK_RANGE
     const id = serial++, variants = positions.map(p=>new Float32Array(p)), triangles = new Uint32Array(indices)
     const frames = await new Promise<Float32Array>((resolve,reject) => {
       jobs.set(id,{resolve,reject})
-      worker!.postMessage({id,variants,indices:triangles,registration:asset.registration.registration},
+      worker!.postMessage({id,variants,indices:triangles,registration:asset.registration.registration,bankRange},
         [...variants.map(v=>v.buffer),triangles.buffer])
     })
     const output = new Float32Array(PROTECTION_STRIDE), n = PROTECTION_POINTS*2
-    if (entries.size >= 12) entries.delete(entries.keys().next().value!)
-    entries.set(key,{frames,poses:variants.length,output,contours:{
+    if (entries.size >= 12 + SHIELDED_FIGHTER_HULLS.size) {
+      for (const cached of entries.keys()) {
+        if (SHIELDED_FIGHTER_HULLS.has(cached)) continue
+        entries.delete(cached)
+        break
+      }
+    }
+    entries.set(key,{frames,poses:variants.length,bankRange,output,contours:{
       hull:{points:output.subarray(0,n),nose:0},field:{points:output.subarray(n,n*2),nose:0},
       shield:{points:output.subarray(n*2,n*3),nose:0},
     }})
@@ -76,6 +84,6 @@ export function sampleLiveProtection(key: string, bank: number, landscape: boole
     }
     return undefined
   }
-  blendProtection(entry.frames,entry.poses,bank,landscape,attack,crouch,entry.output)
+  blendProtection(entry.frames,entry.poses,bank,landscape,attack,crouch,entry.output,entry.bankRange)
   return entry.contours
 }

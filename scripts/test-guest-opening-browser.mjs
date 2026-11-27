@@ -546,9 +546,59 @@ async function testRaid() {
       sync()
     })
     await capture(desktop, 'raid-fighter-spacing')
+    await desktop.evaluate(async () => {
+      const { refs, spawnEnemy, draw, sync } = window.openingTest
+      const { sampleLiveProtection } = await import('/src/components/games/raid/liveProtection.ts')
+      for (const landscape of [false, true]) {
+        const violet = sampleLiveProtection('fighterViolet', .22, landscape)?.field.points.slice()
+        const auric = sampleLiveProtection('fighterAuric', .22, landscape)?.field.points.slice()
+        const banked = sampleLiveProtection('fighterViolet', -.22, landscape)?.field.points
+        if (!violet || !auric || !banked || !violet.every(Number.isFinite) || !violet.some((v, i) => Math.abs(v - auric[i]) > .02)
+          || !violet.some((v, i) => Math.abs(v - banked[i]) > .02)) {
+          throw Error('Both shielded hulls should warm their own banked contours for both views')
+        }
+      }
+
+      refs.enemiesRef.current.length = 0
+      refs.sparksRef.current.length = 0
+      refs.ripplesRef.current.length = 0
+      const pilot = refs.playerRef.current
+      Object.assign(pilot, { x: 52, y: 80, invuln: 0, shield: 0, forceField: 4 })
+      draw(performance.now())
+      spawnEnemy(35, 41, 3, 0, 0, { variant: 10 }, null)
+      spawnEnemy(69, 36, 3, 0, 0, { variant: 13 }, null)
+      const [gunship, artillery] = refs.enemiesRef.current
+      gunship.fighterBankVx = -26
+      artillery.fighterBankVx = 19
+
+      let outlineStrokes = 0
+      const stroke = CanvasRenderingContext2D.prototype.stroke
+      CanvasRenderingContext2D.prototype.stroke = function (...args) {
+        if (this.strokeStyle === '#64e8e0') outlineStrokes++
+        return stroke.apply(this, args)
+      }
+      try {
+        draw(performance.now())
+        if (outlineStrokes !== 3) throw Error('The two enemies should use the player force-field contour stroke')
+        const shield = gunship.fighterShield
+        gunship.fighterShield = 0
+        gunship.fighterShieldFlash = .2
+        outlineStrokes = 0
+        draw(performance.now())
+        if (outlineStrokes !== 3) throw Error('The broken enemy field should fade on the hull contour')
+        gunship.fighterShieldFlash = 0
+        outlineStrokes = 0
+        draw(performance.now())
+        if (outlineStrokes !== 2) throw Error('The force field should disappear when the break flash is over')
+        gunship.fighterShield = shield
+      } finally { CanvasRenderingContext2D.prototype.stroke = stroke }
+      draw(performance.now())
+      sync()
+    })
+    await capture(desktop, 'raid-hull-shaped-shields')
     assert.deepEqual(traffic, [], 'a guest run must not call the online profile or leaderboard APIs')
     assert.deepEqual(errors, [])
-    console.log('Desktop guest launch, stage advance, retry, sustained fighter combat, scout tail fire, crossfire, shields, phase, cloak and both elite tiers passed')
+    console.log('Desktop guest launch, stage advance, retry, sustained fighter combat, scout tail fire, crossfire, hull-shaped shields, phase, cloak and both elite tiers passed')
   } catch (error) {
     const visible = await desktop.locator('body').innerText({ timeout: 4000 }).catch(() => '')
     throw new Error(`Raid did not complete its opening check. Visible state: ${visible.slice(0, 1000)}`, { cause: error })

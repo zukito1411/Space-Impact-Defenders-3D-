@@ -1,7 +1,7 @@
 import { authoredDefeatAlpha } from './destructionProfile'
 import type { EnemyBankMotion } from './enemyBanking'
 import { enemyHullKey } from './enemyHulls'
-import { fighterGunHeading, fighterHullHeading } from './fighterHulls'
+import { fighterGunHeading, fighterHullBank, fighterHullHeading } from './fighterHulls'
 import { drawLiveHull } from './liveHullBridge'
 import { BOSS_FX, COMBAT_TILE, drawBossFx, drawRaidCombatTexture, getRaidCombatFrame } from './combatArt'
 import { FIGHTER_FIRE_FLASH, getRaidFighterCharge, getRaidFighterOpacity } from './stageEncounters'
@@ -216,7 +216,7 @@ export function drawRaidEnemy(
 
   const key = enemyHullKey(enemy)
   const heading = fighterHullHeading(enemy.fighterBankVx ?? enemy.vx, enemy.vy, viewportWidth, toY(100))
-  const bank = Math.max(-.24, Math.min(.24, (enemy.fighterBankVx ?? 0) * .007))
+  const bank = fighterHullBank(enemy.fighterBankVx)
   if (key) {
     ctx.save()
     ctx.translate(x, y)
