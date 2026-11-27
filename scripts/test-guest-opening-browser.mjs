@@ -449,6 +449,18 @@ async function verifyPilotProtection(page, landscape) {
     const height = gl.drawingBufferHeight
     const image = new Uint8Array(width * height * 4)
     const silhouette = new Uint8Array(mask.width * mask.height * 4)
+    const exhaustCanvas = refs.exhaustCanvasRef.current
+    const exhaust = exhaustCanvas?.getContext('2d')
+    const z = element => Number(getComputedStyle(element).zIndex)
+    if (!exhaust || z(exhaustCanvas) >= z(refs.shipHostRef.current) || z(exhaustCanvas) >= z(refs.fxCanvasRef.current)
+      || z(exhaustCanvas) <= z(refs.pixiBackgroundHostRef.current)) {
+      throw Error('Ship exhaust must be composited behind both hull layers and in front of the scenery')
+    }
+    if (exhaustCanvas.width !== refs.fxCanvasRef.current.width || exhaustCanvas.height !== refs.fxCanvasRef.current.height
+      || getComputedStyle(exhaustCanvas).transform !== getComputedStyle(refs.fxCanvasRef.current).transform) {
+      throw Error('Exhaust must use the same resolution and camera motion as foreground effects')
+    }
+    let exhaustOverlapsHull = false
     const view = refs.landscapeRef.current
     if (view !== (innerWidth > innerHeight)) throw Error('Wrong test orientation')
     pilot.invuln = 0
@@ -484,6 +496,20 @@ async function verifyPilotProtection(page, landscape) {
         draw(time)
         gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, image)
         const base = image.slice()
+        if (key.startsWith('mesiah')) {
+          const { width: trailWidth, height: trailHeight } = exhaustCanvas
+          const trail = exhaust.getImageData(0, 0, trailWidth, trailHeight).data
+          for (let y = 0; y < height && !exhaustOverlapsHull; y++) {
+            const trailY = trailHeight - 1 - Math.floor(y * trailHeight / height)
+            for (let x = 0; x < width; x++) {
+              const trailX = Math.floor(x * trailWidth / width)
+              if (base[(y * width + x) * 4 + 3] > 245 && trail[(trailY * trailWidth + trailX) * 4 + 3] > 25) {
+                exhaustOverlapsHull = true
+                break
+              }
+            }
+          }
+        }
         Object.assign(pilot, { forceField: field, shield })
         draw(time)
         const node = presentation.protectedPilots[0]
@@ -517,6 +543,7 @@ async function verifyPilotProtection(page, landscape) {
         }
       }
     }
+    if (!exhaustOverlapsHull) throw Error('Expected the live hull to cover the root of its exhaust')
     // Co-op pilots can share a live hull, but each mask and color belongs to its own ship.
     const ally = getInitialPlayer(pilot.ship, pilot.visualShipKey)
     refs.remotePlayerRef.current = ally
@@ -566,7 +593,7 @@ async function verifyPilotProtection(page, landscape) {
     draw(screenshotTime)
   })
   await capture(page, landscape ? 'mesiah-protection-landscape' : 'mesiah-protection-portrait')
-  console.log('Live hull alpha and moving, banked force field, shield and combined shell matched for all pilots, including co-op and 2D mechs, in ' +
+  console.log('Live hull alpha and moving, banked force field, shield and combined shell matched and exhaust was layered behind the hulls in ' +
     (landscape ? 'landscape' : 'portrait'))
 }
 

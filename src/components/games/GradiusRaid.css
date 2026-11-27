@@ -1044,16 +1044,19 @@
   height: 100%;
 }
 
+.raid__exhaust-canvas,
 .raid__fx-canvas {
   position: absolute;
   inset: 0;
-  z-index: 5;
   width: 100%;
   height: 100%;
   pointer-events: none;
   transform: translate3d(var(--raid-camera-x, 0px), var(--raid-camera-y, 0px), 0);
   will-change: transform;
 }
+
+.raid__exhaust-canvas { z-index: 3; }
+.raid__fx-canvas { z-index: 5; }
 
 /* Optional diagnostic, updated only once a second via the gameplay ref.
    Does not cause React rerenders while playing or intercept touch input. */

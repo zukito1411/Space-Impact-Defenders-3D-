@@ -9,7 +9,7 @@ source=`
 const isRaid2DMech=key=>['godGundam','godGundamBurning','spiegel'].includes(key);
 const liveHullsEnabled=()=>true,drawLiveHull=(ctx,key,x,y,size)=>{ctx.hulls.push(size);return true},
  sampleLiveHullPoints=(key,bank,landscape)=>({nozzles:landscape?[[.10,.22,.05]]:getRaidShipNozzles(key),wing:[]}),loadHull=async()=>{};
-const CARRIER_EXIT_SECONDS=20;
+const CARRIER_EXIT_SECONDS=20, FORCE_FIELD_ARMOR=6, SPACE_ET_PASSIVE_FORCE_FIELD_CHARGES=3;
 const WIDTH=100, HEIGHT=100, DEG=Math.PI/180, PLAYER_COLOR='#ef233c';
 const updateFlightPose=(pose)=>{pose.maneuverJet=globalThis.testManeuverJet??0;return 0};
 const GOD_GUNDAM_BURNING_BODY_SCALE=1.09,GOD_GUNDAM_BURNING_BODY_Y_OFFSET=-.064;
@@ -19,9 +19,10 @@ const getCoreLanderFireInterval=()=>.5,sampleMechAttack=()=>({frame:3,stage:'idl
 const getShipCanvasSprite=()=>({});
 // Use mesh submissions and registered hardpoints while preserving the real exhaust renderer.
 const getRaidBankingFrame=()=>({nozzles:[[.10,.22,.05]]});
-const warmSpaceJetForceField=()=>{};
+const warmRaidWeaponGlows=()=>{}, drawRaidExhaustBloom=()=>{};
 const getRaidSideShipCanvasSprite=()=>({loaded:true}),getRaidSideShipNozzles=()=>[[.10,.22,.05]],drawCanvasSpriteContain=(ctx,sprite,x,y,size)=>ctx.hulls.push(size);
 const getOptionSupportStacks=()=>1,getShipSpriteSize=()=>30;
+const normalizeMesiahScoutDrones=()=>[-1,1].map(side=>({side, stack:0, active:true, flightPhase:'active'}));
 const getRaidCombatFrame=()=>({source:{resource:{}}});
 const COMBAT_TILE={exhaust:12};
 const drawRaidCombatTexture=(ctx,...args)=>{ctx.images.push(args);return true};
@@ -215,9 +216,18 @@ try {
    null,null,0,0,false,true,{scale:1,engine:0,hideCombatFx:true})
  assert.equal(launch.hulls.length,1,'carrier ignition must submit one live hull')
 
- const scouts=context()
- drawRaidOptions(scouts,{...player,optionStacks:1},v=>v*10,v=>v*5,420,1100,'#ef233c','rocket',true)
+ const scouts=context(), rear=context()
+ drawRaidOptions(scouts,{...player,optionStacks:1},v=>v*10,v=>v*5,420,1100,'#ef233c','rocket',true,rear)
  assert.equal(scouts.hulls.length,2,'both Scout escorts must submit live hulls')
+ assert.equal(scouts.images.length,0,'escort flames must stay off the foreground')
+ assert.equal(rear.images.length,2,'both escort flames should render behind the hulls')
+ const hull=context(), exhaust=context()
+ drawRaidPlayer(hull,player,'playing',v=>v*10,v=>v*5,420,1100,'#ef233c',regularCosmetics,'rocket',
+   null,null,0,0,false,true,undefined,false,exhaust)
+ assert.equal(hull.hulls.length,1)
+ assert.equal(hull.images.length,0,'pilot flames must stay off the foreground')
+ assert.equal(exhaust.images.length,1,'pilot exhaust must render below the ship')
+
 } finally { delete globalThis.testBankingEnabled }
 console.log('Engine: shorter idle, heat ramp, mounted scout exhaust, aligned atlas hot core, layered signature, and bounded bitmap draws passed')
 

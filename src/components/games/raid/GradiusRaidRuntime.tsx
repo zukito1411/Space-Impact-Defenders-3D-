@@ -197,6 +197,7 @@ export function GradiusRaid({
   const pixiBackgroundRef = useRef<PixiRaidBackground | null>(null)
   const rendererPreparationRef = useRef<Promise<boolean> | null>(null)
   const fxCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const exhaustCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const carrierDeckCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const carrierDeckAgeRef = useRef(0)
   const fxCanvasContextRef = useRef<CanvasRenderingContext2D | null>(null)
@@ -1782,6 +1783,20 @@ export function GradiusRaid({
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.clearRect(0, 0, cssWidth, cssHeight)
 
+    // Keep the exhaust under the hulls, including the glowing roots of the plumes.
+    const exhaustCanvas = exhaustCanvasRef.current
+    if (exhaustCanvas && (exhaustCanvas.width !== width || exhaustCanvas.height !== height)) {
+      exhaustCanvas.width = width
+      exhaustCanvas.height = height
+    }
+    const exhaustCtx = exhaustCanvas?.getContext('2d') ?? ctx
+    if (exhaustCtx !== ctx) {
+      if (exhaustCtx.imageSmoothingQuality !== nextSmoothingQuality) exhaustCtx.imageSmoothingQuality = nextSmoothingQuality
+      resetCanvasGravityWarp(exhaustCtx)
+      exhaustCtx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      exhaustCtx.clearRect(0, 0, cssWidth, cssHeight)
+    }
+
     const isGuestView = Boolean(multiplayerSessionRef.current && !multiplayerSessionRef.current.isHost)
     const ownShipRef = isGuestView ? remotePlayerRef.current : playerRef.current
     const playing = phaseRef.current === 'playing'
@@ -1792,9 +1807,9 @@ export function GradiusRaid({
     const reducedMotion = prefersRaidReducedMotion()
     const gravityField: GravityField | null = event && event.warning <= 0
       ? { hole: getBlackHole(event), scaleX: cssWidth / WIDTH, scaleY: cssHeight / HEIGHT, reducedMotion, age: event.age, captures: event.captures } : null
-    const startWarp = (body: Vec) => {
+    const startWarp = (body: Vec, target = ctx) => {
       if (!gravityField) return false
-      return beginCanvasGravityWarp(ctx, gravityWarp(gravityField, body),
+      return beginCanvasGravityWarp(target, gravityWarp(gravityField, body),
         body.x * gravityField.scaleX, body.y * gravityField.scaleY)
     }
     const briefing = phaseRef.current === 'briefing'
@@ -2038,7 +2053,7 @@ export function GradiusRaid({
         drawRaidPlayer(ctx, pilot, phaseRef.current, projectX, projectY, cssWidth, time, color,
           getCachedEquippedCosmetics(pilot.ship.key), getRaidPlayerVisualShipKey(pilot, progressRef.current),
           null, null, 0, 0, reducedMotion, landscapeRef.current,
-          { scale: displayScale, engine: enginesCold ? 0 : carrier.engine, hideCombatFx: true, dock:dockBlend, carrierAge: underway ? undefined : recovery ? (recovery.release < .5 ? 0 : CARRIER_LAUNCH_SECONDS) : carrierAge })
+          { scale: displayScale, engine: enginesCold ? 0 : carrier.engine, hideCombatFx: true, dock:dockBlend, carrierAge: underway ? undefined : recovery ? (recovery.release < .5 ? 0 : CARRIER_LAUNCH_SECONDS) : carrierAge }, false, exhaustCtx)
         if (boardingFrame) {
           ctx.save()
           if (landscapeRef.current) { ctx.translate(0, cssHeight); ctx.rotate(-Math.PI / 2) }
@@ -2857,9 +2872,9 @@ export function GradiusRaid({
     const hideOwnShipForBarrage = Boolean(ownShipRef && !stageClearActive && isGodGundamBarragePilot(ownShipRef, progressRef.current) && (godBarrageRef.current || (ownShipRef.godMeleeCloak ?? 0) > 0))
     const hideAllyShipForBarrage = Boolean(allyShipRef && !stageClearActive && isGodGundamBarragePilot(allyShipRef, progressRef.current) && (godBarrageRef.current || (allyShipRef.godMeleeCloak ?? 0) > 0))
     const hideDevilAssistForBarrage = Boolean(devilAssistShipRef && !stageClearActive && isGodGundamBarragePilot(devilAssistShipRef, progressRef.current) && (devilAssistShipRef.godMeleeCloak ?? 0) > 0)
-    if (stageEntryRef.current <= 0 && gfxProfile.drawOptionShips && ownShipRef && !hideOwnShipForBarrage) drawRaidOptions(ctx, ownShipRef, toX, toY, cssWidth, time, PLAYER_COLOR, getRaidPlayerVisualShipKey(ownShipRef, progressRef.current), landscapeRef.current)
-    if (stageEntryRef.current <= 0 && gfxProfile.drawOptionShips && allyShipRef && !hideAllyShipForBarrage) drawRaidOptions(ctx, allyShipRef, toX, toY, cssWidth, time, ALLY_PLAYER_COLOR, getRaidPlayerVisualShipKey(allyShipRef, progressRef.current), landscapeRef.current)
-    if (stageEntryRef.current <= 0 && gfxProfile.drawOptionShips && devilAssistShipRef && !hideDevilAssistForBarrage) drawRaidOptions(ctx, devilAssistShipRef, toX, toY, cssWidth, time, '#facc15', getRaidPlayerVisualShipKey(devilAssistShipRef, progressRef.current), landscapeRef.current)
+    if (stageEntryRef.current <= 0 && gfxProfile.drawOptionShips && ownShipRef && !hideOwnShipForBarrage) drawRaidOptions(ctx, ownShipRef, toX, toY, cssWidth, time, PLAYER_COLOR, getRaidPlayerVisualShipKey(ownShipRef, progressRef.current), landscapeRef.current, exhaustCtx)
+    if (stageEntryRef.current <= 0 && gfxProfile.drawOptionShips && allyShipRef && !hideAllyShipForBarrage) drawRaidOptions(ctx, allyShipRef, toX, toY, cssWidth, time, ALLY_PLAYER_COLOR, getRaidPlayerVisualShipKey(allyShipRef, progressRef.current), landscapeRef.current, exhaustCtx)
+    if (stageEntryRef.current <= 0 && gfxProfile.drawOptionShips && devilAssistShipRef && !hideDevilAssistForBarrage) drawRaidOptions(ctx, devilAssistShipRef, toX, toY, cssWidth, time, '#facc15', getRaidPlayerVisualShipKey(devilAssistShipRef, progressRef.current), landscapeRef.current, exhaustCtx)
     const journeyRim = COSMIC_REGIONS[
       backgroundStageTheme === RAID_BOSS_BACKGROUND_THEME_SQUID || stageRef.current === 4 ? 3
         : backgroundStageTheme === RAID_BOSS_BACKGROUND_THEME_SNAKE || stageRef.current === 9 ? 1
@@ -2874,13 +2889,15 @@ export function GradiusRaid({
         getCachedEquippedCosmetics(pilot.ship.key), getRaidPlayerVisualShipKey(pilot, progressRef.current),
         sameScreenIdentityAura && !captured && color !== '#facc15' ? color : null, journeyRim,
         pixiBackground?.getEclipseAt(toX(pilot.x), toY(pilot.y)), sunlight, reducedMotion, landscapeRef.current,
-        captured ? { scale: 1, engine: .28, hideCombatFx: true } : undefined, projectileGlow)
+        captured ? { scale: 1, engine: .28, hideCombatFx: true } : undefined, projectileGlow, exhaustCtx)
     }
     const capturedBodies = gravityField ? event?.captures : undefined
     const drawLivePilot = (pilot: Player | null, color: string, hidden: boolean, remote: boolean) => {
       if (!pilot || hidden || (pilot.hp <= 0 && capturedBodies?.some(capture => capture.kind === 'pilot' && capture.remote === remote))) return
       const warped = pilot.hp > 0 && startWarp(pilot)
+      const exhaustWarped = warped && exhaustCtx !== ctx && startWarp(pilot, exhaustCtx)
       drawPilot(pilot, color)
+      endCanvasGravityWarp(exhaustCtx, exhaustWarped)
       endCanvasGravityWarp(ctx, warped)
     }
     drawLivePilot(ownShipRef, PLAYER_COLOR, hideOwnShipForBarrage, isGuestView)
@@ -3016,7 +3033,13 @@ export function GradiusRaid({
         const position = capture.kind === 'nuke' ? getNukeMissilePoint(capture.body) : capture.body
         const warped = beginCanvasGravityWarp(ctx, sample.warp, toX(position.x), toY(position.y), sample.x, sample.y, sample.alpha)
         switch (capture.kind) {
-          case 'pilot': drawPilot(capture.body, capture.remote === isGuestView ? PLAYER_COLOR : ALLY_PLAYER_COLOR, true); break
+          case 'pilot': {
+            const exhaustWarped = exhaustCtx !== ctx && beginCanvasGravityWarp(exhaustCtx, sample.warp,
+              toX(position.x), toY(position.y), sample.x, sample.y, sample.alpha)
+            drawPilot(capture.body, capture.remote === isGuestView ? PLAYER_COLOR : ALLY_PLAYER_COLOR, true)
+            endCanvasGravityWarp(exhaustCtx, exhaustWarped)
+            break
+          }
           case 'enemy':
             drawRaidFighterShield(ctx, capture.body, toX(capture.body.x), toY(capture.body.y), cssWidth, cssHeight, time, landscapeRef.current, reducedMotion)
             drawRaidEnemy(ctx, capture.body, toX, toY, cssWidth, time, normalEnemyFilter, dpr, false, landscapeRef.current, true, true)
@@ -8009,6 +8032,8 @@ export function GradiusRaid({
         if (consecutiveDrawFailures === 1) {
           const canvas = fxCanvasRef.current
           if (canvas) canvas.width = canvas.width
+          const exhaustCanvas = exhaustCanvasRef.current
+          if (exhaustCanvas) exhaustCanvas.width = exhaustCanvas.width
           fxCanvasContextRef.current = null
           fxCanvasSmoothingQualityRef.current = null
         }
@@ -8504,6 +8529,7 @@ export function GradiusRaid({
 
       <div className="raid__playfield">
         <div ref={pixiBackgroundHostRef} className="raid__pixi-background" aria-hidden="true" />
+        <canvas ref={exhaustCanvasRef} className="raid__exhaust-canvas" aria-hidden="true" />
         <div ref={shipHostRef} className="raid__ships-3d" aria-hidden="true" />
         <RaidLaunchSequence landscape={landscape} deckRef={carrierDeckCanvasRef} />
         <canvas ref={fxCanvasRef} className="raid__fx-canvas" />

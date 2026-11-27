@@ -116,6 +116,7 @@ export function drawRaidOptions(
   color = PLAYER_COLOR,
   mesiahVisualShipKey = 'mesiahBlack',
   landscape = false,
+  exhaustCtx = ctx,
 ) {
   const isArk = player.ship.key === 'dreadnought'
   const isMesiah = player.ship.key === 'mesiah' && player.hp > 0
@@ -139,9 +140,8 @@ export function drawRaidOptions(
       const x = toX(scout?.x ?? clamp(player.x + offset * side, 4, 96))
       const y = toY(scout?.y ?? player.y + yOffset) + (scout && scout.flightPhase !== 'active' ? 0 : Math.sin(time / 900 + (side > 0 ? 0.18 : 0)) * 2.5)
       const rotation = scout?.rotation ?? 0
-      const trailOverHull = shipKey === 'godGundam' || shipKey === 'spiegel'
       const throttle = scout && scout.flightPhase !== 'active' ? 1.1 : .14 + (player.engineBoost ?? 0) * .58
-      if (!trailOverHull) drawSupportEngineTrail(ctx, x, y, drawSize, time, rotation, 0.9, shipKey, throttle, landscape, banking?.nozzles)
+      drawSupportEngineTrail(exhaustCtx, x, y, drawSize, time, rotation, isRaid2DMech(shipKey) ? .7 : .9, shipKey, throttle, landscape, banking?.nozzles)
       if (isRaid2DMech(shipKey)) {
         const sprite = landscape ? getRaidSideShipCanvasSprite(shipKey) : getShipCanvasSprite(shipKey)
         if (sprite?.loaded) {
@@ -153,7 +153,6 @@ export function drawRaidOptions(
         drawLiveHull(ctx,shipKey,x,y,drawSize,formationBank,1,landscape,color+':option:'+shipKey+':'+side)
         ctx.restore()
       }
-      if (trailOverHull) drawSupportEngineTrail(ctx, x, y, drawSize, time, rotation, .7, shipKey, throttle, landscape, banking?.nozzles)
     }
   }
 
@@ -190,7 +189,7 @@ export function drawRaidOptions(
       const alpha = idle ? 0.72 : 1
       const scale = idle ? 0.9 : 1
       const banking = getRaidBankingFrame(droneShipKey, idle ? 0 : clamp(drone.rotation, -.14, .14), landscape, false)
-      drawSupportEngineTrail(ctx, x, y, drawSize * scale, time, idle ? 0 : drone.rotation, idle ? 0.7 : 0.92, droneShipKey, idle ? .06 : .70, landscape, banking?.nozzles)
+      drawSupportEngineTrail(exhaustCtx, x, y, drawSize * scale, time, idle ? 0 : drone.rotation, idle ? 0.7 : 0.92, droneShipKey, idle ? .06 : .70, landscape, banking?.nozzles)
       ctx.save();ctx.translate(x,y);ctx.rotate(idle?0:drone.rotation);ctx.translate(-x,-y)
       drawLiveHull(ctx,droneShipKey,x,y,drawSize*scale,idle?0:clamp(drone.rotation,-.14,.14),alpha,landscape,color+':drone:'+drone.side)
       ctx.restore()
@@ -207,7 +206,7 @@ export function drawRaidOptions(
         const x = toX(scout.x)
         const y = toY(scout.y)
         const banking = getRaidBankingFrame(scoutShipKey, clamp(scout.rotation, -.14, .14), landscape, false)
-        drawSupportEngineTrail(ctx, x, y, scoutSize, time, scout.rotation, 0.9, scoutShipKey, scout.canFire ? .48 : .78, landscape, banking?.nozzles)
+        drawSupportEngineTrail(exhaustCtx, x, y, scoutSize, time, scout.rotation, 0.9, scoutShipKey, scout.canFire ? .48 : .78, landscape, banking?.nozzles)
         ctx.save();ctx.translate(x,y);ctx.rotate(scout.rotation);ctx.translate(-x,-y)
         drawLiveHull(ctx,scoutShipKey,x,y,scoutSize,clamp(scout.rotation,-.14,.14),1,landscape,color+':scout:'+scout.stack+':'+scout.side)
         ctx.restore()
@@ -738,6 +737,7 @@ export function drawRaidPlayer(
   landscape = false,
   presentation?: { scale: number; engine: number; hideCombatFx: boolean; carrierAge?: number; dock?: number },
   exhaustBloom = false,
+  exhaustCtx = ctx,
 ) {
   const x = toX(player.x)
   const y = toY(player.y)
@@ -793,10 +793,10 @@ export function drawRaidPlayer(
   const nozzles = livePoints?.nozzles ?? (landscape ? getRaidSideShipNozzles(sideVisualKey) : undefined) ?? getRaidShipNozzles(sideVisualKey)
 
   if (!isDown && !coreLanderCombatModel && (presentation?.engine ?? 1) > 0) {
-    ctx.save()
-    ctx.globalAlpha *= presentation?.engine ?? 1
-    drawHullExhaust(ctx, x, y, renderSize, time, engineBoost, visualShipKey, undefined, trailColor, cosmeticShipKey, landscape && Boolean(sideSprite?.loaded), livePoints?.nozzles)
-    ctx.restore()
+    exhaustCtx.save()
+    exhaustCtx.globalAlpha *= presentation?.engine ?? 1
+    drawHullExhaust(exhaustCtx, x, y, renderSize, time, engineBoost, visualShipKey, undefined, trailColor, cosmeticShipKey, landscape && Boolean(sideSprite?.loaded), livePoints?.nozzles)
+    exhaustCtx.restore()
   }
   const maneuverJet = pose.maneuverJet ?? 0
   if (nozzles?.length && player.ship.key !== 'coreLander' && !presentation?.hideCombatFx && !isDown && phase === 'playing' && !reducedMotion && Math.abs(maneuverJet) > .065) {
@@ -805,12 +805,12 @@ export function drawRaidPlayer(
     const outlet = nozzles.reduce((outer, vent) => (vent[0] - outer[0]) * side < 0 ? vent : outer)
     const [ventX, ventY, aperture] = outlet
     const jetSize = renderSize * (.24 + power * .12)
-    ctx.save()
-    ctx.translate(x + renderSize * (ventX - side * aperture * .33), y + renderSize * (ventY - aperture * .12))
-    ctx.rotate(side * Math.PI / 3)
-    ctx.globalAlpha *= Math.min(1, power * 1.5)
-    drawPlayerEngine(ctx, 0, -jetSize * .34, jetSize, time, .25 + power * .65, renderSize * aperture * .45)
-    ctx.restore()
+    exhaustCtx.save()
+    exhaustCtx.translate(x + renderSize * (ventX - side * aperture * .33), y + renderSize * (ventY - aperture * .12))
+    exhaustCtx.rotate(side * Math.PI / 3)
+    exhaustCtx.globalAlpha *= Math.min(1, power * 1.5)
+    drawPlayerEngine(exhaustCtx, 0, -jetSize * .34, jetSize, time, .25 + power * .65, renderSize * aperture * .45)
+    exhaustCtx.restore()
   }
   if (!isDown && identityAuraColor) {
     ctx.save()
@@ -933,10 +933,29 @@ export function drawRaidPlayer(
   if(dockReady&&dockPose&&coreLanderCombatModel){
     if((presentation?.engine??0)>0){
       const nozzle=getMechDockNozzles(coreLanderCombatModel,dockPose.frame),wake=renderSize*.55
-      ctx.save();ctx.translate(x,y);ctx.rotate(dockPose.angle);ctx.translate(0,dockPose.offsetY*renderSize);ctx.globalAlpha*=.7*(presentation?.engine??0)
-      for(const [nx,ny,aperture]of nozzle.roots){ctx.save();ctx.translate(nx*renderSize,ny*renderSize);ctx.rotate(nozzle.angle);drawPlayerEngine(ctx,0,-wake*.34,wake,time,engineBoost,renderSize*aperture);ctx.restore()}
-      ctx.restore()
+      exhaustCtx.save();exhaustCtx.translate(x,y);exhaustCtx.rotate(dockPose.angle);exhaustCtx.translate(0,dockPose.offsetY*renderSize);exhaustCtx.globalAlpha*=.7*(presentation?.engine??0)
+      for(const [nx,ny,aperture]of nozzle.roots){exhaustCtx.save();exhaustCtx.translate(nx*renderSize,ny*renderSize);exhaustCtx.rotate(nozzle.angle);drawPlayerEngine(exhaustCtx,0,-wake*.34,wake,time,engineBoost,renderSize*aperture);exhaustCtx.restore()}
+      exhaustCtx.restore()
     }
+  }
+  if (coreLanderCombatModel && !dockReady && !isDown && (presentation?.engine ?? 1) > 0) {
+    exhaustCtx.save()
+    exhaustCtx.globalAlpha *= .7 * (presentation?.engine ?? 1)
+    if (landscape && sideSprite?.loaded) {
+      if (coreLanderCombatModel === 'godGundam' && coreLanderBurningBlend > .01) {
+        drawCrossfadeExhaust(exhaustCtx, x, y, renderSize, sideVisualKey, y, renderSize, 'godGundamBurning', coreLanderBurningBlend, time, engineBoost, trailColor, cosmeticShipKey, true)
+      } else drawHullExhaust(exhaustCtx, x, y, renderSize, time, engineBoost, sideVisualKey, undefined, trailColor, cosmeticShipKey, true)
+    } else if (coreLanderCombatModel === 'godGundam' && coreLanderBurningBlend > .01) {
+      drawCrossfadeExhaust(exhaustCtx, x, y, renderSize, sideVisualKey,
+        y + renderSize * GOD_GUNDAM_BURNING_BODY_Y_OFFSET, renderSize * GOD_GUNDAM_BURNING_BODY_SCALE, 'godGundamBurning',
+        coreLanderBurningBlend, time, engineBoost, trailColor, cosmeticShipKey)
+    } else {
+      drawHullExhaust(exhaustCtx, x, y, renderSize, time, engineBoost, sideVisualKey, undefined, trailColor, cosmeticShipKey)
+    }
+    exhaustCtx.restore()
+  }
+  if (exhaustBloom && !isDown && !presentation && (phase === 'playing' || phase === 'paused')) {
+    drawRaidExhaustBloom(exhaustCtx, x, y, renderSize, engineBoost / 1.35, coreLanderBurning, nozzles)
   }
   if (coreLanderCombatModel) {
   if(dockReady&&dockPose&&coreLanderCombatModel){
@@ -1036,25 +1055,6 @@ export function drawRaidPlayer(
       masteryPaintColor,
     )
   }
-  }
-  if (coreLanderCombatModel && !dockReady && !isDown && (presentation?.engine ?? 1) > 0) {
-    ctx.save()
-    ctx.globalAlpha *= .7 * (presentation?.engine ?? 1)
-    if (landscape && sideSprite?.loaded) {
-      if (coreLanderCombatModel === 'godGundam' && coreLanderBurningBlend > .01) {
-        drawCrossfadeExhaust(ctx, x, y, renderSize, sideVisualKey, y, renderSize, 'godGundamBurning', coreLanderBurningBlend, time, engineBoost, trailColor, cosmeticShipKey, true)
-      } else drawHullExhaust(ctx, x, y, renderSize, time, engineBoost, sideVisualKey, undefined, trailColor, cosmeticShipKey, true)
-    } else if (coreLanderCombatModel === 'godGundam' && coreLanderBurningBlend > .01) {
-      drawCrossfadeExhaust(ctx, x, y, renderSize, sideVisualKey,
-        y + renderSize * GOD_GUNDAM_BURNING_BODY_Y_OFFSET, renderSize * GOD_GUNDAM_BURNING_BODY_SCALE, 'godGundamBurning',
-        coreLanderBurningBlend, time, engineBoost, trailColor, cosmeticShipKey)
-    } else {
-      drawHullExhaust(ctx, x, y, renderSize, time, engineBoost, sideVisualKey, undefined, trailColor, cosmeticShipKey)
-    }
-    ctx.restore()
-  }
-  if (exhaustBloom && !isDown && !presentation && (phase === 'playing' || phase === 'paused')) {
-    drawRaidExhaustBloom(ctx, x, y, renderSize, engineBoost / 1.35, coreLanderBurning, nozzles)
   }
   if (conditionHull) drawPlayerCondition(ctx, player, phase, x, conditionY, conditionSize, time, color, conditionHull, reducedMotion)
   } finally { ctx.restore() }
