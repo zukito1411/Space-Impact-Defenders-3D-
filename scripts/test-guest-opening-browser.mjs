@@ -951,17 +951,19 @@ async function testRaid(landscape = true, protectionOnly = false) {
       }
       try {
         draw(performance.now())
-        if (outlineStrokes !== 3) throw Error('The two enemies should use the player force-field contour stroke')
+        if (outlineStrokes !== 2 || refs.shipsRef.current.protectedPilots.length !== 1) {
+          throw Error('Both fighters should draw Canvas contours alongside the pilot’s live field')
+        }
         const shield = gunship.fighterShield
         gunship.fighterShield = 0
         gunship.fighterShieldFlash = .2
         outlineStrokes = 0
         draw(performance.now())
-        if (outlineStrokes !== 3) throw Error('The broken enemy field should fade on the hull contour')
+        if (outlineStrokes !== 2) throw Error('The broken enemy field should fade on the hull contour')
         gunship.fighterShieldFlash = 0
         outlineStrokes = 0
         draw(performance.now())
-        if (outlineStrokes !== 2) throw Error('The force field should disappear when the break flash is over')
+        if (outlineStrokes !== 1) throw Error('The force field should disappear when the break flash is over')
         gunship.fighterShield = shield
       } finally { CanvasRenderingContext2D.prototype.stroke = stroke }
       draw(performance.now())
