@@ -9,6 +9,7 @@ const anchors=JSON.parse(read(root+'bankingAnchors.json'))
 const mechs=new Set(['godGundam','godGundamBurning','spiegel'])
 const view=read(root+'raidView.ts').replace(/export /g,'')
 const code=ts.transpileModule(view+'\n'+`
+  const getCanvasGravityWarp = () => undefined;
   const isRaid2DMech=key=>['godGundam','godGundamBurning','spiegel'].includes(key);
   const getHullRegistration=key=>registrations[key==='mesiah'?'mesiahBlack':key]??null;
   const registrations=${JSON.stringify(registrations)};
@@ -46,8 +47,9 @@ for(const file of ['god-gundam.png','god-gundam-burning.png','spiegel.png'])asse
 assert.equal(existsSync('public/assets/ships/sideview'),true)
 assert.equal(existsSync('public/assets/ships/banking'),false)
 const ctx={canvas:{dataset:{raidDpr:'2'}},globalAlpha:.5,getTransform(){return {a:0,b:2,c:-2,d:0,e:400,f:200}}}
-bridge.drawLiveHull(ctx,'xwing',30,50,80,.1,.6,true,'pilot')
-assert.deepEqual(draws.at(-1),{id:'pilot',key:'xwing',x:150,y:130,size:80,bank:.1,alpha:.3,landscape:true,angle:-Math.PI/2})
+const pilotProtection = { field: 1, shield: .25 }
+bridge.drawLiveHull(ctx,'xwing',30,50,80,.1,.6,true,'pilot',{ pilotProtection })
+assert.deepEqual(draws.at(-1),{id:'pilot',key:'xwing',x:150,y:130,size:80,bank:.1,alpha:.3,landscape:true,angle:-Math.PI/2,warp:undefined,pilotProtection})
 for (const key of mechs) for (const landscape of [false,true]) {
   assert.equal(bridge.drawLiveHull(ctx,key,0,0,100,0,1,landscape),false)
   assert.equal(bridge.sampleLiveHullPoints(key,0,landscape),null)

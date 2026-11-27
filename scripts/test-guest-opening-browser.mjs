@@ -205,7 +205,8 @@ async function main() {
     args: ['--no-sandbox', '--enable-unsafe-swiftshader', '--use-angle=swiftshader'] })
 
   const mobileChecks = [testCoopMenu, testCallsign, testNativeDownload]
-  const checks = process.argv.includes('--controller-only') ? [testController]
+  const checks = process.argv.includes('--protection-only') ? [() => testRaid(false, true), () => testRaid(true, true)]
+    : process.argv.includes('--controller-only') ? [testController]
     : process.argv.includes('--raid-only') || process.argv.includes('--scout-only') ? [testRaid]
     : process.argv.includes('--android-startup-only') ? [testNativeDownload]
     : process.argv.includes('--menu-only') ? mobileChecks : [testRaid, ...mobileChecks]
@@ -432,12 +433,150 @@ async function verifyScoutCruise(page) {
   console.log('Scout-only first 10s in all 15 campaign stages and Endless, recurring scouts, complete-wing drops, escaped scouts, Mesiah shots and Boss Rush passed')
 }
 
-async function testRaid() {
-  const desktop = await browser.newPage({ viewport: { width: 844, height: 470 }, reducedMotion: 'reduce' })
+async function verifyPilotProtection(page, landscape) {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await page.evaluate(async () => {
+    const { refs, draw } = window.openingTest
+    const { getShipByKey, getInitialPlayer } = await import('/src/components/games/raid/state.ts')
+    const { drawRaidPlayer } = await import('/src/components/games/raid/playerRender.ts')
+    const { PLAYER_COLOR } = await import('/src/components/games/raid/constants.ts')
+    const pilot = refs.playerRef.current
+    const presentation = refs.shipsRef.current
+    const renderer = presentation.renderer
+    const { mask } = presentation.bossForceField
+    const gl = renderer.getContext()
+    const width = gl.drawingBufferWidth
+    const height = gl.drawingBufferHeight
+    const image = new Uint8Array(width * height * 4)
+    const silhouette = new Uint8Array(mask.width * mask.height * 4)
+    const view = refs.landscapeRef.current
+    if (view !== (innerWidth > innerHeight)) throw Error('Wrong test orientation')
+    pilot.invuln = 0
+    pilot.feedback = undefined
+    const shipModels = ['rocket', 'fast', 'gatling', 'laser', 'dreadnought', 'xwing', 'spaceEt', 'mesiahWhite', 'mesiahBlack']
+    const move = (x, y) => Object.assign(pilot, { x, y })
+    const steeringCanvas = document.createElement('canvas').getContext('2d')
+    steeringCanvas.canvas.dataset.raidDpr = '1'
+    const animateBank = (left, time) => {
+      for (let frame = 0; frame < 18; frame++) {
+        pilot.x += left ? -1.05 : 1.05
+        pilot.y += left ? .48 : -.48
+        drawRaidPlayer(steeringCanvas, pilot, 'playing', x => x, y => y, 393, time += 16, PLAYER_COLOR,
+          undefined, pilot.visualShipKey, null, null, 0, 0, false, view)
+      }
+      return time
+    }
+    for (const key of shipModels) {
+      await presentation.prepareHull(key)
+      pilot.ship = getShipByKey(key.startsWith('mesiah') ? 'mesiah' : key)
+      pilot.visualShipKey = key
+      let time = performance.now() + 200
+      move(24, 65)
+      draw(time)
+      // A sharp reversal drives the bank spring in each direction; capture the
+      // silhouette and the actual composited field at the same frame time.
+      for (const [left, field, shield] of [[false, 6, 0], [true, 0, 6], [false, 6, 6]]) {
+        time = animateBank(left, time)
+        pilot.x += left ? -1.05 : 1.05
+        pilot.y += left ? .48 : -.48
+        time += 16
+        pilot.forceField = pilot.shield = 0
+        draw(time)
+        gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, image)
+        const base = image.slice()
+        Object.assign(pilot, { forceField: field, shield })
+        draw(time)
+        const node = presentation.protectedPilots[0]
+        if (presentation.protectedPilots.length !== 1 || node.key !== key || (node.pilotProtection.field > 0) !== (field > 0)
+          || (node.pilotProtection.shield > 0) !== (shield > 0)) throw Error('Wrong protection mode for ' + key)
+        if (Math.abs(node.object.rotation.y) < .22 || (node.object.rotation.y < 0) !== left) throw Error('Hull failed to bank: ' + key)
+        renderer.readRenderTargetPixels(mask, 0, 0, mask.width, mask.height, silhouette)
+        gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, image)
+        let coverage = 0, rim = 0, outside = 0, mismatched = 0
+        for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+          const i = (y * width + x) * 4 + 3
+          const mx = Math.floor((x + .5) * mask.width / width), my = Math.floor((y + .5) * mask.height / height)
+          const maskAt = (mx, my) => silhouette[(my * mask.width + mx) * 4 + 3]
+          const maskAlpha = maskAt(mx, my)
+          if (maskAlpha > 127) {
+            coverage++
+            if (base[i] < 12) mismatched++
+          }
+          if (base[i] > 14 || image[i] < 22) continue
+          rim++
+          let close = false
+          const reach = Math.ceil(20 * mask.width / (width / presentation.density))
+          for (let dy = -reach; dy <= reach && !close; dy++) for (let dx = -reach; dx <= reach; dx++) {
+            if (mx + dx < 0 || mx + dx >= mask.width || my + dy < 0 || my + dy >= mask.height) continue
+            if (maskAt(mx + dx, my + dy) > 127) { close = true; break }
+          }
+          if (!close) outside++
+        }
+        if (coverage < 70 || mismatched / coverage > .085 || rim < 50 || outside / rim > .04) {
+          throw Error(key + ' projection mismatch ' + JSON.stringify({ coverage, mismatched, rim, outside }))
+        }
+      }
+    }
+    // Co-op pilots can share a live hull, but each mask and color belongs to its own ship.
+    const ally = getInitialPlayer(pilot.ship, pilot.visualShipKey)
+    refs.remotePlayerRef.current = ally
+    Object.assign(ally, { x: 76, y: 32, forceField: 0, shield: 6, invuln: 0 })
+    Object.assign(pilot, { x: 25, y: 74, forceField: 6, shield: 0 })
+    draw(performance.now())
+    const pilots = presentation.protectedPilots.map(node => node.pilotProtection)
+    if (pilots.length !== 2 || pilots[0].shield !== 0 || pilots[1].field !== 0) throw Error('Co-op protection states mixed')
+    if (renderer.getRenderTarget() || !renderer.autoClear || presentation.camera.layers.mask !== 1) {
+      throw Error('Pilot mask leaked renderer state')
+    }
+    refs.remotePlayerRef.current = null
+
+    // The authored 2D mechs draw their hull and armor into one Canvas frame.
+    const canvas = refs.fxCanvasRef.current
+    const fx = refs.fxCanvasContextRef.current
+    const measure = (mode) => {
+      const pixels = fx.getImageData(0, 0, canvas.width, canvas.height).data
+      let count = 0, xTotal = 0
+      for (let index = 0; index < pixels.length; index += 4) {
+        const [r, g, b, alpha] = pixels.subarray(index, index + 4)
+        if (alpha < 65 || (mode === 'field' ? g - r < 44 || b - r < 28 : r - b < 65 || g - b < 24)) continue
+        xTotal += (index / 4) % canvas.width
+        count++
+      }
+      return count ? xTotal / count / canvas.width : -1
+    }
+    for (const key of ['godGundam', 'spiegel']) {
+      Object.assign(pilot, { ship: getShipByKey('coreLander'), visualShipKey: key, burningBlend: 0, fireCooldown: .05 })
+      for (const mode of ['field', 'shield']) {
+        Object.assign(pilot, { forceField: mode === 'field' ? 6 : 0, shield: mode === 'shield' ? 6 : 0 })
+        for (const x of [24, 76]) {
+          move(x, 52)
+          draw(performance.now())
+          if (presentation.protectedPilots.length || Math.abs(measure(mode) - x / 100) > .08) {
+            throw Error(key + ' ' + mode + ' did not follow its 2D pose in the current frame')
+          }
+        }
+      }
+    }
+
+    Object.assign(pilot, { ship: getShipByKey('mesiah'), visualShipKey: 'mesiahBlack',
+      x: 36, y: 64, forceField: 6, shield: view ? 6 : 0, fireCooldown: 0 })
+    let screenshotTime = performance.now() + 200
+    draw(screenshotTime)
+    screenshotTime = animateBank(false, screenshotTime)
+    draw(screenshotTime)
+  })
+  await capture(page, landscape ? 'mesiah-protection-landscape' : 'mesiah-protection-portrait')
+  console.log('Live hull alpha and moving, banked force field, shield and combined shell matched for all pilots, including co-op and 2D mechs, in ' +
+    (landscape ? 'landscape' : 'portrait'))
+}
+
+async function testRaid(landscape = true, protectionOnly = false) {
+  const viewport = landscape ? { width: 844, height: 470 } : { width: 393, height: 852 }
+  const desktop = await browser.newPage({ viewport, reducedMotion: 'reduce' })
   try {
     const traffic = [], errors = []
     desktop.on('pageerror', error => errors.push(error.message))
-    await setUp(desktop, true, traffic)
+    await setUp(desktop, landscape, traffic)
     await title(desktop)
     await desktop.getByRole('button', { name: 'Single Player', exact: true }).click()
     const raidModes = desktop.getByRole('navigation', { name: 'Single Player' })
@@ -492,6 +631,11 @@ async function testRaid() {
       draw(performance.now())
       sync()
     })
+    if (protectionOnly) {
+      await verifyPilotProtection(desktop, landscape)
+      assert.deepEqual(errors, [])
+      return
+    }
     if (process.argv.includes('--scout-only')) {
       await verifyScoutCruise(desktop)
       assert.deepEqual(errors, [])

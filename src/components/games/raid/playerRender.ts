@@ -781,6 +781,8 @@ export function drawRaidPlayer(
     (player.godMeleeCloak ?? 0) <= 0
   const protectionAttackPose = coreLanderCombatModel && sideSprite?.loaded && attackActive
     ? sampleMechAttack(coreLanderCombatModel, player.fireCooldown, getCoreLanderFireInterval(player), reducedMotion) : null
+  const actionAtlas = coreLanderCombatModel && protectionAttackPose
+    ? getMechActionAtlas(coreLanderCombatModel, coreLanderBurning) : null
   const bankingKey = sideBurningKey && coreLanderBurningBlend >= .5 ? sideBurningKey : sideVisualKey
   const liveBank = reducedMotion || phase !== 'playing' || presentation ? 0 : bank
   const crouch = coreLanderCombatModel && presentation?.carrierAge !== undefined
@@ -872,17 +874,22 @@ export function drawRaidPlayer(
   const damageBlink = critical && (still || time % 850 < 320)
   if (damaged) drawHullDamageSmoke(ctx, x, y, renderSize * scale, time, critical, still)
 
+  const protectionVisible = !isDown && !presentation?.hideCombatFx
+  const capacity = player.ship.key === 'spaceEt' ? SPACE_ET_PASSIVE_FORCE_FIELD_CHARGES : FORCE_FIELD_ARMOR
+  const field = protectionVisible ? clamp(player.forceField / capacity, 0, 1) : 0
+  const shield = protectionVisible ? clamp(player.shield / 8, 0, 1) : 0
+  const liveHullDrawn = !coreLanderCombatModel && drawLiveHull(ctx, bankingKey, x, y, renderSize * scale, liveBank, alpha,
+    landscape, color, { attack, crouch, damageBlink, dock: presentation?.dock,
+      pilotProtection: field > 0 || shield > 0 ? { field, shield } : undefined })
   let conditionHull: ProtectionHull | null = null
   let conditionSize = renderSize, conditionY = y
-  if (!presentation?.hideCombatFx && (player.forceField > 0 || player.shield > 0 || player.feedback)) {
-    const capacity = player.ship.key === 'spaceEt' ? SPACE_ET_PASSIVE_FORCE_FIELD_CHARGES : FORCE_FIELD_ARMOR
+  if (protectionVisible && (player.feedback || (!liveHullDrawn && (field > 0 || shield > 0)))) {
     let protectionSize = renderSize, protectionY = y
     let protectionHull: ProtectionHull = sideSprite?.loaded
       ? { sprite: sideSprite, contain: true, rotation: -Math.PI / 2 }
       : { sprite: getShipCanvasSprite(sideVisualKey) }
-    if (coreLanderCombatModel && protectionAttackPose) {
-      const atlas = getMechActionAtlas(coreLanderCombatModel, coreLanderBurning)
-      if (atlas.loaded) protectionHull = { sprite: atlas, contain: true, rotation: -Math.PI / 2,
+    if (actionAtlas?.loaded && protectionAttackPose) {
+      protectionHull = { sprite: actionAtlas, contain: true, rotation: -Math.PI / 2,
         columns: coreLanderCombatModel === 'godGundam' ? 3 : 2, rows: 2, frame: protectionAttackPose.frame }
     } else if (coreLanderCombatModel === 'godGundam' && coreLanderBurningBlend >= .5) {
       if (sideBurningSprite?.loaded) protectionHull = { sprite: sideBurningSprite, contain: true, rotation: -Math.PI / 2 }
@@ -892,7 +899,7 @@ export function drawRaidPlayer(
         protectionY += renderSize * GOD_GUNDAM_BURNING_BODY_Y_OFFSET
       }
     }
-    if (!coreLanderCombatModel && liveHullsEnabled()) {
+    if (liveHullDrawn) {
       const contours = sampleLiveProtection(bankingKey,liveBank,landscape,attack,crouch)
       if (contours) {
         protectionHull = { sprite: getShipCanvasSprite(bankingKey),contours }
@@ -903,8 +910,8 @@ export function drawRaidPlayer(
     conditionHull = protectionHull
     conditionSize = protectionSize
     conditionY = protectionY
-    drawShipProtection(ctx, x, protectionY, protectionSize, time,
-      clamp(player.forceField / capacity, 0, 1), clamp(player.shield / 8, 0, 1), protectionHull, reducedMotion, capacity)
+    if (!liveHullDrawn) drawShipProtection(ctx, x, protectionY, protectionSize, time,
+      field, shield, protectionHull, still, capacity)
   }
   if (!presentation?.hideCombatFx && player.shield <= 0 && player.invuln > 0) drawInvulnerabilityShimmer(ctx, x, y, renderSize, time)
 
@@ -921,8 +928,6 @@ export function drawRaidPlayer(
         : `rgba(251,${Math.round(191 - 74 * coreLanderBurningRage)},${Math.round(36 - 20 * coreLanderBurningRage)},${(0.28 + coreLanderBurningRage * 0.16).toFixed(2)})`
       : 'rgba(251,191,36,0.28)'
     : player.forceField > 0 || player.shield > 0 ? null : player.invuln > 0 ? 'rgba(226,232,240,0.1)' : null
-  const liveHullDrawn = !coreLanderCombatModel && drawLiveHull(ctx, bankingKey, x, y, renderSize * scale, liveBank, alpha,
-    landscape, color, { attack, crouch, damageBlink, dock:presentation?.dock })
   if (spriteGlow && (!liveHullDrawn || coreLanderBurning)) drawSpriteGlow(ctx, x, y, renderSize, spriteGlow, .68)
   // Dock exhaust remains the original 2D effect for live and fallback bodies.
   if(dockReady&&dockPose&&coreLanderCombatModel){
@@ -942,7 +947,7 @@ export function drawRaidPlayer(
     const attackPose = protectionAttackPose
     // Pick one form and one registered pose. Alpha crossfades between displaced arms
     // would draw a ghost arm, and would not correspond to the actual release point.
-    const actionDrawn = coreLanderCombatModel && attackPose && drawMechAction(ctx, coreLanderCombatModel, coreLanderBurning, attackPose.frame, x, y, renderSize, alpha, rotation, scale, damageBlink)
+    const actionDrawn = coreLanderCombatModel && attackPose && actionAtlas?.loaded && drawMechAction(ctx, coreLanderCombatModel, coreLanderBurning, attackPose.frame, x, y, renderSize, alpha, rotation, scale, damageBlink)
     if (actionDrawn && attackPose && ctx.canvas?.dataset) {
       ctx.canvas.dataset.mechActionModel = coreLanderCombatModel ?? ''
       ctx.canvas.dataset.mechActionStage = attackPose.stage
