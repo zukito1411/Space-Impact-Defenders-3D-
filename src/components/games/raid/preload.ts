@@ -1,3 +1,4 @@
+import { warmShipProtection } from './shipProtection'
 import { isRaid2DMech, MECH_PORTRAIT_PATHS, MECH_SIDE_PATHS } from './mechArtwork'
 import { MECH_ACTION_PATHS, getMechActionAtlas } from './mechAttack'
 import { MECH_DOCK_PATHS, getMechDockAtlas } from './mechDock'
@@ -285,6 +286,7 @@ export function preloadRaidCanvasAssets(onProgress?: (loaded: number, total: num
   }))).then(() => {
     if (!raidCanvasAssetWarmComplete) {
       warmRaidCanvasFilterVariants()
+      for (const pose of RAID_DEVIL_BOSS_POSES) warmShipProtection({ sprite: getDevilBossCanvasSprite(pose), contain: true })
       warmRaidGeneratedEffectSprites()
       raidCanvasAssetWarmComplete = true
     }

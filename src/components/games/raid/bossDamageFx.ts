@@ -4,6 +4,17 @@ import type { BossImpactKind, Enemy, Shot } from './types'
 
 const IMPACT_SECONDS = .22
 
+export function isRaidBossShielded(enemy: Enemy) {
+  return enemy.isBoss ? enemy.shieldTime > 0 || enemy.y < 15
+    : enemy.isMiniBoss && (enemy.shieldTime > 0 || enemy.y < 8)
+}
+
+export function getBossForceFieldStrength(enemy: Enemy) {
+  if (enemy.hp <= 0) return 0
+  const flash = enemy.bossImpact?.kind === 'shield' ? Math.min(1, (enemy.bossImpactTime ?? 0) / IMPACT_SECONDS) : 0
+  return isRaidBossShielded(enemy) ? .76 + flash * .24 : flash * .55
+}
+
 export function recordBossImpact(enemy: Enemy, shot: Shot, shielded: boolean): BossImpactKind | undefined {
   if (!enemy.isBoss && !enemy.isMiniBoss) return
   const x = shot.x - enemy.x
@@ -23,36 +34,18 @@ export function drawBossImpact(ctx: CanvasRenderingContext2D, enemy: Enemy, x: n
   pixelsPerX: number, pixelsPerY: number, size: number, reducedMotion: boolean) {
   const impact = enemy.bossImpact
   const time = enemy.bossImpactTime ?? 0
-  if (!impact || time <= 0) return
+  if (!impact || time <= 0 || impact.kind === 'shield') return
   const progress = 1 - Math.min(1, time / IMPACT_SECONDS)
   const heavy = impact.kind === 'heavy'
-  const shield = impact.kind === 'shield'
   const core = impact.kind === 'core'
   const dx = impact.x * pixelsPerX
   const dy = impact.y * pixelsPerY
   // Keep contact on the drawn silhouette at every aspect ratio.
-  const projection = Math.min(1, size * (shield ? .52 : .39) / Math.max(1, Math.hypot(dx, dy)))
+  const projection = Math.min(1, size * .39 / Math.max(1, Math.hypot(dx, dy)))
   const atX = x + dx * projection
   const atY = y + dy * projection
-  const diameter = Math.max(16, size * (shield ? .32 : heavy || core ? .29 : .21))
+  const diameter = Math.max(16, size * (heavy || core ? .29 : .21))
     * (reducedMotion ? 1 : 1 + progress * .45)
-  if (shield) {
-    // The shock spreads along the shield surface from the point of contact.
-    const tangent = Math.atan2(dy, dx) + Math.PI / 2
-    drawBossFx(ctx, BOSS_FX.shield, atX, atY, diameter * (reducedMotion ? 1 : 1 + progress * .8), diameter * .67,
-      .95 * (1 - progress) ** 1.15, tangent, true)
-    const normal = tangent - Math.PI / 2
-    const extent = .17 + progress * .32
-    ctx.save()
-    ctx.globalAlpha = (1 - progress) * .88
-    ctx.strokeStyle = '#abf7ff'
-    ctx.lineWidth = Math.max(1, size * .014)
-    ctx.beginPath()
-    ctx.arc(x, y, size * .52, normal - extent, normal + extent)
-    ctx.stroke()
-    ctx.restore()
-    return
-  }
   drawBossFx(ctx, core ? BOSS_FX.precision : BOSS_FX.impact, atX, atY,
     diameter, diameter, .93 * (1 - progress) ** 1.3, impact.shotId * .37, !heavy)
 }

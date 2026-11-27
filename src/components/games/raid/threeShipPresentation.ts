@@ -1,3 +1,4 @@
+import { BOSS_FORCE_FIELD_LAYER, BossForceField } from './bossForceField'
 import { CombatLightField, type CombatLightInput } from './combatLighting'
 import { HullDestructionBatch } from './hullDestruction'
 import { HullLampBatch } from './hullLampBatch'
@@ -21,7 +22,7 @@ import { prepareHullSurfaces, type HullSurfaceBinding } from './shipSurface'
 import { acquireHull, getHullRegistration, hullKey, loadHull, releaseHull, trimHullAssets } from './liveHullAssets'
 import { bindLiveHulls, unbindLiveHulls, type LiveHullDraw, type LiveHullDestruction, type LiveHullSink } from './liveHullBridge'
 
-type HullNode = { lamps: HullLampBinding[]; lampSize: number; lampOpacity: number; bankPose?: EnemyBankPose; body?: Mesh; hit: number; key: string; group: Group; object: Object3D; used: number; materials: Material[]; surfaces: HullSurfaceBinding[]; transient?: boolean }
+type HullNode = { bossForceField: number; lamps: HullLampBinding[]; lampSize: number; lampOpacity: number; bankPose?: EnemyBankPose; body?: Mesh; hit: number; key: string; group: Group; object: Object3D; used: number; materials: Material[]; surfaces: HullSurfaceBinding[]; transient?: boolean }
 
 /** Live player, support, fighter and cosmetic-copy meshes share one transparent layer.
  * Pixi owns scenery GLBs; Canvas retains exhaust, weapon and energy effects. */
@@ -30,7 +31,26 @@ export class ThreeShipPresentation implements LiveHullSink {
   private readonly gpuTimer = new ShipGpuTimer()
   private measureGpu = false
   private cpuSubmitMs = 0
-  private readonly drawWorld = () => this.renderer!.render(this.world,this.camera)
+  private readonly bossForceField = new BossForceField()
+  private readonly shieldedHulls: HullNode[] = []
+  private fieldTime = 0
+  private readonly drawWorld = () => {
+    const renderer = this.renderer!
+    renderer.render(this.world, this.camera)
+    if (!this.shieldedHulls.length) return
+    let strength = 0
+    for (const node of this.shieldedHulls) {
+      strength = Math.max(strength, node.bossForceField)
+      for (const surface of node.surfaces) surface.material.opacity = surface.opacity
+    }
+    try {
+      this.bossForceField.draw(renderer, this.world, this.camera, strength, this.fieldTime)
+    } finally {
+      for (const node of this.shieldedHulls) {
+        for (const surface of node.surfaces) surface.material.opacity = node.lampOpacity * surface.opacity
+      }
+    }
+  }
   private eclipseAt: ((x: number,y: number) => number) | undefined
   private readonly world = new Scene()
   private readonly lamps = new HullLampBatch()
@@ -260,6 +280,7 @@ export class ThreeShipPresentation implements LiveHullSink {
       renderer.domElement.addEventListener('webglcontextlost', this.lost)
       renderer.domElement.addEventListener('webglcontextrestored', this.restored)
       this.world.add(this.lamps.points)
+      for (const light of [this.keyLight, this.fillLight, this.ambientLight]) light.layers.enable(BOSS_FORCE_FIELD_LAYER)
       this.world.add(this.keyLight, this.fillLight, this.ambientLight,
         this.keyLight.target, this.fillLight.target)
       try {
@@ -273,6 +294,7 @@ export class ThreeShipPresentation implements LiveHullSink {
       host.replaceChildren(renderer.domElement)
       bindLiveHulls(this)
       await this.lamps.prepare(renderer,this.camera,this.uploadTarget)
+      await this.bossForceField.prepare(renderer)
       await this.prepareHull('rocket')
       await this.prepareHull('mesiahBlack')
       // Mesh extraction, native-paint uploads and shader compilation finish before
@@ -298,6 +320,7 @@ export class ThreeShipPresentation implements LiveHullSink {
     const renderer = this.renderer
     if (!renderer || this.disposed || this.contextLost) return false
     this.frame++
+    if (!this.reduced.matches && !frame.combat?.paused) this.fieldTime = frame.combat?.time ?? 0
     this.deathCount=0
     for(const batch of this.destruction.values())batch.reset()
     this.combatLights.update(frame.width,frame.height,frame.combat)
@@ -311,6 +334,7 @@ export class ThreeShipPresentation implements LiveHullSink {
       this.camera.aspect = this.width/this.height
       this.camera.position.set(this.width*.5, this.height*.5, raidCameraFocal(this.height))
       this.camera.updateProjectionMatrix()
+      this.bossForceField.resize(renderer, this.width, this.height)
     }
     this.lamps.begin(frame.lighting?.seconds??0,frame.height,frame.dpr,this.reduced.matches)
     this.updateLighting(frame.lighting ?? this.neutralLighting, frame.dock ?? 0, Boolean(frame.landscape))
@@ -385,7 +409,7 @@ export class ThreeShipPresentation implements LiveHullSink {
     const prepared = prepareHullSurfaces(asset.object,key,renderer,this.preparedTextures,this.combatLights)
     let body: Mesh | undefined
     asset.object.traverse(child => { if (child instanceof Mesh) body = child })
-    return { lamps: bindHullLamps(asset.object), lampSize: 0, lampOpacity: 0, key, group, body, hit: 0, object: asset.object, used: this.frame,
+    return { bossForceField: 0, lamps: bindHullLamps(asset.object), lampSize: 0, lampOpacity: 0, key, group, body, hit: 0, object: asset.object, used: this.frame,
       materials: prepared.owned, surfaces: prepared.bindings }
   }
 
@@ -422,6 +446,14 @@ export class ThreeShipPresentation implements LiveHullSink {
     node.transient=draw.id.startsWith('fx:')
     const { group } = node
     group.visible = draw.alpha > .01
+    const strength = draw.bossForceField ?? 0
+    if ((strength > 0) !== (node.bossForceField > 0)) {
+      node.object.traverse(child => {
+        if (strength > 0) child.layers.enable(BOSS_FORCE_FIELD_LAYER)
+        else child.layers.disable(BOSS_FORCE_FIELD_LAYER)
+      })
+    }
+    node.bossForceField = strength
     const [sx, sy, ox, oy] = group.userData.registration as number[]
     const angle=draw.angle
     const depth=Math.max(0,draw.depth ?? 0),perspective=1+depth/raidCameraFocal(this.height)
@@ -526,18 +558,23 @@ export class ThreeShipPresentation implements LiveHullSink {
     // then leave the transparent canvas alone until a live hull is submitted.
     this.lamps.clear()
     for(const batch of this.destruction.values())batch.present()
+    this.shieldedHulls.length = 0
     let visible = this.deathCount>0
     for (const node of this.hulls.values()) if (node.group.visible) { visible = true; break }
     if (visible) {
       for (const node of this.hulls.values()) {
         if (node.group.visible) {
+          if (node.bossForceField > 0) {
+            this.shieldedHulls.push(node)
+            continue
+          }
           const batch = this.batches.get(node.key)
           if (batch) batch.count++
         }
       }
       for (const node of this.hulls.values()) {
         const batch = this.batches.get(node.key), surface = node.surfaces[0]
-        if (node.group.visible && node.body && surface && batch && batch.count > 1) {
+        if (node.group.visible && !node.bossForceField && node.body && surface && batch && batch.count > 1) {
           batch.instances.add(node.body, surface.material.opacity / Math.max(.0001, surface.opacity),
             surface.sunVisibility.value, node.hit)
         }
@@ -603,6 +640,8 @@ export class ThreeShipPresentation implements LiveHullSink {
     this.reflectionTargets.length = 0
     this.lamps.destroy()
     this.uploadTarget.dispose()
+    this.bossForceField.dispose()
+    this.shieldedHulls.length = 0
     this.gpuTimer.reset()
     this.world.environment = null
     if (this.renderer) {

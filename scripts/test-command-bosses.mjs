@@ -375,16 +375,23 @@ assert.equal(damage.recordBossImpact(impactBoss, contact, true), 'shield')
 assert.equal(damage.recordBossImpact(impactBoss, { ...contact, id: 4 }, true), undefined)
 sprites.length=0
 damage.drawBossImpact(effectsContext, impactBoss, 195, 168.8, 3.9, 8.44, 130, false)
-assert.equal(sprites.length, 1)
-const [shieldTile, shieldX, shieldY] = sprites[0]
-assert.equal(shieldTile, 'shield')
-assert.ok(shieldX > 195 && shieldY > 168.8)
-assert.ok(Math.hypot(shieldX - 195, shieldY - 168.8) <= 130 * .52 + 1e-8)
+assert.equal(sprites.length, 0, 'a blocked hit should brighten the hull field without drawing a separate shield flash')
+assert.equal(damage.getBossForceFieldStrength({ ...impactBoss, shieldTime: 1 }), 1)
+assert.equal(damage.getBossForceFieldStrength(impactBoss), .55)
+assert.equal(damage.getBossForceFieldStrength({ ...impactBoss, bossImpactTime: 0 }), 0)
+assert.ok(damage.isRaidBossShielded({ ...impactBoss, y: 10 }))
+assert.ok(damage.isRaidBossShielded({ isMiniBoss: true, y: 5, shieldTime: 0 }))
 impactBoss.bossImpactTime = .09
 assert.equal(damage.recordBossImpact(impactBoss, contact, false), 'core')
+damage.drawBossImpact(effectsContext, impactBoss, 195, 168.8, 3.9, 8.44, 130, false)
+assert.equal(sprites.length, 1)
+const [coreTile, coreX, coreY] = sprites[0]
+assert.equal(coreTile, 'precision')
+assert.ok(coreX > 195 && coreY > 168.8)
+assert.ok(Math.hypot(coreX - 195, coreY - 168.8) <= 130 * .39 + 1e-8)
 impactBoss.bossImpactTime = 0
 assert.equal(damage.recordBossImpact(impactBoss, { ...contact, kind: 'rocket' }, false), 'heavy')
-console.log('Boss VFX: projected beam widths, per-muzzle artwork, shield, hull and contact placement passed')
+console.log('Boss VFX: projected beam widths, per-muzzle artwork, shield field strength, hull and contact placement passed')
 
 // Real network interpolation preserves committed targets and never blends different attack warnings.
 const net=read('src/components/games/raid/network.ts')

@@ -2,7 +2,7 @@ import { authoredDefeatAlpha } from './destructionProfile'
 import { Container, Sprite, Texture } from 'pixi.js'
 import { drawCanvasSpriteContain, getDevilBossCanvasSprite, getEnemyCanvasSize, RAID_DEVIL_BOSS_ATTACK_FILTER, RAID_DEVIL_BOSS_BASE_FILTER } from './assets'
 import { STAGE_CLEAR_SECONDS } from './constants'
-import { getDevilBossPose } from './devilBossRender'
+import { getDevilBossPose, getDevilGpuPoseMotion } from './devilBossRender'
 import type { DevilBossPose, Enemy } from './types'
 import { clamp } from './utils'
 import { raidObjectInView } from './visibility'
@@ -155,11 +155,10 @@ export class RaidGpuBossBodies {
         }
         const blend = clamp((frame.time - pair.transitionStarted) / DEVIL_POSE_BLEND_MS, 0, 1)
         const smoothBlend = blend * blend * (3 - 2 * blend)
-        const pulse = 0.985 + Math.sin(frame.time / 880 + enemy.phase) * 0.016
+        const { pulse, drift, tilt } = getDevilGpuPoseMotion(frame.time, enemy.phase, size)
         const drawSize = size * (art.canvas.width / art.renderSize) * pulse
         const px = enemy.x * frame.width / 100
-        const py = enemy.y * frame.height / 100 + Math.sin(frame.time / 690 + enemy.phase) * size * 0.006
-        const tilt = Math.sin(frame.time / 1080 + enemy.phase) * 0.012
+        const py = enemy.y * frame.height / 100 + drift
         for (const sprite of [pair.base, pair.blend]) {
           sprite.position.set(px, py)
           sprite.width = drawSize

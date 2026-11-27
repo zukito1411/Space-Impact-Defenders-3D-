@@ -144,9 +144,10 @@ async function takeSimulationControl(page) {
     const draw = callbacks.find(fn => fn.toString().includes('RAID_FX_CANVAS_CONTEXT_SETTINGS'))
     const sync = callbacks.find(fn => fn.toString().includes('const bossAlertBucket'))
     const spawnEnemy = callbacks.find(fn => fn.toString().includes('const fighterRadius'))
-    if (!update || !draw || !sync || !spawnEnemy || refsByName.phaseRef.current !== 'playing') throw Error('Invalid opening fixture mapping')
+    const spawnBoss = callbacks.find(fn => fn.toString().includes('const multiplayerBossMultiplier'))
+    if (!update || !draw || !sync || !spawnEnemy || !spawnBoss || refsByName.phaseRef.current !== 'playing') throw Error('Invalid opening fixture mapping')
     window.openingManualFrames = true
-    window.openingTest = { refs: refsByName, update, draw, sync, spawnEnemy }
+    window.openingTest = { refs: refsByName, update, draw, sync, spawnEnemy, spawnBoss }
   }, raidRefs)
 }
 
@@ -596,9 +597,66 @@ async function testRaid() {
       sync()
     })
     await capture(desktop, 'raid-hull-shaped-shields')
+    await desktop.evaluate(() => {
+      const { refs, spawnEnemy, spawnBoss, update, draw, sync } = window.openingTest
+      const pilot = refs.playerRef.current
+      Object.assign(pilot, { x: 48, y: 86, invuln: 100, fireCooldown: 100, forceField: 0 })
+      refs.randomEventsRef.current.length = 0
+      refs.randomEventTimerRef.current = refs.formationTimerRef.current = refs.bossTimerRef.current = 100
+      for (const list of [refs.enemiesRef, refs.enemyShotsRef, refs.shotsRef, refs.sparksRef, refs.ripplesRef]) list.current.length = 0
+
+      const hit = (enemy, damage = 7, kind = 'pulse') => {
+        refs.shotsRef.current = [{ id: -20, x: enemy.x, y: enemy.y, vx: 0, vy: 0, kind, damage, radius: 2 }]
+        update(1 / 60)
+      }
+      spawnEnemy(18, 24, 3, 0, 0, { variant: 0, cruiseElite: true }, 'lancer')
+      spawnBoss('gate')
+      const [elite, command] = refs.enemiesRef.current
+      command.y = 24
+      hit(elite)
+      hit(command)
+      if (elite.hp !== elite.maxHp || command.hp !== command.maxHp || command.bossImpact?.kind !== 'shield') {
+        throw Error('Boss force fields must still block hits during spawn protection')
+      }
+      draw(performance.now())
+      const presentation = refs.shipsRef.current
+      if (presentation.shieldedHulls.length !== 2 || presentation.bossForceField.material.uniforms.strength.value !== 1) {
+        throw Error('Both shielded boss models should render into a shared hull mask, with an impact pulse')
+      }
+      // Rendering the mask must leave the gameplay camera and framebuffer restored.
+      if (presentation.camera.layers.mask !== 1 || presentation.renderer.getRenderTarget() !== null) {
+        throw Error('Boss force-field rendering leaked graphics state')
+      }
+      elite.shieldTime = command.shieldTime = 0
+      elite.bossImpactTime = command.bossImpactTime = 0
+      hit(command)
+      draw(performance.now())
+      if (command.hp !== command.maxHp - 7 || presentation.shieldedHulls.length) throw Error('Boss shields should clear when protection expires')
+
+      for (const list of [refs.enemiesRef, refs.enemyShotsRef, refs.shotsRef, refs.sparksRef, refs.ripplesRef]) list.current.length = 0
+      refs.stageRef.current = refs.waveRef.current = 15
+      spawnBoss('final')
+      const [mothership] = refs.enemiesRef.current
+      mothership.y = 24
+      hit(mothership, 7, 'rocket')
+      if (mothership.hp !== mothership.maxHp) throw Error('The Mothership should retain its entry protection')
+      mothership.y = 25
+      pilot.invuln = 0
+      draw(performance.now())
+      draw(performance.now())
+      const mask = presentation.bossForceField.mask
+      const pixels = new Uint8Array(mask.width * mask.height * 4)
+      presentation.renderer.readRenderTargetPixels(mask, 0, 0, mask.width, mask.height, pixels)
+      const covered = pixels.filter((value, index) => index % 4 === 3 && value > 127).length
+      if (presentation.shieldedHulls.length !== 1 || covered < 1000 || covered > mask.width * mask.height * .8) {
+        throw Error('Expected a projected shield silhouette from the final boss mesh')
+      }
+      sync()
+    })
+    await capture(desktop, 'raid-mothership-force-field')
     assert.deepEqual(traffic, [], 'a guest run must not call the online profile or leaderboard APIs')
     assert.deepEqual(errors, [])
-    console.log('Desktop guest launch, stage advance, retry, sustained fighter combat, scout tail fire, crossfire, hull-shaped shields, phase, cloak and both elite tiers passed')
+    console.log('Desktop guest launch, stage advance, retry, sustained fighter combat, scout tail fire, crossfire, hull-shaped fighter and boss shields, phase, cloak and both elite tiers passed')
   } catch (error) {
     const visible = await desktop.locator('body').innerText({ timeout: 4000 }).catch(() => '')
     throw new Error(`Raid did not complete its opening check. Visible state: ${visible.slice(0, 1000)}`, { cause: error })

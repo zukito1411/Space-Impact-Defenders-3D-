@@ -10,6 +10,7 @@ export type LiveHullDraw = {
   id: string; key: string; x: number; y: number; size: number; bank: number
   angle: number; alpha: number; landscape: boolean; attack?: number; crouch?: number; hit?: number
   warp?: GravityWarp
+  bossForceField?: number
   bossPose?: OrganicBossPose; spin?: number; enemyBank?: EnemyBankMotion; dock?: number; depth?: number; damageBlink?: boolean
 }
 export type LiveHullDestruction = { id: string; sourceId: string; key: string; x: number; y: number; size: number;
@@ -27,7 +28,7 @@ export function submitHullDestruction(draw: LiveHullDestruction) { return active
 export function liveHullsEnabled() { return activeSink !== null }
 export function drawLiveHull(ctx: CanvasRenderingContext2D, key: string, x: number, y: number,
   size: number, bank: number, alpha: number, landscape: boolean, identity = key,
-  pose: { attack?: number; crouch?: number; hit?: number; bossPose?: OrganicBossPose; spin?: number; enemyBank?: EnemyBankMotion; dock?: number; depth?: number; damageBlink?: boolean } = {}) {
+  pose: { bossForceField?: number; attack?: number; crouch?: number; hit?: number; bossPose?: OrganicBossPose; spin?: number; enemyBank?: EnemyBankMotion; dock?: number; depth?: number; damageBlink?: boolean } = {}) {
   if (!activeSink || isRaid2DMech(key)) return false
   const transform = ctx.getTransform()
   // Remove the outer tidal transform so the original heading and size survive.

@@ -109,6 +109,7 @@ const getEnemyCanvasSize=()=>250,getStageBossIntroProgress=()=>1,ORGANIC_BOSS_VI
 const drawGenericBossShip=(ctx,enemy,x,y,size,angle,scale,alpha)=>paths.push(['generic',enemy.bossKind,enemy.bossArtStage,alpha]);
 const drawLiveHull=(ctx,key)=>paths.push([key]);
 const drawDevilGundamBoss=()=>paths.push(['devil']);
+const getBossForceFieldStrength=()=>0;
 const sampleCommandBossCloak=enemy=>enemy.bossManeuver==='cloak' ? 1 : 0;
 const getCommandBossHullOpacity=enemy=>enemy.bossManeuver==='cloak' ? 0 : 1;
 const drawEnemyHitFlash=()=>{},drawBossShield=()=>{},drawCachedBossBar=()=>{},drawCommandBossTelegraph=()=>{},drawCommandBossEnergy=()=>{},drawCommandBossHealthBar=()=>{},drawHullDamage=()=>{},prefersRaidReducedMotion=()=>false;

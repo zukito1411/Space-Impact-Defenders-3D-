@@ -11,7 +11,8 @@ const enemyModule = await load(`
 export const calls = []
 const DEG=Math.PI/180, STAGE_CLEAR_SECONDS=3.15
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)), getEnemyCanvasSize=()=>100
-const drawDevilGundamBoss=(ctx,...args)=>calls.push(['body',ctx.angle,args.at(-1)])
+const drawDevilGundamBoss=(ctx,...args)=>calls.push(['body',ctx.angle,args[3]])
+const getBossForceFieldStrength=()=>.76
 const drawBossShield=(ctx,x,y)=>calls.push(['shield',x,y])
 const drawCachedBossBar=(ctx,enemy,x,y)=>calls.push(['bar',ctx.angle,x,y])
 const drawCommandBossHealthBar=()=>{},drawBossFx=()=>{}
@@ -37,6 +38,9 @@ class Container { addChild(child){child.parent=this} }
 class Sprite { constructor(texture){this.texture=texture;this.anchor={set(){}};this.position={set(x,y){this.x=x;this.y=y}}} destroy(){} }
 class Texture { static WHITE={} }
 const getEnemyCanvasSize=()=>100,getDevilBossPose=()=> 'idle',raidObjectInView=()=>true
+const getDevilGpuPoseMotion=(time,phase,size)=>({
+  pulse:.985+Math.sin(time/880+phase)*.016,drift:Math.sin(time/690+phase)*size*.006,tilt:Math.sin(time/1080+phase)*.012,
+})
 const STAGE_CLEAR_SECONDS=3.15,clamp=(v,a,b)=>Math.max(a,Math.min(b,v))
 ` + stripImports(read('gpuBossBodies.ts')))
 const renderer=new gpu.RaidGpuBossBodies()
@@ -50,4 +54,29 @@ for (const landscape of [false,true]) {
   assert.ok(Math.abs(pair.base.rotation-(tilt-(landscape?Math.PI/2:0)))<1e-9)
   assert.equal(pair.blend.rotation,pair.base.rotation)
 }
-console.log('Devil Gundam Canvas and GPU orientations, removed boss ring, and Canvas state passed')
+const devil = await load(`
+export const painted = []
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)), easeOutCubic=t=>1-(1-Math.max(0,Math.min(1,t)))**3
+const getBossDefeatFade=()=>1, getBossForceFieldStrength=()=>.76, prefersRaidReducedMotion=()=>false
+const RAID_DEVIL_BOSS_ATTACK_FILTER='', RAID_DEVIL_BOSS_BASE_FILTER='', getDevilBossRedFilter=()=>''
+const getDevilBossCanvasSprite=pose=>pose
+const drawCanvasSpriteContain=(ctx,sprite,x,y,size,filter,alpha,rotation,pulse)=>painted.push({sprite,x,y,size:size*pulse})
+const drawShipProtection=(ctx,x,y,size,time,force,shield,{sprite})=>painted.push({sprite,x:x+ctx.x,y:y+ctx.y,size})
+` + stripImports(read('devilBossRender.ts')))
+for (const gpuReady of [false, true]) for (const landscape of [false, true]) {
+  const actor = {...enemy, devilVisualPose: 'idle', devilPoseChangedAt: 500}
+  const context = { x: 0, y: 0, globalAlpha: 1, save(){}, restore(){}, rotate(){}, translate(x,y){this.x+=x;this.y+=y} }
+  devil.painted.length = 0
+  devil.drawDevilGundamBoss(context, actor, 140, 1000, gpuReady, landscape)
+  const field = devil.painted.at(-1)
+  if (gpuReady) {
+    const motion = devil.getDevilGpuPoseMotion(1000, actor.phase, 140)
+    assert.equal(devil.painted.length, 1)
+    assert.equal(field.size, 140 * motion.pulse)
+    assert.equal(field.x, landscape ? -motion.drift : 0)
+  } else {
+    assert.equal(devil.painted.length, 2)
+    assert.deepEqual(field, devil.painted[0])
+  }
+}
+console.log('Devil Gundam Canvas and GPU orientations, pose-fitted shield, and Canvas state passed')

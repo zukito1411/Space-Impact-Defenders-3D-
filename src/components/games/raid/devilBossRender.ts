@@ -1,4 +1,7 @@
 import { drawCanvasSpriteContain, getDevilBossCanvasSprite, RAID_DEVIL_BOSS_ATTACK_FILTER, RAID_DEVIL_BOSS_BASE_FILTER } from './assets'
+import { getBossForceFieldStrength } from './bossDamageFx'
+import { prefersRaidReducedMotion } from './commandBossRender'
+import { drawShipProtection } from './shipProtection'
 import { getDevilBossRedFilter } from './bossAttacks'
 import type { DevilBossPose, Enemy } from './types'
 import { clamp } from './utils'
@@ -28,7 +31,15 @@ export function getDevilBossPose(enemy: Enemy, time: number): DevilBossPose {
   return idleCycle > 1.7 ? 'idle2' : 'idle'
 }
 
-export function drawDevilGundamBoss(ctx: CanvasRenderingContext2D, enemy: Enemy, size: number, time: number, gpuBodyReady = false) {
+export function getDevilGpuPoseMotion(time: number, phase: number, size: number) {
+  return {
+    pulse: .985 + Math.sin(time / 880 + phase) * .016,
+    drift: Math.sin(time / 690 + phase) * size * .006,
+    tilt: Math.sin(time / 1080 + phase) * .012,
+  }
+}
+
+export function drawDevilGundamBoss(ctx: CanvasRenderingContext2D, enemy: Enemy, size: number, time: number, gpuBodyReady = false, landscape = false) {
   const pose = getDevilBossPose(enemy, time)
   if (enemy.devilVisualPose !== pose) {
     enemy.devilVisualPose = pose
@@ -74,5 +85,15 @@ export function drawDevilGundamBoss(ctx: CanvasRenderingContext2D, enemy: Enemy,
     )
   }
 
-
+  const strength = getBossForceFieldStrength(enemy)
+  if (!strength) return
+  const motion = gpuBodyReady ? getDevilGpuPoseMotion(time, enemy.phase, size) : undefined
+  const fieldScale = motion?.pulse ?? pulse
+  ctx.save()
+  ctx.globalAlpha *= strength
+  ctx.translate(motion && landscape ? -motion.drift : 0, motion ? (landscape ? 0 : motion.drift) : poseSettleY)
+  if (motion) ctx.rotate(motion.tilt)
+  drawShipProtection(ctx, 0, size * .28 * (motion?.pulse ?? 1), size * fieldScale, time, 1, 0,
+    { sprite, contain: true }, prefersRaidReducedMotion(), 0)
+  ctx.restore()
 }

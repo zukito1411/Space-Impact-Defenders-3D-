@@ -35,7 +35,7 @@ import { clampRaidShipSize, getRaidPlayerHitRadius, useRaidShipSize } from './sh
 import { ShipSizeControls } from '../../ui/ShipSizeControls'
 import { getRaidShipBaseVisualKey } from './shipArtwork'
 import { absorbRaidFighterShield, advanceRaidFighterDefense, advanceRaidFighterFire, advanceRaidFighterY, commitRaidFighterManeuver, FIGHTER_FIRE_FLASH, fireRaidFighter, getRaidFighter, getRaidCruiseHullHp, getRaidFighterDurability, getRaidFighterPathX, getRaidFighterPhaseShift, getRaidRamAttackLane, getRaidReserveVariant, getRaidScoutHp, getRaidStageEncounter, getRaidWingSize, getRaidWingSlot, isRaidFighterPhased, LEGACY_FIGHTER_COUNT, RAID_MINI_BOSS_HP_SCALE, RAID_STAGE_ENEMY_LIMIT } from './stageEncounters'
-import { drawBossImpact, recordBossImpact } from './bossDamageFx'
+import { drawBossImpact, isRaidBossShielded, recordBossImpact } from './bossDamageFx'
 import { prefersRaidReducedMotion } from './commandBossRender'
 import { drawIncomingHazard, drawRecoveryCue, findIncomingHazard, needsRepair, passesNearPilot } from './flightCues'
 import { advanceCommandBoss, getCommandBossProfile, getCommandBossHpScale, interruptCommandBoss, isCommandBeam, COMMAND_SHOT_LIMIT, COMMAND_WARNING, COMMAND_FIRED } from './commandBoss'
@@ -6735,7 +6735,7 @@ export function GradiusRaid({
           Math.abs(shot.y - enemy.y) <= hitRange &&
           distSq(shot, enemy) <= hitRange * hitRange
         ) {
-          const shielded = (enemy.isBoss && (enemy.shieldTime > 0 || enemy.y < 15)) || (enemy.isMiniBoss && (enemy.shieldTime > 0 || enemy.y < 8))
+          const shielded = isRaidBossShielded(enemy)
           if (shielded) continue
           const damage = enemy.isBoss ? Math.max(1, Math.ceil(splashDamage * 0.45)) : absorbRaidFighterShield(enemy, splashDamage)
           if (damage <= 0) continue
@@ -7341,7 +7341,7 @@ export function GradiusRaid({
           Math.abs(shot.y - enemy.y) <= hitRange &&
           distSq(shot, enemy) <= hitRange * hitRange
         ) {
-          const bossShielded = (enemy.isBoss && (enemy.shieldTime > 0 || enemy.y < 15)) || (enemy.isMiniBoss && (enemy.shieldTime > 0 || enemy.y < 8))
+          const bossShielded = isRaidBossShielded(enemy)
           const fighterShielded = (enemy.fighterShield ?? 0) > 0
           const damage = bossShielded ? 0 : absorbRaidFighterShield(enemy, shot.damage)
           const impact = recordBossImpact(enemy, shot, bossShielded)

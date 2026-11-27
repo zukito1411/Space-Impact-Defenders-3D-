@@ -1,3 +1,4 @@
+import { getBossForceFieldStrength } from './bossDamageFx'
 import { authoredDefeatAlpha } from './destructionProfile'
 import type { EnemyBankMotion } from './enemyBanking'
 import { enemyHullKey } from './enemyHulls'
@@ -87,6 +88,7 @@ export function drawRaidEnemy(
   const y = toY(enemy.y)
   const size = getEnemyCanvasSize(enemy, viewportWidth, landscape) * (viewportWidth > 1100 ? 0.96 : 1)
 
+  const bossForceField = enemy.isBoss || enemy.isMiniBoss ? getBossForceFieldStrength(enemy) : 0
   const enemyBank: EnemyBankMotion | undefined = (enemy.isBoss || enemy.isMiniBoss) && enemy.bossKind !== 'devil'
     ? { x: enemy.x, y: enemy.y, time, paused: paused || enemy.hp <= 0,
       kind: enemy.isMiniBoss ? 'elite' : enemy.bossKind === 'squid' || enemy.bossKind === 'snake' ? 'organic'
@@ -105,7 +107,8 @@ export function drawRaidEnemy(
       ctx.translate(x, y)
       // The landscape playfield rotates clockwise; counter-rotate the body.
       if (landscape) ctx.rotate(-Math.PI / 2)
-      drawDevilGundamBoss(ctx, enemy, size, time, skipGpuStageBossBody)
+      drawDevilGundamBoss(ctx, enemy, skipGpuStageBossBody ? getEnemyCanvasSize(enemy, viewportWidth, landscape) : size,
+        time, skipGpuStageBossBody, landscape)
       if (landscape) ctx.translate(0, size * 0.28)
       drawBossResidualHit(ctx, enemy, size)
       ctx.restore()
@@ -147,7 +150,7 @@ export function drawRaidEnemy(
       const localY=(landscape?-dx:-dy)/(size*bodyScale)
       const rage=clamp((.55-enemy.hp/Math.max(1,enemy.maxHp))/.55,0,1)
       drawLiveHull(ctx,key,0,0,size,0,1,landscape,'enemy:'+enemy.id,{
-        hit:Math.min(1,(enemy.hitFlash??0)/.18), enemyBank,
+        hit:Math.min(1,(enemy.hitFlash??0)/.18), enemyBank, bossForceField,
         spin:organic||reduced?0:time/1000*(.055+rage*.018),
         bossPose:organic?{seconds:time/1000,attack,targetX:localX/(landscape?Math.cos(ORGANIC_BOSS_VIEW_YAW):1),
           targetY:localY,motion:reduced?0:1}:undefined,
@@ -178,7 +181,7 @@ export function drawRaidEnemy(
           'fx:command-phase:' + enemy.id + ':' + index)
       })
     }
-    drawGenericBossShip(ctx, enemy, x, y - recoil, size, rotation + drift, floatScale, defeatFade * hullOpacity, landscape, enemyBank)
+    drawGenericBossShip(ctx, enemy, x, y - recoil, size, rotation + drift, floatScale, defeatFade * hullOpacity, landscape, enemyBank, undefined, bossForceField)
     drawCommandBossEnergy(ctx, enemy, toX, toY, size)
     ctx.save()
     ctx.translate(x, y)
@@ -203,7 +206,7 @@ export function drawRaidEnemy(
       ctx.translate(x, y)
       ctx.rotate(rotation)
       drawLiveHull(ctx, key, 0, 0, size * floatScale, 0, 1, landscape, 'enemy:' + enemy.id,
-        { hit: Math.min(1, (enemy.hitFlash ?? 0) / .14), enemyBank })
+        { hit: Math.min(1, (enemy.hitFlash ?? 0) / .14), enemyBank, bossForceField })
       ctx.restore()
     }
     ctx.save()
