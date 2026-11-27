@@ -463,8 +463,9 @@ console.log('Command warnings/integration: matching beam hit lanes, bounded atla
 // Execute the production host enemy loop, not only the standalone scheduler.
 const updateStart=runtime.indexOf('  const updateGame = useCallback(')
 const hostLoop=runtime.slice(runtime.indexOf('    const enemies = enemiesRef.current',updateStart),runtime.indexOf('    enemies.length = liveEnemyCount',updateStart)+'    enemies.length = liveEnemyCount'.length)
+const fighterSource=read('src/components/games/raid/stageEncounters.ts').replace(/^import .*\n/gm,'')
 try {
-const host=await load(source+`
+const host=await load(source+fighterSource+`
 const HEIGHT=100,WIDTH=100,landscapeRef={current:false};
 const player={x:50,y:82,hp:10},livingPlayersThisTick=[player];
 const enemyTactics={update(){}},sceneryRunTokenRef={current:0};

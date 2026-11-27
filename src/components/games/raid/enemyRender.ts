@@ -4,7 +4,7 @@ import { enemyHullKey } from './enemyHulls'
 import { fighterHullHeading } from './fighterHulls'
 import { drawLiveHull } from './liveHullBridge'
 import { BOSS_FX, COMBAT_TILE, drawBossFx, drawRaidCombatTexture, getRaidCombatFrame } from './combatArt'
-import { getRaidFighter, getRaidFighterCharge } from './stageEncounters'
+import { FIGHTER_FIRE_FLASH, getRaidFighter, getRaidFighterCharge, getRaidFighterOpacity } from './stageEncounters'
 import { drawCommandBossEnergy, drawCommandBossHealthBar, drawCommandBossTelegraph, drawCommandPhaseAfterimages, getCommandBossHullOpacity, prefersRaidReducedMotion } from './commandBossRender'
 import { sampleCommandBossCloak } from './commandBoss'
 import { drawGenericBossShip } from './genericBossRender'
@@ -206,20 +206,24 @@ export function drawRaidEnemy(
 
   const key = enemyHullKey(enemy)
   const heading = fighterHullHeading(enemy.fighterBankVx ?? enemy.vx, enemy.vy, viewportWidth, toY(100))
+  const bank = Math.max(-.24, Math.min(.24, (enemy.fighterBankVx ?? 0) * .007))
   if (key) {
     ctx.save()
     ctx.translate(x, y)
     ctx.rotate(-heading)
-    drawLiveHull(ctx, key, 0, 0, size, 0, 1, landscape, 'enemy:' + enemy.id,
+    const opacity = enemy.fighterDefenseAge === undefined ? 1 : getRaidFighterOpacity(enemy, prefersRaidReducedMotion())
+    drawLiveHull(ctx, key, 0, 0, size, bank, opacity, landscape, 'enemy:' + enemy.id,
       { hit: Math.min(1, (enemy.hitFlash ?? 0) / .16) })
     ctx.restore()
   }
   const hit = Math.min(1, (enemy.hitFlash ?? 0) / .16)
   const charge = getRaidFighter(enemy.variant) ? getRaidFighterCharge(enemy) : 0
-  const texture = hit ? getRaidCombatFrame(COMBAT_TILE.ionImpact) : charge ? getRaidCombatFrame(COMBAT_TILE.charge) : undefined
+  const muzzle = Math.min(1, (enemy.fighterShotFlash ?? 0) / FIGHTER_FIRE_FLASH)
+  const texture = hit ? getRaidCombatFrame(COMBAT_TILE.ionImpact)
+    : muzzle ? getRaidCombatFrame(COMBAT_TILE.muzzle) : charge ? getRaidCombatFrame(COMBAT_TILE.charge) : undefined
   if (texture) {
-    const edge = size * (hit ? .74 : .46)
+    const edge = size * (hit ? .74 : muzzle ? .76 : .46)
     drawRaidCombatTexture(ctx, texture, x+Math.sin(heading)*size*(hit ? .02 : .34),
-      y+Math.cos(heading)*size*(hit ? .02 : .34), edge, edge, 0, true, hit || charge)
+      y+Math.cos(heading)*size*(hit ? .02 : .34), edge, edge, 0, true, hit || muzzle || charge)
   }
 }

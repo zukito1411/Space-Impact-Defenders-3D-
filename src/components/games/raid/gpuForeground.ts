@@ -7,7 +7,7 @@ import type { MissileSmokePuff } from './missileSmoke'
 import { normalEnemyHullKey } from './enemyHulls'
 import { fighterHullHeading } from './fighterHulls'
 import { submitLiveHull } from './liveHullBridge'
-import { getRaidFighter, getRaidFighterCharge } from './stageEncounters'
+import { FIGHTER_FIRE_FLASH, getRaidFighter, getRaidFighterCharge, getRaidFighterOpacity } from './stageEncounters'
 import { impactFrameProgress, explosionDiameter, impactAlpha } from './combatFeel'
 import { Color, Container, Sprite, Texture } from 'pixi.js'
 import type { Renderer } from 'pixi.js'
@@ -31,6 +31,7 @@ export type RaidGpuForegroundFrame = {
   dpr: number
   visualScale: number
   landscape?: boolean
+  reducedMotion?: boolean
   time: number
   guestView: boolean
   measureGpu: boolean
@@ -320,24 +321,27 @@ export class RaidGpuForeground {
       const heading = fighterHullHeading(alien.fighterBankVx ?? alien.vx, alien.vy, frame.width, frame.height)
       const warp = gravityWarp(frame.gravityField, alien)
       submitLiveHull({ id: 'enemy:' + alien.id, key,
-        x: alien.x*sx, y: alien.y*sy, size, bank: 0, angle: heading, alpha: 1,
+        x: alien.x*sx, y: alien.y*sy, size, bank: Math.max(-.24, Math.min(.24, (alien.fighterBankVx ?? 0) * .007)), angle: heading,
+        alpha: getRaidFighterOpacity(alien, frame.reducedMotion),
         landscape: Boolean(frame.landscape), warp: warp ?? undefined, hit: Math.min(1, (alien.hitFlash ?? 0) / .16) })
       pair.ship.visible = false
       {
         const hit = Math.min(1, (alien.hitFlash ?? 0) / .16)
         const charge = getRaidFighter(alien.variant) ? getRaidFighterCharge(alien) : 0
-        const effect = hit ? getRaidCombatFrame(COMBAT_TILE.ionImpact) : charge ? getRaidCombatFrame(COMBAT_TILE.charge) : undefined
+        const muzzle = Math.min(1, (alien.fighterShotFlash ?? 0) / FIGHTER_FIRE_FLASH)
+        const effect = hit ? getRaidCombatFrame(COMBAT_TILE.ionImpact)
+          : muzzle ? getRaidCombatFrame(COMBAT_TILE.muzzle) : charge ? getRaidCombatFrame(COMBAT_TILE.charge) : undefined
         if (pair.glow.parent !== this.impacts) this.impacts.addChild(pair.glow)
         pair.glow.visible = Boolean(effect)
         if (effect) {
-          const edge = size * (hit ? .74 : .46)
+          const edge = size * (hit ? .74 : muzzle ? .76 : .46)
           pair.glow.texture = effect
           pair.glow.blendMode = 'add'
           pair.glow.width = edge
           pair.glow.height = edge
           pair.glow.position.set(alien.x*sx+Math.sin(heading)*size*(hit ? .02 : .34),
             alien.y*sy+Math.cos(heading)*size*(hit ? .02 : .34))
-          pair.glow.alpha = hit || charge
+          pair.glow.alpha = hit || muzzle || charge
         }
       }
     }

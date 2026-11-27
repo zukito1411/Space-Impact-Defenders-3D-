@@ -107,6 +107,31 @@ for (const [role, asset] of api.RAID_FIGHTER_ASSETS.entries()) {
   assert.equal(api.getRaidFighterCharge({ ...enemy, y: -1 }), 0)
   assert.equal(api.getRaidFighterCharge(enemy) > 0, fighter.shots > 0)
 }
+// Simulate a fighter that is held offscreen and during the first part of its
+// turn. Its first shot must not spend a full reload before the actual volley.
+for (const fps of [30, 60, 120]) {
+  const fighter = api.formation(2, 0).enemies[0]
+  const pilot = { x: 50, y: 83 }
+  const dt = 1 / fps
+  const shots = []
+  const tick = available => api.advanceRaidFighterFire(fighter, pilot, dt, 1, available, shot => shots.push(shot))
+  for (let frame = 0; frame < 3 * fps; frame++) tick(16)
+  assert.equal(shots.length, 0)
+  fighter.y = 20
+  fighter.tacticHoldFire = true
+  for (let frame = 0; frame < 2 * fps; frame++) tick(16)
+  assert.equal(shots.length, 0)
+  fighter.tacticHoldFire = false
+  for (let frame = 0; frame < fps; frame++) tick(0)
+  assert.equal(shots.length, 0)
+  assert.ok(fighter.fireCooldown <= api.FIGHTER_FIRE_WARNING)
+  for (let frame = 0; frame < fps / 2; frame++) tick(16)
+  assert.equal(shots.length, 1)
+  assert.equal(fighter.fighterShotFlash, api.FIGHTER_FIRE_FLASH)
+  for (let frame = 0; frame < 2 * fps; frame++) tick(16)
+  assert.ok(shots.length >= 2 && shots.length <= 3)
+}
+
 // Pursuit is role-specific, bounded, and never starts during formation entry.
 const formationEnemy = { originX: 50, x: 50, y: 50, formationAge: 2, formationMotion: 0, phase: 0, trainSlot: 0 }
 for (const role of [0,1,2,3,4,5]) {
@@ -158,7 +183,7 @@ assert.equal(api.getCruiseOpeningLayout(5), 'split')
 const pincer = api.cruise(2, 1).enemies
 assert.ok(pincer[0].y > pincer[1].y)
 assert.ok(pincer[0].x < 50 && pincer[1].x > 50)
-const artillery = api.cruise(3, 0).enemies.map(enemy => ({ ...enemy, y: 19 }))
+const artillery = api.cruise(3, 0).enemies.map(enemy => ({ ...enemy, y: 8 }))
 new api.EnemyTactics().update(artillery, .1, 3, 1, { x: 62, y: 85 })
 assert.ok(artillery.every(enemy => Math.abs(enemy.x - 50) >= 16 && enemy.tacticHoldFire))
 const escortGroup = api.cruise(2, 3).enemies
@@ -233,7 +258,7 @@ for (const [first, second] of [[api.formation(1, 1), api.formation(1, 4)], [api.
   assert.notEqual(second.enemies[0].cruiseFlank, sweep[0].cruiseFlank)
   const side = sweep[0].cruiseFlank
   const swarm = new api.EnemyTactics()
-  sweep.forEach(enemy => { enemy.y = 22 })
+  sweep.forEach(enemy => { enemy.y = 9 })
   swarm.update(sweep, 1 / 60, 2, 4, { x: 15, y: 85 })
   assert.ok(sweep.every(enemy => enemy.tacticHoldFire))
   const earlyX = sweep[0].tacticX
@@ -277,60 +302,45 @@ for (const fps of [30, 60, 120]) {
 }
 console.log('Campaign cadence, banked sweeps and locked, interruptible crossfire passed at 30/60/120 Hz')
 
-const challengeSource = withoutImports(read(raid + 'cruiseChallenge.ts'))
-const challenge = await import('data:text/javascript;base64,' + Buffer.from(ts.transpileModule(challengeSource, {
-  compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
-}).outputText).toString('base64'))
-
-for (let stage = 2; stage <= 15; stage++) {
-  const kind = challenge.createCruiseChallenge(stage).kind
-  const budget = challenge.CHALLENGE_NOTICE_SECONDS + (kind === 'relay'
-    ? challenge.RELAY_GATE_COUNT * challenge.RELAY_GATE_SECONDS : challenge.SALVAGE_SECONDS)
-  assert.ok(challenge.getCruiseChallengeStartAge(stage) + budget + 2.4 < api.getCampaignCruiseSeconds(stage) - api.CRUISE_BOSS_APPROACH_SECONDS)
-}
-
-function pilotAtTarget(operation, hp = 5) {
-  const { x, y } = challenge.getCruiseChallengeTarget(operation)
-  return { x, y, hp }
-}
-
-const relay = challenge.createCruiseChallenge(2)
-const captain = pilotAtTarget(relay)
-assert.equal(challenge.advanceCruiseChallenge(relay, 1, [captain]), undefined)
-assert.equal(relay.gate, 0, 'the notice is not an active gate')
-assert.equal(challenge.advanceCruiseChallenge(relay, .5, [captain]), undefined)
-assert.equal(relay.gate, 1)
-const position = challenge.getCruiseChallengeTarget(relay)
-assert.notEqual(position.x, captain.x)
-challenge.advanceCruiseChallenge(relay, .1, [pilotAtTarget(relay, 0)])
-assert.equal(relay.gate, 1, 'downed pilots cannot cross a gate')
-const wingmate = pilotAtTarget(relay)
-challenge.advanceCruiseChallenge(relay, .1, [captain, wingmate])
-assert.equal(relay.gate, 2, 'the second pilot can advance the same challenge')
-Object.assign(wingmate, pilotAtTarget(relay))
-assert.equal(challenge.advanceCruiseChallenge(relay, .1, [wingmate]), wingmate)
-assert.equal(challenge.advanceCruiseChallenge(relay, .1, [wingmate]), undefined, 'the reward can only be collected once')
-
-const missed = challenge.createCruiseChallenge(4)
-for (let i = 0; i < 500; i++) challenge.advanceCruiseChallenge(missed, 1 / 60, [])
-assert.equal(missed.outcome, 'missed')
+const defenses = api.RAID_FIGHTERS.map((_, index) => api.getRaidFighterDurability(api.LEGACY_FIGHTER_COUNT + index, 10, 1))
+assert.equal(new Set(defenses.map(fighter => fighter.hp)).size, 6)
+assert.ok(defenses[2].hp > defenses[3].hp && defenses[2].shield > defenses[5].shield && defenses[5].shield > 0)
+const shielded = { fighterShield: 7 }
+assert.equal(api.absorbRaidFighterShield(shielded, 4), 0)
+assert.equal(shielded.fighterShield, 3)
+assert.equal(api.absorbRaidFighterShield(shielded, 5), 2)
+assert.equal(shielded.fighterShield, 0)
+assert.ok(shielded.fighterShieldFlash > .2)
 
 for (const fps of [30, 60, 120]) {
-  const recovery = challenge.createCruiseChallenge(3)
   const dt = 1 / fps
-  for (let i = 0; i < 2 * fps; i++) challenge.advanceCruiseChallenge(recovery, dt, [pilotAtTarget(recovery)])
-  const before = recovery.signal
-  for (let i = 0; i < fps; i++) challenge.advanceCruiseChallenge(recovery, dt, [])
-  assert.ok(before > .5 && recovery.signal === 0, 'leaving the field loses the signal')
-  let completions = 0
-  for (let i = 0; i < 4 * fps; i++) {
-    if (challenge.advanceCruiseChallenge(recovery, dt, [pilotAtTarget(recovery)])) completions++
+  const pilot = { x: 65, y: 80 }
+  const phaser = { ...formationEnemy, variant: api.LEGACY_FIGHTER_COUNT + 1 }
+  const cloaker = { ...formationEnemy, variant: api.LEGACY_FIGHTER_COUNT + 4 }
+  let phasedTime = 0
+  let peakShift = 0
+  let hidden = false
+  for (let i = 0; i < 5 * fps; i++) {
+    phaser.tacticHoldFire = cloaker.tacticHoldFire = false
+    api.advanceRaidFighterDefense(phaser, pilot, dt)
+    api.advanceRaidFighterDefense(cloaker, pilot, dt)
+    if (api.isRaidFighterPhased(phaser)) {
+      phasedTime += dt
+      assert.ok(phaser.tacticHoldFire)
+    }
+    peakShift = Math.max(peakShift, Math.abs(api.getRaidFighterPhaseShift(phaser)))
+    if (api.getRaidFighterOpacity(cloaker) < .25) {
+      hidden = true
+      assert.ok(cloaker.tacticHoldFire)
+      assert.ok(!api.isRaidFighterPhased(cloaker), 'cloak must never make the ship immune')
+      assert.ok(api.getRaidFighterOpacity({ ...cloaker, hitFlash: .1 }) > .6)
+    }
   }
-  assert.equal(recovery.outcome, 'complete')
-  assert.equal(completions, 1)
-  assert.ok(Math.abs(recovery.outcomeAge - 5.4) <= dt + 1e-8)
+  assert.ok(Math.abs(phasedTime - .34) <= dt + 1e-8)
+  assert.ok(peakShift > 20 && peakShift <= 22)
+  assert.ok(hidden)
+  assert.equal(api.getRaidFighterOpacity(cloaker), 1)
+  assert.equal(api.getRaidFighterPhaseShift(phaser), 0)
+  assert.ok(!phaser.tacticHoldFire && !cloaker.tacticHoldFire)
 }
-const abandoned = challenge.createCruiseChallenge(5)
-challenge.advanceCruiseChallenge(abandoned, 11.5, [])
-assert.equal(abandoned.outcome, 'missed')
-console.log('Cruise challenges: sequential gates, co-op contribution, single rewards, salvage lock and expiry passed')
+console.log('Fighter hull and shield differences, dash immunity and cloak reveal passed at 30/60/120 Hz')

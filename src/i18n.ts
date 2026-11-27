@@ -2240,7 +2240,7 @@ export const RELEASE_TEXT = {
       unknownBoss: 'Classified Boss Signal',
       devilBoss: { kind: 'devil', name: 'Devil Gundam', stage: 'Endless Anomaly', behavior: ['A rare Endless Flight super boss with massive HP and weak nuke vulnerability.', 'Uses DG-cell beam warnings, rage poses, and delayed attacks that demand clean dodge windows.'] },
       normalNames: ['Rift Skitter', 'Void Pincer', 'Glassback Drone', 'Ember Stinger', 'Azure Needler', 'Thorn Mantis', 'Spectral Leech', 'Obsidian Impaler', 'Needle Scout', 'Cinder Interceptor', 'Violet Gunship', 'Crimson Ram', 'Jade Sensor', 'Auric Artillery'],
-      fighterTactics: ['Fast scout with aimed needle fire.', 'Weaves across lanes and fires paired bolts.', 'Heavy hull with two tight plasma shots.', 'Armored collision threat. Dodge its flight path.', 'Weaving scout with wide twin fire.', 'Heavy support craft with three spread bolts.'],
+      fighterTactics: ['Light scout with frequent aimed needle fire.', 'Phases sideways after a violet charge. Shoot once it rematerializes.', 'Heavy hull with a breakable shield and paired plasma cannons.', 'Armored collision threat. Dodge the ram.', 'Fades after a scan and reappears before firing. Hits briefly reveal it.', 'Shielded support craft with wide three-way volleys.'],
       eliteNames: ['Crimson Stalker', 'Brood Sentinel', 'Lance Reaver', 'Violet Harrier', 'Orbital Shard'],
     },
     missionsBoard: {
@@ -2534,7 +2534,7 @@ export const RELEASE_TEXT = {
       unknownBoss: '机密 Boss 信号',
       devilBoss: { kind: 'devil', name: '恶魔高达', stage: '无尽异常体', behavior: ['无尽飞行中极少出现的超级 Boss，拥有巨量 HP，核弹效果很弱。', '使用 DG 细胞光束预警、狂暴姿态和延迟攻击，要求精准闪避窗口。'] },
       normalNames: ['裂隙掠行者', '虚空钳兵', '玻甲无人体', '余烬刺蜂', '苍蓝针兵', '棘刃螳卫', '幽影水蛭', '黑曜穿刺者', '针锋侦察机', '余烬截击机', '紫晶炮艇', '绯红撞击舰', '碧玉侦测机', '金辉炮舰'],
-      fighterTactics: ['高速侦察机，发射瞄准针弹。', '穿梭于航道间，成对发射弹束。', '重型舰体，发射两道密集等离子弹。', '装甲撞击舰，注意躲开其航线。', '来回穿梭，发射两道宽角弹。', '重型支援舰，发射三道散射弹。'],
+      fighterTactics: ['轻型侦察机，频繁发射瞄准针弹。', '紫光充能后横向相移，实体恢复时再开火。', '搭载可击破护盾和双等离子炮的重型战机。', '重装撞击机，注意躲开冲撞。', '扫描后隐形，开火前重新现身。命中会短暂显形。', '配备护盾，发射三向散射弹的支援机。'],
       eliteNames: ['猩红追猎者', '巢群哨卫', '长枪掠夺者', '紫晶猎袭者', '轨道碎片体'],
     },
     missionsBoard: {
@@ -2828,7 +2828,7 @@ export const RELEASE_TEXT = {
       unknownBoss: '機密ボス信号',
       devilBoss: { kind: 'devil', name: 'デビルガンダム', stage: 'エンドレス異常体', behavior: ['エンドレス飛行にまれに出現する超大型ボス。膨大な HP を持ち、核攻撃も通りにくいです。', 'DG 細胞ビーム警告、怒りポーズ、遅延攻撃で正確な回避を要求します。'] },
       normalNames: ['リフトスキッター', 'ヴォイドピンサー', 'グラスバックドローン', 'エンバースティンガー', 'アズールニードラー', 'ソーンマンティス', 'スペクトルリーチ', 'オブシディアンインペイラー', 'ニードル・スカウト', 'シンダー迎撃機', 'ヴァイオレット砲艇', 'クリムゾン突撃機', 'ジェイド・センサー', 'オーリック砲撃機'],
-      fighterTactics: ['高速で接近し、狙いを定めて針弾を放つ。', '横に揺れながら二連弾を放つ。', '重装甲で狭い間隔のプラズマ弾を二発放つ。', '重装甲の体当たり機。進路を避けよう。', '左右に揺れながら広角の二連弾を放つ。', '三方向に拡散弾を放つ重支援機。'],
+      fighterTactics: ['軽装の偵察機。狙いを定めた針弾を頻繁に放つ。', '紫に発光した後、横に位相移動する。実体化してから撃とう。', '破壊できるシールドと二連プラズマ砲を備えた重装機。', '装甲を備えた体当たり機。進路を避けよう。', 'スキャン後に姿を消し、射撃前に現れる。命中で一時的に姿が見える。', 'シールドを張り、三方向へ撃つ支援機。'],
       eliteNames: ['クリムゾンストーカー', 'ブルードセンチネル', 'ランスリーバー', 'ヴァイオレットハリアー', 'オービタルシャード'],
     },
     missionsBoard: {
@@ -3122,7 +3122,7 @@ export const RELEASE_TEXT = {
       unknownBoss: '기밀 보스 신호',
       devilBoss: { kind: 'devil', name: '데빌 건담', stage: '엔드리스 이상체', behavior: ['끝없는 비행에서 드물게 등장하는 초대형 보스이며 HP가 매우 높고 핵 공격도 약하게 들어갑니다.', 'DG 세포 빔 경고, 분노 자세, 지연 공격으로 정확한 회피 타이밍을 요구합니다.'] },
       normalNames: ['균열 스키터', '공허 집게체', '유리등 드론', '잿불 침투체', '청색 니들러', '가시 맨티스', '유령 리치', '흑요석 관통체', '니들 정찰기', '신더 요격기', '바이올렛 건십', '크림슨 충각함', '제이드 센서기', '오릭 포격함'],
-      fighterTactics: ['빠르게 접근해 조준 침탄을 발사한다.', '좌우로 기동하며 두 발을 발사한다.', '중장갑 기체가 밀집 플라스마탄 두 발을 발사한다.', '장갑 충각함. 기체의 진행 경로를 피하라.', '좌우로 기동하며 넓게 두 발을 발사한다.', '확산탄 세 발을 발사하는 중장갑 지원기.'],
+      fighterTactics: ['가벼운 정찰기. 조준 침탄을 자주 발사한다.', '보라색으로 충전한 뒤 옆으로 위상 이동한다. 다시 나타났을 때 공격하라.', '파괴 가능한 보호막과 쌍열 플라스마포를 갖춘 중장갑기.', '장갑 충각함. 돌진 경로를 피하라.', '스캔 후 은폐하고 발사 전에 모습을 드러낸다. 명중하면 잠깐 보인다.', '보호막을 두르고 세 방향으로 확산탄을 쏘는 지원기.'],
       eliteNames: ['진홍 추적자', '무리 파수병', '랜스 약탈자', '보랏빛 강습체', '궤도 파편체'],
     },
     missionsBoard: {

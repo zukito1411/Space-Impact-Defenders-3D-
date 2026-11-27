@@ -12,12 +12,12 @@ export const RAID_FIGHTER_ASSETS = [
 ] as const
 
 export const RAID_FIGHTERS = [
-  { color: '#7ce4eb', hull: .77, radius: 2.65, speed: 25, cooldown: 2.25, shots: 1, boltSpeed: 38, spread: 0, aim: .82, kind: 'needle' },
-  { color: '#f9a15d', hull: .94, radius: 3.4, speed: 23, cooldown: 2.65, shots: 2, boltSpeed: 34, spread: .20, aim: .73, kind: 'blade' },
-  { color: '#c4a4fe', hull: 1.40, radius: 3.9, speed: 15, cooldown: 2.9, shots: 2, boltSpeed: 30, spread: .08, aim: .24, kind: 'plasma' },
-  { color: '#f8777f', hull: 1.65, radius: 4.15, speed: 24, cooldown: 4.0, shots: 0, boltSpeed: 0, spread: 0, aim: 0, kind: 'enemy' },
-  { color: '#85eac5', hull: .91, radius: 3.45, speed: 19, cooldown: 3.2, shots: 2, boltSpeed: 29, spread: .29, aim: .68, kind: 'orbShot' },
-  { color: '#f9d486', hull: 1.23, radius: 3.8, speed: 16, cooldown: 3.5, shots: 3, boltSpeed: 27, spread: .27, aim: .58, kind: 'scatterBoss' },
+  { color: '#7ce4eb', hull: .77, shield: 0, defense: 'scout', radius: 2.65, speed: 25, cooldown: 1.26, shots: 1, boltSpeed: 38, spread: 0, aim: .82, kind: 'needle' },
+  { color: '#f9a15d', hull: 1.38, shield: 0, defense: 'phase', radius: 3.4, speed: 23, cooldown: 1.5, shots: 2, boltSpeed: 34, spread: .20, aim: .73, kind: 'blade' },
+  { color: '#c4a4fe', hull: 2.85, shield: 1.15, defense: 'tank', radius: 3.9, speed: 15, cooldown: 1.68, shots: 2, boltSpeed: 30, spread: .08, aim: .24, kind: 'plasma' },
+  { color: '#f8777f', hull: 2.5, shield: 0, defense: 'ram', radius: 4.15, speed: 24, cooldown: 4.0, shots: 0, boltSpeed: 0, spread: 0, aim: 0, kind: 'enemy' },
+  { color: '#85eac5', hull: 1.08, shield: 0, defense: 'cloak', radius: 3.45, speed: 19, cooldown: 1.82, shots: 2, boltSpeed: 29, spread: .29, aim: .68, kind: 'orbShot' },
+  { color: '#f9d486', hull: 1.92, shield: .62, defense: 'battery', radius: 3.8, speed: 16, cooldown: 2.05, shots: 3, boltSpeed: 27, spread: .27, aim: .58, kind: 'scatterBoss' },
 ] as const
 
 type Layout = 'chevron' | 'line' | 'echelon' | 'split' | 'escort' | 'weave'
@@ -55,6 +55,69 @@ export function getRaidStageEncounter(stage: number) {
 
 export function getRaidFighter(variant: number): (typeof RAID_FIGHTERS)[number] | undefined {
   return RAID_FIGHTERS[variant - LEGACY_FIGHTER_COUNT]
+}
+
+export function getRaidFighterDurability(variant: number, base: number, difficulty: number) {
+  const fighter = getRaidFighter(variant)
+  return { hp: Math.max(1, Math.round(base * (fighter?.hull ?? 1) * difficulty)),
+    shield: Math.ceil(base * (fighter?.shield ?? 0) * difficulty) }
+}
+
+const PHASE_WINDUP = .31
+const PHASE_END = .65
+const PHASE_RETURN = 1.6
+const CLOAK_SCAN = .28
+const CLOAK_END = 1.26
+const CLOAK_RETURN = 1.56
+const cloakOpacity = .19
+
+export function getRaidFighterDefenseTime(enemy: Enemy) {
+  return (enemy.fighterDefenseAge ?? 0) - .84 - (enemy.trainSlot % 8) * .12
+}
+
+export function advanceRaidFighterDefense(enemy: Enemy, target: Vec, dt: number) {
+  if (enemy.fighterShieldFlash) enemy.fighterShieldFlash = Math.max(0, enemy.fighterShieldFlash - dt)
+  if (enemy.y < 8 || enemy.cruiseManeuver === 'crossfire') return
+  const role = getRaidFighter(enemy.variant)?.defense
+  if (role !== 'phase' && role !== 'cloak') return
+  enemy.fighterDefenseAge = Math.min(4, (enemy.fighterDefenseAge ?? 0) + dt)
+  const time = getRaidFighterDefenseTime(enemy)
+  if (role === 'phase' && enemy.fighterPhaseSide === undefined && time >= 0) {
+    enemy.fighterPhaseSide = enemy.x < 17 ? 1 : enemy.x > 83 ? -1 : enemy.x < target.x ? -1 : 1
+  }
+  if (role === 'phase' ? isRaidFighterPhased(enemy) : time >= 0 && time < CLOAK_RETURN) enemy.tacticHoldFire = true
+}
+
+export function isRaidFighterPhased(enemy: Enemy) {
+  if (!enemy.fighterPhaseSide) return false
+  const time = getRaidFighterDefenseTime(enemy)
+  return time >= PHASE_WINDUP && time < PHASE_END
+}
+
+export function getRaidFighterPhaseShift(enemy: Enemy) {
+  if (!enemy.fighterPhaseSide) return 0
+  const time = getRaidFighterDefenseTime(enemy)
+  if (time <= PHASE_WINDUP || time >= PHASE_RETURN) return 0
+  const extent = time < PHASE_END ? (time - PHASE_WINDUP) / (PHASE_END - PHASE_WINDUP)
+    : (PHASE_RETURN - time) / (PHASE_RETURN - PHASE_END)
+  return enemy.fighterPhaseSide * 22 * extent * extent * (3 - 2 * extent)
+}
+
+export function getRaidFighterOpacity(enemy: Enemy, reducedMotion = false) {
+  if (isRaidFighterPhased(enemy)) return reducedMotion ? .75 : .5
+  if (enemy.fighterDefenseAge === undefined || getRaidFighter(enemy.variant)?.defense !== 'cloak') return 1
+  const time = getRaidFighterDefenseTime(enemy)
+  if (time < 0 || time >= CLOAK_RETURN) return 1
+  const fade = time < CLOAK_SCAN ? time / CLOAK_SCAN : time < CLOAK_END ? 1 : (CLOAK_RETURN - time) / (CLOAK_RETURN - CLOAK_END)
+  return Math.max((enemy.hitFlash ?? 0) > 0 ? .62 : 0, 1 - fade * (1 - (reducedMotion ? .4 : cloakOpacity)))
+}
+
+export function absorbRaidFighterShield(enemy: Enemy, damage: number) {
+  if (!enemy.fighterShield) return damage
+  const absorbed = Math.min(enemy.fighterShield, damage)
+  enemy.fighterShield -= absorbed
+  enemy.fighterShieldFlash = enemy.fighterShield > 0 ? .18 : .34
+  return damage - absorbed
 }
 
 export const RAID_FIGHTER_DEBUT_STAGES = RAID_FIGHTERS.map((_, id) =>
@@ -136,12 +199,35 @@ export function fireRaidFighter(enemy: Enemy, target: Vec, available: number, em
   return true
 }
 
+export const FIGHTER_FIRE_WARNING = .32
+export const FIGHTER_FIRE_FLASH = .13
+
+export function advanceRaidFighterFire(enemy: Enemy, target: Vec, dt: number, cadence: number, available: number,
+  emit: (shot: Omit<Shot, 'id'>) => void) {
+  const fighter = getRaidFighter(enemy.variant)
+  if (!fighter?.shots) return
+  // Start the attack clock once the ship is visible, and keep a short warning
+  // when a turn, missing target, or full projectile budget holds the volley.
+  if (enemy.y < 2 || enemy.tacticHoldFire || target.y < enemy.y + 13) {
+    enemy.fireCooldown = Math.max(FIGHTER_FIRE_WARNING, enemy.fireCooldown)
+    return
+  }
+  enemy.fireCooldown = Math.max(0, enemy.fireCooldown - dt)
+  if (enemy.fireCooldown > 0) return
+  if (fireRaidFighter(enemy, target, available, emit)) {
+    enemy.fireCooldown = fighter.cooldown * cadence
+    enemy.fighterShotFlash = FIGHTER_FIRE_FLASH
+  } else {
+    enemy.fireCooldown = FIGHTER_FIRE_WARNING
+  }
+}
+
 /** These frames are shared by the Pixi foreground and Canvas fallback. */
 export function getRaidFighterCharge(enemy: Enemy) {
   if (enemy.cruiseManeuver === 'crossfire') return enemy.chargeTimer > 0 ? Math.max(.25, 1 - enemy.chargeTimer) : 0
   if (enemy.variant === LEGACY_FIGHTER_COUNT + RAM && enemy.fighterAimX !== undefined && enemy.y >= 24 && enemy.y < 40) return (enemy.y - 24) / 16
-  if (enemy.y < 0 || enemy.fireCooldown <= 0 || enemy.fireCooldown >= .34 || !getRaidFighter(enemy.variant)?.shots) return 0
-  return 1 - enemy.fireCooldown / .34
+  if (enemy.y < 2 || enemy.fireCooldown <= 0 || enemy.fireCooldown >= FIGHTER_FIRE_WARNING || !getRaidFighter(enemy.variant)?.shots) return 0
+  return 1 - enemy.fireCooldown / FIGHTER_FIRE_WARNING
 }
 
 

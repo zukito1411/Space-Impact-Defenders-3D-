@@ -26,7 +26,7 @@ const ROUTES: readonly (readonly CruiseEncounter[])[] = [
 const CAMPAIGN_CRUISE_SECONDS = [76, 80, 82, 76, 84, 80, 84, 82, 80, 84, 88, 86, 88, 90] as const
 const CRUISE_INTERVALS = { patrol: 5.8, pincer: 7.1, dive: 6.3, barrage: 8.4, escort: 10.2, sweep: 6.9, crossfire: 8.1 }
 export const CRUISE_BOSS_APPROACH_SECONDS = 7
-export const CROSSFIRE_WARNING_SECONDS = .9
+export const CROSSFIRE_WARNING_SECONDS = 1.15
 export const CROSSFIRE_LOCK_AGE = 1.9
 
 export function getCampaignCruiseSeconds(stage: number): number | undefined {
@@ -79,10 +79,11 @@ export function placeCruiseWing(maneuver: CruiseManeuver, slot: number, count: n
 }
 
 export function fireCruiseCrossfire(enemy: Enemy, available: number, emit: (shot: Omit<Shot, 'id'>) => void) {
-  if (available < 1 || enemy.chargeTargetY < enemy.y + 19) return
+  if (available < 1 || enemy.chargeTargetY < enemy.y + 19) return false
   const angle = Math.atan2(enemy.chargeLane - enemy.x, enemy.chargeTargetY - enemy.y - 2.5)
   emit({ x: enemy.x, y: enemy.y + 2.5, vx: Math.sin(angle) * 43, vy: Math.cos(angle) * 43,
     radius: 1.22, damage: 1, kind: 'needle' })
+  return true
 }
 
 const MINI_BOSS_PROFILES = {

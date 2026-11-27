@@ -4,7 +4,7 @@ Gradius Raid is a scrolling space shooter. Fly the story campaign, survive Endle
 
 Open the Command Deck for your profile, achievements, missions, hangar, Codex, and Almanac. Leaderboards are available directly from the title screen.
 
-Enemy wings bank across the screen and set up timed crossfire. Watch for the marked impact points or take out the lead ship before the volley. Fly through optional relay gates for a shield charge, or hold inside a moving salvage beacon for repairs. Both objectives award bonus score and can overlap with combat and hazards.
+Enemy wings bank across the screen and set up timed crossfire. The lead fighter glows gold as it prepares the volley. Destroy it to break the attack.
 
 ## Signed Android APK releases
 

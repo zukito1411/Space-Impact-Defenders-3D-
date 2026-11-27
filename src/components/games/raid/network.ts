@@ -297,6 +297,9 @@ export function interpolateEnemyVisual(previous: Enemy, next: Enemy, t: number) 
   if (previous.fighterBankVx !== undefined && next.fighterBankVx !== undefined) {
     visual.fighterBankVx = previous.fighterBankVx + (next.fighterBankVx - previous.fighterBankVx) * t
   }
+  if (previous.fighterDefenseAge !== undefined && next.fighterDefenseAge !== undefined) {
+    visual.fighterDefenseAge = previous.fighterDefenseAge + (next.fighterDefenseAge - previous.fighterDefenseAge) * t
+  }
   visual.chargeCooldown = Math.max(0, previous.chargeCooldown + (next.chargeCooldown - previous.chargeCooldown) * t)
   const crossfireTransition = next.cruiseManeuver === 'crossfire' && (previous.chargeTimer > 0) !== (next.chargeTimer > 0)
   const sameEliteAttack = !next.isMiniBoss || (previous.miniBossAttackIndex === next.miniBossAttackIndex && previous.miniBossAttack === next.miniBossAttack)

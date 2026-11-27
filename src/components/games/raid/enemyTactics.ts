@@ -61,8 +61,8 @@ export class EnemyTactics {
           // Both flanks fire toward fixed marks on either side of the pilot's
           // lane. Destroying the lead ship aborts any shots still winding up.
           const fireAge = CROSSFIRE_LOCK_AGE + CROSSFIRE_WARNING_SECONDS + Math.floor(enemy.trainSlot / 2) * .14
-          const ready = !wing.disrupted && Boolean(getRaidFighter(enemy.variant)?.shots)
-          const fire = ready && previousAge < fireAge && wing.age >= fireAge
+          const ready = !wing.disrupted && (enemy.trainSlot === 0 || Boolean(getRaidFighter(enemy.variant)?.shots))
+          const fire = ready && Boolean(getRaidFighter(enemy.variant)?.shots) && previousAge < fireAge && wing.age >= fireAge
           enemy.tacticX = wing.disrupted ? enemy.originX + flank * 15 : enemy.originX
           enemy.tacticSpeed = wing.disrupted ? 1.3 : enemy.y >= 20 && wing.age < fireAge ? .35 : 1
           enemy.tacticHoldFire = !fire
@@ -74,11 +74,12 @@ export class EnemyTactics {
         }
         if (enemy.cruiseManeuver === 'sweep' && enemy.y >= 8) {
           const progress = clamp((enemy.y - 8) / 44, 0, 1)
+          const arc = progress * progress * (3 - 2 * progress)
           const spread = (enemy.trainSlot % 3 - 1) * 5
-          const sweepX = enemy.originX - flank * 60 * progress
-          enemy.tacticX = clamp(sweepX + spread * progress, 9, 91)
+          const sweepX = enemy.originX - flank * 60 * arc
+          enemy.tacticX = clamp(sweepX + spread * arc, 9, 91)
           enemy.tacticSpeed = enemy.y < 26 ? .77 : 1.23
-          enemy.tacticHoldFire = enemy.y < 25
+          enemy.tacticHoldFire = enemy.y < 10
           continue
         }
         if (enemy.cruiseManeuver === 'escort' && !elite) {
@@ -90,7 +91,7 @@ export class EnemyTactics {
         if (enemy.cruiseManeuver === 'barrage') {
           enemy.tacticX = enemy.originX
           enemy.tacticSpeed = enemy.y < 24 ? .87 : enemy.y < 43 ? .53 : 1.14
-          enemy.tacticHoldFire = enemy.y < 21
+          enemy.tacticHoldFire = enemy.y < 10
           continue
         }
         if(enemy.y<4 || enemy.y>76)continue
@@ -109,7 +110,6 @@ export class EnemyTactics {
           if (enemy.y >= 20) {
             enemy.tacticX = clamp(wing.attackX + flank * (10 - enemy.trainSlot * 3), 8, 92)
             enemy.tacticSpeed = enemy.y < 32 ? .72 : 1.49
-            enemy.tacticHoldFire = enemy.y < 32
           }
           continue
         }

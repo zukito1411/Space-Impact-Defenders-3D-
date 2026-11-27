@@ -309,26 +309,10 @@ async function testRaid() {
       sync()
     })
     assert.equal(await desktop.getByRole('dialog').count(), 0, 'Stage transition must not show a score screen')
-    await desktop.evaluate(async () => {
-      const { refs, update, draw, sync } = window.openingTest
+    await desktop.evaluate(() => {
+      const { refs, update, sync } = window.openingTest
       for (let frame = 0; frame < 650 && refs.stageEntryRef.current > 0; frame++) update(1 / 60)
       const player = refs.playerRef.current
-      const { getCruiseChallengeStartAge, getCruiseChallengeTarget } = await import('/src/components/games/raid/cruiseChallenge.ts')
-      refs.journeyStageAgeRef.current = getCruiseChallengeStartAge(2)
-      refs.spawnLockRef.current = 0
-      player.invuln = 10
-      update(1 / 60)
-      const challenge = refs.cruiseChallengeRef.current
-      if (challenge?.kind !== 'relay') throw Error('Stage 2 did not schedule its relay challenge')
-      draw(performance.now())
-      player.shield = 0
-      const before = player.score
-      for (let frame = 0; frame < 120 && !challenge.outcome; frame++) {
-        const target = getCruiseChallengeTarget(challenge)
-        Object.assign(player, { x: target.x, y: target.y })
-        update(1 / 60)
-      }
-      if (challenge.outcome !== 'complete' || player.shield < 3 || player.score <= before) throw Error('The relay gates did not award their gameplay reward')
       Object.assign(player, { hp: 1, invuln: 0, shield: 0, forceField: 0 })
       refs.enemyShotsRef.current = [{ id: -2, x: player.x, y: player.y, vx: 0, vy: 0, kind: 'enemy', damage: 3, radius: 3, life: 2 }]
       update(1 / 60)
@@ -340,8 +324,28 @@ async function testRaid() {
     await desktop.getByText('Flight deck clear. You have the launch lane.').waitFor({ timeout: 30000 })
     await takeSimulationControl(desktop)
     assert.equal(await desktop.evaluate(() => window.openingTest.refs.stageRef.current), 1)
+    if (output) await desktop.emulateMedia({ reducedMotion: 'no-preference' })
     await desktop.evaluate(() => {
-      const { refs, update, draw } = window.openingTest
+      const { refs, update, draw, sync } = window.openingTest
+      for (let frame = 0; frame < 650 && refs.stageEntryRef.current > 0; frame++) update(1 / 60)
+      if (refs.initialLaunchRef.current) throw Error('Retry did not finish carrier launch')
+      refs.stageRef.current = refs.waveRef.current = 2
+      refs.stageEntryRef.current = refs.spawnLockRef.current = 0
+      refs.bossTimerRef.current = 60
+      refs.formationTimerRef.current = 0
+      refs.wingSerialRef.current = 2
+      const pilot = refs.playerRef.current
+      Object.assign(pilot, { x: 50, y: 88, invuln: 100, fireCooldown: 100 })
+      for (let frame = 0; frame < 158; frame++) update(1 / 60)
+      if (refs.enemyShotsRef.current.length < 4) throw Error('The sweep wing did not fire during its pass')
+      draw(performance.now())
+      sync()
+      refs.enemiesRef.current.length = 0
+      refs.enemyShotsRef.current.length = 0
+    })
+    await capture(desktop, 'fighter-sweep')
+    await desktop.evaluate(() => {
+      const { refs, update, draw, sync } = window.openingTest
       refs.stageRef.current = refs.waveRef.current = 3
       refs.stageEntryRef.current = refs.spawnLockRef.current = 0
       refs.bossTimerRef.current = 60
@@ -355,9 +359,18 @@ async function testRaid() {
       if (!wing.length) throw Error('Stage 3 did not spawn its crossfire wing')
       for (let frame = 0; frame < 150 && wing[0].chargeTimer <= 0; frame++) update(dt)
       if (wing[0].chargeTimer <= 0 || Math.abs(wing[0].chargeLane - 52) !== 8) throw Error('Crossfire did not warn beside the pilot')
+      // Capture after the warning has grown bright enough to see on each hull.
+      for (let frame = 0; frame < 19; frame++) update(dt)
       draw(performance.now())
+      sync()
+    })
+    await capture(desktop, 'crossfire-windup')
+    await desktop.evaluate(() => {
+      const { refs, update } = window.openingTest
+      const pilot = refs.playerRef.current
+      const wing = refs.enemiesRef.current.filter(enemy => enemy.cruiseManeuver === 'crossfire')
       pilot.x = 20
-      for (let frame = 0; frame < 70; frame++) update(dt)
+      for (let frame = 0; frame < 75; frame++) update(1 / 60)
       const shots = refs.enemyShotsRef.current.filter(shot => shot.kind === 'needle')
       if (shots.length !== wing.length) throw Error('Crossfire did not fire one shot per ship')
       for (const shot of shots) {
@@ -365,9 +378,62 @@ async function testRaid() {
         if (Math.abs(Math.abs(lane - 52) - 8) > .01) throw Error('Crossfire retargeted a dodging pilot')
       }
     })
+    await desktop.evaluate(() => {
+      const { refs, update, draw, sync } = window.openingTest
+      refs.enemiesRef.current.length = 0
+      refs.enemyShotsRef.current.length = 0
+      refs.formationTimerRef.current = 0
+      refs.wingSerialRef.current = 0
+      update(1 / 60)
+      const gunship = refs.enemiesRef.current.find(enemy => enemy.variant === 10)
+      const scout = refs.enemiesRef.current.find(enemy => enemy.variant === 8)
+      if (!gunship || !scout || gunship.hp <= scout.hp * 2 || !gunship.fighterShield) throw Error('The gunship did not spawn with heavy hull and shields')
+      gunship.y = 25
+      const hit = damage => {
+        refs.shotsRef.current = [{ id: -3, x: gunship.x, y: gunship.y, vx: 0, vy: 0, kind: 'pulse', damage, radius: 2 }]
+        update(1 / 60)
+      }
+      const hp = gunship.hp
+      const shield = gunship.fighterShield
+      hit(1)
+      if (gunship.hp !== hp || gunship.fighterShield !== shield - 1) throw Error('A normal shot did not wear down the shield first')
+      draw(performance.now())
+      sync()
+    })
+    await capture(desktop, 'gunship-shield-impact')
+    await desktop.evaluate(() => {
+      const { refs, update, draw, sync } = window.openingTest
+      const gunship = refs.enemiesRef.current.find(enemy => enemy.variant === 10)
+      const hp = gunship.hp
+      refs.shotsRef.current = [{ id: -4, x: gunship.x, y: gunship.y, vx: 0, vy: 0, kind: 'pulse', damage: gunship.fighterShield + 1, radius: 2 }]
+      update(1 / 60)
+      if (gunship.hp !== hp - 1 || gunship.fighterShield !== 0) throw Error('A shield-breaking shot did not spill through to hull')
+      refs.enemiesRef.current.length = 0
+      refs.enemyShotsRef.current.length = 0
+      refs.stageRef.current = refs.waveRef.current = 5
+      refs.formationTimerRef.current = 0
+      refs.wingSerialRef.current = 0
+      update(1 / 60)
+      const interceptor = refs.enemiesRef.current.find(enemy => enemy.variant === 9)
+      const sensor = refs.enemiesRef.current.find(enemy => enemy.variant === 12)
+      if (!interceptor || !sensor) throw Error('Stage 5 needs a phase and a stealth fighter')
+      Object.assign(interceptor, { x: 38, y: 41, fighterDefenseAge: 1.31 + interceptor.trainSlot * .12, fighterPhaseSide: -1 })
+      Object.assign(sensor, { x: 69, y: 30, fighterDefenseAge: 1.3 + sensor.trainSlot * .12 })
+      const phaseHp = interceptor.hp
+      const cloakHp = sensor.hp
+      refs.shotsRef.current = [interceptor, sensor].map((enemy, index) =>
+        ({ id: -5 - index, x: enemy.x, y: enemy.y, vx: 0, vy: 0, kind: 'pulse', damage: 1, radius: 3 }))
+      update(1 / 60)
+      if (interceptor.hp !== phaseHp || sensor.hp !== cloakHp - 1 || !sensor.hitFlash) {
+        throw Error('Phasers should evade projectiles during the dash, while cloakers take damage and briefly reveal')
+      }
+      draw(performance.now())
+      sync()
+    })
+    await capture(desktop, 'phase-and-cloak')
     assert.deepEqual(traffic, [], 'a guest run must not call the online profile or leaderboard APIs')
     assert.deepEqual(errors, [])
-    console.log('Desktop guest launch, boss warning, stage advance, relay gates, retry and Stage 3 crossfire passed')
+    console.log('Desktop guest launch, stage advance, retry, ordinary fighter fire, crossfire, shields, phase and cloak passed')
   } catch (error) {
     const visible = await desktop.locator('body').innerText({ timeout: 4000 }).catch(() => '')
     throw new Error(`Raid did not complete its opening check. Visible state: ${visible.slice(0, 1000)}`, { cause: error })
