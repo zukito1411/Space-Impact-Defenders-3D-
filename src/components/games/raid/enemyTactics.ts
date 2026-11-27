@@ -64,7 +64,7 @@ export class EnemyTactics {
           if (wing.disrupted || previousAge >= fireAge) {
             enemy.cruiseManeuver = undefined
             enemy.chargeTimer = 0
-            enemy.fireCooldown = .82 + enemy.trainSlot * .11
+            enemy.fireCooldown = 1.25 + enemy.trainSlot * .14
             continue
           }
           const ready = enemy.trainSlot === 0 || Boolean(getRaidFighter(enemy.variant)?.shots)

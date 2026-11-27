@@ -122,7 +122,7 @@ export function beginCruiseEliteAttack(enemy: Enemy, target: Vec, canLaunch: boo
     : enemy.x
   const { warning, recovery } = MINI_BOSS_TIMING[attack]
   enemy.chargeTimer = warning
-  enemy.chargeCooldown = recovery * (enemy.hp <= enemy.maxHp * .38 ? .82 : 1)
+  enemy.chargeCooldown = .45 + recovery * (enemy.hp <= enemy.maxHp * .38 ? .82 : 1)
 }
 
 export function getMiniBossWarningSeconds(attack: MiniBossAttack) {

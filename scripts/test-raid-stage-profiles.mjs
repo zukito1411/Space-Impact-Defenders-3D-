@@ -208,6 +208,29 @@ for (const fps of [30, 60, 120]) {
   }
 }
 
+const battery = { ...api.formation(6, 0).enemies[1], x: 50, y: 28, fireCooldown: 0 }
+const nonGunners = [
+  { ...battery, variant: 8 }, { ...battery, variant: 11 }, { ...battery, y: -4 },
+  { ...battery, hp: 0 }, { ...battery, isMiniBoss: true }, { ...battery, isBoss: true },
+  { ...battery, cruiseManeuver: 'crossfire' },
+]
+const crowd = Array.from({ length: 10 }, () => ({ ...battery }))
+assert.equal(api.getRaidFighterVolleyScale([...crowd.slice(0, 4), ...nonGunners]), 1)
+assert.ok(Math.abs(api.getRaidFighterVolleyScale(crowd.slice(0, 8)) - 1.32) < 1e-8)
+assert.equal(api.getRaidFighterVolleyScale([...crowd, ...crowd]), 1.48)
+for (const fps of [30, 60, 120]) {
+  const count = cadence => {
+    const ship = { ...battery }
+    let shots = 0
+    for (let frame = 0; frame < 18 * fps; frame++) {
+      api.advanceRaidFighterFire(ship, { x: 50, y: 85 }, 1 / fps, cadence, 100, () => shots++)
+    }
+    return shots
+  }
+  assert.ok(count(1) > count(api.getRaidFighterVolleyScale(crowd)), 'heavy batteries must fire less often on a crowded field')
+}
+console.log('Crowded cruise volleys slow down while scouts, crossfire and all boss types stay outside the fighter count')
+
 const routes = new Set()
 for (let stage = 2; stage <= 15; stage++) {
   const route = Array.from({ length: 11 }, (_, slot) => api.getCruiseEncounter(stage, slot))
@@ -263,7 +286,7 @@ for (const [kind, cycle] of Object.entries(attackCycles)) {
     api.beginCruiseEliteAttack(boss, target, true)
     assert.equal(boss.miniBossAttack, attack)
     assert.equal(boss.chargeTimer, api.getMiniBossWarningSeconds(attack))
-    assert.ok(boss.chargeTimer >= .9 && boss.chargeCooldown >= 1.5)
+    assert.ok(boss.chargeTimer >= .9 && boss.chargeCooldown >= 1.95)
     target.x = 80
     assert.equal(boss.chargeLane, 48, 'moving during the warning must not retarget it')
     const shots = []

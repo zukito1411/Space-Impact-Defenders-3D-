@@ -654,9 +654,32 @@ async function testRaid() {
       sync()
     })
     await capture(desktop, 'raid-mothership-force-field')
+    await desktop.evaluate(() => {
+      const { refs, spawnEnemy, update } = window.openingTest
+      for (const list of [refs.enemiesRef, refs.shotsRef, refs.enemyShotsRef, refs.randomEventsRef]) list.current.length = 0
+      refs.stageRef.current = refs.waveRef.current = 6
+      refs.journeyStageAgeRef.current = 0
+      refs.asteroidClusterTimerRef.current = 100
+      refs.asteroidsRef.current.length = 0
+      refs.bossTimerRef.current = refs.formationTimerRef.current = refs.randomEventTimerRef.current = 100
+      Object.assign(refs.playerRef.current, { x: 50, y: 89, invuln: 100, fireCooldown: 100 })
+      for (let slot = 0; slot < 8; slot++) spawnEnemy(12 + slot * 10, 27, 6, 0, slot, { variant: 10 }, null)
+      const gunships = refs.enemiesRef.current.slice()
+      for (const ship of gunships) ship.fireCooldown = 0
+      update(1 / 60)
+      if (gunships.some(ship => ship.fireCooldown <= 3 || !ship.fighterShotFlash)) {
+        throw Error('A crowded gunship group should still fire promptly, then take a longer reload')
+      }
+      for (let frame = 0; frame < 148; frame++) update(1 / 60)
+      if (gunships.some(ship => ship.fireCooldown > 1 || ship.fighterShotFlash)) {
+        throw Error('Gunships should leave a clear gap before their next volley')
+      }
+      for (let frame = 0; frame < 42; frame++) update(1 / 60)
+      if (gunships.some(ship => ship.fireCooldown < 2)) throw Error('Gunships should resume fire after reloading')
+    })
     assert.deepEqual(traffic, [], 'a guest run must not call the online profile or leaderboard APIs')
     assert.deepEqual(errors, [])
-    console.log('Desktop guest launch, stage advance, retry, sustained fighter combat, scout tail fire, crossfire, hull-shaped fighter and boss shields, phase, cloak and both elite tiers passed')
+    console.log('Desktop guest launch, stage advance, retry, sustained fighter combat, scout tail fire, crossfire, hull-shaped fighter and boss shields, phase, cloak, both elite tiers and crowded fighter recovery passed')
   } catch (error) {
     const visible = await desktop.locator('body').innerText({ timeout: 4000 }).catch(() => '')
     throw new Error(`Raid did not complete its opening check. Visible state: ${visible.slice(0, 1000)}`, { cause: error })

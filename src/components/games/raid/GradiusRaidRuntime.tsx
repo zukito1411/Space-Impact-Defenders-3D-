@@ -34,7 +34,7 @@ import { createRaidMainShotEmitter } from './playerMuzzle'
 import { clampRaidShipSize, getRaidPlayerHitRadius, useRaidShipSize } from './shipSize'
 import { ShipSizeControls } from '../../ui/ShipSizeControls'
 import { getRaidShipBaseVisualKey } from './shipArtwork'
-import { absorbRaidFighterShield, advanceRaidFighterDefense, advanceRaidFighterFire, advanceRaidFighterY, commitRaidFighterManeuver, FIGHTER_FIRE_FLASH, fireRaidFighter, getRaidFighter, getRaidCruiseHullHp, getRaidFighterDurability, getRaidFighterPathX, getRaidFighterPhaseShift, getRaidRamAttackLane, getRaidReserveVariant, getRaidScoutHp, getRaidStageEncounter, getRaidWingSize, getRaidWingSlot, isRaidFighterPhased, LEGACY_FIGHTER_COUNT, RAID_MINI_BOSS_HP_SCALE, RAID_STAGE_ENEMY_LIMIT } from './stageEncounters'
+import { absorbRaidFighterShield, advanceRaidFighterDefense, advanceRaidFighterFire, advanceRaidFighterY, commitRaidFighterManeuver, FIGHTER_FIRE_FLASH, fireRaidFighter, getRaidFighter, getRaidCruiseHullHp, getRaidFighterDurability, getRaidFighterPathX, getRaidFighterPhaseShift, getRaidFighterVolleyScale, getRaidRamAttackLane, getRaidReserveVariant, getRaidScoutHp, getRaidStageEncounter, getRaidWingSize, getRaidWingSlot, isRaidFighterPhased, isRaidScout, LEGACY_FIGHTER_COUNT, RAID_MINI_BOSS_HP_SCALE, RAID_STAGE_ENEMY_LIMIT } from './stageEncounters'
 import { drawBossImpact, isRaidBossShielded, recordBossImpact } from './bossDamageFx'
 import { prefersRaidReducedMotion } from './commandBossRender'
 import { drawIncomingHazard, drawRecoveryCue, findIncomingHazard, needsRepair, passesNearPilot } from './flightCues'
@@ -5844,6 +5844,9 @@ export function GradiusRaid({
     let reinforcements: Enemy[] | undefined
     let liveEnemyCount = 0
     enemyTactics.update(enemies,dt,stageRef.current,sceneryRunTokenRef.current,player.hp>0?player:remotePlayerRef.current ?? player)
+    const fighterDifficulty = raidDifficultyRef.current
+    const fighterCadence = fighterDifficulty === 'easy' ? 1.23 : fighterDifficulty === 'expert' ? .84 : fighterDifficulty === 'hard' ? .92 : 1
+    const sustainedCadence = fighterCadence * getRaidFighterVolleyScale(enemies)
     for (const enemy of enemies) {
       if (!enemy.isBoss && enemy.hp <= 0) {
         const defeatTimer = Math.max(0, (enemy.defeatTimer ?? 0) - dt)
@@ -6488,9 +6491,7 @@ export function GradiusRaid({
       const bossInPause = !commandProfile && enemy.isBoss && bossKind !== 'devil' && (bossRushAggressive ? nowSeconds % 5 > 4.25 : nowSeconds % 6 > 3)
       const biteRetracting = attackBossKind === 'snake' && chargePattern === 'cross' && beamVolleyRecovery > 0
       if (freeFiringFighter) {
-        const difficulty = raidDifficultyRef.current
-        const cadence = difficulty === 'easy' ? 1.23 : difficulty === 'expert' ? .84 : difficulty === 'hard' ? .92 : 1
-        advanceRaidFighterFire(enemy, fighterTarget, dt, cadence,
+        advanceRaidFighterFire(enemy, fighterTarget, dt, isRaidScout(enemy) ? fighterCadence : sustainedCadence,
           MULTIPLAYER_MAX_ENEMY_SHOTS - 8 - enemyShotsRef.current.length, emitCommandBossShot)
       } else if (!commandProfile && !enemy.isMiniBoss && !enemy.tacticHoldFire && nextFire <= 0 && enemy.y > 0 && chargeTimer <= 0 && !biteRetracting && !bossInPause && (bossKind !== 'final' || mirageActive)) {
         fireEnemy(enemy, getNearestLivingPlayerThisTick(enemy), now)

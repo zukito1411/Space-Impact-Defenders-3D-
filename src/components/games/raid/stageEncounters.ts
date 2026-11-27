@@ -13,11 +13,11 @@ export const RAID_FIGHTER_ASSETS = [
 
 export const RAID_FIGHTERS = [
   { color: '#7ce4eb', hull: .81, shield: 0, defense: 'scout', radius: 2.65, speed: 25, cooldown: 1.26, shots: 1, boltSpeed: 38, spread: 0, aim: .82, kind: 'needle' },
-  { color: '#f9a15d', hull: 1.02, shield: 0, defense: 'phase', radius: 3.4, speed: 23, cooldown: 1.5, shots: 2, boltSpeed: 34, spread: .20, aim: .73, kind: 'blade' },
-  { color: '#c4a4fe', hull: 1.33, shield: .27, defense: 'tank', radius: 3.9, speed: 15, cooldown: 1.68, shots: 2, boltSpeed: 30, spread: .08, aim: .24, kind: 'plasma' },
+  { color: '#f9a15d', hull: 1.02, shield: 0, defense: 'phase', radius: 3.4, speed: 23, cooldown: 1.95, shots: 2, boltSpeed: 34, spread: .20, aim: .73, kind: 'blade' },
+  { color: '#c4a4fe', hull: 1.33, shield: .27, defense: 'tank', radius: 3.9, speed: 15, cooldown: 2.35, shots: 2, boltSpeed: 30, spread: .08, aim: .24, kind: 'plasma' },
   { color: '#f8777f', hull: 1.22, shield: 0, defense: 'ram', radius: 4.15, speed: 24, cooldown: 4.0, shots: 0, boltSpeed: 0, spread: 0, aim: 0, kind: 'enemy' },
-  { color: '#85eac5', hull: .93, shield: 0, defense: 'cloak', radius: 3.45, speed: 19, cooldown: 1.82, shots: 2, boltSpeed: 29, spread: .29, aim: .68, kind: 'orbShot' },
-  { color: '#f9d486', hull: 1.12, shield: .16, defense: 'battery', radius: 3.8, speed: 16, cooldown: 2.05, shots: 3, boltSpeed: 27, spread: .27, aim: .58, kind: 'scatterBoss' },
+  { color: '#85eac5', hull: .93, shield: 0, defense: 'cloak', radius: 3.45, speed: 19, cooldown: 2.45, shots: 2, boltSpeed: 29, spread: .29, aim: .68, kind: 'orbShot' },
+  { color: '#f9d486', hull: 1.12, shield: .16, defense: 'battery', radius: 3.8, speed: 16, cooldown: 2.95, shots: 3, boltSpeed: 27, spread: .27, aim: .58, kind: 'scatterBoss' },
 ] as const
 
 type Layout = 'chevron' | 'line' | 'echelon' | 'split' | 'escort' | 'weave'
@@ -81,7 +81,7 @@ export function getRaidFighterDurability(variant: number, base: number, difficul
     shield: Math.ceil(scaledHull * (fighter?.shield ?? 0)) }
 }
 
-const LEGACY_GUN = { cooldown: 1.65, shots: 1, boltSpeed: 29, spread: 0, aim: 1, kind: 'enemy' } as const
+const LEGACY_GUN = { cooldown: 2.1, shots: 1, boltSpeed: 29, spread: 0, aim: 1, kind: 'enemy' } as const
 const FIGHTER_GAPS = [53, 50, 56, 51, 54, 59] as const
 const RAM_WARNING = .68
 const RAM_LUNGE_END = 1.56
@@ -222,6 +222,17 @@ export function isRaidScout(enemy: Enemy) {
 
 function isRaidFighterOnscreen(enemy: Enemy) {
   return enemy.y >= 2 && enemy.y <= WORLD_DEPTH
+}
+
+/** Overlapping wings share the field; sustained gunfire slows as more ships arrive. */
+export function getRaidFighterVolleyScale(enemies: readonly Enemy[]) {
+  let gunners = 0
+  for (const enemy of enemies) {
+    if (enemy.hp <= 0 || enemy.isBoss || enemy.isMiniBoss || enemy.cruiseManeuver === 'crossfire'
+      || !isRaidFighterOnscreen(enemy) || isRaidScout(enemy) || getRaidFighter(enemy.variant)?.shots === 0) continue
+    gunners++
+  }
+  return 1 + Math.min(.48, Math.max(0, gunners - 4) * .08)
 }
 
 function canRaidFighterFire(enemy: Enemy, target: Vec) {
