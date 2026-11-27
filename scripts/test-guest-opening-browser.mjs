@@ -144,10 +144,11 @@ async function takeSimulationControl(page) {
     const draw = callbacks.find(fn => fn.toString().includes('RAID_FX_CANVAS_CONTEXT_SETTINGS'))
     const sync = callbacks.find(fn => fn.toString().includes('const bossAlertBucket'))
     const spawnEnemy = callbacks.find(fn => fn.toString().includes('const fighterRadius'))
+    const pollController = callbacks.find(fn => fn.toString().includes('controllerInputRef.current.poll'))
     const spawnBoss = callbacks.find(fn => fn.toString().includes('const multiplayerBossMultiplier'))
-    if (!update || !draw || !sync || !spawnEnemy || !spawnBoss || refsByName.phaseRef.current !== 'playing') throw Error('Invalid opening fixture mapping')
+    if (!update || !draw || !sync || !spawnEnemy || !spawnBoss || !pollController || refsByName.phaseRef.current !== 'playing') throw Error('Invalid opening fixture mapping')
     window.openingManualFrames = true
-    window.openingTest = { refs: refsByName, update, draw, sync, spawnEnemy, spawnBoss }
+    window.openingTest = { refs: refsByName, update, draw, sync, spawnEnemy, spawnBoss, pollController }
   }, raidRefs)
 }
 
@@ -204,7 +205,8 @@ async function main() {
     args: ['--no-sandbox', '--enable-unsafe-swiftshader', '--use-angle=swiftshader'] })
 
   const mobileChecks = [testCoopMenu, testCallsign, testNativeDownload]
-  const checks = process.argv.includes('--raid-only') ? [testRaid]
+  const checks = process.argv.includes('--controller-only') ? [testController]
+    : process.argv.includes('--raid-only') ? [testRaid]
     : process.argv.includes('--android-startup-only') ? [testNativeDownload]
     : process.argv.includes('--menu-only') ? mobileChecks : [testRaid, ...mobileChecks]
   const failures = []
@@ -212,6 +214,132 @@ async function main() {
     try { await check() } catch (error) { failures.push(error) }
   }
   if (failures.length) throw new AggregateError(failures, 'Guest launch or deployment verification failed')
+}
+
+async function testController() {
+  const page = await browser.newPage({ viewport: { width: 844, height: 470 }, reducedMotion: 'reduce' })
+  const errors = []
+  page.on('pageerror', error => errors.push(error.message))
+  try {
+    await setUp(page, true, [])
+    await page.addInitScript(() => {
+      window.makePad = (index, x = 0, y = 0, pressed = []) => ({
+        index, connected: true, mapping: 'standard', axes: [x, y],
+        buttons: Array.from({ length: 16 }, (_, button) => ({ pressed: pressed.includes(button), value: Number(pressed.includes(button)) })),
+      })
+      window.testPads = [window.makePad(0)]
+      navigator.getGamepads = () => window.testPads
+    })
+    const press = async button => {
+      await page.locator('.space-door--idle').waitFor({ state: 'attached' })
+      await page.evaluate(async button => {
+        for (const buttons of [[button], []]) {
+          window.testPads[0] = window.makePad(0, 0, 0, buttons)
+          for (let i = 0; i < 3; i++) await new Promise(resolve => requestAnimationFrame(resolve))
+        }
+      }, button)
+    }
+    await title(page)
+    await page.bringToFront()
+    await page.waitForFunction(() => document.activeElement?.matches('button') && document.activeElement?.textContent?.includes('Single Player'))
+    await press(13)
+    await page.waitForFunction(() => document.activeElement?.matches('button') && document.activeElement?.textContent?.includes('Co-op'))
+    assert.ok(await page.locator('[data-controller-focus]:focus').count(), 'D-pad focus is visible')
+    await press(0)
+    const coop = page.getByRole('navigation', { name: 'Co-op' })
+    await coop.getByRole('button', { name: /Same Wi-Fi/ }).waitFor()
+    await press(1)
+    await page.getByRole('button', { name: 'Single Player', exact: true }).waitFor()
+    await page.waitForFunction(() => document.activeElement?.matches('button') && document.activeElement?.textContent?.includes('Single Player'))
+    await press(0)
+    await page.getByRole('navigation', { name: 'Single Player' }).getByRole('button', { name: /Story Mode/ }).click()
+    await page.getByRole('button', { name: 'Skip To Launch' }).click()
+    const launch = page.getByRole('button', { name: 'Start Raid', exact: true })
+    await launch.waitFor({ timeout: 120000 })
+    await page.locator('.raid__asset-loading').waitFor({ state: 'hidden', timeout: 120000 })
+    await page.getByRole('button', { name: 'Flight Setup' }).click()
+    const setup = page.getByRole('dialog', { name: 'Flight Setup' })
+    await setup.waitFor()
+    await press(1)
+    await setup.waitFor({ state: 'hidden' })
+    // Let the primary launch action take focus naturally when no menu control is selected.
+    await page.evaluate(() => document.activeElement?.blur())
+    await press(0)
+    const skip = page.locator('.raid__carrier-skip')
+    await skip.waitFor({ timeout: 120000 })
+    await page.evaluate(() => { window.openingManualFrames = true })
+    await skip.click()
+    await page.getByText('Flight deck clear. You have the launch lane.').waitFor({ timeout: 120000 })
+    await takeSimulationControl(page)
+    await page.evaluate(() => {
+      const { refs, update, pollController } = window.openingTest
+      const { makePad } = window
+      const setPads = (...pads) => {
+        window.testPads = pads
+        pollController(performance.now())
+      }
+      for (let frame = 0; frame < 650 && refs.stageEntryRef.current > 0; frame++) update(1 / 60)
+      const pilot = refs.playerRef.current
+      pilot.x = 50
+      pilot.y = 50
+      const originalLandscape = refs.landscapeRef.current
+      for (const landscape of [false, true]) {
+        refs.landscapeRef.current = landscape
+        const x = pilot.x
+        const y = pilot.y
+        setPads(makePad(0, .06, -.05))
+        if (refs.pointerTargetRef.current) throw Error('Stick drift creates a movement target')
+        setPads(makePad(0, .85, 0))
+        update(1 / 60)
+        if (landscape ? pilot.y >= y : pilot.x <= x) throw Error('Stick direction changed with flight orientation')
+        const touchTarget = { x: 60, y: 60 }
+        refs.pointerTargetRef.current = touchTarget
+        setPads(makePad(0))
+        if (refs.pointerTargetRef.current !== touchTarget) throw Error('Neutral stick cleared touch input')
+        refs.pointerTargetRef.current = null
+      }
+      refs.landscapeRef.current = false
+      const guest = { ...pilot, x: 25, y: 40 }
+      refs.remotePlayerRef.current = guest
+      refs.sameScreenCoopRef.current = true
+      setPads(makePad(0, 0, 0, [15]), makePad(1, 0, 0, [14]))
+      if (refs.pointerTargetRef.current?.x <= pilot.x || refs.remotePointerTargetRef.current?.x >= guest.x
+        || !refs.pointerTargetRef.current || !refs.remotePointerTargetRef.current) throw Error('Shared Screen pilots are not independent')
+      setPads(makePad(1, 0, 0, [14]))
+      if (refs.pointerTargetRef.current || !refs.remotePointerTargetRef.current) throw Error('Disconnect changed the remaining pilot assignment')
+      setPads(makePad(1))
+      if (refs.remotePointerTargetRef.current) throw Error('Releasing the second controller did not stop movement')
+
+      refs.sameScreenCoopRef.current = false
+      refs.multiplayerSessionRef.current = { isHost: false }
+      setPads(makePad(0))
+      setPads(makePad(0, 1, 0))
+      if (refs.pointerTargetRef.current?.x <= guest.x || refs.pointerTargetRef.current?.x >= pilot.x
+        || !refs.pointerTargetRef.current) throw Error('Online controller steers around the host ship')
+      const requests = refs.multiplayerLocalNukeRef.current
+      setPads(makePad(0, 0, 0, [5]))
+      setPads(makePad(0, 0, 0, [5]))
+      if (refs.multiplayerLocalNukeRef.current !== requests + 1) throw Error('Held special should trigger exactly once')
+      refs.multiplayerSessionRef.current = null
+      refs.remotePlayerRef.current = null
+      refs.landscapeRef.current = originalLandscape
+      setPads(makePad(0))
+      setPads(makePad(0, 0, 0, [9]))
+    })
+    const pause = page.getByRole('dialog', { name: 'Paused' })
+    await pause.waitFor()
+    assert.ok(await pause.getByText('RB / R1', { exact: true }).isVisible())
+    await page.locator('.space-door--idle').waitFor({ state: 'attached' })
+    await page.evaluate(() => {
+      for (const buttons of [[], [9]]) {
+        window.testPads[0] = window.makePad(0, 0, 0, buttons)
+        window.openingTest.pollController(performance.now())
+      }
+    })
+    await pause.waitFor({ state: 'hidden' })
+    assert.deepEqual(errors, [])
+    console.log('Controller navigation, launch, special, pause, both flight orientations, Shared Screen assignment and guest steering passed')
+  } finally { await page.close() }
 }
 
 async function testRaid() {
@@ -767,14 +895,17 @@ async function testNativeDownload() {
     await setUp(phone, true, [], false)
     await phone.addInitScript(() => {
       window.androidBridge = {}
-      const fixture = { progress: null, finish: null, fail: null, started: 0, failStatus: true }
+      const fixture = { progress: null, finish: null, fail: null, started: 0, failStatus: true, controllers: null }
       window.testGameAssets = fixture
       window.Capacitor = {
         PluginHeaders: [{ name: 'GameAssets', methods: [
           { name: 'status', rtype: 'promise' }, { name: 'prepare', rtype: 'promise' },
           { name: 'addListener', rtype: 'callback' }, { name: 'removeListener', rtype: 'promise' },
+        ] }, { name: 'GameControllers', methods: [
+          { name: 'getState', rtype: 'promise' }, { name: 'addListener', rtype: 'callback' },
         ] }],
         async nativePromise(plugin, method) {
+          if (plugin === 'GameControllers' && method === 'getState') return { controllers: [{ id: 'android:7', x: 0, y: 0, buttons: 0 }] }
           if (plugin !== 'GameAssets') throw Error(plugin)
           if (method === 'status') {
             if (fixture.failStatus && !sessionStorage.getItem('fixture-status-checked')) {
@@ -794,6 +925,10 @@ async function testNativeDownload() {
           })
         },
         async nativeCallback(plugin, method, { eventName }, callback) {
+          if (plugin === 'GameControllers' && method === 'addListener' && eventName === 'controllerState') {
+            fixture.controllers = callback
+            return 'controllers-listener'
+          }
           if (plugin !== 'GameAssets' || method !== 'addListener' || eventName !== 'progress') throw Error(method)
           fixture.progress = callback
           return 'listener-1'
@@ -827,7 +962,16 @@ async function testNativeDownload() {
     await splash.waitFor({ state: 'detached', timeout: 30000 })
     assert.equal(await phone.evaluate(() => window.testGameAssets.started), 0, 'Already-ready installs must skip the download')
     assert.ok(await phone.getByText('Guest pilot', { exact: true }).isVisible())
-    console.log('Android startup blocked both modes until installation, handled status and download retries, then skipped the prompt on relaunch')
+    await phone.waitForFunction(() => !!window.testGameAssets.controllers)
+    await phone.waitForFunction(() => document.activeElement?.matches('button') && document.activeElement?.textContent?.includes('Single Player'))
+    await phone.evaluate(async () => {
+      for (const buttons of [0, 1 << 13, 0, 1, 0]) {
+        window.testGameAssets.controllers({ controllers: [{ id: 'android:7', x: 0, y: 0, buttons }] })
+        for (let i = 0; i < 3; i++) await new Promise(resolve => requestAnimationFrame(resolve))
+      }
+    })
+    await phone.getByRole('navigation', { name: 'Co-op' }).getByRole('button', { name: /Same Wi-Fi/ }).waitFor()
+    console.log('Android startup download and retry flow, relaunch and native controller events passed')
   } finally { await phone.close() }
 }
 

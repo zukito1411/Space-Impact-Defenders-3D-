@@ -88,9 +88,9 @@ Built with:
 
 ## Controls
 
-- **Mouse**: Click to place towers and interact with UI
-- **Settings Modal**: Configure audio mix (master/BGM/explosions/beams/UI), SFX toggle, and mobile layout mode
-- **Auto-Play**: Automatically start next wave (optional)
+- **Keyboard** — Arrow keys or WASD to fly, Space for your special, and Esc to pause. In Shared Screen, Pilot 1 uses WASD and Space. Pilot 2 uses the arrow keys and Shift.
+- **Touch or mouse** — Drag or point to steer. Use the HUD buttons for your special and pause.
+- **Controller** — Use the left stick or D-pad to fly and navigate menus, A / Cross to confirm, B / Circle to go back, Menu / Options to pause or resume, and RB / R1 or RT / R2 for your special. Shared Screen supports two controllers, one per pilot.
 
 ## License
 

@@ -5,6 +5,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.Display;
+import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
@@ -14,15 +16,18 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.BridgeWebViewClient;
+import com.getcapacitor.PluginHandle;
 
 public class MainActivity extends BridgeActivity {
     GameAssetStore gameAssets;
+    private GameControllersPlugin gameControllers;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         registerPlugin(LanRelayPlugin.class);
         registerPlugin(FlightViewPlugin.class);
         registerPlugin(GameAssetsPlugin.class);
+        registerPlugin(GameControllersPlugin.class);
         gameAssets = new GameAssetStore(this);
         super.onCreate(savedInstanceState);
         Uri local = Uri.parse(bridge.getLocalUrl());
@@ -51,6 +56,29 @@ public class MainActivity extends BridgeActivity {
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus) enterImmersiveMode();
+        else if (gameControllers != null) gameControllers.resetInput();
+    }
+
+    private GameControllersPlugin controllerPlugin() {
+        if (gameControllers == null && bridge != null) {
+            PluginHandle handle = bridge.getPlugin("GameControllers");
+            if (handle != null && handle.getInstance() instanceof GameControllersPlugin) {
+                gameControllers = (GameControllersPlugin) handle.getInstance();
+            }
+        }
+        return gameControllers;
+    }
+
+    @Override
+    public boolean dispatchGenericMotionEvent(MotionEvent event) {
+        GameControllersPlugin controllers = controllerPlugin();
+        return (controllers != null && controllers.readMotion(event)) || super.dispatchGenericMotionEvent(event);
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        GameControllersPlugin controllers = controllerPlugin();
+        return (controllers != null && controllers.readKey(event)) || super.dispatchKeyEvent(event);
     }
 
     @Override

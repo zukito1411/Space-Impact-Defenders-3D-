@@ -103,10 +103,10 @@ export function RaidCarrierBriefing({ language, mode, stage, recoveryBoss, first
         <p className="raid__briefing-copy" aria-label={body}><span aria-hidden="true">{visible}<i className="raid__carrier-cursor" /></span></p>
       </div>
       <div className="raid__carrier-actions">
-        {onBack && <button className="raid__carrier-back" onClick={onBack} type="button">{mission.back}</button>}
+        {onBack && <button className="raid__carrier-back" data-dialog-dismiss onClick={onBack} type="button">{mission.back}</button>}
         {canLaunch && <button className="raid__carrier-skip" onClick={launch} type="button">{debrief ? story.skip : mission.skip}</button>}
         {(canLaunch || beat < beats.length - 1 || elapsed < revealSeconds) ?
-          <button className="raid__carrier-advance" onClick={advance} type="button">{beat < beats.length - 1 || !canLaunch ? mission.next : debrief ? story.finish : mission.launch}<span aria-hidden="true">›</span></button>
+          <button className="raid__carrier-advance" data-menu-default onClick={advance} type="button">{beat < beats.length - 1 || !canLaunch ? mission.next : debrief ? story.finish : mission.launch}<span aria-hidden="true">›</span></button>
           : <span className="raid__carrier-wait">{mission.standby}</span>}
       </div>
     </div>

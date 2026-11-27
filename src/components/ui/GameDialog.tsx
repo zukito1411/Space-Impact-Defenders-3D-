@@ -45,7 +45,7 @@ export function GameDialog({ onDismiss, children, onKeyDown, ...props }: GameDia
   }, [])
 
   return (
-    <div {...props} ref={rootRef} role="dialog" aria-modal="true" tabIndex={-1} onKeyDown={(event) => {
+    <div {...props} ref={rootRef} role="dialog" aria-modal="true" data-game-dialog tabIndex={-1} onKeyDown={(event) => {
       event.stopPropagation()
       const target = event.target
       if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement || target instanceof HTMLTextAreaElement) && ['ArrowDown', 'ArrowUp', 'ArrowRight', 'ArrowLeft'].includes(event.key)) {

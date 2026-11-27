@@ -494,7 +494,7 @@ export function RaidMultiplayerLobby({ playerName, language, connectionMode, onB
       <div className="mode-screen__stars" />
       <div className="mode-screen__panel raid-lobby coop-lobby">
         <header className="coop-lobby__header">
-          <GameButton tone="quiet" onClick={onBack}>{text.back}</GameButton>
+          <GameButton tone="quiet" data-controller-back onClick={onBack}>{text.back}</GameButton>
           <div className="coop-lobby__intro">
             <span className="mode-screen__eyebrow">{isLocalMode ? text.localEyebrow : text.eyebrow}</span>
             <h1>{isLocalMode ? text.localCoopTitle : text.onlineCoopTitle}</h1>

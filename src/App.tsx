@@ -2,13 +2,15 @@ import { getRaidSideShipNozzles, getRaidSideShipSpriteUrl } from './components/g
 import { getRaidBankingNozzles, raidBankingPreviewNozzle } from './components/games/raid/bankingArt'
 import { getRaidExhaustScale, getRaidShipNozzles } from './components/games/raid/shipArtwork'
 import { getDefaultPlayerVisualShipKey, getRaidGundamName } from './components/games/raid/state'
-import { useDoorState } from './components/ui/SpaceDoor'
+import { useDoorState, useSpaceDoor } from './components/ui/SpaceDoor'
 import { startStudioSplash } from './startupSplash'
 import { getCommandText } from './commandText'
 import './App.css'
 import { GameButton, GameMenuAction } from './components/ui/GameButton'
 import { GameDialog } from './components/ui/GameDialog'
 import { GameMenuHints } from './components/ui/GameMenuHints'
+import { ControllerButton, RaidControllerInput } from './controllers'
+import { ControllerMenuNavigation, confirmControllerControl, dismissControllerDialog, foregroundDialog, getMenuControls } from './components/ui/controllerMenu'
 import { HomeSettingsDialog } from './components/HomeSettingsDialog'
 import { restoreDisplayOrientation } from './components/games/raid/flightView'
 import { LeaderboardsScreen } from './components/LeaderboardsScreen'
@@ -157,9 +159,9 @@ function App() {
   const [playingCodexStory, setPlayingCodexStory] = useState(false)
   const [codexEndingIndex, setCodexEndingIndex] = useState(0)
   const [codexEndingFading, setCodexEndingFading] = useState(false)
-  const menuGamepadButtonsRef = useRef(new Map<number, Set<number>>())
-  const menuGamepadPrimaryRef = useRef<number | null>(null)
-  const menuGamepadNextNavRef = useRef(0)
+  const { sequence: menuDoor } = useSpaceDoor()
+  const menuControllerRef = useRef(new RaidControllerInput())
+  const menuControllerNavigationRef = useRef(new ControllerMenuNavigation())
   const raidStoryTransitionTimerRef = useRef<number | null>(null)
   const raidStoryAutoFadeTimerRef = useRef<number | null>(null)
   const raidStoryAutoSceneTimerRef = useRef<number | null>(null)
@@ -493,19 +495,10 @@ function App() {
 
   useEffect(() => {
     if (!startupReady || screen === 'game') return
-    const focusableSelector = 'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
     const isTypingTarget = (target: Element | null) => target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement
-    const getMenuScope = (): HTMLElement | Document => {
-      const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]')
-      return dialogs[dialogs.length - 1] ?? document
-    }
-    const getFocusableControls = () => Array.from(getMenuScope().querySelectorAll<HTMLElement>(focusableSelector)).filter((control) => {
-      if (control.tabIndex < 0) return false
-      const rect = control.getBoundingClientRect()
-      return rect.width > 0 && rect.height > 0 && getComputedStyle(control).visibility !== 'hidden'
-    })
+    const getMenuScope = () => foregroundDialog() ?? document
     const moveFocus = (direction: 1 | -1) => {
-      const controls = getFocusableControls()
+      const controls = getMenuControls(getMenuScope())
       if (!controls.length) return
       const active = document.activeElement instanceof HTMLElement ? document.activeElement : null
       const currentIndex = active ? controls.indexOf(active) : -1
@@ -513,31 +506,14 @@ function App() {
       controls[nextIndex]?.focus()
       controls[nextIndex]?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
     }
-    const activateFocusedControl = () => {
-      const controls = getFocusableControls()
-      const active = document.activeElement instanceof HTMLElement ? document.activeElement : null
-      if (active && controls.includes(active) && !isTypingTarget(active)) {
-        active.click()
-        return
-      }
-      const firstButton = controls.find((control) => control instanceof HTMLButtonElement)
-      firstButton?.focus()
-    }
     const activateBackControl = () => {
-      const active = document.activeElement instanceof HTMLElement ? document.activeElement : null
-      if (isTypingTarget(active)) {
-        active.blur()
+      const dialog = foregroundDialog()
+      if (dialog && dismissControllerDialog(dialog)) return
+      if (screen === 'raidEndingArchive') {
+        transitionCodexEnding('close')
         return
       }
-      const scope = getMenuScope()
-      if (scope !== document) {
-        const dismiss = scope.querySelector<HTMLElement>('[data-dialog-dismiss]')
-        if (dismiss) {
-          dismiss.click()
-          return
-        }
-      }
-      const backControl = scope.querySelector<HTMLElement>('.mode-screen__back, .leaderboards-screen__back, .progress-panel__back, .cutscene__skip, .raid__menu-button')
+      const backControl = document.querySelector<HTMLElement>('[data-controller-back], .mode-screen__back, .leaderboards-screen__back, .progress-panel__back, .cutscene__skip')
       backControl?.click()
     }
     const handleKeydown = (event: KeyboardEvent) => {
@@ -566,45 +542,14 @@ function App() {
       const firstAction = document.querySelector<HTMLElement>('[data-menu-default]:not(:disabled)')
       firstAction?.focus({ preventScroll: true })
     })
-    const getPressedButtons = (gamepad: Gamepad) => {
-      const pressed = new Set<number>()
-      gamepad.buttons.forEach((button, index) => {
-        if (button.pressed || button.value > 0.55) pressed.add(index)
-      })
-      return pressed
-    }
     let raf = 0
     const tick = (time: number) => {
-      const gamepads = typeof navigator.getGamepads === 'function'
-        ? Array.from(navigator.getGamepads()).filter((pad): pad is Gamepad => Boolean(pad?.connected))
-        : []
-      const connectedIndexes = new Set(gamepads.map((pad) => pad.index))
-      if (menuGamepadPrimaryRef.current !== null && !connectedIndexes.has(menuGamepadPrimaryRef.current)) {
-        menuGamepadPrimaryRef.current = null
-      }
-      if (menuGamepadPrimaryRef.current === null && gamepads[0]) {
-        menuGamepadPrimaryRef.current = gamepads[0].index
-      }
-      const gamepad = menuGamepadPrimaryRef.current !== null
-        ? gamepads.find((pad) => pad.index === menuGamepadPrimaryRef.current) ?? null
-        : null
-      if (gamepad) {
-        const pressed = getPressedButtons(gamepad)
-        const previous = menuGamepadButtonsRef.current.get(gamepad.index) ?? pressed
-        const justPressed = (button: number) => pressed.has(button) && !previous.has(button)
-        const axisX = gamepad.axes[0] ?? 0
-        const axisY = gamepad.axes[1] ?? 0
-        const dpadX = (pressed.has(15) ? 1 : 0) - (pressed.has(14) ? 1 : 0)
-        const dpadY = (pressed.has(13) ? 1 : 0) - (pressed.has(12) ? 1 : 0)
-        const navX = Math.abs(axisX) > 0.55 ? Math.sign(axisX) : dpadX
-        const navY = Math.abs(axisY) > 0.55 ? Math.sign(axisY) : dpadY
-        if (time >= menuGamepadNextNavRef.current && (navX !== 0 || navY !== 0)) {
-          moveFocus(navX > 0 || navY > 0 ? 1 : -1)
-          menuGamepadNextNavRef.current = time + 180
-        }
-        if (justPressed(0)) activateFocusedControl()
-        if (justPressed(1)) activateBackControl()
-        menuGamepadButtonsRef.current.set(gamepad.index, pressed)
+      const { primary } = menuControllerRef.current.poll()
+      if (primary && !menuDoor?.busy) {
+        const scope = getMenuScope()
+        menuControllerNavigationRef.current.move(primary, time, scope)
+        if (primary.pressed & ControllerButton.Back) activateBackControl()
+        else if (primary.pressed & (ControllerButton.Confirm | ControllerButton.Start)) confirmControllerControl(scope)
       }
       raf = window.requestAnimationFrame(tick)
     }
@@ -615,7 +560,7 @@ function App() {
       window.cancelAnimationFrame(focusFrame)
       window.removeEventListener('keydown', handleKeydown)
     }
-  }, [screen, startupReady])
+  }, [menuDoor, screen, startupReady])
   useEffect(() => {
     if (screen !== 'raidStory') return
     setRaidStoryFading(false)
@@ -959,7 +904,7 @@ function App() {
           </div>
 
           <div className="raid-story__hud">
-            <button className="raid-story__skip" type="button" onClick={() => transitionRaidStory('back')}>
+            <button className="raid-story__skip" type="button" data-controller-back onClick={() => transitionRaidStory('back')}>
               {text.raidStory.back}
             </button>
             <button className="raid-story__skip raid-story__skip--launch" type="button" onClick={() => transitionRaidStory('game')}>
@@ -990,6 +935,7 @@ function App() {
               <button
                 className="raid-story__next"
                 type="button"
+                data-menu-default
                 onClick={() => {
                   transitionRaidStory(isLastStoryScene ? 'game' : 'next')
                 }}
@@ -1081,7 +1027,7 @@ function App() {
                 ))}
               </div>
               <div className="raid__pause-actions raid__ending-actions">
-                <button type="button" className="raid__menu-button" onClick={() => transitionCodexEnding(isLastEndingScene ? 'close' : 'next')}>
+                <button type="button" className="raid__menu-button" data-menu-default data-dialog-dismiss={isLastEndingScene || undefined} onClick={() => transitionCodexEnding(isLastEndingScene ? 'close' : 'next')}>
                   {isLastEndingScene ? raidText.menu.close : releaseText.cutsceneArchive.next}
                 </button>
               </div>
@@ -1368,7 +1314,7 @@ function App() {
           </div>
 
           <div className="mode-screen__actions mode-screen__actions--briefing">
-            <button className="mode-screen__button" onClick={() => setScreen('raidCoopMode')}>
+            <button className="mode-screen__button" data-controller-back onClick={() => setScreen('raidCoopMode')}>
               <strong>{text.lobby.back}</strong>
             </button>
             <button className="mode-screen__button mode-screen__button--accent" disabled={!selectedGuestShip} onClick={startSameScreenCoop}>

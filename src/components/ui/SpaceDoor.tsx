@@ -21,9 +21,12 @@ export function SpaceDoorProvider({ children }: { children: ReactNode }) {
       const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]')
       const dialog = dialogs[dialogs.length - 1]
       const previous = previousFocus.current
-      const target = dialog?.querySelector<HTMLElement>('button:not(:disabled), input, select')
+      const target = dialog?.querySelector<HTMLElement>('[data-dialog-initial-focus]:not(:disabled)')
+        ?? dialog?.querySelector<HTMLElement>('[data-menu-default]:not(:disabled)')
+        ?? dialog?.querySelector<HTMLElement>('button:not(:disabled), input, select')
         ?? (previous?.isConnected && previous.getClientRects().length ? previous : null)
-        ?? document.querySelector<HTMLElement>('#root [data-menu-default], #root button:not(:disabled)')
+        ?? document.querySelector<HTMLElement>('#root [data-menu-default]:not(:disabled)')
+        ?? document.querySelector<HTMLElement>('#root button:not(:disabled)')
       target?.focus({ preventScroll: true })
     }
   }, [phase])
