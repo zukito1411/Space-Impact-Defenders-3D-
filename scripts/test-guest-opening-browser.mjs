@@ -283,10 +283,26 @@ async function testRaid() {
       sync()
     })
     assert.equal(await desktop.getByRole('dialog').count(), 0, 'Stage transition must not show a score screen')
-    await desktop.evaluate(() => {
-      const { refs, update, sync } = window.openingTest
+    await desktop.evaluate(async () => {
+      const { refs, update, draw, sync } = window.openingTest
       for (let frame = 0; frame < 650 && refs.stageEntryRef.current > 0; frame++) update(1 / 60)
       const player = refs.playerRef.current
+      const { getCruiseChallengeStartAge, getCruiseChallengeTarget } = await import('/src/components/games/raid/cruiseChallenge.ts')
+      refs.journeyStageAgeRef.current = getCruiseChallengeStartAge(2)
+      refs.spawnLockRef.current = 0
+      player.invuln = 10
+      update(1 / 60)
+      const challenge = refs.cruiseChallengeRef.current
+      if (challenge?.kind !== 'relay') throw Error('Stage 2 did not schedule its relay challenge')
+      draw(performance.now())
+      player.shield = 0
+      const before = player.score
+      for (let frame = 0; frame < 120 && !challenge.outcome; frame++) {
+        const target = getCruiseChallengeTarget(challenge)
+        Object.assign(player, { x: target.x, y: target.y })
+        update(1 / 60)
+      }
+      if (challenge.outcome !== 'complete' || player.shield < 3 || player.score <= before) throw Error('The relay gates did not award their gameplay reward')
       Object.assign(player, { hp: 1, invuln: 0, shield: 0, forceField: 0 })
       refs.enemyShotsRef.current = [{ id: -2, x: player.x, y: player.y, vx: 0, vy: 0, kind: 'enemy', damage: 3, radius: 3, life: 2 }]
       update(1 / 60)
@@ -298,9 +314,34 @@ async function testRaid() {
     await desktop.getByText('Flight deck clear. You have the launch lane.').waitFor({ timeout: 30000 })
     await takeSimulationControl(desktop)
     assert.equal(await desktop.evaluate(() => window.openingTest.refs.stageRef.current), 1)
+    await desktop.evaluate(() => {
+      const { refs, update, draw } = window.openingTest
+      refs.stageRef.current = refs.waveRef.current = 3
+      refs.stageEntryRef.current = refs.spawnLockRef.current = 0
+      refs.bossTimerRef.current = 60
+      refs.formationTimerRef.current = 0
+      refs.wingSerialRef.current = 2
+      const pilot = refs.playerRef.current
+      Object.assign(pilot, { x: 52, y: 83, invuln: 100, fireCooldown: 100 })
+      const dt = 1 / 60
+      update(dt)
+      const wing = refs.enemiesRef.current.filter(enemy => enemy.cruiseManeuver === 'crossfire')
+      if (!wing.length) throw Error('Stage 3 did not spawn its crossfire wing')
+      for (let frame = 0; frame < 150 && wing[0].chargeTimer <= 0; frame++) update(dt)
+      if (wing[0].chargeTimer <= 0 || Math.abs(wing[0].chargeLane - 52) !== 8) throw Error('Crossfire did not warn beside the pilot')
+      draw(performance.now())
+      pilot.x = 20
+      for (let frame = 0; frame < 70; frame++) update(dt)
+      const shots = refs.enemyShotsRef.current.filter(shot => shot.kind === 'needle')
+      if (shots.length !== wing.length) throw Error('Crossfire did not fire one shot per ship')
+      for (const shot of shots) {
+        const lane = shot.x + shot.vx / shot.vy * (83 - shot.y)
+        if (Math.abs(Math.abs(lane - 52) - 8) > .01) throw Error('Crossfire retargeted a dodging pilot')
+      }
+    })
     assert.deepEqual(traffic, [], 'a guest run must not call the online profile or leaderboard APIs')
     assert.deepEqual(errors, [])
-    console.log('Desktop guest launch, boss warning, automatic stage advance, end-of-run report and retry passed')
+    console.log('Desktop guest launch, boss warning, stage advance, relay gates, retry and Stage 3 crossfire passed')
   } catch (error) {
     const visible = await desktop.locator('body').innerText({ timeout: 4000 }).catch(() => '')
     throw new Error(`Raid did not complete its opening check. Visible state: ${visible.slice(0, 1000)}`, { cause: error })
@@ -313,7 +354,7 @@ async function testCoopMenu() {
   try {
     await setUp(phone, false, traffic, false)
     await title(phone)
-    assert.deepEqual(await phone.locator('.start-screen__actions button').allTextContents(), ['Single Player', 'Co-op'])
+    assert.deepEqual(await phone.locator('.start-screen__actions button').allTextContents(), ['Single Player', 'Co-op', 'Leaderboards'])
     await phone.getByRole('button', { name: 'Co-op', exact: true }).tap()
     const menu = phone.getByRole('navigation', { name: 'Co-op', exact: true })
     await menu.waitFor()
@@ -352,7 +393,6 @@ async function testCallsign() {
     await setUp(phone, false, traffic, false)
     await title(phone)
     await phone.evaluate(() => localStorage.setItem('space-impact-release-progress', JSON.stringify({ totalRuns: 2, totalScore: 650 })))
-    await phone.getByRole('button', { name: 'Single Player', exact: true }).tap()
     await phone.getByRole('button', { name: 'Leaderboards', exact: true }).tap()
     const leaderboardModes = phone.locator('.leaderboards-screen__mode')
     await leaderboardModes.first().waitFor()
@@ -367,6 +407,7 @@ async function testCallsign() {
     console.log('Optional callsign registration preserved the guest save')
 
     await phone.locator('.leaderboards-screen__back').tap()
+    await phone.getByRole('button', { name: 'Command Deck', exact: true }).tap()
     for (const [screen, selector] of [
       ['Profile', '.progress-card--scores'],
       ['Achievements', '.unlock-section'],

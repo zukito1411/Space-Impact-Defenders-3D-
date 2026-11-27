@@ -1,6 +1,7 @@
 import type { CruiseManeuver } from './cruiseEncounters'
 import type { BlackHoleCapture } from './blackHoleDistortion'
 import type { CarrierStop } from './carrierRecovery'
+import type { CruiseChallenge } from './cruiseChallenge'
 import type { CommandManeuver, CommandPattern } from './commandBoss'
 import type { CoreLanderModel } from '../../../progression'
 import type { GodGundamBarragePose } from './assets'
@@ -145,6 +146,7 @@ export type BossImpactKind = 'shield' | 'armor' | 'heavy' | 'core'
 
 export type Enemy = Vec & {
   fighterAimX?: number
+  fighterBankVx?: number
   id: number
   vx: number
   vy: number
@@ -432,6 +434,7 @@ export type MultiplayerHostState = {
   hostPointer: Vec | null
   guestPointer: Vec | null
   journeyAge?: number
+  cruiseChallenge?: CruiseChallenge
   bossApproachRemaining?: number
   stageEntry?: number
   carrierLaunch?: boolean

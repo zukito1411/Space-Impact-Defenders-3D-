@@ -75,8 +75,10 @@ import { clearNormalEnemyRasters, drawRaidEnemy, getNormalEnemyFilter, pruneNorm
 import { ALLY_PLAYER_COLOR, ASTEROID_CLUSTER_SPAWN_DELAY_SECONDS, ASTEROID_CLUSTER_WARNING_SECONDS, BOSS_COLORS, BOSS_ENTRANCE_SLAM_SECONDS, BOSS_ENTRANCE_SLOWMO_SCALE, BOSS_RESPAWN_SECONDS, BOSS_RUSH_ATTACK_COOLDOWN_SCALE, BOSS_RUSH_ENTRY_SPEED_SCALE, BOSS_RUSH_MOTION_SCALE, BOSS_RUSH_SPECIAL_RECHARGE_SCALE, BOSS_RUSH_STAGES, CORE_LANDER_AOE_RADIUS, DARK_ENEMY_COLORS, DEG, DEVIL_BOSS_MAX_STAGE_GAP, DEVIL_BOSS_MIN_STAGE_GAP, DIFFICULTY_CONFIGS, ELITE_POWER_DROP_CHANCE, EMPTY_WEAPON_FLAGS, EMPTY_WEAPON_TIMERS, FINAL_BOSS_BEAM_CHARGE_SECONDS, FINAL_BOSS_BEAM_LIFE_SECONDS, FORCE_FIELD_ARMOR, GAMEPLAY_ALERT_SNAPSHOT_INTERVAL_MS, GAMEPLAY_SNAPSHOT_INTERVAL_MS, GOD_GUNDAM_BARRAGE_DURATION_SECONDS, GOD_GUNDAM_BARRAGE_HIT_INTERVAL_SECONDS, GOD_GUNDAM_DEFEAT_HOLD_SECONDS, GOD_GUNDAM_MELEE_DAMAGE_PER_SECOND, GOD_GUNDAM_MELEE_EXHAUST_COOLDOWN_SECONDS, GOD_GUNDAM_MELEE_EXHAUST_LIMIT_SECONDS, GOD_GUNDAM_MELEE_HEAT_RECOVERY_PER_SECOND, GOD_GUNDAM_MELEE_VISUAL_DURATION_SECONDS, GOD_GUNDAM_MELEE_VISUAL_INTERVAL_SECONDS, HEIGHT, HOMING_RETARGET_SECONDS, HOMING_RETARGET_STAGGER_SECONDS, IDLE_SNAPSHOT_INTERVAL_MS, MAX_ASTEROIDS, MAX_ION_STRIKES, MAX_METEORS, MAX_RAID_STAGE, MAX_WRECKS, MESIAH_DRONE_FIRE_INTERVAL_SECONDS, MESIAH_ROCKET_FIRE_INTERVAL_SECONDS, MINI_BOSS_COLORS, MULTIPLAYER_BOSS_HP_MULTIPLIER, MULTIPLAYER_CONNECTION_CHECK_MS, MULTIPLAYER_CORRECTION_DRAIN_RATE, MULTIPLAYER_ENTITY_MARGIN, MULTIPLAYER_GUEST_SNAP_DISTANCE_SQ, MULTIPLAYER_GUEST_STALE_MS, MULTIPLAYER_HEARTBEAT_INTERVAL_MS, MULTIPLAYER_HEARTBEAT_TIMEOUT_MS, MULTIPLAYER_MAX_ASTEROIDS, MULTIPLAYER_MAX_BUFFERED_BYTES, MULTIPLAYER_MAX_ENEMIES, MULTIPLAYER_MAX_ENEMY_SHOTS, MULTIPLAYER_MAX_GUEST_CORRECTION, MULTIPLAYER_MAX_ION_STRIKES, MULTIPLAYER_MAX_METEORS, MULTIPLAYER_MAX_POWERUPS, MULTIPLAYER_MAX_RIPPLES, MULTIPLAYER_MAX_SHOTS, MULTIPLAYER_MAX_SPARKS, MULTIPLAYER_MAX_WRECKS, MULTIPLAYER_REMOTE_BUFFER_MAX, MULTIPLAYER_REMOTE_CORRECTION_BLEND, MULTIPLAYER_REMOTE_INPUT_BLEND, MULTIPLAYER_REMOTE_INPUT_SNAP_DISTANCE_SQ, MULTIPLAYER_STATE_LOST_MS, MULTIPLAYER_STATE_STALE_MS, NORMAL_POWER_DROP_COOLDOWN, NUKE_FLASH_SECONDS, NUKE_MISSILE_SECONDS, PLAYER_COLOR, PLAYER_MAX_RANK, POWER_PITY_KILLS, RAID_BACKGROUND_THEME_COUNT, RAID_CHECKPOINTS, RANDOM_EVENT_WARNING_SECONDS, SHIP_OPTIONS, SIDE_VALUES, SPACE_ET_PASSIVE_FORCE_FIELD_CHARGES, SPIEGEL_KUNAI_DAMAGE_MULTIPLIER, SPIEGEL_KUNAI_SPLASH_DAMAGE_MULTIPLIER, SPIEGEL_SHADOW_CLONE_OFFSET, STAGE_CLEAR_SECONDS, STAGE_ENTRY_SECONDS, VICTORY_BLACKOUT_SECONDS, WEAPON_FIRE_INTERVALS, WEAPON_KEYS, WEAPON_STACK_CAPS, WIDTH, getBossRushStage, getNextBossRushStage, getShipSpriteSize, pickEndlessBossKind, shouldForceLocalDerelictWreckTest, shouldForceLocalDevilBossTest } from './constants'
 import { drawBossAttackZones, drawAsteroidHazard, drawAsteroidWarning, drawDerelictWreck, drawDevilChargeWarnings, drawFinalChargeLines, drawGodGundamBarrage, drawGodGundamPassiveStrikes, drawMeteorHazard, drawNukeBlast, drawNukeMissile, drawNukeTarget, drawHomingTargetLock, drawPowerUpCanvas, drawRandomEventWarning, getHomingMissileSprite, getNukeMissilePoint, godBarrageDamageTargetsScratch } from './effectsRender'
 import { BLACK_HOLE_CAPTURE_SECONDS, beginCanvasGravityWarp, endCanvasGravityWarp, gravityWarp, recordBlackHoleCapture, resetCanvasGravityWarp, sampleBlackHoleCapture, type GravityField } from './blackHoleDistortion'
-import { beginCruiseEliteAttack, CRUISE_BOSS_APPROACH_SECONDS, cruiseEliteShouldWithdraw, fireCruiseEliteAttack, getCruiseEncounter, getCruiseOpeningLayout, getCruiseWingSize, placeCruiseWing } from './cruiseEncounters'
-import { drawCruiseEliteWarnings } from './cruiseEncounterRender'
+import { beginCruiseEliteAttack, CRUISE_BOSS_APPROACH_SECONDS, cruiseEliteShouldWithdraw, fireCruiseCrossfire, fireCruiseEliteAttack, getCampaignCruiseSeconds, getCruiseEncounter, getCruiseOpeningLayout, getCruiseWingSize, placeCruiseWing } from './cruiseEncounters'
+import { advanceCruiseChallenge, CHALLENGE_NOTICE_SECONDS, createCruiseChallenge, getCruiseChallengeStartAge, RELAY_GATE_SECONDS, type CruiseChallenge } from './cruiseChallenge'
+import { drawCruiseChallengeStatus, drawCruiseChallengeTarget } from './cruiseChallengeRender'
+import { drawCruiseAttackWarnings } from './cruiseEncounterRender'
 import { drawBlackHole, drawIonStrike, drawIonStorm, drawSolarFlare } from './eventRender'
 import {
   advanceRaidEventShot, createAsteroidHazard, crossesEventHorizon, getAsteroidClusterInterval, getAsteroidHp,
@@ -351,6 +353,9 @@ export function GradiusRaid({
   const raidModeRef = useRef<RaidMode>(initialRaidMode)
   const stageRef = useRef(1)
   const journeyStageAgeRef = useRef(0)
+  const cruiseChallengeRef = useRef<CruiseChallenge | null>(null)
+  const challengeLanguageRef = useRef(language)
+  challengeLanguageRef.current = language
   const waveRef = useRef(1)
   const spawnTimerRef = useRef(0.5)
   const formationTimerRef = useRef(1.8)
@@ -679,6 +684,7 @@ export function GradiusRaid({
     guestPointer: cloneVec(remotePointerVisualRef.current),
     stageClear: stageClearRef.current,
     journeyAge: journeyStageAgeRef.current,
+    cruiseChallenge: cruiseChallengeRef.current ? { ...cruiseChallengeRef.current } : undefined,
     bossApproachRemaining: bossTimerRef.current,
     stageEntry: stageEntryRef.current,
     carrierLaunch: initialLaunchRef.current,
@@ -882,6 +888,9 @@ export function GradiusRaid({
       journeyStageAgeRef.current = 0
       resetGuestPredictionState()
     }
+    const challenge = state.cruiseChallenge
+    cruiseChallengeRef.current = challenge?.stage === state.stageTheme && (challenge.kind === 'relay' || challenge.kind === 'salvage')
+      ? { ...challenge } : null
     if (Number.isFinite(state.journeyAge)) journeyStageAgeRef.current = Math.max(0, state.journeyAge!)
     bossTimerRef.current = Number.isFinite(state.bossApproachRemaining) ? Math.max(0, state.bossApproachRemaining!) : Infinity
     if (Number.isFinite(state.stageEntry)) stageEntryRef.current = Math.max(0, state.stageEntry!)
@@ -1122,6 +1131,13 @@ export function GradiusRaid({
       return
     }
     journeyStageAgeRef.current += dt
+    const challenge = cruiseChallengeRef.current
+    if (challenge) {
+      challenge.age += dt
+      if (!challenge.outcome && challenge.kind === 'relay') {
+        challenge.gateAge = Math.min(RELAY_GATE_SECONDS, challenge.gateAge + Math.min(dt, Math.max(0, challenge.age - CHALLENGE_NOTICE_SECONDS)))
+      }
+    }
     stageEntryRef.current = Math.max(0, stageEntryRef.current - dt)
     if (stageEntryRef.current <= 0) initialLaunchRef.current = false
 
@@ -1805,6 +1821,8 @@ export function GradiusRaid({
     const ionEvent = events.find(event => event.kind === 'ion')
     const solarEvent = events.find(event => event.kind === 'solar')
     const reducedMotion = prefersRaidReducedMotion()
+    const challenge = cruiseChallengeRef.current
+    const showChallenge = challenge?.stage === stageRef.current && (playing || phaseRef.current === 'paused') && stageClearRef.current <= 0
     const gravityField: GravityField | null = event && event.warning <= 0
       ? { hole: getBlackHole(event), scaleX: cssWidth / WIDTH, scaleY: cssHeight / HEIGHT, reducedMotion, age: event.age, captures: event.captures } : null
     const startWarp = (body: Vec) => {
@@ -2914,7 +2932,8 @@ export function GradiusRaid({
     drawFinalChargeLines(ctx, enemiesRef.current, toX, cssWidth, cssHeight, time)
     drawDevilChargeWarnings(ctx, enemiesRef.current, toX, toY, cssWidth, cssHeight, time)
     drawBossAttackZones(ctx,enemiesRef.current,cssWidth,cssHeight)
-    drawCruiseEliteWarnings(ctx, enemiesRef.current, toX, toY, cssHeight, reducedMotion)
+    if (showChallenge) drawCruiseChallengeTarget(ctx, challenge, toX, toY, reducedMotion)
+    drawCruiseAttackWarnings(ctx, enemiesRef.current, toX, toY, cssHeight, reducedMotion)
 
     for (const meteor of meteorsRef.current) {
       if (!raidObjectInView(drawBounds, meteor.x, meteor.y, meteor.radius + 9)) continue
@@ -3046,6 +3065,7 @@ export function GradiusRaid({
       if (hazard.warning <= 0) continue
       alertY += drawRandomEventWarning(ctx, alertWidth, hazard, time, alertY) + 8
     }
+    if (showChallenge) drawCruiseChallengeStatus(ctx, challenge, alertWidth, Math.min(alertY, alertHeight - 88), challengeLanguageRef.current)
     if (landscapeAlerts) ctx.restore()
 
     // Victory blackout: black full-screen fade-out after the fly-forward, before/during cutscene
@@ -3470,7 +3490,9 @@ export function GradiusRaid({
         reserveSerialRef.current = 0
       }
       stageEntryRef.current = underway ? MESIAH_ENTRY_SECONDS : CARRIER_LAUNCH_SECONDS
-      if (stageChanged && stop.boss !== 'devil') bossTimerRef.current = BOSS_RESPAWN_SECONDS
+      if (stageChanged && stop.boss !== 'devil') {
+        bossTimerRef.current = (raidModeRef.current === 'campaign' ? getCampaignCruiseSeconds(stop.targetStage) : undefined) ?? BOSS_RESPAWN_SECONDS
+      }
       phaseRef.current = 'playing'
       initialLaunchRef.current = true
       syncSnapshot()
@@ -3563,7 +3585,8 @@ export function GradiusRaid({
     wingSerialRef.current = 0
     reserveSerialRef.current = 0
     // The flyby and Astrophage use the same flight clock and end when a boss appears.
-    bossTimerRef.current = forceLocalDevilTest ? 3.2 : isBossRush ? 2.4 : guidedOpening ? STAGE_ONE_CRUISE_SEQUENCE_END : BOSS_RESPAWN_SECONDS
+    const campaignCruise = mode === 'campaign' ? getCampaignCruiseSeconds(stage) : undefined
+    bossTimerRef.current = forceLocalDevilTest ? 3.2 : isBossRush ? 2.4 : guidedOpening ? STAGE_ONE_CRUISE_SEQUENCE_END : campaignCruise ?? BOSS_RESPAWN_SECONDS
     spawnLockRef.current = 0
     powerDropCooldownRef.current = 0
     killsSincePowerRef.current = 0
@@ -3594,6 +3617,7 @@ export function GradiusRaid({
     asteroidSpawnDelayRef.current = 0
     asteroidWarningRef.current = 0
     randomEventsRef.current.length = 0
+    cruiseChallengeRef.current = null
     localDerelictWreckTestTriggeredRef.current = false
     randomEventTimerRef.current = isBossRush || guidedOpening ? 999 : shouldForceLocalDerelictWreckTest(stage, mode) ? 0.2 : 20 + Math.random() * 18
     lastRandomEventKindRef.current = null
@@ -4417,9 +4441,15 @@ export function GradiusRaid({
     const count = getRaidWingSize(stage, serial, liveEnemies)
     if (!count) return
     wingSerialRef.current += 1
+    const openingSweep = stage === 1 && serial % 3 === 1
+    const flank = Math.floor(serial / 3) % 2 === 0 ? 1 : -1
     for (let i = 0; i < count; i += 1) {
       const slot = getRaidWingSlot(stage, serial, i)
-      spawnEnemyAt(slot.x, slot.y, waveRef.current, 0, i, {...slot,squadId:stage*4096+serial}, null)
+      const { x, y } = openingSweep ? placeCruiseWing('sweep', i, count, flank) : slot
+      spawnEnemyAt(x, y, waveRef.current, 0, i, {
+        ...slot, squadId: stage * 4096 + serial,
+        ...(openingSweep && { cruiseManeuver: 'sweep', cruiseFlank: flank }),
+      }, null)
     }
   }, [spawnEnemyAt])
 
@@ -4453,11 +4483,11 @@ export function GradiusRaid({
     const squadId = stage * 4096 + serial
     if (elite) spawnEnemyAt(50 + mirror * 12, -4, waveRef.current, 0, 0,
       { squadId, variant: 0, cruiseElite: true }, elite)
-    const count = getCruiseWingSize(stage, serial, liveEnemies, Boolean(elite))
+    const count = getCruiseWingSize(stage, serial, liveEnemies, maneuver)
     for (let slot = 0; slot < count; slot++) {
       const wing = getRaidWingSlot(stage, serial, slot)
       const position = placeCruiseWing(maneuver, slot, count, mirror)
-      const flank = maneuver === 'dive' || slot % 2 === 0 ? mirror : -mirror
+      const flank = maneuver === 'dive' || maneuver === 'sweep' || slot % 2 === 0 ? mirror : -mirror
       spawnEnemyAt(position.x, position.y, waveRef.current, 0, slot, {
         ...wing, squadId, cruiseManeuver: maneuver, cruiseFlank: flank,
         speed: elite ? wing.speed * .86 : wing.speed,
@@ -4943,7 +4973,9 @@ export function GradiusRaid({
     }
 
     if (getRaidFighter(enemy.variant)) {
-      fireRaidFighter(enemy, player, MULTIPLAYER_MAX_ENEMY_SHOTS - 8 - enemyShotsRef.current.length, emitCommandBossShot)
+      const available = MULTIPLAYER_MAX_ENEMY_SHOTS - 8 - enemyShotsRef.current.length
+      if (enemy.cruiseManeuver === 'crossfire') fireCruiseCrossfire(enemy, available, emitCommandBossShot)
+      else fireRaidFighter(enemy, player, available, emitCommandBossShot)
       return
     }
 
@@ -4992,6 +5024,7 @@ export function GradiusRaid({
     asteroidApproachRef.current.length = 0
     asteroidSpawnDelayRef.current = 0
     randomEventsRef.current.length = 0
+    cruiseChallengeRef.current = null
     pointerTargetRef.current = null
     pointerVisualRef.current = null
     remotePointerTargetRef.current = null
@@ -5065,6 +5098,7 @@ export function GradiusRaid({
       asteroidApproachRef.current.length = 0
       asteroidSpawnDelayRef.current = 0
       randomEventsRef.current.length = 0
+      cruiseChallengeRef.current = null
       const nextStage = pendingNextStageRef.current
       const returningAfterVictory = victoryPendingRef.current && raidModeRef.current === 'campaign'
       const recovering = nextStage !== null && shouldRecoverAfterStage(raidModeRef.current, stageRef.current, nextStage)
@@ -5428,6 +5462,7 @@ export function GradiusRaid({
         return
       }
       queuedBossRef.current = null
+      cruiseChallengeRef.current = null
       spawnBoss(boss)
       bossActive = true
       bossTimerRef.current = 0
@@ -6442,11 +6477,13 @@ export function GradiusRaid({
         if (bossKind === 'devil') devilNormalAttackTimer = Math.max(devilNormalAttackTimer, enemy.devilNormalAttackTimer ?? 0)
       }
 
+      const enemyBeforeMoveX = enemy.x
       enemy.x = commandProfile && enemy.bossEncounterAge !== undefined ? enemy.x : enemy.isBoss
         ? clamp(bossX, bossKind === 'devil' ? 50 : bossKind === 'final' ? 14 : bossKind === 'snake' ? 15 : bossKind === 'super' ? 20 : 16, bossKind === 'devil' ? 50 : bossKind === 'final' ? 86 : bossKind === 'snake' ? 85 : bossKind === 'super' ? 80 : 84)
         : enemy.isMiniBoss
           ? clamp(enemy.x + (cruiseAttackX - enemy.x) * Math.min(1, dt * 3.6) + enemy.vx * dt * 0.24, 10, 90)
           : clamp(enemy.x + ((enemy.tacticX ?? trainX) - enemy.x) * Math.min(1, dt * 5.8) + enemy.vx * dt, 4, 96)
+      if (fighter && enemy.cruiseManeuver === 'sweep' && dt > 0) enemy.fighterBankVx = (enemy.x - enemyBeforeMoveX) / dt
       enemy.y = commandProfile && enemy.bossEncounterAge !== undefined ? enemy.y : enemy.isBoss
         ? (enemy.y < bossYTarget ? Math.min(bossYTarget, enemy.y + enemy.vy * dt) : bossYTarget)
         : enemy.isMiniBoss
@@ -7413,6 +7450,7 @@ export function GradiusRaid({
         asteroidApproachRef.current.length = 0
         asteroidSpawnDelayRef.current = 0
         randomEventsRef.current.length = 0
+        cruiseChallengeRef.current = null
         powerUpsRef.current = []
         // Start the fly-forward animation like a normal stage clear
         stageClearRef.current = STAGE_CLEAR_SECONDS
@@ -7448,7 +7486,8 @@ export function GradiusRaid({
       bossTimerRef.current =
         raidModeRef.current === 'bossRush'
           ? BOSS_RUSH_NEXT_BOSS_DELAY_SECONDS
-          : BOSS_RESPAWN_SECONDS
+          : (raidModeRef.current === 'campaign' && pendingNextStageRef.current !== null
+            ? getCampaignCruiseSeconds(pendingNextStageRef.current) : undefined) ?? BOSS_RESPAWN_SECONDS
       stageClearRef.current = STAGE_CLEAR_SECONDS
       spawnLockRef.current = STAGE_CLEAR_SECONDS + 1.2
       shotsRef.current = []
@@ -7463,6 +7502,7 @@ export function GradiusRaid({
       asteroidApproachRef.current.length = 0
       asteroidSpawnDelayRef.current = 0
       randomEventsRef.current.length = 0
+      cruiseChallengeRef.current = null
       asteroidClusterTimerRef.current = getAsteroidClusterInterval()
       randomEventTimerRef.current = getRandomEventInterval()
       powerUpsRef.current = []
@@ -7673,6 +7713,32 @@ export function GradiusRaid({
       }
     }
     compactInPlace(powerUpsRef.current, (powerUp) => powerUp.y < HEIGHT + 20)
+
+    if (authoredCruise && phaseRef.current === 'playing' && !bossActive) {
+      const stage = stageRef.current
+      let challenge = cruiseChallengeRef.current
+      if (challenge?.stage !== stage && canSpawnStageEnemies && bossTimerRef.current > 23
+        && journeyStageAgeRef.current >= getCruiseChallengeStartAge(stage)) {
+        challenge = createCruiseChallenge(stage)
+        cruiseChallengeRef.current = challenge
+        playGameSound('countdown')
+      }
+      if (challenge?.stage === stage) {
+        const pilot = advanceCruiseChallenge(challenge, dt, livingPlayersThisTick)
+        if (pilot) {
+          pilot.score += Math.round((650 + Math.min(stage, 30) * 45) * scoreMult)
+          if (challenge.kind === 'salvage' && pilot.hp < pilot.maxHp) {
+            pilot.hp = Math.min(pilot.maxHp, pilot.hp + 1)
+            scenePresentation.playerEvent(pilot, 'repair')
+          } else {
+            pilot.shield = Math.min(8, pilot.shield + (challenge.kind === 'relay' ? 3 : 2))
+          }
+          addRipple(pilot.x, pilot.y, challenge.kind === 'relay' ? '#7dd3fc' : '#fbbf24', 15)
+          spawnSparks(pilot.x, pilot.y, '#c9ecff', 22, 6)
+          playGameSound('levelup')
+        }
+      }
+    }
 
     if (player.score > highScoreRef.current) {
       highScoreRef.current = player.score

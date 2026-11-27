@@ -34,7 +34,7 @@ import { CORE_LANDER_GOD_GUNDAM_UNLOCK_SCORE, CORE_LANDER_UNLOCK_GRADIUS_ENDLESS
 import { useEffect, useMemo, useState, useRef, type CSSProperties } from 'react'
 
 type ProgressionView = 'profile' | 'missions' | 'achievements' | 'codex' | 'stageMap'
-type ScreenState = 'title' | 'game' | 'rocketMode' | 'raidHangar' | 'raidStory' | 'raidEndingArchive' | 'raidCoopMode' | 'raidSameScreenBriefing' | 'raidMultiplayer' | 'leaderboards' | ProgressionView
+type ScreenState = 'title' | 'commandDeck' | 'game' | 'rocketMode' | 'raidHangar' | 'raidStory' | 'raidEndingArchive' | 'raidCoopMode' | 'raidSameScreenBriefing' | 'raidMultiplayer' | 'leaderboards' | ProgressionView
 type RaidLaunchMode = 'campaign' | 'endless' | 'bossRush'
 
 const PROGRESSION_VIEWS: ProgressionView[] = ['profile', 'missions', 'achievements', 'codex', 'stageMap']
@@ -893,13 +893,14 @@ function App() {
               <p>{text.title.subtitle}</p>
             </div>
 
-            <nav className="start-screen__actions" aria-label={releaseText.deckTitle}>
+            <nav className="start-screen__actions" aria-label={text.title.name}>
               <GameMenuAction
                 primary data-menu-default
                 label={text.rocketMode.single}
                 onClick={() => setScreen('rocketMode')}
               />
               <GameMenuAction label={text.rocketMode.coop} onClick={() => setScreen('raidCoopMode')} />
+              <GameMenuAction className="start-screen__rankings" label={text.title.recordsTitle} onClick={() => setScreen('leaderboards')} />
             </nav>
 
             <div className="start-screen__pilot">
@@ -909,6 +910,9 @@ function App() {
                 <i aria-hidden="true" />
                 {guestPilot ? command.localSave : cloudSyncStatus === 'connected' ? 'Cloud connected' : cloudSyncStatus === 'conflict' ? 'Name conflict · local save safe' : 'Offline · local save'}
               </span>
+            </div>
+            <div className="start-screen__command-deck">
+              <GameButton tone="quiet" onClick={() => setScreen('commandDeck')}>{releaseText.deckTitle}</GameButton>
             </div>
           </div>
 
@@ -1122,7 +1126,7 @@ function App() {
         <div className="raid-hangar">
           <div className="raid-hangar__stars" />
           <div className="raid-hangar__panel">
-            <GameButton tone="quiet" className="mode-screen__back" type="button" onClick={() => setScreen('rocketMode')}>
+            <GameButton tone="quiet" className="mode-screen__back" type="button" onClick={() => setScreen('commandDeck')}>
               {text.rocketMode.back}
             </GameButton>
 
@@ -1273,66 +1277,44 @@ function App() {
     )
   }
 
-  if (screen === 'rocketMode') {
+  if (screen === 'rocketMode' || screen === 'raidCoopMode' || screen === 'commandDeck') {
+    const solo = screen === 'rocketMode'
+    const deck = screen === 'commandDeck'
+    const title = deck ? releaseText.deckTitle : solo ? text.rocketMode.single : text.rocketMode.coop
+
     return (
-      <div className="mode-screen">
-        <div className="mode-screen__panel">
-          <div className="mode-screen__topbar">
-            <div className="mode-screen__topbar-group">
-              <GameButton tone="quiet" className="mode-screen__utility" type="button" onClick={() => setScreen('missions')}>
-                {releaseText.missions}
-              </GameButton>
-              <GameButton tone="quiet" className="mode-screen__utility" type="button" onClick={() => setScreen('raidHangar')}>
-                {text.rocketMode.hangar}
-              </GameButton>
-            </div>
+      <div className="mode-screen mode-screen--menu">
+        <section className="mode-screen__panel mode-screen__panel--menu" aria-labelledby="mode-menu-title">
+          <header className="mode-screen__heading">
+            <h1 id="mode-menu-title">{title}</h1>
             <GameButton tone="quiet" className="mode-screen__back" onClick={() => setScreen('title')}>
               {text.rocketMode.back}
             </GameButton>
-          </div>
-
-          <div className="mode-screen__eyebrow">{text.rocketMode.eyebrow}</div>
-          <h1>{text.rocketMode.single}</h1>
-
-          <nav className="mode-screen__actions mode-screen__actions--raid" aria-label={text.rocketMode.single}>
-            <GameMenuAction primary data-menu-default label={text.rocketMode.story} detail={text.rocketMode.start} onClick={() => startRocketRaidSingle('campaign')} />
-            <GameMenuAction label={text.rocketMode.endless} detail={canPlayGradiusEndless ? text.rocketMode.startEndless : text.rocketMode.endlessLocked} disabled={!canPlayGradiusEndless} onClick={() => startRocketRaidSingle('endless')} />
-            <GameMenuAction label={text.rocketMode.bossRush} detail={canPlayGradiusEndless ? text.rocketMode.startBossRush : text.rocketMode.bossRushLocked} disabled={!canPlayGradiusEndless} onClick={() => startRocketRaidSingle('bossRush')} />
-          </nav>
-          <nav className="start-screen__command-deck mode-screen__command-deck" aria-label={releaseText.deckTitle}>
-            <GameButton tone="quiet" onClick={() => setScreen('leaderboards')}>{text.title.recordsTitle}</GameButton>
-            <GameButton tone="quiet" onClick={() => setScreen('profile')}>{releaseText.profile}</GameButton>
-            <GameButton tone="quiet" onClick={() => setScreen('achievements')}>{releaseText.achievements}</GameButton>
-            <GameButton tone="quiet" onClick={() => setScreen('codex')}>{releaseText.codex}</GameButton>
-            <GameButton tone="quiet" onClick={() => setScreen('stageMap')}>{releaseText.stageMap}</GameButton>
-          </nav>
+          </header>
+          {deck ? (
+            <nav className="mode-screen__actions mode-screen__actions--deck" aria-label={title}>
+              <GameMenuAction data-menu-default label={releaseText.profile} onClick={() => setScreen('profile')} />
+              <GameMenuAction label={releaseText.achievements} onClick={() => setScreen('achievements')} />
+              <GameMenuAction label={releaseText.missions} onClick={() => setScreen('missions')} />
+              <GameMenuAction label={text.rocketMode.hangar} onClick={() => setScreen('raidHangar')} />
+              <GameMenuAction label={releaseText.codex} onClick={() => setScreen('codex')} />
+              <GameMenuAction label={releaseText.stageMap} onClick={() => setScreen('stageMap')} />
+            </nav>
+          ) : solo ? (
+            <nav className="mode-screen__actions mode-screen__actions--raid" aria-label={title}>
+              <GameMenuAction primary data-menu-default label={text.rocketMode.story} onClick={() => startRocketRaidSingle('campaign')} />
+              <GameMenuAction label={text.rocketMode.endless} detail={!canPlayGradiusEndless ? text.rocketMode.endlessLocked : undefined} disabled={!canPlayGradiusEndless} onClick={() => startRocketRaidSingle('endless')} />
+              <GameMenuAction label={text.rocketMode.bossRush} detail={!canPlayGradiusEndless ? text.rocketMode.bossRushLocked : undefined} disabled={!canPlayGradiusEndless} onClick={() => startRocketRaidSingle('bossRush')} />
+            </nav>
+          ) : (
+            <nav className="mode-screen__actions mode-screen__actions--coop" aria-label={title}>
+              <GameMenuAction primary data-menu-default label={text.lobby.localCoopTitle} detail={text.lobby.localCoopDesc} onClick={() => openMultiplayerLobby('local')} />
+              <GameMenuAction label={text.lobby.onlineCoopTitle} detail={text.lobby.onlineCoopDesc} onClick={() => openMultiplayerLobby('online')} />
+              <GameMenuAction label={text.lobby.sameScreenCoopTitle} detail={text.lobby.sameScreenCoopDesc} onClick={() => setScreen('raidSameScreenBriefing')} />
+            </nav>
+          )}
           <GameMenuHints language={language} />
-        </div>
-
-        {playerNamePrompt}
-        {runResultsOverlay}
-      </div>
-    )
-  }
-
-  if (screen === 'raidCoopMode') {
-    return (
-      <div className="mode-screen coop-mode-screen">
-        <div className="mode-screen__panel">
-          <GameButton tone="quiet" className="mode-screen__back" onClick={() => setScreen('title')}>
-            {text.lobby.back}
-          </GameButton>
-
-          <div className="mode-screen__eyebrow">{text.lobby.modeEyebrow}</div>
-          <h1>{text.rocketMode.coop}</h1>
-
-          <nav className="mode-screen__actions mode-screen__actions--coop" aria-label={text.rocketMode.coop}>
-            <GameMenuAction primary data-menu-default label={text.lobby.localCoopTitle} detail={text.lobby.localCoopDesc} onClick={() => openMultiplayerLobby('local')} />
-            <GameMenuAction label={text.lobby.onlineCoopTitle} detail={text.lobby.onlineCoopDesc} onClick={() => openMultiplayerLobby('online')} />
-            <GameMenuAction label={text.lobby.sameScreenCoopTitle} detail={text.lobby.sameScreenCoopDesc} onClick={() => setScreen('raidSameScreenBriefing')} />
-          </nav>
-          <GameMenuHints language={language} />
-        </div>
+        </section>
 
         {playerNamePrompt}
         {runResultsOverlay}
@@ -1406,7 +1388,7 @@ function App() {
   if (screen === 'leaderboards') {
     return (
       <>
-        <LeaderboardsScreen playerName={guestPilot ? null : playerName} language={language} onBack={() => setScreen('rocketMode')} onChooseCallsign={() => setShowPlayerNamePrompt(true)} />
+        <LeaderboardsScreen playerName={guestPilot ? null : playerName} language={language} onBack={() => setScreen('title')} onChooseCallsign={() => setShowPlayerNamePrompt(true)} />
         {playerNamePrompt}
         {runResultsOverlay}
       </>
@@ -1422,7 +1404,7 @@ function App() {
           language={language}
           playerName={playerName}
           recoveryCode={recoveryCode}
-          onBack={() => setScreen('rocketMode')}
+          onBack={() => setScreen('commandDeck')}
           onPlayCutscenes={startCodexCutscenePlayback}
           onProgressChange={(nextProgress) => {
             setProgress(nextProgress)

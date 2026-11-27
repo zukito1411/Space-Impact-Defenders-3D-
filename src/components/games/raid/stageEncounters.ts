@@ -138,6 +138,7 @@ export function fireRaidFighter(enemy: Enemy, target: Vec, available: number, em
 
 /** These frames are shared by the Pixi foreground and Canvas fallback. */
 export function getRaidFighterCharge(enemy: Enemy) {
+  if (enemy.cruiseManeuver === 'crossfire') return enemy.chargeTimer > 0 ? Math.max(.25, 1 - enemy.chargeTimer) : 0
   if (enemy.variant === LEGACY_FIGHTER_COUNT + RAM && enemy.fighterAimX !== undefined && enemy.y >= 24 && enemy.y < 40) return (enemy.y - 24) / 16
   if (enemy.y < 0 || enemy.fireCooldown <= 0 || enemy.fireCooldown >= .34 || !getRaidFighter(enemy.variant)?.shots) return 0
   return 1 - enemy.fireCooldown / .34

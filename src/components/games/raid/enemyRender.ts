@@ -205,7 +205,7 @@ export function drawRaidEnemy(
   }
 
   const key = enemyHullKey(enemy)
-  const heading = fighterHullHeading(enemy.vx, enemy.vy, viewportWidth, toY(100))
+  const heading = fighterHullHeading(enemy.fighterBankVx ?? enemy.vx, enemy.vy, viewportWidth, toY(100))
   if (key) {
     ctx.save()
     ctx.translate(x, y)

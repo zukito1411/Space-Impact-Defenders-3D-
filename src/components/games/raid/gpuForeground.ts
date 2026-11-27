@@ -317,7 +317,7 @@ export class RaidGpuForeground {
         this.enemyNodes.set(alien.id, pair)
       }
       const key = normalEnemyHullKey(alien.variant)
-      const heading = fighterHullHeading(alien.vx, alien.vy, frame.width, frame.height)
+      const heading = fighterHullHeading(alien.fighterBankVx ?? alien.vx, alien.vy, frame.width, frame.height)
       const warp = gravityWarp(frame.gravityField, alien)
       submitLiveHull({ id: 'enemy:' + alien.id, key,
         x: alien.x*sx, y: alien.y*sy, size, bank: 0, angle: heading, alpha: 1,

@@ -84,7 +84,7 @@ try{
    assert.equal(await page.locator('.player-name-modal').count(),0,'guest can reach the Raid menu without registration')
    await page.getByRole('button',{name:'Single Player',exact:true}).waitFor({timeout:10000})
    assert.equal(await page.getByRole('button',{name:'Co-op',exact:true}).isEnabled(),true)
-   assert.deepEqual(await page.locator('.start-screen__actions button').allTextContents(), ['Single Player', 'Co-op'])
+   assert.deepEqual(await page.locator('.start-screen__actions button').allTextContents(), ['Single Player', 'Co-op', 'Leaderboards'])
    assert.equal(await page.locator('.start-screen').count(),1,'skip cannot activate the game behind the logo')
    art.open()
    if(mode==='automatic')await page.screenshot({path:'presentation-review/startup-menu-handoff.png'})
@@ -92,7 +92,7 @@ try{
    console.log('Studio opening:',mode,'passed')
   }finally{entry.open();art.open();await context.close()}
  }
- const story = await browser.newPage({viewport:{width:874,height:403},hasTouch:true,serviceWorkers:'block'})
+ const story = await browser.newPage({viewport:{width:874,height:403},hasTouch:true,reducedMotion:'reduce',serviceWorkers:'block'})
  const storyErrors = []
  story.on('pageerror', error => storyErrors.push(error.message))
  try {
@@ -100,6 +100,51 @@ try{
    await story.route('**/*', route => new URL(route.request().url()).origin === base ? route.continue() : route.abort())
    await story.goto(base)
    await story.locator('#startup-splash').waitFor({state:'detached',timeout:30000})
+   const menus = [
+     ['Single Player', ['Story Mode', 'Endless Mode', 'Boss Rush']],
+     ['Co-op', ['Same Wi-Fi', 'Online Co-op', 'Shared Screen']],
+     ['Command Deck', ['Profile', 'Achievements', 'Missions', 'Hangar', 'Codex', 'Almanac']],
+   ]
+   const checkBounds = async (locator, width, height) => {
+     const boxes = await locator.evaluateAll(controls => controls.map(control => {
+       const { x, y, width, height } = control.getBoundingClientRect()
+       return { x, y, width, height }
+     }))
+     assert.ok(boxes.length)
+     for (const box of boxes) {
+       assert.ok(box && box.width >= 44 && box.height >= 44 && box.x >= 0 && box.y >= 0 &&
+         box.x + box.width <= width && box.y + box.height <= height,
+       `Menu control clipped at ${width}×${height} ${JSON.stringify(box)}`)
+     }
+     return boxes
+   }
+   for (const [width, height] of [[393, 852], [320, 568], [844, 390], [640, 320], [1536, 710]]) {
+     await story.setViewportSize({ width, height })
+     const mainActions = story.locator('.start-screen__actions button')
+     assert.deepEqual(await mainActions.allTextContents(), ['Single Player', 'Co-op', 'Leaderboards'])
+     const home = await checkBounds(story.locator('.start-screen__actions button, .start-screen__command-deck button'), width, height)
+     if (height > width) assert.ok(home[3].y >= home[2].y + home[2].height)
+     for (const [title, labels] of menus) {
+       await story.getByRole('button', { name: title, exact: true }).click()
+       const nav = story.getByRole('navigation', { name: title, exact: true })
+       await nav.waitFor()
+       assert.deepEqual(await nav.locator('button strong').allTextContents(), labels)
+       const boxes = await checkBounds(nav.getByRole('button'), width, height)
+       if (title !== 'Command Deck') {
+         if (width > height) {
+           assert.ok(boxes.every(box => box.y === boxes[0].y && box.height === boxes[0].height),
+             `${title} cards are uneven at ${width}×${height} ${JSON.stringify(boxes)}`)
+           assert.ok(boxes[2].x > boxes[1].x && boxes[1].x > boxes[0].x)
+         } else {
+           assert.ok(boxes.every(box => box.x === boxes[0].x && box.width === boxes[0].width))
+           assert.ok(boxes[2].y > boxes[1].y && boxes[1].y > boxes[0].y)
+         }
+       }
+       await story.getByRole('button', { name: 'Back', exact: true }).click()
+       await mainActions.first().waitFor()
+     }
+   }
+   await story.setViewportSize({width:874,height:403})
    await story.getByRole('button', { name: 'Single Player', exact: true }).click({timeout:120000})
    await story.locator('.mode-screen__actions--raid [data-menu-default]').click()
    const next = story.locator('.raid-story__next')
@@ -115,7 +160,7 @@ try{
    await next.click()
    await story.locator('.raid-story--scene-2').waitFor()
    assert.deepEqual(storyErrors, [])
-   if (production) console.log('Production app starts and opens single-player Raid from the title screen')
+   if (production) console.log('Production menus fit five viewports, with three equal mode cards and a separate Command Deck')
    console.log('Raid story controls fit the reported Android aspect ratio, compact landscape, and portrait')
  } finally {
    await story.close()

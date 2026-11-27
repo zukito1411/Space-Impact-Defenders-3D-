@@ -294,8 +294,13 @@ export function interpolateEnemyVisual(previous: Enemy, next: Enemy, t: number) 
   visual.phase = previous.phase + (next.phase - previous.phase) * t
   visual.shieldTime = Math.max(0, previous.shieldTime + (next.shieldTime - previous.shieldTime) * t)
   visual.fireCooldown = Math.max(0, previous.fireCooldown + (next.fireCooldown - previous.fireCooldown) * t)
+  if (previous.fighterBankVx !== undefined && next.fighterBankVx !== undefined) {
+    visual.fighterBankVx = previous.fighterBankVx + (next.fighterBankVx - previous.fighterBankVx) * t
+  }
   visual.chargeCooldown = Math.max(0, previous.chargeCooldown + (next.chargeCooldown - previous.chargeCooldown) * t)
-  if (!next.isMiniBoss || (previous.miniBossAttackIndex === next.miniBossAttackIndex && previous.miniBossAttack === next.miniBossAttack)) {
+  const crossfireTransition = next.cruiseManeuver === 'crossfire' && (previous.chargeTimer > 0) !== (next.chargeTimer > 0)
+  const sameEliteAttack = !next.isMiniBoss || (previous.miniBossAttackIndex === next.miniBossAttackIndex && previous.miniBossAttack === next.miniBossAttack)
+  if (!crossfireTransition && sameEliteAttack) {
     visual.chargeTimer = Math.max(0, previous.chargeTimer + (next.chargeTimer - previous.chargeTimer) * t)
     visual.chargeLane = previous.chargeLane + (next.chargeLane - previous.chargeLane) * t
     visual.chargeTargetY = (previous.chargeTargetY ?? previous.y) + ((next.chargeTargetY ?? next.y) - (previous.chargeTargetY ?? previous.y)) * t

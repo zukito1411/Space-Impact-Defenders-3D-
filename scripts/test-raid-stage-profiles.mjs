@@ -207,3 +207,130 @@ assert.equal(api.cruiseEliteShouldWithdraw(21, 60), true)
 assert.equal(api.cruiseEliteShouldWithdraw(3, 2), true)
 assert.equal(api.cruiseEliteShouldWithdraw(3, 12), false)
 console.log('Cruise: 14 authored routes, staggered pincers, firing lines, elite escorts, all nine attack patterns, warning timing, and shot caps passed')
+
+assert.equal(api.getCampaignCruiseSeconds(1), undefined, 'guided opening keeps its own timeline')
+assert.equal(api.getCampaignCruiseSeconds(16), undefined, 'the optional bonus has its own approach')
+const durations = new Set()
+for (let stage = 2; stage <= 15; stage++) {
+  const duration = api.getCampaignCruiseSeconds(stage)
+  durations.add(duration)
+  assert.ok(duration >= 76 && duration <= 90)
+  let age = 3
+  const eliteAppearances = []
+  for (let serial = 0; serial < 11 && age < duration - api.CRUISE_BOSS_APPROACH_SECONDS; serial++) {
+    const beat = api.getCruiseEncounter(stage, serial)
+    if (beat.elite && duration - age >= 16) eliteAppearances.push(beat.elite)
+    age += beat.interval
+  }
+  assert.equal(eliteAppearances.length, 2, 'the second elite needs its full approach window')
+}
+assert.ok(durations.size >= 6)
+
+for (const [first, second] of [[api.formation(1, 1), api.formation(1, 4)], [api.cruise(2, 2), api.cruise(2, 6)]]) {
+  const sweep = first.enemies
+  assert.ok(sweep.every(enemy => enemy.cruiseManeuver === 'sweep'))
+  assert.ok(sweep[0].y > sweep.at(-1).y)
+  assert.notEqual(second.enemies[0].cruiseFlank, sweep[0].cruiseFlank)
+  const side = sweep[0].cruiseFlank
+  const swarm = new api.EnemyTactics()
+  sweep.forEach(enemy => { enemy.y = 22 })
+  swarm.update(sweep, 1 / 60, 2, 4, { x: 15, y: 85 })
+  assert.ok(sweep.every(enemy => enemy.tacticHoldFire))
+  const earlyX = sweep[0].tacticX
+  sweep.forEach(enemy => { enemy.y = 54 })
+  swarm.update(sweep, 1 / 60, 2, 4, { x: 85, y: 85 })
+  assert.ok((earlyX - sweep[0].tacticX) * side > 35, 'sweep must cross from its entry side')
+  assert.ok(sweep.every(enemy => !enemy.tacticHoldFire))
+}
+
+for (const fps of [30, 60, 120]) {
+  for (const disrupted of [false, true]) {
+    const crossfire = api.cruise(3, 2).enemies
+    const tactics = new api.EnemyTactics()
+    const shots = []
+    const dt = 1 / fps
+    assert.ok(crossfire.length <= 6 && crossfire.every(enemy => enemy.cruiseManeuver === 'crossfire'))
+    crossfire.forEach(enemy => { enemy.y = 24 })
+    for (let frame = 0; frame < 6 * fps; frame++) {
+      const age = frame * dt
+      if (disrupted && age >= 2.3) crossfire[0].hp = 0
+      const pilot = age < 2.2 ? { x: 53, y: 83 } : { x: 20, y: 71 }
+      tactics.update(crossfire, dt, 3, 5, pilot)
+      if (age > 2 && age < 2.28) {
+        assert.ok(crossfire.every(enemy => enemy.chargeTimer > 0 && enemy.tacticHoldFire))
+        assert.ok(crossfire.every(enemy => api.getRaidFighterCharge(enemy) > 0))
+      }
+      for (const enemy of crossfire) {
+        if (enemy.hp <= 0 || enemy.tacticHoldFire) continue
+        assert.equal(enemy.chargeTargetY, 83)
+        assert.ok(Math.abs(enemy.chargeLane - 53) >= 8)
+        assert.equal(api.fire(enemy, pilot, 132).length, 0)
+        shots.push(...api.fire(enemy, pilot, 0))
+      }
+    }
+    assert.equal(shots.length, disrupted ? 0 : crossfire.length)
+    for (const shot of shots) {
+      const xAtTarget = shot.x + shot.vx / shot.vy * (83 - shot.y)
+      assert.ok(Math.abs(Math.abs(xAtTarget - 53) - 8) < 1e-6, 'the marked center corridor stays open')
+    }
+  }
+}
+console.log('Campaign cadence, banked sweeps and locked, interruptible crossfire passed at 30/60/120 Hz')
+
+const challengeSource = withoutImports(read(raid + 'cruiseChallenge.ts'))
+const challenge = await import('data:text/javascript;base64,' + Buffer.from(ts.transpileModule(challengeSource, {
+  compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+}).outputText).toString('base64'))
+
+for (let stage = 2; stage <= 15; stage++) {
+  const kind = challenge.createCruiseChallenge(stage).kind
+  const budget = challenge.CHALLENGE_NOTICE_SECONDS + (kind === 'relay'
+    ? challenge.RELAY_GATE_COUNT * challenge.RELAY_GATE_SECONDS : challenge.SALVAGE_SECONDS)
+  assert.ok(challenge.getCruiseChallengeStartAge(stage) + budget + 2.4 < api.getCampaignCruiseSeconds(stage) - api.CRUISE_BOSS_APPROACH_SECONDS)
+}
+
+function pilotAtTarget(operation, hp = 5) {
+  const { x, y } = challenge.getCruiseChallengeTarget(operation)
+  return { x, y, hp }
+}
+
+const relay = challenge.createCruiseChallenge(2)
+const captain = pilotAtTarget(relay)
+assert.equal(challenge.advanceCruiseChallenge(relay, 1, [captain]), undefined)
+assert.equal(relay.gate, 0, 'the notice is not an active gate')
+assert.equal(challenge.advanceCruiseChallenge(relay, .5, [captain]), undefined)
+assert.equal(relay.gate, 1)
+const position = challenge.getCruiseChallengeTarget(relay)
+assert.notEqual(position.x, captain.x)
+challenge.advanceCruiseChallenge(relay, .1, [pilotAtTarget(relay, 0)])
+assert.equal(relay.gate, 1, 'downed pilots cannot cross a gate')
+const wingmate = pilotAtTarget(relay)
+challenge.advanceCruiseChallenge(relay, .1, [captain, wingmate])
+assert.equal(relay.gate, 2, 'the second pilot can advance the same challenge')
+Object.assign(wingmate, pilotAtTarget(relay))
+assert.equal(challenge.advanceCruiseChallenge(relay, .1, [wingmate]), wingmate)
+assert.equal(challenge.advanceCruiseChallenge(relay, .1, [wingmate]), undefined, 'the reward can only be collected once')
+
+const missed = challenge.createCruiseChallenge(4)
+for (let i = 0; i < 500; i++) challenge.advanceCruiseChallenge(missed, 1 / 60, [])
+assert.equal(missed.outcome, 'missed')
+
+for (const fps of [30, 60, 120]) {
+  const recovery = challenge.createCruiseChallenge(3)
+  const dt = 1 / fps
+  for (let i = 0; i < 2 * fps; i++) challenge.advanceCruiseChallenge(recovery, dt, [pilotAtTarget(recovery)])
+  const before = recovery.signal
+  for (let i = 0; i < fps; i++) challenge.advanceCruiseChallenge(recovery, dt, [])
+  assert.ok(before > .5 && recovery.signal === 0, 'leaving the field loses the signal')
+  let completions = 0
+  for (let i = 0; i < 4 * fps; i++) {
+    if (challenge.advanceCruiseChallenge(recovery, dt, [pilotAtTarget(recovery)])) completions++
+  }
+  assert.equal(recovery.outcome, 'complete')
+  assert.equal(completions, 1)
+  assert.ok(Math.abs(recovery.outcomeAge - 5.4) <= dt + 1e-8)
+}
+const abandoned = challenge.createCruiseChallenge(5)
+challenge.advanceCruiseChallenge(abandoned, 11.5, [])
+assert.equal(abandoned.outcome, 'missed')
+console.log('Cruise challenges: sequential gates, co-op contribution, single rewards, salvage lock and expiry passed')

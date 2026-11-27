@@ -2,6 +2,10 @@
 
 Gradius Raid is a scrolling space shooter. Fly the story campaign, survive Endless Mode, or take on the Boss Rush. Co-op supports Same Wi-Fi play, Online Co-op, and a shared screen.
 
+Open the Command Deck for your profile, achievements, missions, hangar, Codex, and Almanac. Leaderboards are available directly from the title screen.
+
+Enemy wings bank across the screen and set up timed crossfire. Watch for the marked impact points or take out the lead ship before the volley. Fly through optional relay gates for a shield charge, or hold inside a moving salvage beacon for repairs. Both objectives award bonus score and can overlap with combat and hazards.
+
 ## Signed Android APK releases
 
 Game updates pushed to `main` publish a production-signed Android APK and keep the **three latest Android releases**. Changes limited to workflow files, documentation, or review captures skip the APK release and Pages deployment. Both workflows can also be run manually. See [Android release setup](docs/android-release-setup.md) for signing and update requirements.

@@ -2,12 +2,19 @@ import { BOSS_FX, drawBossFx } from './combatArt'
 import { forEachMiniBossLane, getMiniBossWarningSeconds } from './cruiseEncounters'
 import type { Enemy } from './types'
 
-export function drawCruiseEliteWarnings(ctx: CanvasRenderingContext2D, enemies: readonly Enemy[],
+export function drawCruiseAttackWarnings(ctx: CanvasRenderingContext2D, enemies: readonly Enemy[],
   toX: (n: number) => number, toY: (n: number) => number, height: number, reducedMotion: boolean) {
   const unit = toX(1) - toX(0)
   for (const enemy of enemies) {
+    if (enemy.chargeTimer <= 0 || enemy.hp <= 0) continue
+    if (enemy.cruiseManeuver === 'crossfire' && enemy.trainSlot < 2) {
+      const span = Math.max(18, unit * 8)
+      const alpha = reducedMotion ? .7 : .48 + .36 * (1 - Math.min(1, enemy.chargeTimer))
+      drawBossFx(ctx, BOSS_FX.precision, toX(enemy.chargeLane), toY(enemy.chargeTargetY), span, span, alpha, 0, true)
+      continue
+    }
     const attack = enemy.miniBossAttack
-    if (!attack || enemy.chargeTimer <= 0 || enemy.hp <= 0) continue
+    if (!attack) continue
     const charge = reducedMotion ? .7 : 1 - Math.min(1, enemy.chargeTimer / getMiniBossWarningSeconds(attack))
     const origin = toX(enemy.miniBossAttackOriginX ?? enemy.x)
     const y = toY(enemy.y + 3)

@@ -413,6 +413,13 @@ assert.equal(committed.chargeTimer, 1.05)
 assert.equal(committed.chargeLane, 70)
 assert.equal(committed.chargeTargetY, 80)
 assert.equal(interpolation.interpolateEnemyVisual(eliteWarning, { ...eliteWarning, chargeTimer: .55 }, .5).chargeTimer, .8)
+const crossfireBefore = { ...prev, isMiniBoss: false, cruiseManeuver: 'crossfire', chargeTimer: 0, chargeLane: 39, chargeTargetY: 65 }
+const crossfireWarning = { ...crossfireBefore, chargeTimer: .9, chargeLane: 63, chargeTargetY: 83 }
+const crossfire = interpolation.interpolateEnemyVisual(crossfireBefore, crossfireWarning, .5)
+assert.equal(crossfire.chargeTimer, .9)
+assert.equal(crossfire.chargeLane, 63)
+assert.equal(crossfire.chargeTargetY, 83)
+assert.equal(interpolation.interpolateEnemyVisual(crossfireWarning, { ...crossfireWarning, chargeTimer: 0 }, .5).chargeTimer, 0)
 // Execute the actual nuke callback and damage rule, including its projectile clear and forced recovery.
 const runtime=read('src/components/games/raid/GradiusRaidRuntime.tsx')
 const nuke=runtime.slice(runtime.indexOf('  const detonateNuke = useCallback('),runtime.indexOf('  const activateNuke = useCallback('))

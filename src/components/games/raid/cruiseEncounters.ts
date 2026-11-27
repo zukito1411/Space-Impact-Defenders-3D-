@@ -1,41 +1,55 @@
 import { getRaidStageEncounter, getRaidWingSize } from './stageEncounters'
 import type { Enemy, MiniBossAttack, MiniBossKind, Shot, Vec } from './types'
 
-export type CruiseManeuver = 'pincer' | 'dive' | 'barrage' | 'escort'
+export type CruiseManeuver = 'pincer' | 'dive' | 'barrage' | 'escort' | 'sweep' | 'crossfire'
 type CruiseEncounter = Exclude<CruiseManeuver, 'escort'> | 'patrol' | MiniBossKind
 
 // Stage 1 uses the carrier tutorial's authored encounters. Each later sector
 // changes the order of maneuvers, elite types, and recovery gaps.
 const ROUTES: readonly (readonly CruiseEncounter[])[] = [
-  ['patrol', 'pincer', 'dive', 'lancer', 'patrol', 'pincer', 'dive', 'stalker', 'pincer', 'patrol', 'dive'],
-  ['barrage', 'patrol', 'pincer', 'stalker', 'barrage', 'dive', 'pincer', 'lancer', 'patrol', 'barrage', 'pincer'],
-  ['dive', 'pincer', 'patrol', 'lancer', 'dive', 'barrage', 'pincer', 'stalker', 'dive', 'pincer', 'patrol'],
-  ['pincer', 'patrol', 'barrage', 'brood', 'pincer', 'dive', 'barrage', 'stalker', 'pincer', 'barrage', 'patrol'],
-  ['barrage', 'pincer', 'dive', 'lancer', 'barrage', 'patrol', 'barrage', 'brood', 'pincer', 'dive', 'barrage'],
-  ['dive', 'barrage', 'pincer', 'stalker', 'dive', 'pincer', 'barrage', 'brood', 'dive', 'pincer', 'barrage'],
-  ['pincer', 'dive', 'patrol', 'brood', 'pincer', 'barrage', 'dive', 'lancer', 'barrage', 'pincer', 'dive'],
-  ['dive', 'pincer', 'dive', 'lancer', 'barrage', 'pincer', 'dive', 'stalker', 'pincer', 'dive', 'barrage'],
-  ['barrage', 'dive', 'barrage', 'brood', 'pincer', 'barrage', 'dive', 'lancer', 'barrage', 'pincer', 'dive'],
-  ['pincer', 'barrage', 'patrol', 'stalker', 'pincer', 'dive', 'barrage', 'brood', 'barrage', 'dive', 'pincer'],
-  ['barrage', 'pincer', 'barrage', 'lancer', 'dive', 'barrage', 'barrage', 'brood', 'pincer', 'barrage', 'dive'],
-  ['dive', 'barrage', 'pincer', 'lancer', 'dive', 'barrage', 'pincer', 'brood', 'dive', 'barrage', 'pincer'],
-  ['pincer', 'dive', 'barrage', 'stalker', 'barrage', 'pincer', 'dive', 'lancer', 'dive', 'pincer', 'barrage'],
-  ['barrage', 'dive', 'pincer', 'brood', 'pincer', 'barrage', 'dive', 'lancer', 'pincer', 'dive', 'barrage'],
+  ['patrol', 'pincer', 'sweep', 'lancer', 'patrol', 'pincer', 'sweep', 'stalker', 'pincer', 'patrol', 'sweep'],
+  ['barrage', 'patrol', 'crossfire', 'stalker', 'barrage', 'sweep', 'pincer', 'lancer', 'patrol', 'crossfire', 'pincer'],
+  ['dive', 'pincer', 'sweep', 'lancer', 'dive', 'crossfire', 'pincer', 'stalker', 'dive', 'pincer', 'patrol'],
+  ['pincer', 'sweep', 'barrage', 'brood', 'crossfire', 'dive', 'barrage', 'stalker', 'pincer', 'sweep', 'patrol'],
+  ['barrage', 'crossfire', 'dive', 'lancer', 'barrage', 'patrol', 'crossfire', 'brood', 'pincer', 'dive', 'barrage'],
+  ['sweep', 'barrage', 'pincer', 'stalker', 'dive', 'sweep', 'crossfire', 'brood', 'dive', 'sweep', 'barrage'],
+  ['pincer', 'sweep', 'crossfire', 'brood', 'pincer', 'barrage', 'dive', 'lancer', 'crossfire', 'pincer', 'dive'],
+  ['dive', 'sweep', 'dive', 'lancer', 'crossfire', 'pincer', 'dive', 'stalker', 'sweep', 'dive', 'barrage'],
+  ['barrage', 'dive', 'crossfire', 'brood', 'pincer', 'barrage', 'sweep', 'lancer', 'barrage', 'pincer', 'dive'],
+  ['sweep', 'barrage', 'patrol', 'stalker', 'pincer', 'crossfire', 'barrage', 'brood', 'sweep', 'dive', 'pincer'],
+  ['crossfire', 'pincer', 'barrage', 'lancer', 'sweep', 'barrage', 'crossfire', 'brood', 'pincer', 'barrage', 'dive'],
+  ['dive', 'barrage', 'pincer', 'lancer', 'sweep', 'crossfire', 'pincer', 'brood', 'dive', 'barrage', 'pincer'],
+  ['pincer', 'sweep', 'barrage', 'stalker', 'crossfire', 'pincer', 'dive', 'lancer', 'sweep', 'pincer', 'crossfire'],
+  ['crossfire', 'dive', 'sweep', 'brood', 'pincer', 'barrage', 'dive', 'lancer', 'crossfire', 'sweep', 'barrage'],
 ]
 
+const CAMPAIGN_CRUISE_SECONDS = [76, 80, 82, 76, 84, 80, 84, 82, 80, 84, 88, 86, 88, 90] as const
+const CRUISE_INTERVALS = { patrol: 5.8, pincer: 7.1, dive: 6.3, barrage: 8.4, escort: 10.2, sweep: 6.9, crossfire: 8.1 }
 export const CRUISE_BOSS_APPROACH_SECONDS = 7
+export const CROSSFIRE_WARNING_SECONDS = .9
+export const CROSSFIRE_LOCK_AGE = 1.9
+
+export function getCampaignCruiseSeconds(stage: number): number | undefined {
+  return CAMPAIGN_CRUISE_SECONDS[stage - 2]
+}
 
 export function getCruiseEncounter(stage: number, serial: number) {
   const route = ROUTES[Math.max(0, stage - 2) % ROUTES.length]
-  const encounter = route[serial % route.length]
+  const beat = serial % route.length
+  const encounter = route[beat]
   const elite = encounter === 'stalker' || encounter === 'brood' || encounter === 'lancer' ? encounter : null
   const maneuver = elite ? 'escort' : encounter as CruiseManeuver | 'patrol'
-  const interval = elite ? 10.2 : maneuver === 'patrol' ? 5.8 : maneuver === 'pincer' ? 7.1 : maneuver === 'dive' ? 6.3 : 8.4
-  return { maneuver, elite, interval, mirror: (stage + serial) % 2 === 0 ? 1 : -1 }
+  let side = serial
+  if (maneuver === 'sweep') {
+    const cycles = Math.floor(serial / route.length)
+    side = route.reduce((count, entry, index) => count + (entry === 'sweep' ? cycles + Number(index < beat) : 0), 0)
+  }
+  return { maneuver, elite, interval: CRUISE_INTERVALS[maneuver], mirror: (stage + side) % 2 === 0 ? 1 : -1 }
 }
 
-export function getCruiseWingSize(stage: number, serial: number, liveEnemies: number, escorted: boolean) {
-  return Math.min(escorted ? 4 : 8, getRaidWingSize(stage, serial, liveEnemies + (escorted ? 1 : 0)))
+export function getCruiseWingSize(stage: number, serial: number, liveEnemies: number, maneuver: CruiseManeuver) {
+  const escorted = maneuver === 'escort'
+  return Math.min(escorted ? 4 : maneuver === 'crossfire' ? 6 : 8, getRaidWingSize(stage, serial, liveEnemies + (escorted ? 1 : 0)))
 }
 
 export function getCruiseOpeningLayout(stage: number) {
@@ -45,6 +59,8 @@ export function getCruiseOpeningLayout(stage: number) {
     if (maneuver === 'dive') return 'echelon'
     if (maneuver === 'barrage') return 'line'
     if (maneuver === 'escort') return 'escort'
+    if (maneuver === 'sweep') return 'echelon'
+    if (maneuver === 'crossfire') return 'split'
   }
   return getRaidStageEncounter(stage).wings[0][0]
 }
@@ -57,7 +73,16 @@ export function placeCruiseWing(maneuver: CruiseManeuver, slot: number, count: n
     case 'dive': return { x: 50 + mirror * (32 - slot * 8), y: -6 - slot * 3.6 }
     case 'barrage': return { x: 50 + flank * (16 + rank * (count > 6 ? 8 : 9)), y: -7 - rank * 1.6 }
     case 'escort': return { x: 50 + mirror * 12 + flank * (13 + rank * 5), y: -10 - rank * 5 }
+    case 'sweep': return { x: 50 + mirror * (30 + (slot % 3) * 6), y: -6 - slot * 4 }
+    case 'crossfire': return { x: 50 + flank * (slot === 0 ? 17 : 23 + rank * 7), y: -6 - rank * 2 - (slot === 0 ? 0 : 3) }
   }
+}
+
+export function fireCruiseCrossfire(enemy: Enemy, available: number, emit: (shot: Omit<Shot, 'id'>) => void) {
+  if (available < 1 || enemy.chargeTargetY < enemy.y + 19) return
+  const angle = Math.atan2(enemy.chargeLane - enemy.x, enemy.chargeTargetY - enemy.y - 2.5)
+  emit({ x: enemy.x, y: enemy.y + 2.5, vx: Math.sin(angle) * 43, vy: Math.cos(angle) * 43,
+    radius: 1.22, damage: 1, kind: 'needle' })
 }
 
 const MINI_BOSS_PROFILES = {

@@ -699,6 +699,114 @@
   100% { text-shadow: none; }
 }
 
+/* Menu cards share one grid, with one consistent reading order in both orientations. */
+#root .start-screen__command-deck { display: flex; }
+#root .start-screen__command-deck .game-button { min-width: 126px; font-size: .72rem; }
+#root .start-screen__actions .start-screen__rankings::before {
+  width: 22px;
+  height: 20px;
+  transform: translateY(-50%);
+  border: 0;
+  border-bottom: 1px solid var(--mission-accent);
+  border-radius: 0;
+  background:
+    linear-gradient(var(--mission-accent), var(--mission-accent)) left bottom / 5px 45%,
+    linear-gradient(var(--mission-accent), var(--mission-accent)) center bottom / 5px 90%,
+    linear-gradient(var(--mission-accent), var(--mission-accent)) right bottom / 5px 65%;
+  background-repeat: no-repeat;
+  box-shadow: none;
+}
+#root .mode-screen--menu .mode-screen__panel {
+  width: min(920px, 100%);
+  padding: clamp(14px, 3.5vw, 30px);
+  max-height: 100%;
+  overflow-y: auto;
+}
+#root .mode-screen--menu .mode-screen__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: clamp(10px, 2.4dvh, 20px);
+  border-bottom: 1px solid #74c8dc46;
+}
+#root .mode-screen--menu .mode-screen__heading h1 {
+  min-width: 0;
+  margin: 0;
+  font-size: clamp(1.4rem, min(5.8vw, 8dvh), 2.5rem);
+  overflow-wrap: anywhere;
+}
+#root .mode-screen--menu .mode-screen__heading .mode-screen__back {
+  position: static;
+  flex: 0 0 auto;
+  min-height: 44px;
+}
+#root .mode-screen--menu .mode-screen__actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(8px, 1.5vw, 14px);
+  margin-top: clamp(12px, 3dvh, 22px);
+}
+#root .mode-screen--menu .mode-screen__actions--deck { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#root .mode-screen--menu .game-menu-action {
+  min-width: 0;
+  min-height: 62px;
+  padding-block: 10px;
+}
+#root .mode-screen--menu .game-menu-action__copy strong {
+  font-size: clamp(.83rem, 2.3vw, 1.12rem);
+  letter-spacing: .035em;
+}
+#root .mode-screen--menu .game-menu-action__copy small {
+  font-size: clamp(.73rem, 1.6vw, .86rem);
+  line-height: 1.35;
+}
+#root .mode-screen--menu .mode-screen__actions--deck .game-menu-action {
+  min-height: 52px;
+  padding-inline: 12px 22px;
+}
+#root .mode-screen--menu .mode-screen__actions--deck .game-menu-action::before { content: none; }
+#root .mode-screen--menu .mode-screen__actions--deck .game-menu-action::after { right: 10px; }
+
+@media (orientation: portrait) {
+  #root .start-screen__content {
+    grid-template-rows: repeat(6, auto);
+    align-content: center;
+    row-gap: clamp(7px, 1.6dvh, 14px);
+  }
+  #root .start-screen__actions .game-menu-action { flex-shrink: 0; }
+  #root .start-screen__command-deck .game-button { width: 100%; }
+}
+@media (orientation: landscape) and (min-width: 560px) {
+  #root .start-screen__content {
+    grid-template-areas: 'brand actions' 'title actions' 'pilot actions' 'deck actions' 'footer footer';
+    row-gap: clamp(5px, 1.4dvh, 13px);
+  }
+  #root .start-screen__actions .game-menu-action { flex-basis: clamp(50px, 13dvh, 94px); max-height: 94px; }
+  #root .mode-screen--menu .mode-screen__actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #root .mode-screen--menu .game-menu-action {
+    min-height: clamp(95px, 21dvh, 148px);
+    align-items: start;
+    padding: clamp(39px, 10dvh, 58px) 26px clamp(10px, 2.4dvh, 16px) 13px;
+  }
+  #root .mode-screen--menu .game-menu-action::before {
+    left: 15px;
+    top: clamp(18px, 5dvh, 29px);
+    width: 15px;
+    height: 15px;
+  }
+  #root .mode-screen--menu .game-menu-action::after { top: auto; bottom: 15px; right: 13px; }
+  #root .mode-screen--menu .mode-screen__actions--deck .game-menu-action {
+    min-height: 52px;
+    align-items: center;
+    padding-block: 8px;
+  }
+  #root .mode-screen--menu .mode-screen__actions--deck .game-menu-action::after { top: 50%; bottom: auto; }
+}
+@media (pointer: coarse) {
+  #root .mode-screen--menu .game-menu-hints { display: none; }
+}
+
 
 /* The hangar is behind the actual gameplay ship, in the same flight space. */
 #root .raid-hangar__launch { width: 100%; min-height: 44px; }
