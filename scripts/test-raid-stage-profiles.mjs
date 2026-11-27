@@ -174,7 +174,7 @@ for (const fps of [30, 60, 120]) {
   }
   assert.equal(nearEdgeShots.length, 1, 'the tail warning starts in time for an aligned scout near the exit')
 
-  const ram = { ...wing[1], variant: api.LEGACY_FIGHTER_COUNT + 3, y: 49 }
+  const ram = { ...wing[1], variant: api.LEGACY_FIGHTER_COUNT + 3, y: 30 }
   let charges = 0
   let closestY = 0
   for (let frame = 0; frame < fps * 11; frame++) {
@@ -198,7 +198,7 @@ for (const fps of [30, 60, 120]) {
       api.advanceRaidFighterFire(enemy, target, dt, 1, 16, shot => shots.push(shot))
       enemy.y = api.advanceRaidFighterY(enemy, target, dt)
       if (frame === 6 * fps) {
-        assert.ok(enemy.y > 20 && enemy.y <= pilot.y - 10)
+        assert.ok(enemy.y >= 18 && enemy.y <= 40, 'sustained fighters hold the elite cruise area')
         assert.ok(shots.length >= 2, `variant ${variant} stopped firing after it reached its lane`)
         shots.length = 0
       }
@@ -366,10 +366,14 @@ for (const stage of [2, 6, 13, 15]) {
   const regular = wing[0]
   const promoted = promotedWing[0]
   const oldEliteHp = api.getRaidCruiseHullHp(stage, stage, 4) * .84
-  assert.ok(wing.every(enemy => enemy.hp >= oldEliteHp * .79 && enemy.hp <= oldEliteHp * 1.35))
+  for (const enemy of wing) {
+    if (api.isRaidScout(enemy)) assert.equal(enemy.hp, api.getRaidScoutHp(stage, 4, 1))
+    else assert.ok(enemy.hp >= oldEliteHp * .45 && enemy.hp <= oldEliteHp * .68)
+  }
   assert.equal(promotedWing.filter(enemy => enemy.eliteFighter).length, 1)
   assert.equal(promoted.variant, regular.variant)
   assert.equal(promoted.isMiniBoss, false)
+  assert.equal(promoted.hp, api.getRaidFighterDurability(regular.variant, oldEliteHp, 1, true).hp)
   assert.ok(promoted.hp > regular.hp * 2 && promoted.radius > regular.radius)
   assert.ok(promoted.hp > Math.max(...wing.map(enemy => enemy.hp + (enemy.fighterShield ?? 0))))
   assert.equal(api.isRaidScout(promoted), false)
@@ -385,7 +389,10 @@ for (const stage of [2, 6, 13, 15]) {
   }
 }
 assert.ok(api.formation(1, 0, 0, true).enemies.every(enemy => !enemy.eliteFighter))
-console.log('Former mini-boss health band, promoted hull identity, per-wing promotion cap and elite scale verified')
+assert.equal(api.getRaidScoutHp(1, 0, 1), 2)
+assert.equal(api.getRaidScoutHp(1, 0, .65), 1)
+assert.equal(api.getRaidScoutHp(7, 4, 2), 9)
+console.log('Original scout HP, reduced regular durability, promoted hull identity and elite scale verified')
 
 const defenses = api.RAID_FIGHTERS.map((_, index) => api.getRaidFighterDurability(api.LEGACY_FIGHTER_COUNT + index, 10, 1))
 assert.equal(new Set(defenses.map(fighter => fighter.hp)).size, 6)

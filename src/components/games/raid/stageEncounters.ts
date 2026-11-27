@@ -57,8 +57,16 @@ export function getRaidFighter(variant: number): (typeof RAID_FIGHTERS)[number] 
   return RAID_FIGHTERS[variant - LEGACY_FIGHTER_COUNT]
 }
 
+function getRaidBaseMobHp(wave: number, power: number) {
+  return 2 + Math.floor(wave / 2) + Math.floor(power / 4)
+}
+
+export function getRaidScoutHp(wave: number, power: number, difficulty: number) {
+  return Math.max(1, Math.round(getRaidBaseMobHp(wave, power) * .77 * difficulty))
+}
+
 export function getRaidCruiseHullHp(stage: number, wave: number, power: number, kind: MiniBossKind = 'stalker') {
-  const base = 2 + Math.floor(wave / 2) + Math.floor(power / 4)
+  const base = getRaidBaseMobHp(wave, power)
   const multiplier = kind === 'brood' ? 12 : kind === 'lancer' ? 9.2 : 10.4
   return 38 + base * multiplier + Math.max(0, stage - 1) * 11.5 + wave * 3.4 + power * 4.2
 }
@@ -74,7 +82,7 @@ export function getRaidFighterDurability(variant: number, base: number, difficul
 }
 
 const LEGACY_GUN = { cooldown: 1.65, shots: 1, boltSpeed: 29, spread: 0, aim: 1, kind: 'enemy' } as const
-const FIGHTER_GAPS = [24, 27, 42, 32, 35, 51] as const
+const FIGHTER_GAPS = [53, 50, 56, 51, 54, 59] as const
 const RAM_WARNING = .68
 const RAM_LUNGE_END = 1.56
 const RAM_RECOVERY_END = 3.15
@@ -299,9 +307,10 @@ export function advanceRaidFighterY(enemy: Enemy, target: Vec, dt: number) {
   if (isRaidScout(enemy)) return enemy.y + speed * dt
 
   const role = enemy.variant - LEGACY_FIGHTER_COUNT
-  const lane = Math.min(65, Math.max(3, target.y - (FIGHTER_GAPS[role] ?? 36)
+  // Hold the same depth as cruise elites and back away if the pilot advances.
+  const lane = Math.min(40, Math.max(18, target.y - (FIGHTER_GAPS[role] ?? 54)
     + (enemy.trainSlot % 3 - 1) * 4 + Math.sin((enemy.formationAge ?? 0) * 1.4 + enemy.phase) * 2.6))
-  const frontLimit = Math.max(3, target.y - 10)
+  const frontLimit = Math.max(3, target.y - 22)
   let destination = Math.min(lane, frontLimit)
   let forwardSpeed = speed
   let response = 2.75

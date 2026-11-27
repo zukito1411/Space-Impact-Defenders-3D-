@@ -478,8 +478,11 @@ async function testRaid() {
         if (frame === 360) pilot.y = 16
         update(1 / 60)
         for (const shot of refs.enemyShotsRef.current) if (shot.kind === 'blade') shots.add(shot.id)
-        if ((frame === 359 || frame === 819) && interceptor.y >= pilot.y - 8) {
-          throw Error('The interceptor did not take a combat position ahead of the pilot')
+        if (frame === 359 && (interceptor.y < 18 || interceptor.y > 40)) {
+          throw Error('The interceptor did not stay in the elite cruise area')
+        }
+        if (frame === 819 && interceptor.y >= pilot.y - 8) {
+          throw Error('The interceptor did not back away from the advancing pilot')
         }
       }
       if (refs.enemiesRef.current.includes(scout) || !refs.enemiesRef.current.includes(interceptor) || shots.size < 6) {
@@ -494,7 +497,7 @@ async function testRaid() {
     })
     await desktop.evaluate(async () => {
       const { refs, spawnEnemy, draw, sync } = window.openingTest
-      const { getRaidCruiseHullHp } = await import('/src/components/games/raid/stageEncounters.ts')
+      const { getRaidCruiseHullHp, getRaidScoutHp } = await import('/src/components/games/raid/stageEncounters.ts')
       const stage = 3
       refs.stageRef.current = refs.waveRef.current = stage
       refs.enemiesRef.current.length = 0
@@ -521,10 +524,14 @@ async function testRaid() {
         refs.enemiesRef.current.pop()
       } finally { Math.random = roll }
       spawnEnemy(76, 38, stage, 0, 0, { variant: 0, cruiseElite: true }, 'lancer')
-      const [regular, promoted, miniBoss] = refs.enemiesRef.current
-      const oldEliteFloor = getRaidCruiseHullHp(stage, stage, 0) * .84
-      if (regular.hp < oldEliteFloor || regular.eliteFighter || !promoted.eliteFighter || promoted.variant !== regular.variant
-        || promoted.hp <= regular.hp * 2 || miniBoss.hp < oldEliteFloor * 1.9) throw Error('Incorrect hull health or promotion tier')
+      spawnEnemy(74, 88, stage, 0, 0, { variant: 8 }, null)
+      const [regular, promoted, miniBoss, scout] = refs.enemiesRef.current
+      const power = Object.values(pilot.weapons).reduce((sum, count) => sum + count, 0)
+      const difficulty = refs.enemyHpMultRef.current
+      const oldEliteHp = getRaidCruiseHullHp(stage, stage, power) * .84 * difficulty
+      if (Math.abs(regular.hp - oldEliteHp * .51) > 1 || regular.eliteFighter || !promoted.eliteFighter
+        || promoted.variant !== regular.variant || promoted.hp <= regular.hp * 4 || miniBoss.hp < oldEliteHp * 1.9
+        || scout.hp !== getRaidScoutHp(stage, power, difficulty)) throw Error('Incorrect hull health or promotion tier')
 
       let eliteBars = 0
       const addColorStop = CanvasGradient.prototype.addColorStop
@@ -538,7 +545,7 @@ async function testRaid() {
       } finally { CanvasGradient.prototype.addColorStop = addColorStop }
       sync()
     })
-    await capture(desktop, 'raid-elite-comparison')
+    await capture(desktop, 'raid-fighter-spacing')
     assert.deepEqual(traffic, [], 'a guest run must not call the online profile or leaderboard APIs')
     assert.deepEqual(errors, [])
     console.log('Desktop guest launch, stage advance, retry, sustained fighter combat, scout tail fire, crossfire, shields, phase, cloak and both elite tiers passed')

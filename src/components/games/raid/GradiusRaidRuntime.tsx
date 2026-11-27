@@ -34,7 +34,7 @@ import { createRaidMainShotEmitter } from './playerMuzzle'
 import { clampRaidShipSize, getRaidPlayerHitRadius, useRaidShipSize } from './shipSize'
 import { ShipSizeControls } from '../../ui/ShipSizeControls'
 import { getRaidShipBaseVisualKey } from './shipArtwork'
-import { absorbRaidFighterShield, advanceRaidFighterDefense, advanceRaidFighterFire, advanceRaidFighterY, commitRaidFighterManeuver, FIGHTER_FIRE_FLASH, fireRaidFighter, getRaidFighter, getRaidCruiseHullHp, getRaidFighterDurability, getRaidFighterPathX, getRaidFighterPhaseShift, getRaidRamAttackLane, getRaidReserveVariant, getRaidStageEncounter, getRaidWingSize, getRaidWingSlot, isRaidFighterPhased, LEGACY_FIGHTER_COUNT, RAID_MINI_BOSS_HP_SCALE, RAID_STAGE_ENEMY_LIMIT } from './stageEncounters'
+import { absorbRaidFighterShield, advanceRaidFighterDefense, advanceRaidFighterFire, advanceRaidFighterY, commitRaidFighterManeuver, FIGHTER_FIRE_FLASH, fireRaidFighter, getRaidFighter, getRaidCruiseHullHp, getRaidFighterDurability, getRaidFighterPathX, getRaidFighterPhaseShift, getRaidRamAttackLane, getRaidReserveVariant, getRaidScoutHp, getRaidStageEncounter, getRaidWingSize, getRaidWingSlot, isRaidFighterPhased, LEGACY_FIGHTER_COUNT, RAID_MINI_BOSS_HP_SCALE, RAID_STAGE_ENEMY_LIMIT } from './stageEncounters'
 import { drawBossImpact, recordBossImpact } from './bossDamageFx'
 import { prefersRaidReducedMotion } from './commandBossRender'
 import { drawIncomingHazard, drawRecoveryCue, findIncomingHazard, needsRepair, passesNearPilot } from './flightCues'
@@ -4394,10 +4394,12 @@ export function GradiusRaid({
     const eliteX = profile?.cruiseElite ? x : clamp(Math.random() < 0.62 ? x + (Math.random() - 0.5) * 32 : 8 + Math.random() * 84, 8, 92)
     const originX = isElite && !profile?.cruiseElite ? clamp(eliteX + (Math.random() - 0.5) * 18, 12, 88) : x
     const toughness = enemyHpMultRef.current * (isMultiplayer ? 1.36 : 1)
-    // The old cruise mini-boss hull is the baseline for regular fighters.
+    // Former cruise mini-bosses used .84; regular combat fighters get half that baseline.
     const hull = getRaidCruiseHullHp(stage, wave, powerPressure, kind ?? 'stalker')
-    const durability = getRaidFighterDurability(variant, hull * .84, toughness, eliteFighter)
-    const hp = isElite ? Math.round(hull * RAID_MINI_BOSS_HP_SCALE * toughness * (profile?.cruiseElite ? .84 : 1)) : durability.hp
+    const durability = getRaidFighterDurability(variant, hull * (eliteFighter ? .84 : .42), toughness, eliteFighter)
+    const hp = isElite ? Math.round(hull * RAID_MINI_BOSS_HP_SCALE * toughness * (profile?.cruiseElite ? .84 : 1))
+      : fighter?.defense === 'scout' && !eliteFighter ? getRaidScoutHp(wave, powerPressure, enemyHpMultRef.current)
+        : durability.hp
     const fighterRadius = fighter?.radius ?? 3.7
     enemiesRef.current.push({
       id: enemyId++,
