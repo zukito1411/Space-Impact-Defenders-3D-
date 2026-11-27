@@ -11,6 +11,7 @@ const code = ts.transpileModule([
   const useCallback = callback => callback
   const window = { matchMedia: () => ({ matches: false }) };
   const getRaidBankingFrame = () => null;
+  const muzzleFlashesRef = { current: [] }, recordRaidMuzzleFlash = () => {}
   const clamp = (value, low, high) => Math.max(low, Math.min(high, value))
   const activeShotOwnerRef={current:null};
   const playerRef = {}, remotePlayerRef = {}, devilAssistPlayerRef = {}, fireCaptureRef = {}, viewportMetricsRef = {}, landscapeRef = { current: false }
@@ -28,7 +29,7 @@ const code = ts.transpileModule([
   const updateMesiahDrones = () => {}, updateMesiahScoutDrones = () => {}
   const isCoreLanderBurning = () => false, FORCE_FIELD_ARMOR = 6, SPACE_ET_PASSIVE_FORCE_FIELD_CHARGES = 1
   const WEAPON_STACK_CAPS = Object.fromEntries(WEAPON_KEYS.map(key => [key, 1]))
-  const raidStereoPan=()=>0,playRaidCue=()=>{}, playGameSound = kind => sounds.push(kind), getRaidFighter = variant => variant >= 8
+  const raidAudioPosition=()=>0,raidStereoPan=()=>0,playRaidCue=()=>{}, playGameSound = kind => sounds.push(kind), getRaidFighter = variant => variant >= 8
   const getRaidPlayerFlightBank = color => { colors.push(color); return bank }
   let shotId = 3, bank = 0
   const pushShot = shot => shots.push(shot)
@@ -167,8 +168,8 @@ for (const width of [320, 360, 640, 641, 860, 1024, 1440, 2560]) {
   const oldMini = mobile ? Math.min(width * .18, 150) : Math.min(width * .15, 132)
   close(sizes(false, false, 0, width), oldNormal * 1.15)
   close(sizes(false, false, 8, width), oldNormal * 1.18 * 1.10)
-  close(sizes(false, true, 0, width), oldMini * 1.12)
   const smallest = Math.min(width * (mobile ? .34 : .3), 260)
+  close(sizes(false, true, 0, width), Math.min(oldMini * 1.24, smallest * .72))
   close(sizes(true, false, 0, width, 'carrier'), smallest)
   close(sizes(true, false, 0, width, 'final'), Math.min(width * .64, 620))
   assert.ok(sizes(false, false, 8, width) < sizes(false, true, 0, width))

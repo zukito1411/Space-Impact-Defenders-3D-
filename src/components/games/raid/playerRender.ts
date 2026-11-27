@@ -1,4 +1,5 @@
 import { updateScoutFlight } from './scoutFlight'
+import { isRaidFighterPhased } from './stageEncounters'
 import { drawRaidExhaustBloom, warmRaidWeaponGlows } from './weaponPresentation'
 import { isRaid2DMech } from './mechArtwork'
 import { CARRIER_EXIT_SECONDS } from './carrierLaunch'
@@ -25,216 +26,72 @@ import { ALLY_PLAYER_COLOR, DEG, FORCE_FIELD_ARMOR, GOD_GUNDAM_BURNING_BODY_SCAL
 import { coreBlastSpriteCache } from './effectsRender'
 import { getCoreLanderBurningRage, getCoreLanderFireInterval, isCoreLanderBurning } from './mechanics'
 import { getCoreLanderCombatModelFromVisualShipKey, getOptionSupportStacks, normalizeMesiahDrones, normalizeMesiahScoutDrones } from './state'
-import type { CoreLanderCombatModel, Enemy, GamePhase, MesiahDroneUnit, MesiahScoutUnit, Player, PowerKind, SpiegelAfterimage, Vec } from './types'
+import type { CoreLanderCombatModel, Enemy, GamePhase, MesiahDroneUnit, Player, PowerKind, SpiegelAfterimage, Vec } from './types'
 import { clamp, distSq, drawRadialEllipse } from './utils'
 
 export const coreLanderBurningHaloSpriteCache = new Map<string, HTMLCanvasElement>()
 
-export const mesiahLiveTargetsScratch: Enemy[] = []
+export function getMesiahEscortAim(escort: Vec, target: Enemy) {
+  const x = target.x - escort.x
+  const y = target.y - (escort.y - 3)
+  const range = Math.hypot(x, y)
+  if (y > -MESIAH_DRONE_MIN_FIRE_RANGE || range > MESIAH_DRONE_MAX_FIRE_RANGE || Math.abs(x) > -y * .55) return null
+  return { x: x / range, y: y / range }
+}
 
-export function getMesiahDroneTarget(player: Player, enemies: Enemy[], lockedTargetId: number | null = null) {
-  const lockedTarget = lockedTargetId === null
-    ? null
-    : enemies.find((enemy) => enemy.id === lockedTargetId && enemy.hp > 0 && enemy.y > -8 && (enemy.isBoss || enemy.isMiniBoss)) ?? null
-  if (lockedTarget) return lockedTarget
-  let nearest: Enemy | null = null
-  let nearestDistance = Infinity
+function getMesiahEscortTarget(escort: MesiahDroneUnit, home: Vec, enemies: Enemy[]) {
+  let target: Enemy | null = null
+  let best = (MESIAH_DRONE_MAX_FIRE_RANGE + 22) ** 2
   for (const enemy of enemies) {
-    if (enemy.hp <= 0 || enemy.y <= -8 || (!enemy.isBoss && !enemy.isMiniBoss)) continue
-    const distance = distSq(enemy, player)
-    if (distance < nearestDistance || (distance === nearestDistance && nearest && enemy.id < nearest.id)) {
-      nearest = enemy
-      nearestDistance = distance
-    }
+    if (enemy.hp <= 0 || enemy.x < 0 || enemy.x > 100 || enemy.y < 1 || enemy.y > 82 || isRaidFighterPhased(enemy)) continue
+    // Prefer threats near this escort's lane, and keep a lock through small position changes.
+    const score = distSq(enemy, home) * (enemy.id === escort.targetId ? .75 : 1)
+    if (score >= best) continue
+    target = enemy
+    best = score
   }
-  return nearest
+  return target
 }
 
-export function getMesiahScoutTargetBySlot(targets: Enemy[], scout: MesiahScoutUnit, slot: number) {
-  if (targets.length === 0) return null
-  const targetSlot = ((slot % targets.length) + targets.length) % targets.length
-  const usedIds: number[] = []
-  let selected: Enemy | null = null
-  for (let pick = 0; pick <= targetSlot; pick += 1) {
-    let best: Enemy | null = null
-    let bestDistance = Infinity
-    for (const target of targets) {
-      if (usedIds.includes(target.id)) continue
-      const distance = distSq(target, scout)
-      if (distance < bestDistance || (distance === bestDistance && best && target.id < best.id)) {
-        best = target
-        bestDistance = distance
-      }
-    }
-    if (!best) break
-    selected = best
-    usedIds.push(best.id)
-  }
-  return selected
-}
-
-export function getMesiahDroneHome(player: Player, side: number, homeOffset = 7) {
-  return {
-    x: clamp(player.x + homeOffset * side, 4, 96),
-    y: player.y + 5.2,
-  }
-}
-
-export function getMesiahDroneAttackPoint(player: Player, drone: MesiahDroneUnit, target: Enemy | null, elapsed: number) {
-  const direction = drone.side
-  const orbitPhase = elapsed * 3.4 + direction * 2.1
-  const orbitRadiusX = target ? 13.5 : 7
-  const orbitRadiusY = target ? 7.2 : 5
-  return {
-    x: target
-      ? clamp(target.x + Math.cos(orbitPhase) * orbitRadiusX + direction * 4.2, 5, 95)
-      : clamp(player.x + direction * 16 + Math.sin(elapsed * 2.4 + direction) * orbitRadiusX, 5, 95),
-    y: target
-      ? clamp(target.y + 5.8 + Math.sin(orbitPhase) * orbitRadiusY, 8, 78)
-      : clamp(player.y - 18 + Math.cos(elapsed * 1.9 + direction) * orbitRadiusY, 12, 74),
-  }
-}
-
-export function getMesiahScoutSupportPoint(
-  player: Player,
-  side: number,
-  elapsed: number,
-  isSmallViewport: boolean,
-  target: Enemy | null = null,
-  stackIndex = 0,
-  totalStacks = 1,
-) {
-  const stackPhase = stackIndex * Math.PI * 0.84
-  const orbit = elapsed * (target ? 3.25 : 2.35) + side * 2.4 + stackPhase
-  const stackLane = stackIndex - (totalStacks - 1) / 2
-  const sideOffset = (isSmallViewport ? 28 : 5.8) + stackIndex * (isSmallViewport ? 7.2 : 2.2)
-  const idleY = 7.4 + stackIndex * (isSmallViewport ? 7.2 : 4.8)
-  const orbitX = target ? Math.cos(orbit) * (isSmallViewport ? 13 : 10) : 0
-  const orbitY = target ? Math.sin(orbit * 1.15) * (isSmallViewport ? 8.2 : 6.2) : 0
-  const x = target
-    ? clamp(target.x + side * (isSmallViewport ? 9.5 : 7.2) + stackLane * (isSmallViewport ? 5.5 : 4.2) + orbitX, 5, 95)
-    : clamp(player.x + side * sideOffset + orbitX, 4, 96)
-  const y = target
-    ? clamp(target.y + 6.8 + stackIndex * (isSmallViewport ? 7.4 : 5.8) + orbitY, 10, 82)
-    : clamp(player.y + idleY + orbitY, 13, 94)
-  const facing = target ? Math.atan2(target.y - y, target.x - x) + Math.PI / 2 : 0
-  return { x, y, rotation: facing }
-}
-
-export function moveMesiahDroneToward(drone: MesiahDroneUnit, destination: Vec, speed: number, dt: number) {
-  const dx = destination.x - drone.x
-  const dy = destination.y - drone.y
-  const distance = Math.hypot(dx, dy)
-  if (distance <= 0.001) return { movedX: 0, movedY: 0 }
-  const step = Math.min(distance, speed * dt)
-  const movedX = (dx / distance) * step
-  const movedY = (dy / distance) * step
-  drone.x += movedX
-  drone.y += movedY
-  return { movedX, movedY }
+function flyMesiahEscort(escort: MesiahDroneUnit, home: Vec, player: Player, enemies: Enemy[], dt: number, idleFire = false) {
+  const target = getMesiahEscortTarget(escort, home, enemies)
+  escort.targetId = target?.id ?? null
+  const flank = target ? clamp(target.x - home.x, -23, 23) * .62 : 0
+  const depth = target ? clamp(target.y + 21 - home.y, -11, 14) : 0
+  const dx = clamp(home.x + flank, 4, 96) - escort.x
+  const dy = clamp(home.y + depth, 13, 94) - escort.y
+  const step = Math.min(1 - Math.exp(-dt * 5.5), 54 * dt / Math.max(.01, Math.hypot(dx, dy)))
+  escort.x += dx * step
+  escort.y += dy * step
+  // The same small banks as a piloted ship. The hull never turns to face the target.
+  escort.rotation += (clamp(dx * .018, -.19, .19) - escort.rotation) * (1 - Math.exp(-dt * 10))
+  escort.canFire = player.mesiahDroneTimer > .32 && (target ? getMesiahEscortAim(escort, target) !== null : idleFire)
 }
 
 export function updateMesiahDrones(player: Player, enemies: Enemy[], dt: number, isSmallViewport: boolean) {
-  const drones = normalizeMesiahDrones(player)
-  const active = player.ship.key === 'mesiah' && player.hp > 0
-  const elapsed = player.mesiahDroneTimer
-  for (const drone of drones) {
-    const home = getMesiahDroneHome(player, drone.side, isSmallViewport ? MESIAH_DRONE_MOBILE_HOME_OFFSET : MESIAH_DRONE_HOME_OFFSET)
-    if (!active) {
-      drone.x = home.x
-      drone.y = home.y
-      drone.rotation = 0
-      drone.targetId = null
-      drone.active = false
-      drone.canFire = false
-      continue
-    }
-
-    drone.active = true
-    const target = getMesiahDroneTarget(player, enemies, drone.targetId)
-    drone.targetId = target?.id ?? null
-    const destination = target
-      ? getMesiahDroneAttackPoint(player, drone, target, elapsed)
-      : home
-    const speed = target ? 64 : 58
-    const movement = moveMesiahDroneToward(drone, destination, speed, dt)
-    const distanceToTarget = target ? Math.hypot(target.x - drone.x, target.y - drone.y) : Infinity
-    drone.canFire = Boolean(
-      target &&
-      elapsed > 0.32 &&
-      distanceToTarget >= MESIAH_DRONE_MIN_FIRE_RANGE &&
-      distanceToTarget <= MESIAH_DRONE_MAX_FIRE_RANGE,
-    )
-
-    if (!target) {
-      drone.rotation = 0
-      continue
-    }
-
-    const facing = drone.canFire && target
-      ? { x: target.x - drone.x, y: target.y - drone.y }
-      : Math.hypot(movement.movedX, movement.movedY) > 0.01
-        ? { x: movement.movedX, y: movement.movedY }
-        : { x: destination.x - drone.x, y: destination.y - drone.y }
-    drone.rotation = Math.atan2(facing.y || -1, facing.x || 0) + Math.PI / 2
+  const offset = isSmallViewport ? MESIAH_DRONE_MOBILE_HOME_OFFSET : MESIAH_DRONE_HOME_OFFSET
+  for (const drone of normalizeMesiahDrones(player)) {
+    const home = { x: clamp(player.x + offset * drone.side, 4, 96), y: clamp(player.y + 4, 13, 94) }
+    drone.active = player.ship.key === 'mesiah' && player.hp > 0
+    if (drone.active) flyMesiahEscort(drone, home, player, enemies, dt)
+    else Object.assign(drone, home, { targetId: null, rotation: 0, canFire: false })
   }
 }
 
 export function updateMesiahScoutDrones(player: Player, enemies: Enemy[], dt: number, isSmallViewport: boolean, landscape = false) {
-  // Reuse the existing replicated scout slots for pickup escorts on every ship.
-  const scouts = normalizeMesiahScoutDrones(player)
   const supportStacks = getOptionSupportStacks(player)
   const active = player.hp > 0 && supportStacks > 0
-  const elapsed = player.mesiahDroneTimer
-  const liveTargets = mesiahLiveTargetsScratch
-  liveTargets.length = 0
-  if (player.ship.key === 'mesiah') {
-    for (const enemy of enemies) {
-      if (enemy.hp > 0 && enemy.y > -8 && (enemy.isBoss || enemy.isMiniBoss)) liveTargets.push(enemy)
-    }
-  }
-  const offset = player.ship.key === 'dreadnought' ? (isSmallViewport ? 8.2 : 5) : (isSmallViewport ? 12 : 5.6)
-  for (const scout of scouts) {
+  const mesiah = player.ship.key === 'mesiah'
+  const ark = player.ship.key === 'dreadnought'
+  const offset = mesiah ? (isSmallViewport ? 28 : 21) : ark ? (isSmallViewport ? 8.2 : 5) : (isSmallViewport ? 12 : 5.6)
+  for (const scout of normalizeMesiahScoutDrones(player)) {
     const enabled = active && scout.stack < supportStacks
-    const home = player.ship.key === 'mesiah'
-      ? getMesiahScoutSupportPoint(player, scout.side, elapsed, isSmallViewport, null, scout.stack, Math.max(1, supportStacks))
-      : { x: clamp(player.x + scout.side * offset, 4, 96), y: player.y + (player.ship.key === 'dreadnought' ? 7.2 : 1.8) }
+    const spacing = mesiah ? offset + scout.stack * 5 : offset
+    const depth = mesiah ? 7.4 + scout.stack * 6 : ark ? 7.2 : 1.8
+    const home = { x: clamp(player.x + scout.side * spacing, 4, 96), y: mesiah ? clamp(player.y + depth, 13, 94) : player.y + depth }
     if (updateScoutFlight(scout, enabled, home, dt, landscape)) continue
-    if (player.ship.key !== 'mesiah') {
-      scout.x = home.x
-      scout.y = home.y
-      scout.rotation = 0
-      scout.targetId = null
-      scout.canFire = true
-      continue
-    }
-
-    scout.active = true
-    const slot = scout.stack * 2 + (scout.side > 0 ? 1 : 0)
-    const target = getMesiahScoutTargetBySlot(liveTargets, scout, slot)
-    scout.targetId = target?.id ?? null
-    const destination = target
-      ? getMesiahScoutSupportPoint(player, scout.side, elapsed, isSmallViewport, target, scout.stack, supportStacks)
-      : home
-    const distanceToHome = Math.hypot(home.x - scout.x, home.y - scout.y)
-    const movement = moveMesiahDroneToward(scout, destination, target ? 72 : Math.min(82, 54 + distanceToHome * 2.1), dt)
-    const distanceToTarget = target ? Math.hypot(target.x - scout.x, target.y - scout.y) : Infinity
-    scout.canFire = Boolean(
-      elapsed > 0.32 &&
-      (!target || (distanceToTarget >= 5.5 && distanceToTarget <= 26)),
-    )
-
-    if (!target) {
-      scout.rotation = 0
-      continue
-    }
-
-    const facing = scout.canFire
-      ? { x: target.x - scout.x, y: target.y - scout.y }
-      : Math.hypot(movement.movedX, movement.movedY) > 0.01
-        ? { x: movement.movedX, y: movement.movedY }
-        : { x: destination.x - scout.x, y: destination.y - scout.y }
-    scout.rotation = Math.atan2(facing.y || -1, facing.x || 0) + Math.PI / 2
+    if (mesiah) flyMesiahEscort(scout, home, player, enemies, dt, true)
+    else Object.assign(scout, home, { targetId: null, rotation: 0, canFire: true })
   }
 }
 

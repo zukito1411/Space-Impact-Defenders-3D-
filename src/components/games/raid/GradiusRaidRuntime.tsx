@@ -34,7 +34,7 @@ import { createRaidMainShotEmitter } from './playerMuzzle'
 import { clampRaidShipSize, getRaidPlayerHitRadius, useRaidShipSize } from './shipSize'
 import { ShipSizeControls } from '../../ui/ShipSizeControls'
 import { getRaidShipBaseVisualKey } from './shipArtwork'
-import { absorbRaidFighterShield, advanceRaidFighterDefense, advanceRaidFighterFire, advanceRaidFighterY, commitRaidFighterManeuver, FIGHTER_FIRE_FLASH, fireRaidFighter, getRaidFighter, getRaidCruiseHullHp, getRaidFighterDurability, getRaidFighterPathX, getRaidFighterPhaseShift, getRaidFighterVolleyScale, getRaidRamAttackLane, getRaidReserveVariant, getRaidScoutHp, getRaidStageEncounter, getRaidWingSize, getRaidWingSlot, isRaidFighterPhased, isRaidScout, LEGACY_FIGHTER_COUNT, RAID_MINI_BOSS_HP_SCALE, RAID_STAGE_ENEMY_LIMIT } from './stageEncounters'
+import { absorbRaidFighterShield, advanceRaidFighterDefense, advanceRaidFighterFire, advanceRaidFighterY, commitRaidFighterManeuver, createRaidScoutCruise, FIGHTER_FIRE_FLASH, fireRaidFighter, getRaidFighter, getRaidCruiseHullHp, getRaidFighterDurability, getRaidFighterPathX, getRaidFighterPhaseShift, getRaidFighterVolleyScale, getRaidRamAttackLane, getRaidReserveVariant, getRaidScoutHp, getRaidScoutWingSlot, getRaidStageEncounter, getRaidWingSize, getRaidWingSlot, isRaidFighterPhased, isRaidScout, LEGACY_FIGHTER_COUNT, RAID_MINI_BOSS_HP_SCALE, RAID_SCOUT_OPENING_SECONDS, RAID_SCOUT_WING_SIZE, RAID_STAGE_ENEMY_LIMIT } from './stageEncounters'
 import { drawBossImpact, isRaidBossShielded, recordBossImpact } from './bossDamageFx'
 import { prefersRaidReducedMotion } from './commandBossRender'
 import { drawIncomingHazard, drawRecoveryCue, findIncomingHazard, needsRepair, passesNearPilot } from './flightCues'
@@ -100,7 +100,7 @@ import { clearPickupLoadout, extendLoadoutForSuperBoss, getPowerScore, resetStag
 import { acquireHomingTarget, animateStageClearPlayer, applyStartingStageLevel, fullyBuffRaidPlayer, getCoreLanderFireInterval, getGodGundamBarrageBossDamage, getGodGundamBarrageDamageMultiplier, getGodGundamMeleeDamagePerSecond, getGodGundamMeleeRange, getGodGundamPassivePose, getGodGundamStageAttackBonus, getNukeBossDamage, getNukeCooldownSeconds, getPlayerBaseAttack, getSpiegelShadowCloneDamageMultiplier, hasSpiegelShadowClones, isCoreLanderBurning, levelUpPlayer, movePlayerWithInput, revivePlayerForBossClear, updatePlayerTimers } from './mechanics'
 import { clampNetworkVelocity, cloneAsteroid, cloneDerelictWreck, cloneEnemy, cloneIonStrike, cloneMeteor, cloneRaidRandomEvent, cloneVec, compactPlayer, compactVec, getBufferedAsteroidVisuals, getBufferedEnemyVisuals, getBufferedPlayerVisual, getConnectionLabel, getGuestShotTtlMs, getOwnCorrectionBlend, getPlayerPickupAudioKind, hasClearedRaidInProgress, isNetworkVisible, keepNetworkVisibleInPlace, reconcilePlayerVisual, updateDerelictWreckMotion } from './network'
 import { getRaidBankingFrame } from './bankingArt'
-import { drawRaidOptions, drawRaidPlayer, getCoreBlastSprite, getRaidPlayerFlightBank, warmRaidBankingArt } from './playerRender'
+import { drawRaidOptions, drawRaidPlayer, getCoreBlastSprite, getMesiahEscortAim, getRaidPlayerFlightBank, warmRaidBankingArt } from './playerRender'
 import { getRaidAssetPreloadInitialState, preloadGradiusRaidAssets, warmRaidGeneratedEffectSprites } from './preload'
 import { activateScoutSupportPickup, clonePlayer, getCheckpointStage, getDefaultPlayerVisualShipKey, getGodGundamGameplayRenderSize, getHighScore, getInitialPlayer, getOptionSupportStacks, getPlayerCoreLanderCombatModel, getRaidGundamName, getRaidPlayerVisualShipKey, getShipByKey, getUnlockedStage, isCoreLanderAoeShot, isGodGundamBarragePilot, normalizeMesiahDrones, normalizeMesiahScoutDrones, powerColor, sanitizePlayerVisualShipKey, saveCheckpointStage, saveHighScore, saveUnlockedStage } from './state'
 import type { AsteroidHazard, BossKind, BossMessage, CameraShakeState, CoreLanderCombatModel, DerelictWreck, Enemy, EnemySpawnProfile, GamePhase, GodGundamBarrage, GodGundamPassiveStrike, IonStrike, MeteorHazard, MiniBossKind, MirageBossKind, MultiplayerAsteroidSnapshot, MultiplayerConnectionQuality, MultiplayerEnemySnapshot, MultiplayerHostState, MultiplayerInput, MultiplayerPlayerSnapshot, NukeStrike, Player, PowerKind, PowerUp, RaidAssetPreloadState, RaidBgmMode, RaidDifficulty, RaidMode, RaidMultiplayerSession, RaidRandomEvent, RaidRandomEventKind, RelayGameMessage, Ripple, ShipOption, Shot, Snapshot, Spark, Vec, WeaponKey } from './types'
@@ -337,6 +337,7 @@ export function GradiusRaid({
   const waveRef = useRef(1)
   const spawnTimerRef = useRef(0.5)
   const formationTimerRef = useRef(1.8)
+  const scoutCruiseRef = useRef(createRaidScoutCruise())
   const wingSerialRef = useRef(0)
   const reserveSerialRef = useRef(0)
   const bossTimerRef = useRef(28)
@@ -3229,6 +3230,7 @@ export function GradiusRaid({
       }
 
       destroyed += 1
+      enemy.hp = 0
       enemiesDestroyedRef.current += 1
       scenePresentation.defeat(enemy)
       const scoreValue = 95 + waveRef.current * 14
@@ -3481,6 +3483,7 @@ export function GradiusRaid({
       if (stageChanged) {
         waveRef.current = stop.targetStage
         journeyStageAgeRef.current = 0
+        scoutCruiseRef.current = createRaidScoutCruise()
         spawnLockRef.current = 1.2
         spawnTimerRef.current = 3.2
         formationTimerRef.current = 1.8
@@ -3573,6 +3576,7 @@ export function GradiusRaid({
     raidModeRef.current = mode
     stageRef.current = stage
     journeyStageAgeRef.current = 0
+    scoutCruiseRef.current = createRaidScoutCruise()
     waveRef.current = stage
     const guidedOpening = stage === 1 && mode === 'campaign' && !session && !sameScreen
     coachOpeningRef.current = guidedOpening
@@ -3823,7 +3827,7 @@ export function GradiusRaid({
       : (isSmallViewport ? 12 : 5.6)
     const scoutScale = isArk ? 0.9 : 0.86
     const optionSupportStacks = getOptionSupportStacks(player)
-    const emitters: Array<{ x: number; y: number; scale: number; main: boolean; attackShipKey?: string; baseOnly?: boolean; target?: Enemy | null; rotation?: number; canFire?: boolean; laserOnly?: boolean }> = []
+    const emitters: Array<{ x: number; y: number; scale: number; main: boolean; attackShipKey?: string; baseOnly?: boolean; target?: Enemy | null; laserOnly?: boolean }> = []
 
     if (canFireMain) {
       emitters.push({ x: player.x, y: player.y, scale: 1, main: true })
@@ -3844,7 +3848,8 @@ export function GradiusRaid({
             if (!scout.active || !scout.canFire || scout.stack >= optionSupportStacks) continue
             const target = scout.targetId === null
               ? null
-              : enemiesRef.current.find((enemy) => enemy.id === scout.targetId && enemy.hp > 0 && enemy.y > -8 && (enemy.isBoss || enemy.isMiniBoss)) ?? null
+              : enemiesRef.current.find((enemy) => enemy.id === scout.targetId && enemy.hp > 0) ?? null
+            if (scout.targetId !== null && !target) continue
             emitters.push({
               x: scout.x,
               y: scout.y,
@@ -3853,7 +3858,6 @@ export function GradiusRaid({
               attackShipKey: 'fast',
               laserOnly: true,
               target,
-              rotation: scout.rotation,
             })
           }
         } else {
@@ -3877,8 +3881,6 @@ export function GradiusRaid({
           attackShipKey: isWhiteMesiah ? 'mesiahDroneSpaceJet' : 'mesiahDrone',
           baseOnly: true,
           target,
-          rotation: drone.rotation,
-          canFire: drone.canFire,
         })
       }
     }
@@ -3927,15 +3929,13 @@ export function GradiusRaid({
 
       // -- MESIAH DRONE: detached Space Jet support fire for white Mesiah --
       if (attackShipKey === 'mesiahDroneSpaceJet') {
-        const target = emitter.target
-        if (!target || !emitter.canFire) return
-        const aim = { x: target.x - emitter.x, y: target.y - emitter.y }
-        const mag = Math.sqrt((aim.x) * (aim.x) + (aim.y) * (aim.y)) || 1
+        const aim = emitter.target ? getMesiahEscortAim(emitter, emitter.target) : null
+        if (!aim) return
         emitShot({
           x: emitter.x,
           y: emitter.y - 3.6,
-          vx: (aim.x / mag) * 158,
-          vy: (aim.y / mag) * 158,
+          vx: aim.x * 158,
+          vy: aim.y * 158,
           damage: Math.ceil((baseDamage + 1) * emitter.scale),
           kind: 'needle' as any,
           radius: 0.82 * emitter.scale,
@@ -3945,10 +3945,9 @@ export function GradiusRaid({
 
       // -- MESIAH DRONE: detached Black Comet support fire --
       else if (attackShipKey === 'mesiahDrone') {
-        const target = emitter.target
-        if (!target || !emitter.canFire) return
-        const rotation = emitter.rotation ?? 0
-        fireBlackCometPulse(emitter, target ? { x: target.x - emitter.x, y: target.y - emitter.y } : { x: Math.sin(rotation), y: -Math.cos(rotation) }, emitShot, 0.58)
+        const aim = emitter.target ? getMesiahEscortAim(emitter, emitter.target) : null
+        if (!aim) return
+        fireBlackCometPulse(emitter, aim, emitShot, 0.58)
         mesiahDroneFired = true
       } else if (attackShipKey === 'rocket') {
         fireBlackCometPulse(emitter, { x: 0, y: -1 }, emitShot)
@@ -3981,17 +3980,19 @@ export function GradiusRaid({
 
       // -- RED WRAITH: rapid twin needle streams --
       else if (attackShipKey === 'fast') {
-        emitShot({ x: emitter.x - 1.2, y: emitter.y - 3, vx: -3, vy: -110, damage, kind: 'needle' as any, radius: 1.1 })
-        emitShot({ x: emitter.x + 1.2, y: emitter.y - 3, vx: 3, vy: -110, damage, kind: 'needle' as any, radius: 1.1 })
+        const aim = emitter.target ? getMesiahEscortAim(emitter, emitter.target) : { x: 0, y: -1 }
+        if (!aim) return
+        emitShot({ x: emitter.x - 1.2, y: emitter.y - 3, vx: aim.x * 110 - 3, vy: aim.y * 110, damage, kind: 'needle' as any, radius: 1.1 })
+        emitShot({ x: emitter.x + 1.2, y: emitter.y - 3, vx: aim.x * 110 + 3, vy: aim.y * 110, damage, kind: 'needle' as any, radius: 1.1 })
         if (activeWeapons.spread) {
           const fan = stacks.spread >= 2 ? [-34, -18, 18, 34] : [-24, 24]
           fan.forEach((vx) => emitShot({ x: emitter.x, y: emitter.y - 2.8, vx, vy: -86, damage, kind: 'spread', radius: 1.35 }))
         }
         if (activeWeapons.laser) {
           const side = stacks.laser >= 2 ? 1.6 : 0
-          emitShot({ x: emitter.x - side, y: emitter.y - 5, vx: 0, vy: -132, damage: Math.ceil((baseDamage + 2 + stacks.laser) * emitter.scale), kind: 'laser', radius: 1.85, pierce: 1 + stacks.laser })
+          emitShot({ x: emitter.x - side, y: emitter.y - 5, vx: aim.x * 132, vy: aim.y * 132, damage: Math.ceil((baseDamage + 2 + stacks.laser) * emitter.scale), kind: 'laser', radius: 1.85, pierce: 1 + stacks.laser })
           if (stacks.laser >= 3) {
-            emitShot({ x: emitter.x + side, y: emitter.y - 5, vx: 0, vy: -132, damage: Math.ceil((baseDamage + 2) * emitter.scale), kind: 'laser', radius: 1.65, pierce: 2 })
+            emitShot({ x: emitter.x + side, y: emitter.y - 5, vx: aim.x * 132, vy: aim.y * 132, damage: Math.ceil((baseDamage + 2) * emitter.scale), kind: 'laser', radius: 1.65, pierce: 2 })
           }
         }
         if (activeWeapons.scatter) {
@@ -4374,7 +4375,7 @@ export function GradiusRaid({
     const isMultiplayer = isCoOpActive()
     const kind = eliteKind ?? null
     const isElite = Boolean(kind)
-    const eliteFighter = eliteKind === undefined
+    const eliteFighter = eliteKind === undefined && !profile?.rewardScoutWing
       && Math.random() < getEliteEnemyChance(stage, wave, trainSlot, profile?.motion !== undefined)
       && !enemiesRef.current.some(enemy => enemy.hp > 0 && (enemy.eliteFighter || enemy.isMiniBoss))
     const variant = profile?.variant ?? (enemyId + 1) % LEGACY_FIGHTER_COUNT
@@ -4390,7 +4391,7 @@ export function GradiusRaid({
       : fighter?.defense === 'scout' && !eliteFighter ? getRaidScoutHp(wave, powerPressure, enemyHpMultRef.current)
         : durability.hp
     const fighterRadius = fighter?.radius ?? 3.7
-    enemiesRef.current.push({
+    const enemy: Enemy = {
       id: enemyId++,
       x: isElite ? eliteX : x,
       y: isElite && !profile?.cruiseElite ? Math.min(y, -7 - Math.random() * 16) : y,
@@ -4404,6 +4405,7 @@ export function GradiusRaid({
       isBoss: false,
       isMiniBoss: isElite,
       eliteFighter: eliteFighter || undefined,
+      rewardScoutWing: profile?.rewardScoutWing,
       fireCooldown: isElite ? kind === 'lancer' ? 0.95 : kind === 'brood' ? 1.28 : 1.08
         : fighter ? .43 + trainSlot * .115 : .85 + Math.random() * .55,
       phase: profile?.phase ?? Math.random() * Math.PI * 2,
@@ -4427,18 +4429,41 @@ export function GradiusRaid({
       chargeLane: 50,
       chargeTargetY: 50,
       chargePattern: 'single',
-    })
+    }
+    enemiesRef.current.push(enemy)
+    return enemy
   }, [])
 
-  const spawnFormation = useCallback(() => {
+  const spawnScoutWing = useCallback(() => {
+    const cruise = scoutCruiseRef.current
+    let active = 0
+    for (const enemy of enemiesRef.current) {
+      if (enemy.hp > 0) active++
+    }
+    // The authored combat waves leave space for a passing wing of light scouts.
+    if (active + RAID_SCOUT_WING_SIZE > (isCoOpActive() ? 18 : 16)) {
+      cruise.nextWing = cruise.age + .75
+      return
+    }
+    const serial = cruise.serial++
+    const wing: Enemy[] = []
+    for (let slot = 0; slot < RAID_SCOUT_WING_SIZE; slot++) {
+      const profile = getRaidScoutWingSlot(stageRef.current, serial, slot)
+      wing.push(spawnEnemyAt(profile.x, profile.y, waveRef.current, 0, slot, profile))
+    }
+    cruise.wings.push(wing)
+    cruise.nextWing = cruise.age + (serial === 0 ? 4.2 : 10.5 + Math.random() * 3)
+  }, [spawnEnemyAt])
+
+  const spawnFormation = useCallback((maxActive = RAID_STAGE_ENEMY_LIMIT) => {
     const stage = stageRef.current
     const serial = wingSerialRef.current
     let liveEnemies = 0
     for (const enemy of enemiesRef.current) {
       if (enemy.hp > 0) liveEnemies += 1
     }
-    const count = getRaidWingSize(stage, serial, liveEnemies)
-    if (!count) return
+    const count = Math.min(getRaidWingSize(stage, serial, liveEnemies), maxActive - liveEnemies)
+    if (count <= 0) return
     wingSerialRef.current += 1
     const openingSweep = stage === 1 && serial % 3 === 1
     const flank = Math.floor(serial / 3) % 2 === 0 ? 1 : -1
@@ -4645,6 +4670,13 @@ export function GradiusRaid({
     powerDropCooldownRef.current = guaranteed ? NORMAL_POWER_DROP_COOLDOWN * 0.7 : NORMAL_POWER_DROP_COOLDOWN + powerScore * 0.55
     powerUpsRef.current.push({ id: powerId++, type, x, y, vy: 11, radius: 3, spin: Math.random() * 360 })
   }, [])
+
+  const dropEnemyPowerUp = useCallback((enemy: Enemy) => {
+    if (enemy.isBoss || enemy.rewardScoutWing) return
+    const guaranteed = enemy.cruiseEliteAge !== undefined
+      || Boolean((enemy.isMiniBoss || enemy.eliteFighter) && Math.random() < ELITE_POWER_DROP_CHANCE)
+    spawnPowerUp(enemy.x, enemy.y, guaranteed)
+  }, [spawnPowerUp])
 
   const spawnLevelUpPowerUp = useCallback((x: number, y: number) => {
     killsSincePowerRef.current = 0
@@ -4999,6 +5031,7 @@ export function GradiusRaid({
     bossMessageRef.current = null
     bossAlertRef.current = 0
     enemiesRef.current = []
+    scoutCruiseRef.current.wings.length = 0
     enemyShotsRef.current = []
     shotsRef.current = []
     guestLocalShotsRef.current = []
@@ -5155,6 +5188,7 @@ export function GradiusRaid({
           stageRef.current = pendingNextStage
           syncBossRushStageLevel(pendingNextStage)
           journeyStageAgeRef.current = 0
+          scoutCruiseRef.current = createRaidScoutCruise()
           waveRef.current = pendingNextStage
           devilAssistPlayerRef.current = null
           devilAssistMoveTargetRef.current = null
@@ -5400,6 +5434,9 @@ export function GradiusRaid({
       activateNuke(remotePlayer)
     }
 
+    const scoutCruise = scoutCruiseRef.current
+    scoutCruise.age += dt
+    const scoutOpening = raidModeRef.current !== 'bossRush' && scoutCruise.age + 1e-6 < RAID_SCOUT_OPENING_SECONDS
     spawnLockRef.current = Math.max(0, spawnLockRef.current - dt)
     const canSpawnStageEnemies = raidModeRef.current !== 'bossRush' && spawnLockRef.current <= 0 && stageClearRef.current <= 0
     const events = randomEventsRef.current
@@ -5448,7 +5485,7 @@ export function GradiusRaid({
       bossAlertRef.current = Math.max(0, bossAlertRef.current - dt)
     }
 
-    if (bossTimerRef.current <= 0 && !bossActive && !eventBlocksBoss) {
+    if (bossTimerRef.current <= 0 && !bossActive && !eventBlocksBoss && !scoutOpening) {
       const boss = queuedBossRef.current ?? resolveBossKind()
       if (!queuedBossRef.current && raidModeRef.current === 'endless' && shouldRecoverBeforeEndlessBoss(boss)) {
         beginCarrierRecovery(stageRef.current, boss)
@@ -5464,18 +5501,22 @@ export function GradiusRaid({
     const firstBlackHoleDue = raidModeRef.current === 'campaign' && !blackHoleSeenRef.current
       && stageRef.current >= FIRST_BLACK_HOLE_STAGE && stageRef.current <= MAX_RAID_STAGE
       && journeyStageAgeRef.current >= FIRST_BLACK_HOLE_CRUISE_SECONDS
-    if (canSpawnStageEnemies && !bossActive && !ambushActive) {
+    if (canSpawnStageEnemies && !bossActive && scoutCruise.age >= scoutCruise.nextWing
+      && (scoutOpening || bossTimerRef.current > CRUISE_BOSS_APPROACH_SECONDS)) spawnScoutWing()
+    if (canSpawnStageEnemies && !bossActive && !ambushActive && !scoutOpening) {
       if (authoredCruise) {
         if (formationTimerRef.current <= 0 && bossTimerRef.current > CRUISE_BOSS_APPROACH_SECONDS) {
-          formationTimerRef.current = spawnCruiseEncounter()
+          const interval = spawnCruiseEncounter()
+          formationTimerRef.current = interval >= 4 ? interval + Math.random() * 1.1 : interval
         }
       } else {
+        const combatLimit = isCoOpActive() ? 14 : 12
         if (formationTimerRef.current <= 0) {
-          spawnFormation()
+          spawnFormation(combatLimit)
           formationTimerRef.current = getRaidStageEncounter(stageRef.current).interval
         }
         if (spawnTimerRef.current <= 0) {
-          if (enemiesRef.current.length < RAID_STAGE_ENEMY_LIMIT) {
+          if (enemiesRef.current.length < combatLimit) {
             const variant = getRaidReserveVariant(stageRef.current, reserveSerialRef.current++)
             spawnEnemyAt(16 + Math.random() * 68, -6, waveRef.current, Math.floor(Math.random() * 4), 0, { variant })
           }
@@ -5568,7 +5609,7 @@ export function GradiusRaid({
             rotation: variantData.rotation + (leftEntry ? 0 : Math.PI) + (Math.random() - 0.5) * 7 * DEG,
           })
           activeRandomEvent.spawnIn = 999
-        } else if (activeRandomEvent.kind === 'ambush' && !bossActive && activeRandomEvent.spawnIn <= 0) {
+        } else if (activeRandomEvent.kind === 'ambush' && !bossActive && !scoutOpening && activeRandomEvent.spawnIn <= 0) {
           const ambushWave = activeRandomEvent.ambushWave ?? 0
           let liveEnemies = 0
           let liveElites = 0
@@ -6731,11 +6772,7 @@ export function GradiusRaid({
             const scoreValue = getRaidEnemyScoreValue(enemy, waveRef.current)
             player.score += Math.round(scoreValue * scoreMult)
             if (remotePlayer) remotePlayer.score += Math.round(scoreValue * scoreMult)
-            if (enemy.isMiniBoss || enemy.eliteFighter) {
-              spawnPowerUp(enemy.x, enemy.y, enemy.cruiseEliteAge !== undefined || Math.random() < ELITE_POWER_DROP_CHANCE)
-            } else {
-              spawnPowerUp(enemy.x, enemy.y)
-            }
+            dropEnemyPowerUp(enemy)
           }
         }
       }
@@ -6885,9 +6922,7 @@ export function GradiusRaid({
       if (remotePlayerRef.current) {
         remotePlayerRef.current.score += Math.round(scoreValue * scoreMult)
       }
-      if (enemy.isMiniBoss || enemy.eliteFighter) {
-        spawnPowerUp(enemy.x, enemy.y, enemy.cruiseEliteAge !== undefined || Math.random() < ELITE_POWER_DROP_CHANCE)
-      } else if (!enemy.isBoss) spawnPowerUp(enemy.x, enemy.y)
+      dropEnemyPowerUp(enemy)
       if (!enemy.isBoss) enemy.defeatTimer = Math.max(enemy.defeatTimer ?? 0, GOD_GUNDAM_DEFEAT_HOLD_SECONDS)
       if (enemy.isBoss) {
         playBossCriticalStinger(enemy, true)
@@ -7382,9 +7417,7 @@ export function GradiusRaid({
             if (remotePlayerRef.current) {
               remotePlayerRef.current.score += Math.round(scoreValue * scoreMult)
             }
-            if (enemy.isMiniBoss || enemy.eliteFighter) {
-              spawnPowerUp(enemy.x, enemy.y, enemy.cruiseEliteAge !== undefined || Math.random() < ELITE_POWER_DROP_CHANCE)
-            } else if (!enemy.isBoss) spawnPowerUp(enemy.x, enemy.y)
+            dropEnemyPowerUp(enemy)
             if (enemy.isBoss) {
               playBossCriticalStinger(enemy, true)
               bossDefeatedThisFrame = true
@@ -7594,7 +7627,7 @@ export function GradiusRaid({
             } else {
               enemy.hp = 0
               targetPlayer.score += Math.round((70 + waveRef.current * 10) * scoreMult)
-              spawnPowerUp(enemy.x, enemy.y)
+              dropEnemyPowerUp(enemy)
             }
             spawnSparks(enemy.x, enemy.y, '#22d3ee', enemy.isBoss || armoredElite ? 40 : 18, 7)
             addRipple(enemy.x, enemy.y, '#22d3ee', enemy.isBoss || armoredElite ? 15 : 10)
@@ -7676,6 +7709,20 @@ export function GradiusRaid({
       spawnedAsteroids.length = 0
     }
 
+    compactInPlace(scoutCruise.wings, wing => {
+      // Surviving scouts that escaped or fell into a hazard invalidate this clear.
+      if (wing.some(enemy => enemy.hp > 0 && !enemiesRef.current.includes(enemy))) return false
+      let defeated: Enemy | undefined
+      compactInPlace(wing, enemy => {
+        if (enemy.hp > 0) return true
+        defeated = enemy
+        return false
+      })
+      if (wing.length) return true
+      if (defeated) spawnPowerUp(defeated.x, Math.min(defeated.y, HEIGHT - 22), true)
+      return false
+    })
+
     for (const powerUp of powerUpsRef.current) {
       const pickupAssist = powerUp.type === 'levelup' ? 4.2 : 1.8
       for (const targetPlayer of livingPlayersThisTick) {
@@ -7731,7 +7778,7 @@ export function GradiusRaid({
     if (remotePlayerRef.current && remotePlayerRef.current.score > highScoreRef.current) {
       highScoreRef.current = remotePlayerRef.current.score
     }
-  }, [activateNuke, addRipple, beginCarrierRecovery, sendOpeningCue, collectLevelUpReward, collectPendingLevelUpRewards, emitCommandBossShot, damagePlayer, destroyPlayer, detonateNuke, finishBarrage, fireEnemy, firePlayer, getLivingPlayers, getNearestLivingPlayer, showRaidVictory, spawnAsteroidCluster, planAsteroidCluster, spawnBoss, spawnCruiseEncounter, spawnEnemyAt, spawnFormation, spawnPowerUp, spawnLevelUpPowerUp, spawnSparks, scenePresentation, startRaidBgm, startRandomRaidEvent, stopRaidBgm, submitRaidLeaderboardScore, syncBossRushStageLevel, syncSnapshot, resolveBossKind, triggerScreenShake])
+  }, [activateNuke, addRipple, beginCarrierRecovery, sendOpeningCue, dropEnemyPowerUp, collectLevelUpReward, collectPendingLevelUpRewards, emitCommandBossShot, damagePlayer, destroyPlayer, detonateNuke, finishBarrage, fireEnemy, firePlayer, getLivingPlayers, getNearestLivingPlayer, showRaidVictory, spawnAsteroidCluster, planAsteroidCluster, spawnBoss, spawnCruiseEncounter, spawnEnemyAt, spawnFormation, spawnScoutWing, spawnPowerUp, spawnLevelUpPowerUp, spawnSparks, scenePresentation, startRaidBgm, startRandomRaidEvent, stopRaidBgm, submitRaidLeaderboardScore, syncBossRushStageLevel, syncSnapshot, resolveBossKind, triggerScreenShake])
 
   const getRaidMenuScope = useCallback(() => {
     const root = rootRef.current

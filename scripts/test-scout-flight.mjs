@@ -25,14 +25,16 @@ const source = [
   const getRaidBankingFrame = () => null
   const PLAYER_COLOR = '#fff'`,
   declarations('mechArtwork', ['isRaid2DMech']),
+  declarations('blackHoleDistortion', ['canvasWarps', 'getCanvasGravityWarp']),
   declarations('liveHullBridge', ['activeSink', 'bindLiveHulls', 'drawLiveHull']),
   declarations('constants', ['WEAPON_KEYS', 'SPACE_ET_FORCE_FIELD_REGEN_SECONDS', 'SPACE_ET_PASSIVE_FORCE_FIELD_CHARGES',
     'MESIAH_DRONE_MIN_FIRE_RANGE', 'MESIAH_DRONE_MAX_FIRE_RANGE', 'MESIAH_DRONE_HOME_OFFSET', 'MESIAH_DRONE_MOBILE_HOME_OFFSET', 'SCOUT_SUPPORT_PICKUP_SECONDS']),
   declarations('utils', ['clamp', 'distSq']),
+  declarations('stageEncounters', ['PHASE_WINDUP', 'PHASE_END', 'getRaidFighterDefenseTime', 'isRaidFighterPhased']),
   declarations('state', ['createMesiahDrones', 'normalizeMesiahDrones', 'createMesiahScoutDrones', 'normalizeMesiahScoutDrones', 'getOptionSupportStacks', 'activateScoutSupportPickup']),
   read('scoutFlight').replace(/^import .*\n/gm, ''),
-  declarations('playerRender', ['mesiahLiveTargetsScratch', 'getMesiahDroneTarget', 'getMesiahScoutTargetBySlot', 'getMesiahDroneHome',
-    'getMesiahDroneAttackPoint', 'getMesiahScoutSupportPoint', 'moveMesiahDroneToward', 'updateMesiahDrones', 'updateMesiahScoutDrones', 'drawRaidOptions']),
+  declarations('playerRender', ['getMesiahEscortAim', 'getMesiahEscortTarget', 'flyMesiahEscort',
+    'updateMesiahDrones', 'updateMesiahScoutDrones', 'drawRaidOptions']),
   declarations('mechanics', ['isCoreLanderBurning', 'updatePlayerTimers']),
 ].join('\n')
 const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText + '\n//# sourceURL=scout-flight-test-module.js'
@@ -128,6 +130,40 @@ assert.equal(scouts(p)[0].flightPhase, 'arriving')
 assert.equal(scouts(p)[0].canFire, false)
 advance(p, 1.3, false, [{ id: 1, x: 50, y: 35, hp: 100, isBoss: true }])
 assert.ok(scouts(p).some(s => s.targetId === 1), 'Mesiah resumes boss targeting after arrival')
+
+// Both escort types can line up on regular fighters, change targets, and keep their heading.
+for (const small of [false, true]) for (const dt of [1 / 30, 1 / 60, 1 / 120]) {
+  const pilot = player('mesiah')
+  m.activateScoutSupportPickup(pilot)
+  m.activateScoutSupportPickup(pilot)
+  const foes = [
+    { id: 2, x: 22, y: 39, hp: 8, variant: 8 },
+    { id: 3, x: 76, y: 38, hp: 20, variant: 10 },
+  ]
+  advance(pilot, 2.5, true, foes, small, dt)
+  const escorts = [...pilot.mesiahDrones, ...scouts(pilot)]
+  for (const escort of escorts) {
+    assert.equal(escort.targetId, escort.side < 0 ? 2 : 3)
+    assert.ok(escort.canFire && m.getMesiahEscortAim(escort, foes.find(foe => foe.id === escort.targetId)).y < 0)
+  }
+
+  foes[0].hp = 0
+  foes[1].y = 96
+  foes.push({ id: 4, x: 48, y: 50, hp: 25, isMiniBoss: true })
+  for (let frame = 0; frame < Math.round(2 / dt); frame++) {
+    const before = escorts.map(escort => ({ x: escort.x, y: escort.y }))
+    pilot.x = 50 + 15 * Math.sin(frame * dt * 3)
+    advance(pilot, dt, true, foes, small, dt)
+    for (const [i, escort] of escorts.entries()) {
+      assert.equal(escort.targetId, 4)
+      assert.ok(Math.abs(escort.rotation) <= .19, 'escort nose must stay pointed forward')
+      assert.ok(Math.hypot(escort.x - before[i].x, escort.y - before[i].y) <= 54 * dt + 1e-8)
+      assert.ok(Math.abs(escort.y - pilot.y) < 25, 'escort left its pilot to orbit a target')
+    }
+  }
+  assert.equal(m.getMesiahEscortAim(escorts[0], foes[1]), null, 'escort never fires backward')
+}
+console.log('Mesiah base and pickup escorts can engage normal fighters with smooth forward-facing flight')
 
 // Missing flight fields from older clients preserve already-active support.
 const oldScout = { x: 45, y: 72, side: -1, stack: 0, rotation: 0, active: true, canFire: true }

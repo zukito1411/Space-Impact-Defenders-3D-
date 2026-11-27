@@ -206,7 +206,7 @@ async function main() {
 
   const mobileChecks = [testCoopMenu, testCallsign, testNativeDownload]
   const checks = process.argv.includes('--controller-only') ? [testController]
-    : process.argv.includes('--raid-only') ? [testRaid]
+    : process.argv.includes('--raid-only') || process.argv.includes('--scout-only') ? [testRaid]
     : process.argv.includes('--android-startup-only') ? [testNativeDownload]
     : process.argv.includes('--menu-only') ? mobileChecks : [testRaid, ...mobileChecks]
   const failures = []
@@ -342,6 +342,96 @@ async function testController() {
   } finally { await page.close() }
 }
 
+async function verifyScoutCruise(page) {
+  await page.evaluate(async () => {
+    const { refs, update, spawnEnemy } = window.openingTest
+    const { createRaidScoutCruise, isRaidScout } = await import('/src/components/games/raid/stageEncounters.ts')
+    const pilot = refs.playerRef.current
+    const reset = (stage, mode = 'campaign') => {
+      refs.stageRef.current = refs.waveRef.current = stage
+      refs.raidModeRef.current = mode
+      refs.scoutCruiseRef.current = createRaidScoutCruise()
+      refs.wingSerialRef.current = refs.reserveSerialRef.current = 0
+      refs.spawnLockRef.current = refs.formationTimerRef.current = refs.spawnTimerRef.current = 0
+      refs.bossTimerRef.current = 90
+      refs.asteroidClusterTimerRef.current = refs.randomEventTimerRef.current = 999
+      refs.coachOpeningRef.current = false
+      refs.blackHoleSeenRef.current = true
+      refs.journeyStageAgeRef.current = 0
+      for (const name of ['enemiesRef', 'enemyShotsRef', 'shotsRef', 'powerUpsRef', 'randomEventsRef', 'asteroidsRef']) refs[name].current.length = 0
+      Object.assign(pilot, { x: 50, y: 86, invuln: 999, forceField: 0, fireCooldown: 999 })
+    }
+    const dt = 1 / 60
+    for (const stage of [...Array(15)].map((_, i) => i + 1).concat(21)) {
+      reset(stage, stage > 15 ? 'endless' : 'campaign')
+      for (let frame = 0; frame < 599; frame++) {
+        update(dt)
+        if (refs.enemiesRef.current.some(enemy => !isRaidScout(enemy))) {
+          throw Error(`Stage ${stage} spawned a stronger enemy before 10s`)
+        }
+      }
+      const cruise = refs.scoutCruiseRef.current
+      if (cruise.serial !== 2) throw Error(`Stage ${stage} didn't send both opening scout wings`)
+      for (let frame = 0; frame < 22 * 60; frame++) update(dt)
+      if (!refs.enemiesRef.current.some(enemy => !isRaidScout(enemy)) || cruise.serial < 3) {
+        throw Error(`Stage ${stage} did not mix in tougher units and keep sending scouts`)
+      }
+    }
+
+    reset(13)
+    const cruise = refs.scoutCruiseRef.current
+    for (let frame = 0; frame < 120; frame++) update(dt)
+    const [first] = cruise.wings
+    const launchShot = enemy => ({
+      id: -enemy.id, x: enemy.x, y: enemy.y, vx: 0, vy: 0, damage: 10000, radius: 2, kind: 'pulse',
+    })
+    refs.powerDropCooldownRef.current = 999
+    refs.shotsRef.current.push(...first.slice(0, 3).map(launchShot))
+    update(dt)
+    if (refs.powerUpsRef.current.length || first.length !== 1) throw Error('Partial scout wing should not award a pickup')
+    refs.shotsRef.current.push(launchShot(first[0]))
+    update(dt)
+    const reward = refs.powerUpsRef.current[0]
+    if (!reward || reward.type === 'levelup' || refs.powerUpsRef.current.length !== 1 || cruise.wings.length) {
+      throw Error('A cleared scout wing did not award exactly one random buff')
+    }
+    for (let frame = 0; frame < 260; frame++) update(dt)
+    const [second] = cruise.wings
+    if (!second || second.length !== 4) throw Error('Missing second scout wing')
+    second[3].y = 160
+    refs.shotsRef.current.push(...second.slice(0, 3).map(launchShot))
+    update(dt)
+    if (cruise.wings.length || refs.powerUpsRef.current.some(drop => drop.id !== reward.id)) {
+      throw Error('An escaped scout should spoil the group reward')
+    }
+
+    reset(13)
+    const { getShipByKey } = await import('/src/components/games/raid/state.ts')
+    const { updatePlayerTimers } = await import('/src/components/games/raid/mechanics.ts')
+    Object.assign(pilot, { ship: getShipByKey('mesiah'), y: 74, optionStacks: 1, optionTimer: 0, mesiahDroneTimer: 1 })
+    const fighters = [spawnEnemy(31, 38, 13, 0, 0, { variant: 8 }, null), spawnEnemy(70, 40, 13, 0, 1, { variant: 10 }, null)]
+    for (let frame = 0; frame < 150; frame++) updatePlayerTimers(pilot, dt, fighters, false, true)
+    pilot.fireCooldown = pilot.mesiahDroneFireCooldown = 0
+    refs.firePlayerRef.current(pilot)
+    for (const escort of [...pilot.mesiahDrones, ...pilot.mesiahScoutDrones.filter(scout => scout.active)]) {
+      const target = fighters.find(fighter => fighter.id === escort.targetId)
+      const shot = refs.shotsRef.current.find(shot =>
+        Math.abs(shot.x - escort.x) < 2 && Math.abs(shot.y - escort.y + 3.3) < 1 && shot.vy < 0)
+      if (!target || !shot || Math.abs(shot.x + shot.vx * (target.y - shot.y) / shot.vy - target.x) > target.radius) {
+        throw Error('A Mesiah escort did not shoot at an ordinary fighter')
+      }
+    }
+
+    reset(1, 'bossRush')
+    refs.bossTimerRef.current = 2.4
+    for (let frame = 0; frame < 180; frame++) update(dt)
+    if (!refs.enemiesRef.current.some(enemy => enemy.isBoss) || refs.scoutCruiseRef.current.serial) {
+      throw Error('Boss Rush should skip the scout opening')
+    }
+  })
+  console.log('Scout-only first 10s in all 15 campaign stages and Endless, recurring scouts, complete-wing drops, escaped scouts, Mesiah shots and Boss Rush passed')
+}
+
 async function testRaid() {
   const desktop = await browser.newPage({ viewport: { width: 844, height: 470 }, reducedMotion: 'reduce' })
   try {
@@ -402,6 +492,11 @@ async function testRaid() {
       draw(performance.now())
       sync()
     })
+    if (process.argv.includes('--scout-only')) {
+      await verifyScoutCruise(desktop)
+      assert.deepEqual(errors, [])
+      return
+    }
     await desktop.getByText(/Weapons fire automatically/).waitFor()
     assert.ok(await desktop.getByText(/WASD/).isVisible())
     await assertCompactCaption(desktop.locator('.raid__fleet-radio .fleet-radio'))
@@ -433,6 +528,7 @@ async function testRaid() {
       refs.shotsRef.current.push({ id: -1, x: boss.x, y: boss.y, vx: 0, vy: 0, kind: 'pulse', damage: boss.hp + 1, radius: 2 })
       for (let frame = 0; frame < 500 && refs.stageRef.current === 1; frame++) update(1 / 60)
       if (refs.stageRef.current !== 2) throw Error('The next stage did not start automatically')
+      if (refs.scoutCruiseRef.current.age !== 0 || refs.scoutCruiseRef.current.serial !== 0) throw Error('Stage 2 did not reset its opening')
       const entryRemaining = refs.stageEntryRef.current
       update(1 / 60)
       if (refs.stageEntryRef.current >= entryRemaining) throw Error('Stage 2 did not progress without player input')
@@ -459,6 +555,9 @@ async function testRaid() {
       const { refs, update, draw, sync } = window.openingTest
       for (let frame = 0; frame < 650 && refs.stageEntryRef.current > 0; frame++) update(1 / 60)
       if (refs.initialLaunchRef.current) throw Error('Retry did not finish carrier launch')
+      // Scripted formation checks jump to the combat portion of the stage.
+      refs.scoutCruiseRef.current.age = 10
+      refs.scoutCruiseRef.current.nextWing = Infinity
       refs.stageRef.current = refs.waveRef.current = 2
       refs.stageEntryRef.current = refs.spawnLockRef.current = 0
       refs.bossTimerRef.current = 60

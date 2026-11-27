@@ -2,6 +2,28 @@ import type { Enemy, MiniBossKind, Shot, Vec } from './types'
 
 export const LEGACY_FIGHTER_COUNT = 8
 export const RAID_STAGE_ENEMY_LIMIT = 32
+export const RAID_SCOUT_OPENING_SECONDS = 10
+export const RAID_SCOUT_WING_SIZE = 4
+
+export function createRaidScoutCruise() {
+  return { age: 0, nextWing: .9, serial: 0, wings: [] as Enemy[][] }
+}
+
+export function getRaidScoutWingSlot(stage: number, serial: number, slot: number) {
+  const side = (stage + serial) % 2 === 0 ? 1 : -1
+  const rank = slot - (RAID_SCOUT_WING_SIZE - 1) / 2
+  const chevron = serial % 2 === 0
+  return {
+    variant: LEGACY_FIGHTER_COUNT,
+    x: 50 + side * (rank * 13 + (chevron ? 0 : 11)),
+    y: -6 - (chevron ? Math.abs(rank) * 4 : slot * 3),
+    phase: serial * .64,
+    speed: 23,
+    motion: chevron ? 0 : 1,
+    rewardScoutWing: true as const,
+  }
+}
+
 export const RAID_FIGHTER_ASSETS = [
   'assets/aliens/fighter-needle-scout-v1.webp',
   'assets/aliens/fighter-cinder-interceptor-v1.webp',
@@ -32,7 +54,7 @@ type StageEncounter = {
 
 /** Ship IDs index RAID_FIGHTERS. Each stage has its own three-wave rotation and reserve. */
 const STAGE_ENCOUNTERS: readonly StageEncounter[] = [
-  { wings: [['chevron', SCOUT, SCOUT, SCOUT, SCOUT, SCOUT], ['echelon', SCOUT, SCOUT, SCOUT, SCOUT], ['line', SCOUT, SCOUT, SCOUT, SCOUT, SCOUT]], interval: 5.1, legacy: 0 },
+  { wings: [['chevron', SCOUT, SCOUT, INTERCEPTOR, SCOUT, SCOUT], ['echelon', SCOUT, INTERCEPTOR, SCOUT, SCOUT], ['line', SCOUT, INTERCEPTOR, SCOUT, INTERCEPTOR, SCOUT]], interval: 5.1, legacy: 0 },
   { wings: [['split', SCOUT, INTERCEPTOR, INTERCEPTOR, SCOUT], ['chevron', SCOUT, INTERCEPTOR, INTERCEPTOR, INTERCEPTOR, SCOUT], ['echelon', INTERCEPTOR, SCOUT, INTERCEPTOR, SCOUT, INTERCEPTOR]], interval: 4.7, legacy: 2 },
   { wings: [['echelon', INTERCEPTOR, GUNSHIP, SCOUT, GUNSHIP, INTERCEPTOR], ['escort', SCOUT, GUNSHIP, SCOUT, SCOUT, GUNSHIP, SCOUT], ['line', GUNSHIP, SCOUT, INTERCEPTOR, SCOUT, GUNSHIP]], interval: 4.8, legacy: 3 },
   { wings: [['line', SCOUT, RAM, INTERCEPTOR, RAM, SCOUT], ['chevron', INTERCEPTOR, INTERCEPTOR, RAM, INTERCEPTOR, INTERCEPTOR], ['weave', RAM, SCOUT, INTERCEPTOR, INTERCEPTOR, SCOUT, RAM]], interval: 4.6, legacy: 4 },

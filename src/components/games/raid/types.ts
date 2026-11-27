@@ -152,6 +152,7 @@ export type Enemy = Vec & {
   fighterRamAge?: number
   fighterRamTargetY?: number
   eliteFighter?: boolean
+  rewardScoutWing?: true
   fighterShield?: number
   fighterShieldFlash?: number
   fighterDefenseAge?: number
@@ -242,6 +243,7 @@ export type Enemy = Vec & {
 }
 
 export type EnemySpawnProfile = {
+  rewardScoutWing?: true
   cruiseManeuver?: CruiseManeuver
   cruiseFlank?: number
   cruiseElite?: boolean
