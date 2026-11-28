@@ -127,7 +127,24 @@
   min-width: 0;
 }
 
-.progress-account__identity > span,
+.progress-account__pilot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.progress-account__pilot > div { min-width: 0; }
+.progress-account__pilot strong { overflow-wrap: anywhere; }
+.progress-account__pilot .player-avatar { color: var(--ui-cyan); }
+.progress-account__connection {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-bottom: 14px;
+}
+.progress-account__connection > span { color: var(--ui-muted); }
+#root .progress-account__photo-error { color: var(--ui-danger); }
+
 .progress-account__recovery > span {
   color: #6ef5cb;
   font-size: 0.72rem;

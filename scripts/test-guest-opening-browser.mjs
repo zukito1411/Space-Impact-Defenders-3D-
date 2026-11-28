@@ -1210,6 +1210,37 @@ async function testCallsign() {
     await setUp(phone, false, traffic, false)
     await title(phone)
     await phone.evaluate(() => localStorage.setItem('space-impact-release-progress', JSON.stringify({ totalRuns: 2, totalScore: 650 })))
+    const profileButton = phone.locator('.start-screen__profile')
+    const profilePhoto = phone.locator('.progress-account__pilot .player-avatar img')
+    const homePhoto = profileButton.locator('img')
+    const restoreAccount = phone.getByRole('button', { name: 'Restore an account' })
+    await profileButton.tap()
+    await phone.locator('.progress-card--scores').waitFor()
+    const photo = await phone.evaluate(() => {
+      const canvas = document.createElement('canvas')
+      canvas.width = 240
+      canvas.height = 320
+      const context = canvas.getContext('2d')
+      context.fillStyle = '#123c55'
+      context.fillRect(0, 0, 240, 320)
+      context.fillStyle = '#67e8f9'
+      context.beginPath()
+      context.moveTo(120, 60)
+      context.lineTo(195, 220)
+      context.lineTo(120, 186)
+      context.lineTo(45, 220)
+      context.closePath()
+      context.fill()
+      return canvas.toDataURL().split(',')[1]
+    })
+    const fileChooser = phone.waitForEvent('filechooser')
+    await phone.getByRole('button', { name: 'Upload photo' }).tap()
+    await (await fileChooser).setFiles({ name: 'pilot-avatar.png', mimeType: 'image/png', buffer: Buffer.from(photo, 'base64') })
+    await profilePhoto.waitFor()
+    await phone.waitForFunction(() => document.querySelector('.progress-account__pilot img')?.naturalWidth === 192)
+    await phone.locator('.progress-panel__back').tap()
+    await homePhoto.waitFor()
+
     await phone.getByRole('button', { name: 'Leaderboards', exact: true }).tap()
     const leaderboardModes = phone.locator('.leaderboards-screen__mode')
     await leaderboardModes.first().waitFor()
@@ -1224,9 +1255,52 @@ async function testCallsign() {
     console.log('Optional callsign registration preserved the guest save')
 
     await phone.locator('.leaderboards-screen__back').tap()
+    await homePhoto.waitFor()
+    await phone.reload()
+    await phone.locator('#startup-splash').waitFor({ state: 'detached', timeout: 30000 })
+    await homePhoto.waitFor()
+    if (output) {
+      await phone.locator('.start-screen__title-lockup h1').tap()
+      await phone.waitForFunction(() => document.documentElement.dataset.menuInput === 'pointer')
+      await capture(phone, 'pilot-photo-home-portrait')
+      await phone.setViewportSize({ width: 844, height: 390 })
+      await phone.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+      await capture(phone, 'pilot-photo-home-landscape')
+      await phone.setViewportSize({ width: 393, height: 852 })
+    }
+    const ownerId = await phone.evaluate(() => localStorage.getItem('space-defenders-player-id'))
+    await phone.route('**/players/restore', async route => {
+      const request = route.request()
+      const headers = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type' }
+      if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers })
+      const { playerName, recoveryCode } = request.postDataJSON()
+      assert.deepEqual({ playerName, recoveryCode }, { playerName: 'Test Cadet', recoveryCode: 'QA-ONLY' })
+      return route.fulfill({ headers, json: { restored: true, playerId: ownerId, playerName, recoveryCode } })
+    })
+
+    await profileButton.tap()
+    await phone.locator('.space-door--idle').waitFor({ state: 'attached' })
+    await capture(phone, 'pilot-profile-portrait')
+    await phone.getByRole('button', { name: 'Switch account' }).tap()
+    await phone.getByRole('textbox', { name: 'Commander name' }).fill('Second Cadet')
+    await phone.getByRole('button', { name: 'Confirm Name', exact: true }).tap()
+    await phone.getByRole('dialog').waitFor({ state: 'hidden' })
+    assert.equal(await profilePhoto.count(), 0, 'A different account has its own avatar')
+    await phone.getByRole('button', { name: 'Switch account' }).tap()
+    await restoreAccount.tap()
+    await phone.getByRole('textbox', { name: 'Commander name' }).fill('Test Cadet')
+    await phone.getByRole('textbox', { name: 'Recovery code' }).fill('QA-ONLY')
+    await phone.getByRole('button', { name: 'Restore', exact: true }).tap()
+    await phone.getByRole('dialog').waitFor({ state: 'hidden' })
+    await profilePhoto.waitFor()
+    await phone.getByRole('button', { name: 'Remove photo' }).tap()
+    assert.equal(await profilePhoto.count(), 0)
+    await phone.locator('.progress-panel__back').tap()
+    await profileButton.locator('svg').waitFor()
+    console.log('Profile photo upload, reload, account isolation, restoration and removal passed')
+
     const shortcuts = phone.getByRole('navigation', { name: 'Pilot shortcuts' })
     for (const [name, selector, panel, back] of [
-      ['Profile', '.progress-card--scores', '.progress-panel', '.progress-panel__back'],
       ['Achievements', '.unlock-section', '.progress-panel', '.progress-panel__back'],
       ['Missions', '.mission-card', '.progress-panel', '.progress-panel__back'],
       ['Hangar', '.raid-hangar__preview', '.raid-hangar__panel', '.mode-screen__back'],
@@ -1239,7 +1313,7 @@ async function testCallsign() {
       await phone.locator(back).tap()
       await shortcuts.waitFor()
     }
-    console.log('All six home shortcuts and return paths passed')
+    console.log('All five bottom shortcuts and return paths passed')
   } finally { await phone.close() }
 }
 

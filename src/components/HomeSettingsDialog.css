@@ -15,85 +15,37 @@
   padding: 7px 12px;
   font-size: .7rem;
 }
-.start-screen__pilot {
-  display: flex;
-  align-items: center;
-  gap: clamp(6px, 1.3vw, 12px);
+#root .start-screen__topbar .start-screen__profile {
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: 280px;
   min-height: 44px;
-  padding-inline: 9px 0;
+  padding: 5px 12px 5px 6px;
   border: 1px solid #3b718488;
   border-left: 2px solid #68dce5;
   border-radius: 4px;
+  border-image: none;
   background: linear-gradient(100deg, #112e3ce8, #081724dc);
   box-shadow: inset 0 1px #c8f6ff15, 0 4px 12px #0006;
-  font-family: var(--ui-font);
+  color: var(--ui-cyan);
+  text-transform: none;
+  letter-spacing: .02em;
 }
-.start-screen__pilot-identity {
-  display: grid;
-  gap: 1px;
+.start-screen__profile > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
-  padding-block: 3px;
 }
-.start-screen__pilot-identity > span {
-  overflow: hidden;
-  color: #98c7d4;
-  font-size: .57rem;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.start-screen__profile .player-avatar {
+  --avatar-size: 30px;
 }
-.start-screen__pilot-identity strong {
+.start-screen__profile strong {
   overflow: hidden;
-  max-width: 24ch;
   color: #f2fbff;
-  font-size: clamp(.77rem, 1.85vw, .95rem);
-  line-height: 1.2;
+  font-size: clamp(.79rem, 1.85vw, .98rem);
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-#root .start-screen__pilot .game-button {
-  flex: 0 0 auto;
-  min-width: 44px;
-  min-height: 44px;
-  padding: 5px 9px;
-  border: 0;
-  border-image: none;
-  border-left: 1px solid #486d7f;
-  border-radius: 0 3px 3px 0;
-  background: #122b3a;
-  box-shadow: none;
-  color: #cde4ed;
-  font-size: .66rem;
-  letter-spacing: .025em;
-}
-#root .start-screen__pilot .game-button:hover { background: #204354; color: #fff; }
-.start-screen__pilot:not(:has(button)) { padding-right: 10px; }
-.start-screen__sync { position: relative; display: flex; align-items: center; min-height: 24px; }
-.start-screen__sync i { width: 6px; height: 6px; border-radius: 50%; background: #8b9bae; }
-.start-screen__sync--connected i { background: var(--ui-cyan); box-shadow: 0 0 8px #73e5ee66; }
-.start-screen__sync--conflict i { background: var(--ui-gold); }
-.start-screen__sync > span {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-@media (min-width: 700px) {
-  .start-screen__pilot-identity { display: flex; align-items: baseline; gap: 7px; }
-  .start-screen__sync { gap: 6px; order: 1; }
-  .start-screen__sync > span {
-    position: static;
-    width: auto;
-    height: auto;
-    clip-path: none;
-    color: #acc1ce;
-    font-size: .65rem;
-  }
-  #root .start-screen__pilot .game-button { order: 2; }
 }
 #root .home-settings .home-settings__panel {
   display: grid;

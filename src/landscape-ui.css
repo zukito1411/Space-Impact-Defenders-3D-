@@ -734,9 +734,9 @@
   grid-area: deck;
   position: relative;
   display: grid;
-  grid-template-columns: repeat(6, minmax(44px, 1fr));
+  grid-template-columns: repeat(5, minmax(44px, 1fr));
   gap: 6px;
-  width: min(338px, 100%);
+  width: min(281px, 100%);
 }
 #root .start-screen__shortcuts > .game-button {
   display: grid;
@@ -775,10 +775,4 @@
 .start-screen__shortcuts button:is(html:not([data-menu-input='pointer']) :focus-visible, html[data-menu-input='navigation'] :focus) .start-screen__shortcut-label { visibility: visible; }
 @media (orientation: portrait) {
   #root .start-screen__shortcuts { justify-self: center; }
-}
-@media (orientation: portrait) and (max-width: 359px) {
-  #root .start-screen__shortcuts {
-    grid-template-columns: repeat(3, minmax(44px, 1fr));
-    width: min(190px, 100%);
-  }
 }

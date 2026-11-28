@@ -3,6 +3,9 @@ import { getDefaultPlayerVisualShipKey, getRaidGundamName } from './games/raid/s
 import { getRaidExhaustScale, getRaidShipBaseVisualKey, getRaidShipNozzles } from './games/raid/shipArtwork'
 import { LEGACY_FIGHTER_COUNT, RAID_FIGHTER_DEBUT_STAGES } from './games/raid/stageEncounters'
 import { GameButton } from './ui/GameButton'
+import { PlayerAvatar } from './ui/PlayerAvatar'
+import { prepareAvatar } from '../profileAvatar'
+import { getCommandText } from '../commandText'
 import { useEffect, useRef, useState } from 'react'
 import {
   getCompletionPercent,
@@ -50,7 +53,14 @@ type ProgressionScreenProps = {
   progress: ProgressState
   language: LanguageCode
   playerName: string
-  recoveryCode: string
+  account: {
+    avatar: string | null
+    guest: boolean
+    status: string
+    recoveryCode: string
+    onManage: () => void
+    onAvatarChange: (picture: string | null) => void
+  }
   onBack: () => void
   onProgressChange: (progress: ProgressState) => void
   onPlayCutscenes: () => void
@@ -169,7 +179,7 @@ export function ProgressionScreen({
   progress,
   language,
   playerName,
-  recoveryCode,
+  account,
   onBack,
   onProgressChange,
   onPlayCutscenes,
@@ -180,6 +190,28 @@ export function ProgressionScreen({
   const title = getViewTitle(view, text)
   const [previewCosmeticShip, setPreviewCosmeticShip] = useState<string | null>(null)
   const [showRecoveryCode, setShowRecoveryCode] = useState(false)
+  const [photoError, setPhotoError] = useState('')
+  const [photoPending, setPhotoPending] = useState(false)
+  const photoInput = useRef<HTMLInputElement>(null)
+  const { recoveryCode } = account
+
+  const savePhoto = (picture: string | null) => {
+    try {
+      account.onAvatarChange(picture)
+      setPhotoError('')
+    } catch {
+      setPhotoError(text.profileAccount.photoSaveError)
+    }
+  }
+
+  const uploadPhoto = async (file: File) => {
+    setPhotoError('')
+    setPhotoPending(true)
+    const picture = await prepareAvatar(file).catch(() => null)
+    if (picture) savePhoto(picture)
+    else setPhotoError(text.profileAccount.photoInvalid)
+    setPhotoPending(false)
+  }
   const stageBossEntries = getStageBossEntries(raidText.briefingPanels, text.enemyAlmanac.devilBoss, text.enemyAlmanac, text.stage)
   const raidModeTitle = languageText.leaderboards.modes.gradius_solo.title
 
@@ -193,29 +225,52 @@ export function ProgressionScreen({
 
         <header className="progress-panel__header">
           <h1 id="progress-title">{title}</h1>
-          <p>{text.deckCopy} {text.commander}: {playerName}. {text.completion}: {getCompletionPercent(progress)}%</p>
+          {view !== 'profile' && <p>{text.deckCopy} {text.commander}: {playerName}. {text.completion}: {getCompletionPercent(progress)}%</p>}
         </header>
 
         {view === 'profile' && (
           <div className="progress-grid">
             <article className="progress-card progress-card--account">
               <div className="progress-account__identity">
-                <span>{text.commander}</span>
-                <strong>{playerName}</strong>
-                <p>{text.completion}: {getCompletionPercent(progress)}%</p>
+                <div className="progress-account__pilot">
+                  <PlayerAvatar picture={account.avatar} />
+                  <div>
+                    <strong>{playerName}</strong>
+                    <p>{text.completion}: {getCompletionPercent(progress)}%</p>
+                  </div>
+                </div>
+                <input ref={photoInput} type="file" accept="image/*" hidden onChange={(event) => {
+                  const file = event.currentTarget.files?.[0]
+                  event.currentTarget.value = ''
+                  if (file) void uploadPhoto(file)
+                }} />
+                <div className="progress-card__actions">
+                  <GameButton disabled={photoPending} onClick={() => photoInput.current?.click()}>{text.profileAccount.uploadPhoto}</GameButton>
+                  {account.avatar && <GameButton tone="quiet" disabled={photoPending} onClick={() => savePhoto(null)}>{text.profileAccount.removePhoto}</GameButton>}
+                </div>
+                <p>{text.profileAccount.photoLocal}</p>
+                {photoError && <p className="progress-account__photo-error" role="alert">{photoError}</p>}
               </div>
               <div className="progress-account__recovery">
-                <span>{text.recoveryCode}</span>
-                <strong>{showRecoveryCode ? recoveryCode || text.recoveryMissing : maskRecoveryCode(recoveryCode)}</strong>
-                <p>{text.recoveryCodeDesc}</p>
-                <div className="progress-card__actions">
-                  <button type="button" onClick={() => setShowRecoveryCode((visible) => !visible)} disabled={!recoveryCode}>
-                    {showRecoveryCode ? text.hideRecoveryCode : text.showRecoveryCode}
-                  </button>
-                  <button type="button" onClick={() => copyRecoveryCode(recoveryCode)} disabled={!recoveryCode}>
-                    {text.copyRecoveryCode}
-                  </button>
+                <div className="progress-account__connection">
+                  <span role="status">{account.status}</span>
+                  <GameButton disabled={photoPending} onClick={account.onManage} aria-haspopup="dialog">
+                    {account.guest ? getCommandText(language).callsign : text.profileAccount.switchAccount}
+                  </GameButton>
                 </div>
+                {!account.guest && <>
+                  <span>{text.recoveryCode}</span>
+                  <strong>{showRecoveryCode ? recoveryCode || text.recoveryMissing : maskRecoveryCode(recoveryCode)}</strong>
+                  <p>{text.recoveryCodeDesc}</p>
+                  <div className="progress-card__actions">
+                    <button type="button" onClick={() => setShowRecoveryCode((visible) => !visible)} disabled={!recoveryCode}>
+                      {showRecoveryCode ? text.hideRecoveryCode : text.showRecoveryCode}
+                    </button>
+                    <button type="button" onClick={() => copyRecoveryCode(recoveryCode)} disabled={!recoveryCode}>
+                      {text.copyRecoveryCode}
+                    </button>
+                  </div>
+                </>}
               </div>
             </article>
             {[

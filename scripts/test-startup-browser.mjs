@@ -127,11 +127,11 @@ try{
      const shortcuts = story.getByRole('navigation', { name: 'Pilot shortcuts' })
      const buttons = shortcuts.getByRole('button')
      assert.deepEqual(await buttons.evaluateAll(items => items.map(button => button.getAttribute('aria-label'))),
-       ['Profile', 'Achievements', 'Missions', 'Hangar', 'Codex', 'Almanac'])
+       ['Achievements', 'Missions', 'Hangar', 'Codex', 'Almanac'])
      const dock = await checkBounds(buttons, width, height)
      assert.ok(dock[0].y >= home[2].y + home[2].height,
        `Dock overlaps actions at ${width}×${height}: ${JSON.stringify({ home, dock })}`)
-     assert.equal(new Set(dock.map(box => box.y)).size, width === 320 ? 2 : 1)
+     assert.equal(new Set(dock.map(box => box.y)).size, 1)
      const navBounds = await shortcuts.boundingBox()
      assert.ok(dock.every(box => box.x >= navBounds.x - .5 &&
        box.x + box.width <= navBounds.x + navBounds.width + .5),
@@ -145,11 +145,11 @@ try{
      assert.ok(await buttons.nth(1).evaluate(button => button === document.activeElement))
      await buttons.nth(1).locator('.start-screen__shortcut-label').waitFor({ timeout: 3000 })
      const header = story.locator('.start-screen__topbar')
-     const [change, settings] = await checkBounds(header.getByRole('button'), width, height)
-     const commander = header.getByText(callsign, { exact: true })
-     const identity = await commander.boundingBox()
-     assert.ok(change.x >= identity.x + identity.width && settings.x >= change.x + change.width)
-     assert.ok(Math.abs(change.y - settings.y) <= 2 && settings.y < 24)
+     const [profile, settings] = await checkBounds(header.getByRole('button'), width, height)
+     const commander = header.getByRole('button', { name: `Profile · ${callsign}` })
+     assert.equal(await commander.locator('.player-avatar svg').count(), 1)
+     assert.ok(settings.x >= profile.x + profile.width)
+     assert.ok(Math.abs(profile.y - settings.y) <= 2 && settings.y < 24)
      assert.equal(await header.getByRole('combobox').count(), 0)
      await header.getByRole('button', { name: 'Settings', exact: true }).click()
      const dialog = story.getByRole('dialog', { name: 'Settings', exact: true })
@@ -175,10 +175,12 @@ try{
      }
    }
    await story.setViewportSize({ width: 320, height: 568 })
-   await story.getByRole('button', { name: 'Change', exact: true }).click()
+   await story.getByRole('button', { name: `Profile · ${callsign}` }).click()
+   await story.getByRole('button', { name: 'Switch account' }).click()
    await story.getByRole('textbox', { name: 'Commander name' }).waitFor()
    await story.keyboard.press('Escape')
    await story.getByRole('dialog').waitFor({ state: 'hidden' })
+   await story.locator('.progress-panel__back').click()
    await story.getByRole('button', { name: 'Settings', exact: true }).click()
    const settings = story.locator('.home-settings')
    await settings.getByRole('combobox').selectOption('ja')

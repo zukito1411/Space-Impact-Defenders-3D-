@@ -8,6 +8,8 @@ import { getCommandText } from './commandText'
 import './App.css'
 import { GameButton, GameMenuAction } from './components/ui/GameButton'
 import { HomeMenuIcon } from './components/ui/HomeMenuIcon'
+import { PlayerAvatar } from './components/ui/PlayerAvatar'
+import { getAvatarOwner, loadAvatar, saveAvatar } from './profileAvatar'
 import { GameDialog } from './components/ui/GameDialog'
 import { GameMenuHints } from './components/ui/GameMenuHints'
 import { ControllerButton, RaidControllerInput } from './controllers'
@@ -170,6 +172,7 @@ function App() {
   const codexEndingAutoFadeTimerRef = useRef<number | null>(null)
   const codexEndingAutoSceneTimerRef = useRef<number | null>(null)
   const [playerName, setPlayerName] = useState(getStoredPlayerName)
+  const [avatar, setAvatar] = useState(loadAvatar)
   const [playerNameDraft, setPlayerNameDraft] = useState(playerName === 'Pilot' && !hasStoredPlayerName() ? '' : playerName)
   const [showPlayerNamePrompt, setShowPlayerNamePrompt] = useState(false)
   const pendingLobbyRef = useRef<RaidMultiplayerConnectionMode | null>(null)
@@ -203,6 +206,13 @@ function App() {
   const currentCodexEndingScene = currentCodexEndingScenes[codexEndingIndex] ?? currentCodexEndingScenes[0]
   const command = getCommandText(language)
   const guestPilot = !hasStoredPlayerName()
+  const commander = guestPilot ? command.guest : playerName
+  const syncLabel = guestPilot ? command.localSave : releaseText.profileAccount[cloudSyncStatus]
+
+  const updateAvatar = (owner: string, picture: string | null) => {
+    saveAvatar(owner, picture)
+    if (getAvatarOwner() === owner) setAvatar(picture)
+  }
   const closeCodexCutsceneArchive = () => {
     setPlayingCodexStory(false)
     setCodexEndingIndex(0)
@@ -338,6 +348,20 @@ function App() {
     if (result.playerId) saveStoredPlayerId(result.playerId)
     if (result.recoveryCode !== undefined || switchingAccount) saveStoredRecoveryCode(result.recoveryCode ?? '')
     const nextName = saveStoredPlayerName(result.playerName ?? fallbackName)
+    const owner = getAvatarOwner()
+    let nextAvatar = loadAvatar(owner)
+    if (keepGuestProgress && !result.restored && !nextAvatar) {
+      const guestAvatar = loadAvatar('guest')
+      if (guestAvatar) {
+        try {
+          saveAvatar(owner, guestAvatar)
+          nextAvatar = guestAvatar
+        } catch {
+          // Storage limits must not interrupt account registration.
+        }
+      }
+    }
+    setAvatar(nextAvatar)
     setPlayerName(nextName)
     setPlayerNameDraft(nextName)
     setRecoveryCode(result.recoveryCode ?? getStoredRecoveryCode())
@@ -391,7 +415,10 @@ function App() {
           } else if (!pending) {
             markProgressSyncPending()
           }
-          if (result.playerId) saveStoredPlayerId(result.playerId)
+          if (result.playerId && result.playerId !== requestedId) {
+            saveStoredPlayerId(result.playerId)
+            setAvatar(loadAvatar())
+          }
           if (result.recoveryCode) setRecoveryCode(saveStoredRecoveryCode(result.recoveryCode))
           cloudConnectedRef.current = true
         }
@@ -726,6 +753,14 @@ function App() {
     if (!result.offline) syncCloudProgress(loadProgress())
   }
 
+  const openProfileAccount = () => {
+    setPlayerNameDraft('')
+    setPlayerNameError('')
+    setPlayerNameRestoreMode(false)
+    setRecoveryCodeDraft('')
+    setShowPlayerNamePrompt(true)
+  }
+
   const dismissCallsign = () => {
     if (playerNameSaving) return
     pendingLobbyRef.current = null
@@ -766,7 +801,6 @@ function App() {
           onChange={(event) => {
             setPlayerNameDraft(event.target.value)
             setPlayerNameError('')
-            setPlayerNameRestoreMode(false)
           }}
           placeholder={text.player.placeholder}
         />
@@ -788,6 +822,15 @@ function App() {
         <GameButton type="submit" tone="primary" disabled={!playerNameDraft.trim() || playerNameSaving || (playerNameRestoreMode && !recoveryCodeDraft.trim())}>
           {playerNameSaving ? text.player.checking : playerNameRestoreMode ? text.player.restore : text.player.confirm}
         </GameButton>
+        {(screen === 'profile' || playerNameRestoreMode) && (
+          <GameButton type="button" tone="quiet" disabled={playerNameSaving} onClick={() => {
+            setPlayerNameRestoreMode((restoring) => !restoring)
+            setPlayerNameError('')
+            setRecoveryCodeDraft('')
+          }}>
+            {playerNameRestoreMode ? releaseText.profileAccount.useNewName : releaseText.profileAccount.restoreAccount}
+          </GameButton>
+        )}
       </form>
     </GameDialog>
   ) : null
@@ -817,29 +860,19 @@ function App() {
 
   if (screen === 'title') {
     const shortcuts = [
-      { screen: 'profile', icon: 'profile', label: releaseText.profile },
       { screen: 'achievements', icon: 'achievements', label: releaseText.achievements },
       { screen: 'missions', icon: 'missions', label: releaseText.missions },
       { screen: 'raidHangar', icon: 'hangar', label: text.rocketMode.hangar },
       { screen: 'codex', icon: 'codex', label: releaseText.codex },
       { screen: 'stageMap', icon: 'almanac', label: releaseText.stageMap },
     ] as const
-    const commander = guestPilot ? command.guest : playerName
-    const syncLabel = guestPilot ? command.localSave : cloudSyncStatus === 'connected' ? 'Cloud connected' : cloudSyncStatus === 'conflict' ? 'Name conflict · local save safe' : 'Offline · local save'
     return (
       <div className="start-screen">
         <header className="start-screen__topbar">
-          <div className="start-screen__pilot">
-            <span className={`start-screen__sync start-screen__sync--${cloudSyncStatus}`} role="status" title={syncLabel}>
-              <i aria-hidden="true" />
-              <span>{syncLabel}</span>
-            </span>
-            <div className="start-screen__pilot-identity">
-              <span>{text.player.commander}</span>
-              <strong title={commander}>{commander}</strong>
-            </div>
-            {!guestPilot && <GameButton tone="quiet" onClick={() => setShowPlayerNamePrompt(true)}>{text.player.change}</GameButton>}
-          </div>
+          <GameButton tone="quiet" className="start-screen__profile" aria-label={`${releaseText.profile} · ${commander}`} onClick={() => setScreen('profile')}>
+            <PlayerAvatar picture={avatar} />
+            <strong title={commander}>{commander}</strong>
+          </GameButton>
           <GameButton tone="quiet" className="start-screen__settings" aria-haspopup="dialog" aria-expanded={homeSettingsOpen} onClick={() => setHomeSettingsOpen(true)}>{raidText.menu.settings}</GameButton>
         </header>
         <main className="start-screen__content">
@@ -1347,14 +1380,20 @@ function App() {
   }
 
   if (PROGRESSION_VIEWS.includes(screen as ProgressionView)) {
+    const avatarOwner = getAvatarOwner()
     return (
       <>
         <ProgressionScreen
+          key={screen === 'profile' ? avatarOwner : screen}
           view={screen as ProgressionView}
           progress={progress}
           language={language}
-          playerName={playerName}
-          recoveryCode={recoveryCode}
+          playerName={commander}
+          account={{
+            avatar, guest: guestPilot, status: syncLabel, recoveryCode,
+            onManage: openProfileAccount,
+            onAvatarChange: (picture) => updateAvatar(avatarOwner, picture),
+          }}
           onBack={() => setScreen('title')}
           onPlayCutscenes={startCodexCutscenePlayback}
           onProgressChange={(nextProgress) => {
