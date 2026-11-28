@@ -18,6 +18,13 @@ export function markControllerMenuInput() {
   document.documentElement.dataset.menuInput = 'navigation'
 }
 
+export function scrollMenuRegion(control: HTMLElement | null | undefined, direction: number) {
+  if (!control?.hasAttribute('data-menu-scroll')) return false
+  const start = control.scrollTop
+  control.scrollTop += direction * Math.max(44, control.clientHeight / 3)
+  return control.scrollTop !== start
+}
+
 export class ControllerMenuNavigation {
   private direction = ''
   private next = 0
@@ -37,6 +44,7 @@ export class ControllerMenuNavigation {
     markControllerMenuInput()
     const controls = getMenuControls(scope)
     const active = controls.find(control => control === document.activeElement)
+    if (!horizontal && scrollMenuRegion(active, sign)) return
     if (horizontal && active instanceof HTMLInputElement && active.type === 'range') {
       const previous = active.value
       const step = Number(active.step) || 1

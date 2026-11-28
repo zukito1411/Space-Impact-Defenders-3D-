@@ -1,19 +1,8 @@
-import { useCallback, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import type { getReleaseText } from '../../i18n'
 import { GameButton } from './GameButton'
 
 type PageCopy = Pick<ReturnType<typeof getReleaseText>['cutsceneArchive'], 'previous' | 'next'>
-
-const compactQuery = '(orientation: landscape) and (max-height: 420px), (orientation: portrait) and (max-height: 600px)'
-
-export function useCompactScreen(query = compactQuery) {
-  const subscribe = useCallback((onChange: () => void) => {
-    const media = window.matchMedia(query)
-    media.addEventListener('change', onChange)
-    return () => media.removeEventListener('change', onChange)
-  }, [query])
-  return useSyncExternalStore(subscribe, () => window.matchMedia(query).matches, () => false)
-}
 
 export function PagedItems<T>({ items, size, copy, children }: {
   items: readonly T[]

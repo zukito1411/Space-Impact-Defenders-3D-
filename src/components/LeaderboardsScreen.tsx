@@ -6,10 +6,8 @@ import {
   type LeaderboardMap,
   type LeaderboardMode,
 } from '../leaderboards'
-import { getLanguageText, getReleaseText, type LanguageCode } from '../i18n'
+import { getLanguageText, type LanguageCode } from '../i18n'
 import { GameButton } from './ui/GameButton'
-import { PagedItems, useCompactScreen } from './ui/PagedItems'
-import { useLandscapeScreen } from './games/RaidShipSprite'
 import { getCommandText } from '../commandText'
 
 type LeaderboardsScreenProps = {
@@ -21,11 +19,6 @@ type LeaderboardsScreenProps = {
 
 export function LeaderboardsScreen({ playerName, language, onBack, onChooseCallsign }: LeaderboardsScreenProps) {
   const text = getLanguageText(language).leaderboards
-  const compact = useCompactScreen()
-  const landscape = useLandscapeScreen()
-  const shortLandscape = useCompactScreen('(orientation: landscape) and (max-height: 360px)')
-  const landscapeSize = shortLandscape ? 2 : compact ? 3 : 7
-  const pageSize = landscape ? landscapeSize : compact ? 5 : 9
   const [activeMode, setActiveMode] = useState<LeaderboardMode>('gradius_solo')
   const [leaderboards, setLeaderboards] = useState<LeaderboardMap>({ ...EMPTY_LEADERBOARDS })
   const [loading, setLoading] = useState(true)
@@ -90,7 +83,7 @@ export function LeaderboardsScreen({ playerName, language, onBack, onChooseCalls
           ))}
         </div>
 
-        <section className="leaderboards-screen__board" aria-live="polite">
+        <section key={activeMode} className="leaderboards-screen__board" data-menu-scroll tabIndex={0} aria-label={activeModeText.label} aria-live="polite">
           <p className="leaderboards-screen__description">{activeModeText.description}</p>
 
           {error ? (
@@ -100,9 +93,8 @@ export function LeaderboardsScreen({ playerName, language, onBack, onChooseCalls
           ) : activeEntries.length === 0 ? (
             <div className="leaderboards-screen__empty">{text.empty}</div>
           ) : (
-            <PagedItems key={activeMode} items={activeEntries} size={pageSize} copy={getReleaseText(language).cutsceneArchive}>
-              {(entries) => <ol className="leaderboards-screen__list" start={entries[0]?.rank ?? 1}>
-              {entries.map((entry) => {
+            <ol className="leaderboards-screen__list">
+              {activeEntries.map((entry) => {
                 const isPlayer = entry.playerName.trim().toLowerCase() === playerKey
 
                 return (
@@ -123,8 +115,7 @@ export function LeaderboardsScreen({ playerName, language, onBack, onChooseCalls
                   </li>
                 )
               })}
-              </ol>}
-            </PagedItems>
+            </ol>
           )}
         </section>
       </div>

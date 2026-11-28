@@ -3,7 +3,7 @@ import { getDefaultPlayerVisualShipKey, getRaidGundamName } from './games/raid/s
 import { getRaidExhaustScale, getRaidShipBaseVisualKey, getRaidShipNozzles } from './games/raid/shipArtwork'
 import { LEGACY_FIGHTER_COUNT, RAID_FIGHTER_DEBUT_STAGES } from './games/raid/stageEncounters'
 import { GameButton } from './ui/GameButton'
-import { PagedItems, ScreenSections, useCompactScreen } from './ui/PagedItems'
+import { ScreenSections } from './ui/PagedItems'
 import { PlayerAvatar } from './ui/PlayerAvatar'
 import { prepareAvatar } from '../profileAvatar'
 import { getCommandText } from '../commandText'
@@ -215,11 +215,13 @@ export function ProgressionScreen({
   }
   const stageBossEntries = getStageBossEntries(raidText.briefingPanels, text.enemyAlmanac.devilBoss, text.enemyAlmanac, text.stage)
   const raidModeTitle = languageText.leaderboards.modes.gradius_solo.title
+  const showMastery = view === 'profile' && profileSection === 'mastery'
+  const scrollable = view !== 'profile' || showMastery
 
   return (
     <div className="progress-screen">
       <div className="progress-screen__stars" />
-      <section className="progress-panel" aria-labelledby="progress-title">
+      <section className={`progress-panel${scrollable ? ' progress-panel--scrollable' : ''}${showMastery ? ' progress-panel--mastery' : ''}`} aria-labelledby="progress-title">
         <header className="progress-panel__header">
           <h1 id="progress-title">{title}</h1>
           <GameButton tone="quiet" className="progress-panel__back" onClick={onBack}>{text.back}</GameButton>
@@ -231,7 +233,13 @@ export function ProgressionScreen({
             account: text.compactSections.account, stats: text.compactSections.stats,
             scores: text.bestScores, mastery: text.compactSections.mastery,
           }} label={title} onChange={setProfileSection} />
-          <div className={`progress-grid progress-grid--${profileSection}`}>
+          <div
+            className={`progress-grid progress-grid--${profileSection}${showMastery ? ' progress-panel__list' : ''}`}
+            data-menu-scroll={showMastery || undefined}
+            tabIndex={showMastery ? 0 : undefined}
+            role={showMastery ? 'region' : undefined}
+            aria-label={showMastery ? text.masteryCosmetics : undefined}
+          >
             {profileSection === 'account' && <article className="progress-card progress-card--account">
               <div className="progress-account__identity">
                 <div className="progress-account__pilot">
@@ -304,148 +312,146 @@ export function ProgressionScreen({
                 })}
               </div>
             </article>}
-            {profileSection === 'mastery' && <article className="progress-card progress-card--wide progress-card--mastery">
-              <PagedItems items={Object.entries(raidText.ships)} size={1} copy={text.cutsceneArchive}>
-                {([[shipKey, ship]]) => {
-                  const mastery = progress.shipMastery[shipKey]
-                  const level = mastery?.level ?? 1
-                  const stats = [
-                    { label: text.masteryXp, value: mastery?.xp },
-                    { label: text.masteryRuns, value: mastery?.runs },
-                    { label: text.bestScores, value: mastery?.bestScore },
-                    { label: text.victories, value: mastery?.victories },
-                    { label: text.totalScore, value: mastery?.totalScore },
-                  ]
-                  const mesiahColor = getMesiahShipColor(progress)
-                  const coreLanderModel = getCoreLanderModel(progress)
-                  const coreLanderGodUnlocked = isCoreLanderGodGundamUnlocked(progress)
-                  const lockedShip = shipKey === 'coreLander' ? !isCoreLanderUnlocked(progress) : shipKey === 'mesiah' && !isGradiusRaidEndlessUnlocked(progress)
-                  const cosmetics = getMasteryCosmetics(mastery, text)
-                  const equippedCosmetics = getEquippedShipCosmetics(progress, shipKey)
-                  const isPreviewing = previewCosmeticShip === shipKey
-                  const previewCosmetics = lockedShip ? { trail: false, aura: false, frame: false } : isPreviewing ? ALL_COSMETICS_PREVIEW : equippedCosmetics
-                  const previewSpriteKey = getDefaultPlayerVisualShipKey(shipKey, progress, previewCosmetics.frame)
-                  return (
-                    <div className="progress-ship-mastery" key={shipKey}>
-                      <button
-                        className="progress-ship-preview"
-                        type="button"
-                        disabled={lockedShip}
-                        aria-pressed={isPreviewing}
-                        aria-label={`${ship.name} · ${text.masteryPreview}`}
-                        onClick={() => setPreviewCosmeticShip(isPreviewing ? null : shipKey)}
-                      >
-                        <ShipCosmeticCanvasPreview shipKey={shipKey} spriteKey={previewSpriteKey} cosmetics={previewCosmetics} locked={lockedShip} />
-                        <span className="progress-ship-preview__label">{text.masteryPreview}</span>
-                      </button>
-                      <div className="progress-ship-info">
-                        <header className="progress-ship-info__heading">
-                          <h2>{shipKey === 'coreLander' ? getRaidGundamName(coreLanderModel) : ship.name}</h2>
-                          <span>{text.masteryLevel} {level}</span>
-                        </header>
-                        <dl className="progress-ship-stats">
-                          {stats.map(({ label, value }) => (
-                            <div key={label}>
-                              <dt>{label}</dt>
-                              <dd>{(value ?? 0).toLocaleString()}</dd>
-                            </div>
-                          ))}
-                        </dl>
-                      </div>
-                      <div className="progress-cosmetics" aria-label={`${ship.name} ${text.masteryCosmetics}`}>
-                        {shipKey === 'mesiah' ? (
-                          <div className="progress-ship-color" aria-label={text.mesiahColor}>
-                            <span>{text.mesiahColor}</span>
-                            {(['black', 'white'] as MesiahShipColor[]).map((color) => (
-                              <button
-                                key={color}
-                                type="button"
-                                className={mesiahColor === color ? 'progress-ship-color__button progress-ship-color__button--active' : 'progress-ship-color__button'}
-                                onClick={() => onProgressChange(setMesiahShipColor(color))}
-                              >
-                                <i className={`progress-ship-color__swatch progress-ship-color__swatch--${color}`} />
-                                {color === 'white' ? text.mesiahWhite : text.mesiahBlack}
-                              </button>
-                            ))}
-                          </div>
-                        ) : null}
-                        {shipKey === 'coreLander' ? (
-                          <div className="progress-ship-color" aria-label={text.coreLanderModel}>
-                            <span>{text.coreLanderModel}</span>
-                            {(['godGundam', 'spiegel'] as CoreLanderModel[]).map((model) => {
-                              const lockedModel = model === 'spiegel' && !coreLanderGodUnlocked
-                              return (
-                                <button
-                                  key={model}
-                                  type="button"
-                                  className={coreLanderModel === model ? 'progress-ship-color__button progress-ship-color__button--active' : 'progress-ship-color__button'}
-                                  disabled={lockedShip || lockedModel}
-                                  onClick={() => onProgressChange(setCoreLanderModel(model))}
-                                >
-                                  <i className={`progress-ship-color__swatch progress-ship-color__swatch--${model}`} />
-                                  {model === 'godGundam' ? text.coreLanderGodGundam : text.coreLanderSpiegel}
-                                  {lockedModel ? <small>{text.cosmeticLocked}: {CORE_LANDER_GOD_GUNDAM_UNLOCK_SCORE.toLocaleString()} {text.coreLanderScore}</small> : null}
-                                </button>
-                              )
-                            })}
-                          </div>
-                        ) : null}
-                        {cosmetics.map((cosmetic) => (
+            {showMastery && Object.entries(raidText.ships).map(([shipKey, ship]) => {
+              const mastery = progress.shipMastery[shipKey]
+              const level = mastery?.level ?? 1
+              const stats = [
+                { label: text.masteryXp, value: mastery?.xp },
+                { label: text.masteryRuns, value: mastery?.runs },
+                { label: text.bestScores, value: mastery?.bestScore },
+                { label: text.victories, value: mastery?.victories },
+                { label: text.totalScore, value: mastery?.totalScore },
+              ]
+              const mesiahColor = getMesiahShipColor(progress)
+              const coreLanderModel = getCoreLanderModel(progress)
+              const coreLanderGodUnlocked = isCoreLanderGodGundamUnlocked(progress)
+              const lockedShip = shipKey === 'coreLander' ? !isCoreLanderUnlocked(progress) : shipKey === 'mesiah' && !isGradiusRaidEndlessUnlocked(progress)
+              const cosmetics = getMasteryCosmetics(mastery, text)
+              const equippedCosmetics = getEquippedShipCosmetics(progress, shipKey)
+              const isPreviewing = previewCosmeticShip === shipKey
+              const previewCosmetics = lockedShip ? { trail: false, aura: false, frame: false } : isPreviewing ? ALL_COSMETICS_PREVIEW : equippedCosmetics
+              const previewSpriteKey = getDefaultPlayerVisualShipKey(shipKey, progress, previewCosmetics.frame)
+              return (
+                <article className="progress-card progress-ship-mastery" key={shipKey}>
+                  <button
+                    className="progress-ship-preview"
+                    type="button"
+                    disabled={lockedShip}
+                    aria-pressed={isPreviewing}
+                    aria-label={`${ship.name} · ${text.masteryPreview}`}
+                    onClick={() => setPreviewCosmeticShip(isPreviewing ? null : shipKey)}
+                  >
+                    <ShipCosmeticCanvasPreview shipKey={shipKey} spriteKey={previewSpriteKey} cosmetics={previewCosmetics} locked={lockedShip} />
+                    <span className="progress-ship-preview__label">{text.masteryPreview}</span>
+                  </button>
+                  <div className="progress-ship-info">
+                    <header className="progress-ship-info__heading">
+                      <h2>{shipKey === 'coreLander' ? getRaidGundamName(coreLanderModel) : ship.name}</h2>
+                      <span>{text.masteryLevel} {level}</span>
+                    </header>
+                    <dl className="progress-ship-stats">
+                      {stats.map(({ label, value }) => (
+                        <div key={label}>
+                          <dt>{label}</dt>
+                          <dd>{(value ?? 0).toLocaleString()}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                  <div className="progress-cosmetics" aria-label={`${ship.name} ${text.masteryCosmetics}`}>
+                    {shipKey === 'mesiah' ? (
+                      <div className="progress-ship-color" aria-label={text.mesiahColor}>
+                        <span>{text.mesiahColor}</span>
+                        {(['black', 'white'] as MesiahShipColor[]).map((color) => (
                           <button
-                            key={cosmetic.key}
+                            key={color}
                             type="button"
-                            className={equippedCosmetics[cosmetic.key] ? 'progress-cosmetic progress-cosmetic--equipped' : cosmetic.unlocked ? 'progress-cosmetic progress-cosmetic--unlocked' : 'progress-cosmetic'}
-                            disabled={lockedShip || !cosmetic.unlocked}
-                            aria-pressed={equippedCosmetics[cosmetic.key]}
-                            onClick={() => {
-                              setPreviewCosmeticShip(null)
-                              onProgressChange(setShipCosmeticEquipped(shipKey, cosmetic.key, !equippedCosmetics[cosmetic.key]))
-                            }}
+                            className={mesiahColor === color ? 'progress-ship-color__button progress-ship-color__button--active' : 'progress-ship-color__button'}
+                            onClick={() => onProgressChange(setMesiahShipColor(color))}
                           >
-                            <span>{cosmetic.label}</span>
-                            <i>{cosmetic.unlocked ? equippedCosmetics[cosmetic.key] ? text.cosmeticEquipped : text.cosmeticEquip : `${text.cosmeticLocked}: ${cosmetic.requirement}`}</i>
+                            <i className={`progress-ship-color__swatch progress-ship-color__swatch--${color}`} />
+                            {color === 'white' ? text.mesiahWhite : text.mesiahBlack}
                           </button>
                         ))}
                       </div>
-                    </div>
-                  )
-                }}
-              </PagedItems>
-            </article>}
+                    ) : null}
+                    {shipKey === 'coreLander' ? (
+                      <div className="progress-ship-color" aria-label={text.coreLanderModel}>
+                        <span>{text.coreLanderModel}</span>
+                        {(['godGundam', 'spiegel'] as CoreLanderModel[]).map((model) => {
+                          const lockedModel = model === 'spiegel' && !coreLanderGodUnlocked
+                          return (
+                            <button
+                              key={model}
+                              type="button"
+                              className={coreLanderModel === model ? 'progress-ship-color__button progress-ship-color__button--active' : 'progress-ship-color__button'}
+                              disabled={lockedShip || lockedModel}
+                              onClick={() => onProgressChange(setCoreLanderModel(model))}
+                            >
+                              <i className={`progress-ship-color__swatch progress-ship-color__swatch--${model}`} />
+                              {model === 'godGundam' ? text.coreLanderGodGundam : text.coreLanderSpiegel}
+                              {lockedModel ? <small>{text.cosmeticLocked}: {CORE_LANDER_GOD_GUNDAM_UNLOCK_SCORE.toLocaleString()} {text.coreLanderScore}</small> : null}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    ) : null}
+                    {cosmetics.map((cosmetic) => (
+                      <button
+                        key={cosmetic.key}
+                        type="button"
+                        className={equippedCosmetics[cosmetic.key] ? 'progress-cosmetic progress-cosmetic--equipped' : cosmetic.unlocked ? 'progress-cosmetic progress-cosmetic--unlocked' : 'progress-cosmetic'}
+                        disabled={lockedShip || !cosmetic.unlocked}
+                        aria-pressed={equippedCosmetics[cosmetic.key]}
+                        onClick={() => {
+                          setPreviewCosmeticShip(null)
+                          onProgressChange(setShipCosmeticEquipped(shipKey, cosmetic.key, !equippedCosmetics[cosmetic.key]))
+                        }}
+                      >
+                        <span>{cosmetic.label}</span>
+                        <i>{cosmetic.unlocked ? equippedCosmetics[cosmetic.key] ? text.cosmeticEquipped : text.cosmeticEquip : `${text.cosmeticLocked}: ${cosmetic.requirement}`}</i>
+                      </button>
+                    ))}
+                  </div>
+                </article>
+              )
+            })}
           </div>
           </>
         )}
 
-        {view === 'achievements' && (
-          <UnlockSection
-            title={raidModeTitle}
-            ids={RAID_ACHIEVEMENT_IDS}
-            unlockedMap={progress.achievements}
-            copyMap={text.achievementsMap}
-            pageCopy={text.cutsceneArchive}
-            unlockedLabel={text.unlocked}
-            lockedLabel={text.locked}
-          />
-        )}
+        {(view === 'achievements' || view === 'missions' || view === 'codex') && (
+          <div className="progress-panel__list" data-menu-scroll tabIndex={0} role="region" aria-label={title}>
+            {view === 'achievements' && (
+              <UnlockSection
+                title={raidModeTitle}
+                ids={RAID_ACHIEVEMENT_IDS}
+                unlockedMap={progress.achievements}
+                copyMap={text.achievementsMap}
+                unlockedLabel={text.unlocked}
+                lockedLabel={text.locked}
+              />
+            )}
 
-        {view === 'missions' && <MissionBoard text={text} progress={progress} />}
+            {view === 'missions' && <MissionBoard text={text} progress={progress} />}
 
-        {view === 'codex' && (
-          <div className="codex-tab-content">
-            <CodexCutsceneLauncher
-              title={text.cutsceneArchive.raidTitle}
-              text={text}
-              onPlay={onPlayCutscenes}
-            />
-            <UnlockSection
-              title={raidModeTitle}
-              ids={RAID_CODEX_IDS}
-              unlockedMap={progress.codex}
-              copyMap={text.codexMap}
-              pageCopy={text.cutsceneArchive}
-              unlockedLabel={text.unlocked}
-              lockedLabel={text.locked}
-            />
+            {view === 'codex' && (
+              <div className="codex-tab-content">
+                <CodexCutsceneLauncher
+                  title={text.cutsceneArchive.raidTitle}
+                  text={text}
+                  onPlay={onPlayCutscenes}
+                />
+                <UnlockSection
+                  title={raidModeTitle}
+                  ids={RAID_CODEX_IDS}
+                  unlockedMap={progress.codex}
+                  copyMap={text.codexMap}
+                  unlockedLabel={text.unlocked}
+                  lockedLabel={text.locked}
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -468,23 +474,21 @@ function EnemyAlmanac({
 }) {
   const raidBestStage = getRaidBestStage(progress)
   const [group, setGroup] = useState<'normal' | 'elite' | 'pool' | 'bosses'>('normal')
-  const landscape = useLandscapeScreen()
-  const pageSize = landscape ? 4 : 2
+  const groupLabels = {
+    normal: text.enemyAlmanac.normal, elite: text.enemyAlmanac.elite,
+    pool: text.enemyAlmanac.bossPool, bosses: text.enemyAlmanac.stageBosses,
+  }
 
   return (
     <section className="enemy-almanac" aria-label={text.enemyAlmanac.title}>
-      <ScreenSections active={group} label={text.enemyAlmanac.title} labels={{
-        normal: text.enemyAlmanac.normal, elite: text.enemyAlmanac.elite,
-        pool: text.enemyAlmanac.bossPool, bosses: text.enemyAlmanac.stageBosses,
-      }} onChange={setGroup} />
+      <ScreenSections active={group} label={text.enemyAlmanac.title} labels={groupLabels} onChange={setGroup} />
 
-      {group === 'normal' && <section className="enemy-almanac__group">
+      {group === 'normal' && <section className="enemy-almanac__group" data-menu-scroll tabIndex={0} aria-label={groupLabels[group]}>
         <header>
           <p>{text.enemyAlmanac.normalDesc}</p>
         </header>
-        <PagedItems items={NORMAL_ALIEN_VARIANTS} size={pageSize} copy={text.cutsceneArchive}>
-          {(visible) => <div className="enemy-almanac__grid">
-          {visible.map((variant) => {
+        <div className="enemy-almanac__grid">
+          {NORMAL_ALIEN_VARIANTS.map((variant) => {
             const fighterIndex = variant - LEGACY_FIGHTER_COUNT
             const unlockStage = NORMAL_ALIEN_UNLOCK_STAGES[variant] ?? RAID_FIGHTER_DEBUT_STAGES[fighterIndex] ?? 1
             const encountered = raidBestStage >= unlockStage
@@ -495,6 +499,7 @@ function EnemyAlmanac({
                   alt=""
                   aria-hidden="true"
                   draggable={false}
+                  loading="lazy"
                   style={{ filter: encountered ? `${NORMAL_ALIEN_FILTERS[variant] ?? ''} drop-shadow(0 0 16px rgba(34, 211, 238, 0.18))` : undefined }}
                 />
                 <strong>{text.enemyAlmanac.normalNames[variant] ?? `${text.enemyAlmanac.variantLabel} ${variant + 1}`}</strong>
@@ -503,39 +508,35 @@ function EnemyAlmanac({
               </article>
             )
           })}
-          </div>}
-        </PagedItems>
+        </div>
       </section>}
 
-      {group === 'elite' && <section className="enemy-almanac__group">
+      {group === 'elite' && <section className="enemy-almanac__group" data-menu-scroll tabIndex={0} aria-label={groupLabels[group]}>
         <header>
           <p>{text.enemyAlmanac.eliteDesc}</p>
         </header>
-        <PagedItems items={ELITE_ALIEN_VARIANTS} size={pageSize} copy={text.cutsceneArchive}>
-          {(visible) => <div className="enemy-almanac__grid enemy-almanac__grid--elite">
-          {visible.map((variant) => {
+        <div className="enemy-almanac__grid enemy-almanac__grid--elite">
+          {ELITE_ALIEN_VARIANTS.map((variant) => {
             const unlockStage = ELITE_ALIEN_UNLOCK_STAGES[variant] ?? 2
             const encountered = raidBestStage >= unlockStage
             return (
               <article className={encountered ? 'enemy-almanac__entry enemy-almanac__entry--elite' : 'enemy-almanac__entry enemy-almanac__entry--elite enemy-almanac__entry--locked'} key={variant}>
-                <img src={getRaidEliteSpriteUrl(variant)} alt="" aria-hidden="true" draggable={false} />
+                <img src={getRaidEliteSpriteUrl(variant)} loading="lazy" alt="" aria-hidden="true" draggable={false} />
                 <strong>{text.enemyAlmanac.eliteNames[variant] ?? `${text.enemyAlmanac.eliteLabel} ${variant + 1}`}</strong>
                 <small>{encountered ? `${text.stage} ${unlockStage}` : text.enemyAlmanac.unencountered}</small>
               </article>
             )
           })}
-          </div>}
-        </PagedItems>
+        </div>
       </section>}
 
-      {group === 'pool' && <section className="enemy-almanac__group">
+      {group === 'pool' && <section className="enemy-almanac__group" data-menu-scroll tabIndex={0} aria-label={groupLabels[group]}>
         <header>
           <p>{text.enemyAlmanac.bossPoolDesc}</p>
           <p>{text.enemyAlmanac.phaseAdvice}</p>
         </header>
-        <PagedItems items={GENERIC_BOSS_KINDS} size={pageSize} copy={text.cutsceneArchive}>
-          {(visible) => <div className="enemy-almanac__sprite-strip">
-          {visible.map((kind) => {
+        <div className="enemy-almanac__sprite-strip">
+          {GENERIC_BOSS_KINDS.map((kind) => {
             const art = getGenericBossArt(kind)!
             const encountered = raidBestStage >= (kind === 'super' ? 15 : art.stage)
             return (
@@ -545,14 +546,12 @@ function EnemyAlmanac({
               </span>
             )
           })}
-          </div>}
-        </PagedItems>
+        </div>
       </section>}
 
-      {group === 'bosses' && <section className="enemy-almanac__group">
-        <PagedItems items={stageBossEntries} size={1} copy={text.cutsceneArchive}>
-          {(visible) => <div className="enemy-almanac__boss-grid">
-          {visible.map((boss) => {
+      {group === 'bosses' && <section className="enemy-almanac__group" data-menu-scroll tabIndex={0} aria-label={groupLabels[group]}>
+        <div className="enemy-almanac__boss-grid">
+          {stageBossEntries.map((boss) => {
             const encountered = boss.kind === 'devil'
               ? Boolean(progress.codex.devil_gundam) || hasProgressionUnlockOverride()
               : raidBestStage >= (boss.stageNumber ?? RAID_BOSS_STAGES[boss.kind] ?? Infinity)
@@ -571,8 +570,7 @@ function EnemyAlmanac({
               </article>
             )
           })}
-          </div>}
-        </PagedItems>
+        </div>
       </section>}
     </section>
   )
@@ -600,15 +598,11 @@ function CodexCutsceneLauncher({
 function MissionBoard({ text, progress }: { text: ReturnType<typeof getReleaseText>; progress: ProgressState }) {
   const activeMissions = getActiveMissionDefinitions()
   const completedCount = activeMissions.filter((mission) => isMissionComplete(progress, mission.id)).length
-  const landscape = useLandscapeScreen()
-  const compact = useCompactScreen()
-
   return (
     <section className="mission-board" aria-label={text.missionsBoard.title}>
       <div className="compact-record-count">{text.complete} · {completedCount}/{activeMissions.length}</div>
-      <PagedItems items={activeMissions} size={landscape ? compact ? 2 : 4 : compact ? 3 : 5} copy={text.cutsceneArchive}>
-        {(missions) => <div className="mission-board__grid">
-        {missions.map((mission) => {
+      <div className="mission-board__grid">
+        {activeMissions.map((mission) => {
           const copy = text.missionsMap[mission.id]
           const complete = isMissionComplete(progress, mission.id)
           return (
@@ -625,8 +619,7 @@ function MissionBoard({ text, progress }: { text: ReturnType<typeof getReleaseTe
             </article>
           )
         })}
-        </div>}
-      </PagedItems>
+      </div>
     </section>
   )
 }
@@ -650,20 +643,16 @@ function UnlockSection<TId extends AchievementId | CodexId>({
   ids,
   unlockedMap,
   copyMap,
-  pageCopy,
   unlockedLabel,
   lockedLabel,
 }: {
   title: string
   ids: TId[]
   unlockedMap: Partial<Record<TId, string>>
-  pageCopy: ReturnType<typeof getReleaseText>['cutsceneArchive']
   copyMap: Record<TId, { title: string; desc: string }>
   unlockedLabel: string
   lockedLabel: string
 }) {
-  const landscape = useLandscapeScreen()
-  const compact = useCompactScreen()
   const unlockedCount = ids.filter((id) => unlockedMap[id]).length
   return (
     <section className="unlock-section">
@@ -671,9 +660,8 @@ function UnlockSection<TId extends AchievementId | CodexId>({
         <span>{title}</span>
         <b>{unlockedCount}/{ids.length}</b>
       </header>
-      <PagedItems items={ids} size={landscape ? compact ? 2 : 4 : compact ? 3 : 4} copy={pageCopy}>
-        {(visibleIds) => <div className="unlock-grid unlock-grid--large">
-        {visibleIds.map((id) => (
+      <div className="unlock-grid unlock-grid--large">
+        {ids.map((id) => (
           <UnlockCard
             key={id}
             id={id}
@@ -684,8 +672,7 @@ function UnlockSection<TId extends AchievementId | CodexId>({
             lockedLabel={lockedLabel}
           />
         ))}
-        </div>}
-      </PagedItems>
+      </div>
     </section>
   )
 }
@@ -1081,6 +1068,7 @@ function copyRecoveryCode(recoveryCode: string) {
 
 function ShipCosmeticCanvasPreview({ shipKey, spriteKey, cosmetics, locked = false }: { shipKey: string; spriteKey?: string; cosmetics: Required<ShipCosmeticEquipState>; locked?: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const [visible, setVisible] = useState(false)
   const landscape = useLandscapeScreen()
 
   const visualKey = spriteKey ?? shipKey
@@ -1093,7 +1081,19 @@ function ShipCosmeticCanvasPreview({ shipKey, spriteKey, cosmetics, locked = fal
 
   useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas) return undefined
+    if (!canvas) return
+    if (typeof IntersectionObserver === 'undefined') {
+      setVisible(true)
+      return
+    }
+    const observer = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting))
+    observer.observe(canvas)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || !visible || locked || (!cosmetics.trail && !cosmetics.aura)) return
 
     const image = new Image()
     let frameId = 0
@@ -1139,15 +1139,16 @@ function ShipCosmeticCanvasPreview({ shipKey, spriteKey, cosmetics, locked = fal
       disposed = true
       image.onload = null
       if (frameId) cancelAnimationFrame(frameId)
+      canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height)
     }
-  }, [visualKey, spriteUrl, centerX, centerY, size, sideView, usesCombatModel, cosmetics.trail, cosmetics.aura, locked])
+  }, [visible, visualKey, spriteUrl, centerX, centerY, size, sideView, usesCombatModel, cosmetics.trail, cosmetics.aura, locked])
 
   return (
     <span className="progress-ship-preview__art" aria-hidden="true">
       <canvas ref={canvasRef} className="progress-ship-preview__canvas"
         width={SHIP_PREVIEW_CANVAS_WIDTH} height={SHIP_PREVIEW_CANVAS_HEIGHT} />
       <img className="progress-ship-preview__sprite" src={spriteUrl} alt=""
-        loading="eager" decoding="async" draggable={false}
+        loading="lazy" decoding="async" draggable={false}
         style={{
           left: `${centerX / SHIP_PREVIEW_CANVAS_WIDTH * 100}%`,
           top: `${centerY / SHIP_PREVIEW_CANVAS_HEIGHT * 100}%`,

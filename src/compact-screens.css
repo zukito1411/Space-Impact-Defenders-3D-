@@ -123,6 +123,29 @@
   align-content: start;
   gap: 8px;
 }
+#root .progress-panel--scrollable {
+  height: 100%;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+#root .progress-panel--mastery { grid-template-rows: auto auto minmax(0, 1fr); }
+#root [data-menu-scroll] {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #365167 #08121e;
+  scrollbar-gutter: stable;
+}
+#root [data-menu-scroll]:is(html:not([data-menu-input='pointer']) :focus-visible, html[data-menu-input='navigation'] :focus) {
+  outline: 2px solid var(--ui-gold);
+  outline-offset: -2px;
+}
+#root .progress-panel__list { align-content: start; padding: 3px 4px 3px 3px; }
+#root .progress-grid--mastery { grid-auto-rows: max-content; }
+#root .enemy-almanac { grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
+#root .enemy-almanac__group { align-content: start; }
 #root :is(.progress-panel__header, .raid-hangar__intro) {
   display: flex;
   justify-content: space-between;
@@ -160,7 +183,6 @@
 #root .progress-account__identity .player-avatar { --avatar-size: 46px; }
 #root .progress-card--scores .progress-list { gap: 3px; margin: 0; }
 #root .progress-list > div { padding: 5px 7px; font-size: .78rem; }
-#root .progress-panel:has(.progress-card--mastery) { align-self: center; }
 #root .progress-ship-mastery {
   display: grid;
   grid-template-columns: clamp(86px, 12vw, 114px) minmax(0, 1fr) minmax(0, 1.2fr);
@@ -183,6 +205,7 @@
   width: 100%;
   aspect-ratio: 104 / 118;
   overflow: hidden;
+  pointer-events: none;
 }
 .progress-ship-preview__canvas,
 .progress-ship-preview__sprite {
@@ -197,6 +220,7 @@
   line-height: 1.2;
   text-transform: uppercase;
   letter-spacing: .05em;
+  pointer-events: none;
 }
 .progress-ship-info { min-width: 0; display: grid; gap: 6px; }
 .progress-ship-info__heading {
@@ -294,7 +318,7 @@
 #root .enemy-almanac__boss-art .raid__boss-briefing-preview--ship { padding: 3px; }
 #root .enemy-almanac__boss-lore { min-height: 0; gap: 4px; padding: 0; }
 
-#root .leaderboards-screen__shell { height: auto; gap: 7px; grid-template-rows: auto auto auto; }
+#root .leaderboards-screen__shell { height: 100%; gap: 7px; grid-template-rows: auto auto minmax(0, 1fr); overflow: hidden; }
 #root .leaderboards-screen__header { grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6px; padding-bottom: 6px; }
 #root .leaderboards-screen__header p { margin: 2px 0 0; font-size: .68rem; }
 #root .leaderboards-screen__header > div { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; }
@@ -303,7 +327,7 @@
 #root .leaderboards-screen__modes { grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 0; gap: 5px; }
 #root .leaderboards-screen__mode { min-height: 42px; min-width: 0; padding: 4px; }
 #root .leaderboards-screen__mode strong { font-size: .67rem; white-space: normal; overflow-wrap: anywhere; }
-#root .leaderboards-screen__board { padding: 6px; gap: 5px; }
+#root .leaderboards-screen__board { padding: 6px; gap: 5px; align-content: start; }
 .leaderboards-screen__description { margin: 0; font-size: .7rem; color: var(--ui-muted); }
 #root .leaderboards-screen__list { gap: 3px; }
 #root .leaderboards-screen__row {

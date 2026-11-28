@@ -1188,6 +1188,39 @@ async function testInformationLayouts() {
       })) } },
     }))
     await title(page)
+    const counts = await page.evaluate(async () => {
+      const { RAID_ACHIEVEMENT_IDS, RAID_CODEX_IDS, getActiveMissionDefinitions } = await import('/src/progression.ts')
+      const { RAID_ALIEN_SPRITE_COUNT, RAID_ELITE_SPRITE_COUNT } = await import('/src/components/games/RaidShipSprite.tsx')
+      const { GENERIC_BOSS_KINDS } = await import('/src/components/games/raid/bossCatalog.ts')
+      return {
+        achievements: RAID_ACHIEVEMENT_IDS.length, codex: RAID_CODEX_IDS.length,
+        missions: getActiveMissionDefinitions().length, normal: RAID_ALIEN_SPRITE_COUNT,
+        elite: RAID_ELITE_SPRITE_COUNT, pool: GENERIC_BOSS_KINDS.length,
+      }
+    })
+    const scroller = page.locator('[data-menu-scroll]')
+    const checkList = async (selector, count) => {
+      const items = scroller.locator(selector)
+      await items.first().waitFor()
+      assert.equal(await items.count(), count)
+      assert.equal(await scroller.locator('.paged-items__controls').count(), 0)
+      const overlapping = await items.evaluateAll(elements => {
+        const boxes = elements.map(item => item.getBoundingClientRect())
+        return boxes.some((a, index) => boxes.slice(index + 1).some(b =>
+          Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 &&
+          Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1,
+        ))
+      })
+      assert.equal(overlapping, false, `${selector} entries overlap`)
+      await scroller.evaluate(el => {
+        if (getComputedStyle(el).overflowY !== 'auto') throw Error('The record list cannot scroll')
+        el.scrollTop = el.scrollHeight
+      })
+      const lastFits = await items.last().evaluate(item =>
+        item.getBoundingClientRect().bottom <= item.closest('[data-menu-scroll]').getBoundingClientRect().bottom + 1,
+      )
+      assert.ok(lastFits, `The last ${selector} is out of reach`)
+    }
     const overflow = []
     const checkFits = async (panel, name) => {
       try { await assertPanelFits(panel, name) } catch (error) { overflow.push(error.message) }
@@ -1207,9 +1240,9 @@ async function testInformationLayouts() {
         await press(section)
         await fits('.progress-panel', section)
       }
-      const mastery = page.locator('.progress-card--mastery')
-      const ships = Number((await mastery.locator('output').textContent()).split('/')[1])
-      for (let ship = 0; ship < ships; ship++) {
+      await checkList('.progress-ship-mastery', 9)
+      const masteryCards = page.locator('.progress-ship-mastery')
+      for (const mastery of await masteryCards.all()) {
         const preview = mastery.locator('.progress-ship-preview__art')
         const shipName = await mastery.locator('h2').textContent()
         await fits('.progress-panel', `Mastery for ${shipName}`)
@@ -1229,8 +1262,12 @@ async function testInformationLayouts() {
         if (width > height) assert.ok(Math.abs(sprite.top + sprite.bottom - frame.top - frame.bottom) < .5, JSON.stringify(boxes))
         assert.deepEqual(effects, frame)
         if (shipName === 'Crosswing Nova') {
-          await page.waitForFunction(() => document.querySelector('.progress-ship-preview__sprite')?.naturalWidth > 0)
-          if (width === 844 || width === 393) await capture(page, `crosswing-mastery-${width > height ? 'landscape' : 'portrait'}`)
+          await mastery.scrollIntoViewIfNeeded()
+          await preview.locator('img').evaluate(async img => {
+            await img.decode()
+            await new Promise(resolve => requestAnimationFrame(resolve))
+          })
+          if (width === 844 || width === 393) await capture(page, `scrolling-mastery-${width > height ? 'landscape' : 'portrait'}`)
           const previewButton = mastery.getByRole('button', { name: 'Crosswing Nova · Preview' })
           await previewButton.click()
           assert.equal(await previewButton.getAttribute('aria-pressed'), 'true')
@@ -1240,29 +1277,42 @@ async function testInformationLayouts() {
           assert.equal(await mastery.getByRole('button', { name: 'Signature Trail Equipped', exact: true }).getAttribute('aria-pressed'), 'true')
           await mastery.getByRole('button', { name: 'Signature Trail Equipped', exact: true }).click()
         }
-        if (ship + 1 < ships) await press('Next')
       }
       await back()
 
-      for (const name of ['Achievements', 'Missions', 'Codex', 'Almanac']) {
+      for (const [name, selector, count] of [
+        ['Achievements', '.unlock-card', counts.achievements],
+        ['Missions', '.mission-card', counts.missions],
+        ['Codex', '.unlock-card', counts.codex],
+      ]) {
         await press(name)
         await fits('.progress-panel', name)
-        await press('Next')
-        await fits('.progress-panel', `${name} next page`)
-        if (name === 'Almanac') {
-          for (const section of ['Elite Hunters', 'Dedicated Boss Hulls', 'Stage Bosses']) {
-            await press(section)
-            await fits('.progress-panel', section)
-          }
-          const pages = Number((await page.locator('.paged-items__controls output').textContent()).split('/')[1])
-          for (let index = 1; index < (width === 640 ? pages : 2); index++) {
-            await press(width === 640 ? 'Next' : 'Previous')
-            await fits('.progress-panel', `Stage boss page ${index + 1}`)
-          }
-          if (width === 844) await capture(page, 'compact-almanac-landscape')
+        if (name === 'Achievements') {
+          await page.locator('.space-door--idle').waitFor({ state: 'attached' })
+          if (width === 844) await capture(page, 'scrolling-achievements-landscape')
+          await scroller.focus()
+          await page.keyboard.press('ArrowDown')
+          assert.ok(await scroller.evaluate(el => el.scrollTop > 0), 'Keyboard scrolling reaches more achievements')
         }
+        await checkList(selector, count)
+        const backButton = await page.getByRole('button', { name: 'Back', exact: true }).boundingBox()
+        assert.ok(backButton.y >= 0 && backButton.y + backButton.height <= height)
         await back()
       }
+
+      await press('Almanac')
+      await checkList('.enemy-almanac__entry', counts.normal)
+      for (const [section, selector, count] of [
+        ['Elite Hunters', '.enemy-almanac__entry', counts.elite],
+        ['Dedicated Boss Hulls', '.enemy-almanac__pool-sprite', counts.pool],
+        ['Stage Bosses', '.enemy-almanac__boss-card', 16],
+      ]) {
+        await press(section)
+        assert.equal(await scroller.evaluate(el => el.scrollTop), 0)
+        await fits('.progress-panel', section)
+        await checkList(selector, count)
+      }
+      await back()
       await press('Hangar')
       for (const section of ['Mastery', 'Systems', 'Cosmetics']) {
         await press(section)
@@ -1273,10 +1323,31 @@ async function testInformationLayouts() {
       await back()
       await press('Leaderboards')
       await page.getByText('Test Commander 1', { exact: true }).waitFor()
+      await page.locator('.space-door--idle').waitFor({ state: 'attached' })
       await fits('.leaderboards-screen__shell', 'Leaderboard')
-      await fits('.leaderboards-screen__board', 'Leaderboard entries')
-      await press('Previous')
-      assert.ok(await page.getByText('Test Commander 17', { exact: true }).isVisible())
+      await checkList('.leaderboards-screen__row', 17)
+      await scroller.evaluate(el => { el.scrollTop = 0 })
+      const list = await scroller.boundingBox()
+      if (width === 393) {
+        const cdp = await page.context().newCDPSession(page)
+        const x = list.x + list.width / 2
+        const y = list.y + list.height / 2
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] })
+        for (let offset = 24; offset <= 144; offset += 24) {
+          await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y - offset }] })
+        }
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+        await cdp.detach()
+        await page.waitForFunction(() => document.querySelector('.leaderboards-screen__board').scrollTop > 0, null, { timeout: 4000 })
+        await scroller.evaluate(el => { el.scrollTop = 0 })
+      }
+      await page.mouse.move(list.x + list.width / 2, list.y + list.height / 2)
+      await page.mouse.wheel(0, 120)
+      await page.waitForFunction(() => document.querySelector('.leaderboards-screen__board').scrollTop > 0)
+      await press('Endless Flight')
+      await press('Solo')
+      await page.getByText('Test Commander 1', { exact: true }).waitFor()
+      assert.equal(await scroller.evaluate(el => el.scrollTop), 0)
       await back()
     }
 
@@ -1347,7 +1418,7 @@ async function testInformationLayouts() {
       await report.getByRole('button', { name: 'Continue', exact: true }).click()
     }
     assert.deepEqual(overflow, [])
-    console.log('Combat reports and all seven information screens fit four portrait and landscape viewports, including populated pages')
+    console.log('All six record menus scroll in four portrait and landscape viewports, and the Hangar, ending archive and combat reports still fit')
   } finally {
     await page.close()
   }

@@ -14,7 +14,7 @@ import { GameDialog } from './components/ui/GameDialog'
 import { GameMenuHints } from './components/ui/GameMenuHints'
 import { ScreenSections } from './components/ui/PagedItems'
 import { ControllerButton, RaidControllerInput } from './controllers'
-import { ControllerMenuNavigation, confirmControllerControl, dismissControllerDialog, foregroundDialog, getMenuControls, markControllerMenuInput } from './components/ui/controllerMenu'
+import { ControllerMenuNavigation, confirmControllerControl, dismissControllerDialog, foregroundDialog, getMenuControls, markControllerMenuInput, scrollMenuRegion } from './components/ui/controllerMenu'
 import { HomeSettingsDialog } from './components/HomeSettingsDialog'
 import { restoreDisplayOrientation } from './components/games/raid/flightView'
 import { LeaderboardsScreen } from './components/LeaderboardsScreen'
@@ -553,6 +553,10 @@ function App() {
           event.preventDefault()
           active.blur()
         }
+        return
+      }
+      if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && scrollMenuRegion(active, event.key === 'ArrowDown' ? 1 : -1)) {
+        event.preventDefault()
         return
       }
       if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
