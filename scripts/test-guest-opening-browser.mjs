@@ -1177,6 +1177,8 @@ async function testInformationLayouts() {
       localStorage.setItem('space-impact-release-progress', JSON.stringify({
         bestStageByMode: { gradius_solo: 15 }, bestScoreByMode: { gradius_endless: 10000000 },
         gradiusRaidEndlessUnlocked: true, codex: { devil_gundam: 'test' },
+        shipMastery: { xwing: { xp: 12436, level: 4, runs: 13, victories: 1, bestScore: 639686, totalScore: 5122806 } },
+        equippedCosmetics: { xwing: { trail: false, aura: false, frame: false } },
       }))
     })
     await page.route('**/leaderboards', route => route.fulfill({
@@ -1205,8 +1207,41 @@ async function testInformationLayouts() {
         await press(section)
         await fits('.progress-panel', section)
       }
-      await press('Previous')
-      await fits('.progress-panel', 'Last ship mastery page')
+      const mastery = page.locator('.progress-card--mastery')
+      const ships = Number((await mastery.locator('output').textContent()).split('/')[1])
+      for (let ship = 0; ship < ships; ship++) {
+        const preview = mastery.locator('.progress-ship-preview__art')
+        const shipName = await mastery.locator('h2').textContent()
+        await fits('.progress-panel', `Mastery for ${shipName}`)
+        const boxes = await preview.evaluate(frame => {
+          const box = (element) => {
+            const { left, top, right, bottom, width, height } = element.getBoundingClientRect()
+            return { left, top, right, bottom, width, height }
+          }
+          return { frame: box(frame), sprite: box(frame.querySelector('img')), effects: box(frame.querySelector('canvas')) }
+        })
+        const { frame, sprite, effects } = boxes
+        assert.ok(Math.abs(frame.width / frame.height - 104 / 118) < .01, JSON.stringify(boxes))
+        assert.ok(Math.abs(sprite.width - sprite.height) < .5, JSON.stringify(boxes))
+        assert.ok(sprite.left >= frame.left && sprite.right <= frame.right, JSON.stringify(boxes))
+        assert.ok(sprite.top >= frame.top && sprite.bottom <= frame.bottom, JSON.stringify(boxes))
+        assert.ok(Math.abs(sprite.left + sprite.right - frame.left - frame.right) < .5, JSON.stringify(boxes))
+        if (width > height) assert.ok(Math.abs(sprite.top + sprite.bottom - frame.top - frame.bottom) < .5, JSON.stringify(boxes))
+        assert.deepEqual(effects, frame)
+        if (shipName === 'Crosswing Nova') {
+          await page.waitForFunction(() => document.querySelector('.progress-ship-preview__sprite')?.naturalWidth > 0)
+          if (width === 844 || width === 393) await capture(page, `crosswing-mastery-${width > height ? 'landscape' : 'portrait'}`)
+          const previewButton = mastery.getByRole('button', { name: 'Crosswing Nova · Preview' })
+          await previewButton.click()
+          assert.equal(await previewButton.getAttribute('aria-pressed'), 'true')
+          const trail = mastery.getByRole('button', { name: 'Signature Trail Equip', exact: true })
+          await trail.click()
+          assert.equal(await previewButton.getAttribute('aria-pressed'), 'false')
+          assert.equal(await mastery.getByRole('button', { name: 'Signature Trail Equipped', exact: true }).getAttribute('aria-pressed'), 'true')
+          await mastery.getByRole('button', { name: 'Signature Trail Equipped', exact: true }).click()
+        }
+        if (ship + 1 < ships) await press('Next')
+      }
       await back()
 
       for (const name of ['Achievements', 'Missions', 'Codex', 'Almanac']) {

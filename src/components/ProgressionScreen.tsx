@@ -309,33 +309,48 @@ export function ProgressionScreen({
                 {([[shipKey, ship]]) => {
                   const mastery = progress.shipMastery[shipKey]
                   const level = mastery?.level ?? 1
+                  const stats = [
+                    { label: text.masteryXp, value: mastery?.xp },
+                    { label: text.masteryRuns, value: mastery?.runs },
+                    { label: text.bestScores, value: mastery?.bestScore },
+                    { label: text.victories, value: mastery?.victories },
+                    { label: text.totalScore, value: mastery?.totalScore },
+                  ]
                   const mesiahColor = getMesiahShipColor(progress)
                   const coreLanderModel = getCoreLanderModel(progress)
                   const coreLanderGodUnlocked = isCoreLanderGodGundamUnlocked(progress)
                   const lockedShip = shipKey === 'coreLander' ? !isCoreLanderUnlocked(progress) : shipKey === 'mesiah' && !isGradiusRaidEndlessUnlocked(progress)
                   const cosmetics = getMasteryCosmetics(mastery, text)
                   const equippedCosmetics = getEquippedShipCosmetics(progress, shipKey)
-                  const previewCosmetics = lockedShip ? { trail: false, aura: false, frame: false } : previewCosmeticShip === shipKey ? ALL_COSMETICS_PREVIEW : equippedCosmetics
+                  const isPreviewing = previewCosmeticShip === shipKey
+                  const previewCosmetics = lockedShip ? { trail: false, aura: false, frame: false } : isPreviewing ? ALL_COSMETICS_PREVIEW : equippedCosmetics
                   const previewSpriteKey = getDefaultPlayerVisualShipKey(shipKey, progress, previewCosmetics.frame)
                   return (
                     <div className="progress-ship-mastery" key={shipKey}>
                       <button
-                        className={previewCosmeticShip === shipKey ? 'progress-ship-preview progress-ship-preview--active' : 'progress-ship-preview'}
+                        className="progress-ship-preview"
                         type="button"
-                        aria-label={`${ship.name} ${text.masteryCosmetics}`}
-                        onClick={() => {
-                          if (!lockedShip) setPreviewCosmeticShip(previewCosmeticShip === shipKey ? null : shipKey)
-                        }}
+                        disabled={lockedShip}
+                        aria-pressed={isPreviewing}
+                        aria-label={`${ship.name} · ${text.masteryPreview}`}
+                        onClick={() => setPreviewCosmeticShip(isPreviewing ? null : shipKey)}
                       >
-                        <div className={getPreviewClass(shipKey)}>
-                          <ShipCosmeticCanvasPreview shipKey={shipKey} spriteKey={previewSpriteKey} cosmetics={previewCosmetics} locked={lockedShip} />
-                        </div>
+                        <ShipCosmeticCanvasPreview shipKey={shipKey} spriteKey={previewSpriteKey} cosmetics={previewCosmetics} locked={lockedShip} />
+                        <span className="progress-ship-preview__label">{text.masteryPreview}</span>
                       </button>
                       <div className="progress-ship-info">
-                        <b>{shipKey === 'coreLander' ? getRaidGundamName(coreLanderModel) : ship.name}</b>
-                        <span>{text.masteryLevel} {level}</span>
-                        <small>{text.masteryXp}: {(mastery?.xp ?? 0).toLocaleString()} · {text.masteryRuns}: {mastery?.runs ?? 0}</small>
-                        <small>{text.bestScores}: {(mastery?.bestScore ?? 0).toLocaleString()} · {text.victories}: {mastery?.victories ?? 0} · {text.totalScore}: {(mastery?.totalScore ?? 0).toLocaleString()}</small>
+                        <header className="progress-ship-info__heading">
+                          <h2>{shipKey === 'coreLander' ? getRaidGundamName(coreLanderModel) : ship.name}</h2>
+                          <span>{text.masteryLevel} {level}</span>
+                        </header>
+                        <dl className="progress-ship-stats">
+                          {stats.map(({ label, value }) => (
+                            <div key={label}>
+                              <dt>{label}</dt>
+                              <dd>{(value ?? 0).toLocaleString()}</dd>
+                            </div>
+                          ))}
+                        </dl>
                       </div>
                       <div className="progress-cosmetics" aria-label={`${ship.name} ${text.masteryCosmetics}`}>
                         {shipKey === 'mesiah' ? (
@@ -1068,6 +1083,14 @@ function ShipCosmeticCanvasPreview({ shipKey, spriteKey, cosmetics, locked = fal
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const landscape = useLandscapeScreen()
 
+  const visualKey = spriteKey ?? shipKey
+  const spriteUrl = getRaidMenuShipSpriteUrl(visualKey, landscape)
+  const usesCombatModel = visualKey === 'godGundam' || visualKey === 'spiegel'
+  const sideView = landscape && Boolean(getRaidSideShipSpriteUrl(visualKey))
+  const centerX = SHIP_PREVIEW_CANVAS_WIDTH / 2
+  const centerY = sideView ? SHIP_PREVIEW_CANVAS_HEIGHT / 2 : usesCombatModel ? 50 : shipKey === 'coreLander' ? 45 : 40
+  const size = usesCombatModel ? 96 : shipKey === 'coreLander' ? 86 : SHIP_PREVIEW_SIZE
+
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return undefined
@@ -1092,52 +1115,47 @@ function ShipCosmeticCanvasPreview({ shipKey, spriteKey, cosmetics, locked = fal
       ctx.imageSmoothingEnabled = true
       ctx.imageSmoothingQuality = 'high'
 
-      const x = SHIP_PREVIEW_CANVAS_WIDTH / 2
-      const visualKey = spriteKey ?? shipKey
-      const usesCombatModel = visualKey === 'godGundam' || visualKey === 'spiegel'
-      const sideView = landscape && !!getRaidSideShipSpriteUrl(visualKey)
-      const y = sideView ? SHIP_PREVIEW_CANVAS_HEIGHT / 2 : usesCombatModel ? 46 : shipKey === 'coreLander' ? 43 : 40
-      const previewSize = usesCombatModel ? 96 : shipKey === 'coreLander' ? 86 : SHIP_PREVIEW_SIZE
       const style = getShipPreviewVisualStyle(getRaidShipBaseVisualKey(visualKey))
-      const drawTrailOverSprite = usesCombatModel
 
-      if (!locked && cosmetics.trail && !drawTrailOverSprite) drawPreviewMasteryTrail(ctx, x, y, previewSize, time, visualKey, style, sideView)
-      if (!locked && cosmetics.aura && image.complete) drawPreviewMasteryAura(ctx, image, x, y, previewSize, time, style)
-      if (!locked && cosmetics.trail && drawTrailOverSprite) {
+      if (!locked && cosmetics.trail && !usesCombatModel) drawPreviewMasteryTrail(ctx, centerX, centerY, size, time, visualKey, style, sideView)
+      if (!locked && cosmetics.aura && image.complete) drawPreviewMasteryAura(ctx, image, centerX, centerY, size, time, style)
+      if (!locked && cosmetics.trail && usesCombatModel) {
         ctx.save()
         ctx.globalAlpha *= 0.72
-        drawPreviewMasteryTrail(ctx, x, y, previewSize, time, visualKey, style, sideView)
+        drawPreviewMasteryTrail(ctx, centerX, centerY, size, time, visualKey, style, sideView)
         ctx.restore()
       }
 
       if (!disposed && !locked && (cosmetics.trail || cosmetics.aura)) frameId = requestAnimationFrame(render)
     }
 
-    image.onload = () => {
+    image.src = spriteUrl
+    if (image.complete) frameId = requestAnimationFrame(render)
+    else image.onload = () => {
       if (!disposed) frameId = requestAnimationFrame(render)
     }
-    image.src = getRaidMenuShipSpriteUrl(spriteKey ?? shipKey, landscape)
-    if (image.complete) frameId = requestAnimationFrame(render)
 
     return () => {
       disposed = true
+      image.onload = null
       if (frameId) cancelAnimationFrame(frameId)
     }
-  }, [shipKey, spriteKey, cosmetics.trail, cosmetics.aura, cosmetics.frame, locked, landscape])
+  }, [visualKey, spriteUrl, centerX, centerY, size, sideView, usesCombatModel, cosmetics.trail, cosmetics.aura, locked])
 
-  const visualKey = spriteKey ?? shipKey
-  const combat = visualKey === 'godGundam' || visualKey === 'spiegel'
-  const size = combat ? 96 : shipKey === 'coreLander' ? 86 : SHIP_PREVIEW_SIZE
-  const centerY = landscape ? SHIP_PREVIEW_CANVAS_HEIGHT / 2 : combat ? 46 : shipKey === 'coreLander' ? 43 : 40
-  return <span style={{ display: 'block', position: 'relative', width: SHIP_PREVIEW_CANVAS_WIDTH, height: SHIP_PREVIEW_CANVAS_HEIGHT }}>
-    <canvas ref={canvasRef} className="progress-ship-preview__canvas"
-      width={SHIP_PREVIEW_CANVAS_WIDTH} height={SHIP_PREVIEW_CANVAS_HEIGHT} aria-hidden="true" />
-    <span style={{ position: 'absolute', left: (SHIP_PREVIEW_CANVAS_WIDTH-size)/2, top: centerY-size/2, width: size, height: size }}>
-      <img src={getRaidMenuShipSpriteUrl(visualKey, landscape)} alt="" aria-hidden="true"
+  return (
+    <span className="progress-ship-preview__art" aria-hidden="true">
+      <canvas ref={canvasRef} className="progress-ship-preview__canvas"
+        width={SHIP_PREVIEW_CANVAS_WIDTH} height={SHIP_PREVIEW_CANVAS_HEIGHT} />
+      <img className="progress-ship-preview__sprite" src={spriteUrl} alt=""
         loading="eager" decoding="async" draggable={false}
-        style={{ display: 'block', width: '100%', height: '100%', objectFit: 'contain' }} />
+        style={{
+          left: `${centerX / SHIP_PREVIEW_CANVAS_WIDTH * 100}%`,
+          top: `${centerY / SHIP_PREVIEW_CANVAS_HEIGHT * 100}%`,
+          width: `${size / SHIP_PREVIEW_CANVAS_WIDTH * 100}%`,
+          height: `${size / SHIP_PREVIEW_CANVAS_HEIGHT * 100}%`,
+        }} />
     </span>
-  </span>
+  )
 }
 
 function getShipPreviewVisualStyle(shipKey: string) {
@@ -1247,13 +1265,6 @@ function getMasteryCosmetics(mastery: ShipMasteryRecord | undefined, text: Retur
     { key: 'aura', label: text.cosmeticAura, unlocked: isShipCosmeticUnlocked(mastery, 'aura'), requirement: text.cosmeticClearRaid },
     { key: 'frame', label: text.cosmeticFrame, unlocked: isShipCosmeticUnlocked(mastery, 'frame'), requirement: `${SHIP_COSMETIC_TOTAL_SCORE.toLocaleString()} ${text.cosmeticTotalScore}` },
   ]
-}
-
-function getPreviewClass(shipKey: string) {
-  return [
-    'progress-ship-preview__ship',
-    `progress-ship-preview__ship--${shipKey}`,
-  ].filter(Boolean).join(' ')
 }
 
 function formatTime(seconds: number) {

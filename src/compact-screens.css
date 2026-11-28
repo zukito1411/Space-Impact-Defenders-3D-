@@ -160,12 +160,89 @@
 #root .progress-account__identity .player-avatar { --avatar-size: 46px; }
 #root .progress-card--scores .progress-list { gap: 3px; margin: 0; }
 #root .progress-list > div { padding: 5px 7px; font-size: .78rem; }
-#root .progress-ship-mastery { gap: 7px; padding: 0; }
-#root .progress-ship-info { min-width: 0; gap: 2px; font-size: .77rem; line-height: 1.15; overflow-wrap: anywhere; }
-#root .progress-ship-info small { font-size: .67rem; }
+#root .progress-panel:has(.progress-card--mastery) { align-self: center; }
+#root .progress-ship-mastery {
+  display: grid;
+  grid-template-columns: clamp(86px, 12vw, 114px) minmax(0, 1fr) minmax(0, 1.2fr);
+  align-items: center;
+  gap: clamp(8px, 1.5vw, 14px);
+}
+#root .progress-ship-preview {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  width: 100%;
+  min-width: 0;
+  padding: 4px;
+  border-image: none;
+  background: radial-gradient(ellipse at 50% 42%, #19384a, #0a1826 78%);
+}
+.progress-ship-preview__art {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 104 / 118;
+  overflow: hidden;
+}
+.progress-ship-preview__canvas,
+.progress-ship-preview__sprite {
+  display: block;
+  position: absolute;
+  pointer-events: none;
+}
+.progress-ship-preview__canvas { inset: 0; width: 100%; height: 100%; }
+.progress-ship-preview__sprite { transform: translate(-50%, -50%); object-fit: contain; }
+.progress-ship-preview__label {
+  font-size: .61rem;
+  line-height: 1.2;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+.progress-ship-info { min-width: 0; display: grid; gap: 6px; }
+.progress-ship-info__heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 3px 8px;
+}
+.progress-ship-info__heading h2 {
+  margin: 0;
+  font-size: clamp(.94rem, 2.4vw, 1.24rem);
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.progress-ship-info__heading > span {
+  color: var(--ui-cyan);
+  font-size: .7rem;
+  white-space: nowrap;
+}
+.progress-ship-stats {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px 7px;
+}
+.progress-ship-stats > div { min-width: 0; padding-top: 4px; border-top: 1px solid var(--ui-line-soft); }
+.progress-ship-stats dt { color: var(--ui-muted); font-size: .62rem; line-height: 1.2; }
+.progress-ship-stats dd {
+  margin: 2px 0 0;
+  font-size: .77rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
 #root .progress-cosmetics { gap: 4px; }
-#root .progress-cosmetic { min-height: 38px; padding: 4px 5px; }
-#root .progress-cosmetic i { font-size: .65rem; }
+#root .progress-cosmetic {
+  min-height: 44px;
+  padding: 5px 7px;
+  border-image: none;
+  background: #0b1d2d;
+  font-size: .72rem;
+  line-height: 1.18;
+}
+#root .progress-cosmetic i { font-size: .65rem; color: var(--ui-muted); }
+#root .progress-cosmetic--equipped i { color: var(--ui-cyan); }
 #root .progress-ship-color { margin: 0; gap: 4px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 #root .progress-ship-color > span { grid-column: 1 / -1; }
 #root .progress-ship-color__button small { font-size: .62rem; }
@@ -284,6 +361,8 @@
   #root .enemy-almanac__boss-art { align-self: center; }
 }
 @media (orientation: portrait) {
+  #root .progress-ship-mastery { grid-template-columns: clamp(74px, 25vw, 104px) minmax(0, 1fr); }
+  #root .progress-cosmetics { grid-column: 1 / -1; }
   #root .raid-hangar__layout { grid-template-columns: minmax(0, 1fr); }
   #root .raid-hangar__preview { min-height: 0; height: clamp(68px, 19dvh, 170px); }
   #root .raid-hangar__display { width: 108px; height: 100%; }
@@ -299,10 +378,7 @@
   #root .raid-hangar__stats span { gap: 2px; }
   #root .raid-hangar__stats span b { font-size: .78rem; }
   #root .raid-hangar__status { padding: 3px 5px; }
-  #root .progress-ship-preview { min-height: 80px; padding: 0; }
-  #root :is(.progress-ship-preview__ship, .progress-ship-preview__canvas) { width: 70px; height: 80px; }
-  #root .progress-ship-mastery { grid-template-columns: 70px minmax(0,.9fr) minmax(0,1.5fr); }
-  #root .progress-cosmetics { grid-column: auto; grid-template-columns: repeat(3,minmax(0,1fr)); }
+  #root .progress-ship-mastery { grid-template-columns: 78px minmax(0, 1fr) minmax(0, 1.2fr); }
 }
 
 @media (orientation: landscape) and (max-height: 360px) {
