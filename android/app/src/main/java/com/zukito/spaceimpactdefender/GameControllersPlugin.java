@@ -2,6 +2,7 @@ package com.zukito.spaceimpactdefender;
 
 import android.content.Context;
 import android.hardware.input.InputManager;
+import android.os.Build;
 import android.util.SparseArray;
 import android.view.InputDevice;
 import android.view.KeyEvent;
@@ -15,6 +16,7 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 
 @CapacitorPlugin(name = "GameControllers")
 public class GameControllersPlugin extends Plugin implements InputManager.InputDeviceListener {
+    private static final String STATE_EVENT = "controllerState";
     private static final int UP = 1 << 12;
     private static final int DOWN = 1 << 13;
     private static final int LEFT = 1 << 14;
@@ -53,8 +55,11 @@ public class GameControllersPlugin extends Plugin implements InputManager.InputD
     }
 
     private static boolean isController(InputDevice device) {
-        return device != null && !device.isVirtual()
-            && (device.supportsSource(InputDevice.SOURCE_GAMEPAD) || device.supportsSource(InputDevice.SOURCE_JOYSTICK));
+        if (device == null) return false;
+        if (device.supportsSource(InputDevice.SOURCE_GAMEPAD) || device.supportsSource(InputDevice.SOURCE_JOYSTICK)) return true;
+        return !device.isVirtual() && device.supportsSource(InputDevice.SOURCE_DPAD)
+            && device.getKeyboardType() != InputDevice.KEYBOARD_TYPE_ALPHABETIC
+            && (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || device.isExternal());
     }
 
     @Override
@@ -67,8 +72,9 @@ public class GameControllersPlugin extends Plugin implements InputManager.InputD
 
     @Override
     public void onInputDeviceChanged(int id) {
-        if (isController(inputManager.getInputDevice(id))) onInputDeviceAdded(id);
-        else onInputDeviceRemoved(id);
+        InputDevice device = inputManager.getInputDevice(id);
+        if (device == null) onInputDeviceRemoved(id);
+        else if (isController(device)) onInputDeviceAdded(id);
     }
 
     @Override
@@ -84,11 +90,15 @@ public class GameControllersPlugin extends Plugin implements InputManager.InputD
             pad.x = pad.y = 0;
             pad.axisButtons = pad.keys = 0;
         }
-        publish();
+        sendState(true);
+    }
+
+    @Override
+    protected void handleOnPause() {
+        getActivity().runOnUiThread(this::resetInput);
     }
 
     private Pad padFor(InputDevice device) {
-        if (!isController(device)) return null;
         Pad pad = pads.get(device.getId());
         if (pad == null) {
             pad = new Pad();
@@ -99,10 +109,11 @@ public class GameControllersPlugin extends Plugin implements InputManager.InputD
     }
 
     boolean readMotion(MotionEvent event) {
-        if (!event.isFromSource(InputDevice.SOURCE_JOYSTICK) || event.getAction() != MotionEvent.ACTION_MOVE) return false;
+        if (event.getActionMasked() != MotionEvent.ACTION_MOVE
+            || !(event.isFromSource(InputDevice.SOURCE_JOYSTICK) || event.isFromSource(InputDevice.SOURCE_GAMEPAD))) return false;
         InputDevice device = event.getDevice();
+        if (device == null) return false;
         Pad pad = padFor(device);
-        if (pad == null) return false;
         float x = readStick(device, event, MotionEvent.AXIS_X);
         float y = readStick(device, event, MotionEvent.AXIS_Y);
         float hatX = event.getAxisValue(MotionEvent.AXIS_HAT_X);
@@ -116,10 +127,12 @@ public class GameControllersPlugin extends Plugin implements InputManager.InputD
             buttons |= TRIGGER;
         }
         if (pad.x != x || pad.y != y || pad.axisButtons != buttons) {
+            boolean changedButtons = pad.axisButtons != buttons;
             pad.x = x;
             pad.y = y;
             pad.axisButtons = buttons;
-            publish();
+            if (changedButtons) sendState(false);
+            else publish();
         }
         return true;
     }
@@ -133,11 +146,19 @@ public class GameControllersPlugin extends Plugin implements InputManager.InputD
     boolean readKey(KeyEvent event) {
         int action = event.getAction();
         if (action != KeyEvent.ACTION_DOWN && action != KeyEvent.ACTION_UP) return false;
+        InputDevice device = event.getDevice();
+        if (device == null) return false;
+        int key = event.getKeyCode();
+        if (!isController(device) && pads.get(device.getId()) == null && !KeyEvent.isGamepadButton(key)
+            && !event.isFromSource(InputDevice.SOURCE_GAMEPAD)) return false;
         int button;
-        switch (event.getKeyCode()) {
-            case KeyEvent.KEYCODE_BUTTON_A: button = 1; break;
+        switch (key) {
+            case KeyEvent.KEYCODE_BUTTON_A:
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+            case KeyEvent.KEYCODE_ENTER: button = 1; break;
             case KeyEvent.KEYCODE_BUTTON_B:
-            case KeyEvent.KEYCODE_BACK: button = 1 << 1; break;
+            case KeyEvent.KEYCODE_BACK:
+            case KeyEvent.KEYCODE_ESCAPE: button = 1 << 1; break;
             case KeyEvent.KEYCODE_BUTTON_R1: button = 1 << 5; break;
             case KeyEvent.KEYCODE_BUTTON_R2: button = TRIGGER; break;
             case KeyEvent.KEYCODE_BUTTON_START: button = 1 << 9; break;
@@ -147,13 +168,12 @@ public class GameControllersPlugin extends Plugin implements InputManager.InputD
             case KeyEvent.KEYCODE_DPAD_RIGHT: button = RIGHT; break;
             default: return false;
         }
-        Pad pad = padFor(event.getDevice());
-        if (pad == null) return false;
+        Pad pad = padFor(device);
         int next = action == KeyEvent.ACTION_DOWN ? pad.keys | button : pad.keys & ~button;
         if (next != pad.keys) {
             pad.keys = next;
             // Send button changes promptly when the game is polling input.
-            notifyListeners("controllerState", snapshot());
+            sendState(false);
         }
         return true;
     }
@@ -163,8 +183,15 @@ public class GameControllersPlugin extends Plugin implements InputManager.InputD
         frameQueued = true;
         getActivity().getWindow().getDecorView().postOnAnimation(() -> {
             frameQueued = false;
-            notifyListeners("controllerState", snapshot());
+            sendState(false);
         });
+    }
+
+    private void sendState(boolean reset) {
+        JSObject state = snapshot();
+        if (reset) state.put("reset", true);
+        // Capacitor registers and removes listeners on its plugin handler.
+        getBridge().execute(() -> notifyListeners(STATE_EVENT, state));
     }
 
     private JSObject snapshot() {

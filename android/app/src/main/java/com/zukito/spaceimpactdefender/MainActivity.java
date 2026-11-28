@@ -55,8 +55,12 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
-        if (hasFocus) enterImmersiveMode();
-        else if (gameControllers != null) gameControllers.resetInput();
+        if (hasFocus) {
+            enterImmersiveMode();
+        } else {
+            GameControllersPlugin controllers = controllerPlugin();
+            if (controllers != null) controllers.resetInput();
+        }
     }
 
     private GameControllersPlugin controllerPlugin() {

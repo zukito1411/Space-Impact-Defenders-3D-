@@ -207,6 +207,7 @@ async function main() {
   const mobileChecks = [testCoopMenu, testCallsign, testNativeDownload]
   const checks = process.argv.includes('--protection-only') ? [() => testRaid(false, true), () => testRaid(true, true)]
     : process.argv.includes('--controller-only') ? [testController]
+    : process.argv.includes('--native-controller-only') ? [() => testController(true)]
     : process.argv.includes('--raid-only') || process.argv.includes('--scout-only') ? [testRaid]
     : process.argv.includes('--android-startup-only') ? [testNativeDownload]
     : process.argv.includes('--menu-only') ? mobileChecks : [testRaid, ...mobileChecks]
@@ -217,28 +218,62 @@ async function main() {
   if (failures.length) throw new AggregateError(failures, 'Guest launch or deployment verification failed')
 }
 
-async function testController() {
+async function testController(native = false) {
   const page = await browser.newPage({ viewport: { width: 844, height: 470 }, reducedMotion: 'reduce' })
   const errors = []
   page.on('pageerror', error => errors.push(error.message))
   try {
     await setUp(page, true, [])
-    await page.addInitScript(() => {
+    await page.addInitScript(native => {
       window.makePad = (index, x = 0, y = 0, pressed = []) => ({
         index, connected: true, mapping: 'standard', axes: [x, y],
         buttons: Array.from({ length: 16 }, (_, button) => ({ pressed: pressed.includes(button), value: Number(pressed.includes(button)) })),
       })
       window.testPads = [window.makePad(0)]
-      navigator.getGamepads = () => window.testPads
-    })
+      navigator.getGamepads = () => native ? [] : window.testPads
+      let pushNativeState
+      const readNativeState = () => ({
+        // A spare logical device that never sends buttons or axes.
+        controllers: [{ id: 'android:17', x: 0, y: 0, buttons: 0 }, ...window.testPads.map(pad => ({
+          id: 'android:' + (pad.index + 30), x: pad.axes[0], y: pad.axes[1],
+          buttons: pad.buttons.reduce((bits, button, index) => button.pressed ? bits | (1 << index) : bits, 0),
+        }))],
+      })
+      window.setTestPads = (pads, reset = false) => {
+        window.testPads = pads
+        pushNativeState?.({ ...readNativeState(), reset })
+      }
+      if (native) {
+        window.androidBridge = {}
+        // Android may still deliver controller events when its WebView document lacks focus.
+        document.hasFocus = () => false
+        window.Capacitor = {
+          PluginHeaders: [{ name: 'GameAssets', methods: [{ name: 'status', rtype: 'promise' }] },
+            { name: 'GameControllers', methods: [{ name: 'getState', rtype: 'promise' }, { name: 'addListener', rtype: 'callback' }] }],
+          async nativePromise(plugin, method) {
+            if (plugin === 'GameAssets' && method === 'status') return { ready: true, bytes: 0 }
+            if (plugin === 'GameControllers' && method === 'getState') return readNativeState()
+            throw Error(plugin + '.' + method)
+          },
+          nativeCallback(plugin, method, { eventName }, callback) {
+            if (plugin !== 'GameControllers' || method !== 'addListener' || eventName !== 'controllerState') throw Error(plugin)
+            pushNativeState = callback
+            return 'controller-listener'
+          },
+        }
+      }
+    }, native)
     const press = async button => {
       await page.locator('.space-door--idle').waitFor({ state: 'attached' })
-      await page.evaluate(async button => {
+      await page.evaluate(async ({ button, native }) => {
         for (const buttons of [[button], []]) {
-          window.testPads[0] = window.makePad(0, 0, 0, buttons)
-          for (let i = 0; i < 3; i++) await new Promise(resolve => requestAnimationFrame(resolve))
+          window.setTestPads([window.makePad(0, 0, 0, buttons)])
+          // Native taps may start and finish between two game frames.
+          if (!native || buttons.length === 0) {
+            for (let i = 0; i < 3; i++) await new Promise(resolve => requestAnimationFrame(resolve))
+          }
         }
-      }, button)
+      }, { button, native })
     }
     await title(page)
     await page.bringToFront()
@@ -246,6 +281,14 @@ async function testController() {
     await press(13)
     await page.waitForFunction(() => document.activeElement?.matches('button') && document.activeElement?.textContent?.includes('Co-op'))
     assert.ok(await page.locator('[data-controller-focus]:focus').count(), 'D-pad focus is visible')
+    if (native) {
+      await page.evaluate(async () => {
+        window.setTestPads([window.makePad(0, 0, 0, [0])])
+        window.setTestPads([window.makePad(0)], true)
+        for (let i = 0; i < 3; i++) await new Promise(resolve => requestAnimationFrame(resolve))
+      })
+      assert.ok(await page.getByRole('button', { name: 'Co-op', exact: true }).isVisible(), 'A focus reset must cancel buffered confirm')
+    }
     await press(0)
     const coop = page.getByRole('navigation', { name: 'Co-op' })
     await coop.getByRole('button', { name: /Same Wi-Fi/ }).waitFor()
@@ -276,7 +319,7 @@ async function testController() {
       const { refs, update, pollController } = window.openingTest
       const { makePad } = window
       const setPads = (...pads) => {
-        window.testPads = pads
+        window.setTestPads(pads)
         pollController(performance.now())
       }
       for (let frame = 0; frame < 650 && refs.stageEntryRef.current > 0; frame++) update(1 / 60)
@@ -333,13 +376,13 @@ async function testController() {
     await page.locator('.space-door--idle').waitFor({ state: 'attached' })
     await page.evaluate(() => {
       for (const buttons of [[], [9]]) {
-        window.testPads[0] = window.makePad(0, 0, 0, buttons)
+        window.setTestPads([window.makePad(0, 0, 0, buttons)])
         window.openingTest.pollController(performance.now())
       }
     })
     await pause.waitFor({ state: 'hidden' })
     assert.deepEqual(errors, [])
-    console.log('Controller navigation, launch, special, pause, both flight orientations, Shared Screen assignment and guest steering passed')
+    console.log((native ? 'Android native' : 'Web') + ' controller navigation, launch, special, pause, both flight orientations, Shared Screen assignment and guest steering passed')
   } finally { await page.close() }
 }
 

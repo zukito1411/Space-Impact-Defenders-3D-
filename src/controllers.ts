@@ -7,12 +7,14 @@ export const ControllerButton = {
 } as const
 
 export type RaidController = { id: string; x: number; y: number; buttons: number }
-type NativeState = { controllers: RaidController[] }
+type NativeState = { controllers: RaidController[]; reset?: boolean }
 const NativeControllers = registerPlugin<{
   getState(): Promise<NativeState>
   addListener(event: 'controllerState', listener: (state: NativeState) => void): Promise<PluginListenerHandle>
 }>('GameControllers')
 
+const android = Capacitor.getPlatform() === 'android'
+const nativePresses = new Map<string, number>()
 let nativeState: RaidController[] | undefined
 let nativeStarted = false
 let browserGamepadBlocked = false
@@ -27,28 +29,46 @@ export function useControllerConnected() {
   return useSyncExternalStore(subscribe, () => connected, () => false)
 }
 
+function acceptNativeState(state: NativeState, capturePresses: boolean) {
+  if (state.reset || document.hidden) nativePresses.clear()
+  else if (capturePresses) {
+    for (const id of nativePresses.keys()) {
+      if (!state.controllers.some(pad => pad.id === id)) nativePresses.delete(id)
+    }
+    for (const pad of state.controllers) {
+      const held = nativeState?.find(previous => previous.id === pad.id)?.buttons ?? 0
+      const pressed = pad.buttons & ~held
+      if (pressed) nativePresses.set(pad.id, pressed | (nativePresses.get(pad.id) ?? 0))
+    }
+  }
+  nativeState = state.controllers
+}
+
 function startNativeControllers() {
-  if (nativeStarted || !Capacitor.isNativePlatform() || Capacitor.getPlatform() !== 'android') return
+  if (nativeStarted || !android || !Capacitor.isPluginAvailable('GameControllers')) return
   nativeStarted = true
   let received = false
   void NativeControllers.addListener('controllerState', state => {
     received = true
-    nativeState = state.controllers
-  }).then(() => NativeControllers.getState()).then(state => {
-    if (!received) nativeState = state.controllers
-  }).catch(() => { /* Older APKs can still use the browser Gamepad API. */ })
+    acceptNativeState(state, true)
+  }).catch(() => { /* Native input may be unavailable in an older wrapper. */ })
+  void NativeControllers.getState().then(state => {
+    if (!received) acceptNativeState(state, false)
+  }).catch(() => { /* Keep browser input available if the bridge cannot respond. */ })
 }
 
 export function readRaidControllers(): readonly RaidController[] {
   startNativeControllers()
   let pads: readonly RaidController[] = []
-  if (!document.hidden && document.hasFocus()) {
-    if (nativeState) pads = nativeState
+  // Android owns window focus and resets its input when the activity loses it.
+  // The WebView can lack DOM focus while the activity still receives gamepad events.
+  if (!document.hidden && (android || document.hasFocus())) {
+    if (nativeState?.length) pads = nativeState
     else if (!browserGamepadBlocked && typeof navigator.getGamepads === 'function') {
       try {
         const active: RaidController[] = []
         for (const pad of navigator.getGamepads()) {
-          if (!pad?.connected || pad.mapping !== 'standard') continue
+          if (!pad?.connected || (pad.mapping !== 'standard' && (pad.axes.length < 2 || pad.buttons.length < 2))) continue
           let buttons = 0
           pad.buttons.forEach((button, index) => {
             if (index < 16 && (button.pressed || button.value > .55)) buttons |= 1 << index
@@ -61,6 +81,7 @@ export function readRaidControllers(): readonly RaidController[] {
       }
     }
   }
+  if (document.hidden) nativePresses.clear()
   if (connected !== Boolean(pads.length)) {
     connected = Boolean(pads.length)
     for (const listener of listeners) listener()
@@ -86,16 +107,27 @@ export class RaidControllerInput {
     if (!sharedScreen || !this.second || !connected.has(this.second)) this.second = undefined
     for (const pad of pads) {
       if (pad.id === this.first || pad.id === this.second) continue
+      // Some Bluetooth drivers expose extra idle logical devices. Assign a
+      // native pad when it actually sends input, then keep the pilot slot.
+      const active = Math.hypot(pad.x, pad.y) > .18 || pad.buttons || nativePresses.has(pad.id)
+      if (pad.id.startsWith('android:') && !active) continue
       if (!this.first) this.first = pad.id
       else if (sharedScreen && !this.second) this.second = pad.id
     }
     const snapshot = (id: string | undefined) => {
       const pad = pads.find(item => item.id === id)
       if (!pad) return undefined
+      if (pad.id.startsWith('android:')) {
+        const pressed = nativePresses.get(pad.id) ?? 0
+        // Preserve a D-pad tap for one frame even if it has already released.
+        const directions = ControllerButton.Up | ControllerButton.Down | ControllerButton.Left | ControllerButton.Right
+        return { ...pad, buttons: pad.buttons | (pressed & directions), pressed }
+      }
       return { ...pad, pressed: pad.buttons & ~(this.previous.get(pad.id) ?? pad.buttons) }
     }
     const primary = snapshot(this.first)
     const secondary = snapshot(this.second)
+    nativePresses.clear()
     this.previous.clear()
     for (const pad of pads) this.previous.set(pad.id, pad.buttons)
     return { primary, secondary }
