@@ -23,6 +23,15 @@ async function capture(page, name) {
   if (output) await page.screenshot({ path: `${output}/${name}.png` })
 }
 
+async function assertGoldMenuFocus(target) {
+  await target.evaluate(button => {
+    const { outlineColor, outlineWidth, outlineStyle } = getComputedStyle(button)
+    if (document.activeElement !== button || outlineColor !== 'rgb(255, 199, 107)' || outlineWidth !== '2px' || outlineStyle !== 'solid') {
+      throw Error(`Missing gold focus on ${button.textContent.trim()}: ${outlineColor} ${outlineWidth} ${outlineStyle}`)
+    }
+  })
+}
+
 async function assertCompactCaption(caption) {
   const appearance = await caption.evaluate(el => {
     const style = getComputedStyle(el)
@@ -280,7 +289,11 @@ async function testController(native = false) {
     await page.waitForFunction(() => document.activeElement?.matches('button') && document.activeElement?.textContent?.includes('Single Player'))
     await press(13)
     await page.waitForFunction(() => document.activeElement?.matches('button') && document.activeElement?.textContent?.includes('Co-op'))
-    assert.ok(await page.locator('[data-controller-focus]:focus').count(), 'D-pad focus is visible')
+    const homeCoop = page.getByRole('button', { name: 'Co-op', exact: true })
+    const homeSingle = page.getByRole('button', { name: 'Single Player', exact: true })
+    await assertGoldMenuFocus(homeCoop)
+    assert.equal(await homeSingle.locator('strong').evaluate(label => getComputedStyle(label).color), 'rgb(240, 250, 255)')
+    if (!native) await capture(page, 'controller-menu-focus-landscape')
     if (native) {
       await page.evaluate(async () => {
         window.setTestPads([window.makePad(0, 0, 0, [0])])
@@ -291,17 +304,33 @@ async function testController(native = false) {
     }
     await press(0)
     const coop = page.getByRole('navigation', { name: 'Co-op' })
-    await coop.getByRole('button', { name: /Same Wi-Fi/ }).waitFor()
+    const sameWifi = coop.getByRole('button', { name: /Same Wi-Fi/ })
+    await sameWifi.waitFor()
+    await page.locator('.space-door--idle').waitFor({ state: 'attached' })
+    await assertGoldMenuFocus(sameWifi)
     await press(1)
     await page.getByRole('button', { name: 'Single Player', exact: true }).waitFor()
     await page.waitForFunction(() => document.activeElement?.matches('button') && document.activeElement?.textContent?.includes('Single Player'))
     await press(0)
-    await page.getByRole('navigation', { name: 'Single Player' }).getByRole('button', { name: /Story Mode/ }).click()
+    const singlePlayer = page.getByRole('navigation', { name: 'Single Player' })
+    const story = singlePlayer.getByRole('button', { name: /Story Mode/ })
+    await page.locator('.space-door--idle').waitFor({ state: 'attached' })
+    await assertGoldMenuFocus(story)
+    assert.ok(await singlePlayer.getByRole('button', { name: /Endless Mode/ }).isDisabled())
+    await press(0)
     await page.getByRole('button', { name: 'Skip To Launch' }).click()
     const launch = page.getByRole('button', { name: 'Start Raid', exact: true })
     await launch.waitFor({ timeout: 120000 })
     await page.locator('.raid__asset-loading').waitFor({ state: 'hidden', timeout: 120000 })
-    await page.getByRole('button', { name: 'Flight Setup' }).click()
+    const flightSetup = page.getByRole('button', { name: 'Flight Setup' })
+    await flightSetup.focus()
+    await page.keyboard.press('ArrowUp')
+    await assertGoldMenuFocus(launch)
+    await page.keyboard.press('ArrowDown')
+    await assertGoldMenuFocus(flightSetup)
+    assert.equal(await launch.evaluate(button => getComputedStyle(button).color), 'rgb(237, 246, 255)')
+    if (!native) await capture(page, 'keyboard-flight-setup-focus')
+    await flightSetup.click()
     const setup = page.getByRole('dialog', { name: 'Flight Setup' })
     await setup.waitFor()
     await press(1)
@@ -1136,10 +1165,17 @@ async function testCoopMenu() {
     await setUp(phone, false, traffic, false)
     await title(phone)
     assert.deepEqual(await phone.locator('.start-screen__actions button').allTextContents(), ['Single Player', 'Co-op', 'Leaderboards'])
-    await phone.getByRole('button', { name: 'Co-op', exact: true }).tap()
+    const homeCoop = phone.getByRole('button', { name: 'Co-op', exact: true })
+    await phone.keyboard.press('ArrowDown')
+    await assertGoldMenuFocus(homeCoop)
+    await capture(phone, 'keyboard-menu-focus-portrait')
+    await homeCoop.tap()
     const menu = phone.getByRole('navigation', { name: 'Co-op', exact: true })
     await menu.waitFor()
     assert.deepEqual(await menu.locator('button strong').allTextContents(), ['Same Wi-Fi', 'Online Co-op', 'Shared Screen'])
+    await phone.locator('.space-door--idle').waitFor({ state: 'attached' })
+    const colors = await menu.locator('button').evaluateAll(buttons => buttons.map(button => getComputedStyle(button).outlineColor))
+    assert.ok(!colors.includes('rgb(255, 199, 107)'), 'Touch navigation should not leave a gold selector behind')
     await menu.getByRole('button', { name: /Shared Screen/ }).tap()
     await phone.getByRole('heading', { name: 'Shared Screen', exact: true }).waitFor()
     assert.equal(await phone.getByRole('dialog').count(), 0)

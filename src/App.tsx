@@ -10,7 +10,7 @@ import { GameButton, GameMenuAction } from './components/ui/GameButton'
 import { GameDialog } from './components/ui/GameDialog'
 import { GameMenuHints } from './components/ui/GameMenuHints'
 import { ControllerButton, RaidControllerInput } from './controllers'
-import { ControllerMenuNavigation, confirmControllerControl, dismissControllerDialog, foregroundDialog, getMenuControls } from './components/ui/controllerMenu'
+import { ControllerMenuNavigation, confirmControllerControl, dismissControllerDialog, foregroundDialog, getMenuControls, markControllerMenuInput } from './components/ui/controllerMenu'
 import { HomeSettingsDialog } from './components/HomeSettingsDialog'
 import { restoreDisplayOrientation } from './components/games/raid/flightView'
 import { LeaderboardsScreen } from './components/LeaderboardsScreen'
@@ -548,8 +548,10 @@ function App() {
       if (primary && !menuDoor?.busy) {
         const scope = getMenuScope()
         menuControllerNavigationRef.current.move(primary, time, scope)
-        if (primary.pressed & ControllerButton.Back) activateBackControl()
-        else if (primary.pressed & (ControllerButton.Confirm | ControllerButton.Start)) confirmControllerControl(scope)
+        if (primary.pressed & ControllerButton.Back) {
+          markControllerMenuInput()
+          activateBackControl()
+        } else if (primary.pressed & (ControllerButton.Confirm | ControllerButton.Start)) confirmControllerControl(scope)
       }
       raf = window.requestAnimationFrame(tick)
     }
@@ -846,7 +848,7 @@ function App() {
 
             <nav className="start-screen__actions" aria-label={text.title.name}>
               <GameMenuAction
-                primary data-menu-default
+                data-menu-default
                 label={text.rocketMode.single}
                 onClick={() => setScreen('rocketMode')}
               />
@@ -1246,13 +1248,13 @@ function App() {
             </nav>
           ) : solo ? (
             <nav className="mode-screen__actions mode-screen__actions--raid" aria-label={title}>
-              <GameMenuAction primary data-menu-default label={text.rocketMode.story} onClick={() => startRocketRaidSingle('campaign')} />
+              <GameMenuAction data-menu-default label={text.rocketMode.story} onClick={() => startRocketRaidSingle('campaign')} />
               <GameMenuAction label={text.rocketMode.endless} detail={!canPlayGradiusEndless ? text.rocketMode.endlessLocked : undefined} disabled={!canPlayGradiusEndless} onClick={() => startRocketRaidSingle('endless')} />
               <GameMenuAction label={text.rocketMode.bossRush} detail={!canPlayGradiusEndless ? text.rocketMode.bossRushLocked : undefined} disabled={!canPlayGradiusEndless} onClick={() => startRocketRaidSingle('bossRush')} />
             </nav>
           ) : (
             <nav className="mode-screen__actions mode-screen__actions--coop" aria-label={title}>
-              <GameMenuAction primary data-menu-default label={text.lobby.localCoopTitle} detail={text.lobby.localCoopDesc} onClick={() => openMultiplayerLobby('local')} />
+              <GameMenuAction data-menu-default label={text.lobby.localCoopTitle} detail={text.lobby.localCoopDesc} onClick={() => openMultiplayerLobby('local')} />
               <GameMenuAction label={text.lobby.onlineCoopTitle} detail={text.lobby.onlineCoopDesc} onClick={() => openMultiplayerLobby('online')} />
               <GameMenuAction label={text.lobby.sameScreenCoopTitle} detail={text.lobby.sameScreenCoopDesc} onClick={() => setScreen('raidSameScreenBriefing')} />
             </nav>
@@ -1317,7 +1319,7 @@ function App() {
             <button className="mode-screen__button" data-controller-back onClick={() => setScreen('raidCoopMode')}>
               <strong>{text.lobby.back}</strong>
             </button>
-            <button className="mode-screen__button mode-screen__button--accent" disabled={!selectedGuestShip} onClick={startSameScreenCoop}>
+            <button className="mode-screen__button" disabled={!selectedGuestShip} onClick={startSameScreenCoop}>
               <strong>{text.lobby.sameScreenStart}</strong>
             </button>
           </div>

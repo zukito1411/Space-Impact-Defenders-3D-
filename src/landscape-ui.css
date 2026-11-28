@@ -345,12 +345,6 @@
     background: linear-gradient(105deg, #15364ae8, #071522ed 72%);
     box-shadow: inset 0 1px #c9f7ff22, 0 5px 15px #0007;
   }
-  #root .start-screen .game-menu-action--primary {
-    border-color: #e9b862;
-    border-left-color: #ffcb70;
-    background: linear-gradient(105deg, #67421be8, #15212aea 75%);
-    box-shadow: inset 0 1px #fff0c13b, 0 0 18px #e5a74c2b, 0 5px 15px #0007;
-  }
   #root .start-screen .game-menu-action__copy strong { font-size: clamp(.85rem, 2dvh, 1.05rem); letter-spacing: .07em; }
   #root .start-screen .game-menu-action__copy small { font-size: .64rem; color: #b7cbd7; }
   #root .start-screen__command-deck {
@@ -466,8 +460,8 @@
   background: linear-gradient(110deg, #1b4554ed 0%, #0a1b2bec 48%, #07121eee 100%);
   box-shadow: inset 0 1px #c9faff2b, inset 0 -1px #0009, 0 4px 15px #0008;
 }
-#root :is(.start-screen__actions, .mode-screen__actions) .game-menu-action--primary {
-  --mission-accent: #ffc66a;
+#root :is(.start-screen__actions, .mode-screen__actions) .game-menu-action:enabled:is(html:not([data-menu-input='pointer']) :focus-visible, html[data-menu-input='controller'] :focus) {
+  --mission-accent: var(--ui-gold);
   border-color: #bb9257;
   border-left-color: var(--mission-accent);
   background: linear-gradient(110deg, #62451fec 0%, #182934f2 51%, #0b1824f2 100%);
@@ -510,7 +504,7 @@
   color: #f0faff;
   letter-spacing: .07em;
 }
-#root :is(.start-screen__actions, .mode-screen__actions) .game-menu-action--primary .game-menu-action__copy strong { color: #ffdc9a; }
+#root :is(.start-screen__actions, .mode-screen__actions) .game-menu-action:enabled:is(html:not([data-menu-input='pointer']) :focus-visible, html[data-menu-input='controller'] :focus) strong { color: #ffe0a2; }
 #root :is(.start-screen__actions, .mode-screen__actions) .game-menu-action__copy small { color: #bcd2dc; opacity: .86; }
 #root .start-screen__command-deck button,
 #root .start-screen__topbar .start-screen__settings {
@@ -568,9 +562,6 @@
 }
 #root .start-screen__actions .game-menu-action {
   background: linear-gradient(110deg, #173d4ce3, #0a1b2be8 52%, #07121ee8);
-}
-#root .start-screen__actions .game-menu-action--primary {
-  background: linear-gradient(110deg, #62451fdf, #182934e8 54%, #0b1824ed);
 }
 @media (orientation: landscape) {
   #root .start-screen h1 {

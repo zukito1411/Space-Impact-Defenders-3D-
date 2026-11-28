@@ -94,7 +94,6 @@
 #root .raid__carrier-actions .raid__carrier-skip { color: #b9d5df; border-color: #405968; background-color: #0c202c; flex: .8; }
 #root .raid__carrier-actions .raid__carrier-advance { display: flex; align-items: center; justify-content: center; gap: 9px; flex: 1.4; background: linear-gradient(120deg,#1f4a56,#18313f); color: #d9ffff; border-color: #74c7d4; }
 .raid__carrier-advance > span { font-size: 22px; }
-#root .raid__carrier-actions button:focus-visible { outline: 2px solid #fff3b4; outline-offset: 3px; }
 #root .raid__carrier-actions button:hover { filter: brightness(1.2); }
 .raid__carrier-wait { color: #83dce3; margin-left: auto; font-size: 11px; }
 .raid__carrier-flight-status { position: absolute; z-index: 10; inset: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) auto max(20px, env(safe-area-inset-left)); display: flex; align-items: flex-start; justify-content: space-between; color: #d8f7ff; text-shadow: 0 1px 9px #000; font: 600 11px/1.5 ui-monospace, monospace; letter-spacing: .12em; pointer-events: none; }

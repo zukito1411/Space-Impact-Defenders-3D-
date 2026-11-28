@@ -14,12 +14,8 @@ export function getMenuControls(scope: Document | HTMLElement) {
   })
 }
 
-function focusControllerControl(control: HTMLElement) {
-  if (!control.hasAttribute('data-controller-focus')) {
-    control.setAttribute('data-controller-focus', '')
-    control.addEventListener('blur', () => control.removeAttribute('data-controller-focus'), { once: true })
-  }
-  control.focus({ preventScroll: true })
+export function markControllerMenuInput() {
+  document.documentElement.dataset.menuInput = 'controller'
 }
 
 export class ControllerMenuNavigation {
@@ -38,6 +34,7 @@ export class ControllerMenuNavigation {
     if (direction === this.direction && time < this.next) return
     this.next = time + (direction === this.direction ? 145 : 285)
     this.direction = direction
+    markControllerMenuInput()
     const controls = getMenuControls(scope)
     const active = controls.find(control => control === document.activeElement)
     if (horizontal && active instanceof HTMLInputElement && active.type === 'range') {
@@ -75,7 +72,7 @@ export class ControllerMenuNavigation {
       }
     }
     if (!next) return
-    focusControllerControl(next)
+    next.focus({ preventScroll: true })
     next.scrollIntoView({ block: 'nearest', inline: 'nearest' })
   }
 }
@@ -84,7 +81,8 @@ export function confirmControllerControl(scope: Document | HTMLElement, preferre
   const controls = getMenuControls(scope)
   const control = controls.find(item => item === document.activeElement) ?? controls.find(item => item.matches(preferred)) ?? controls[0]
   if (!control) return
-  focusControllerControl(control)
+  markControllerMenuInput()
+  control.focus({ preventScroll: true })
   if (control instanceof HTMLButtonElement || control instanceof HTMLAnchorElement
     || (control instanceof HTMLInputElement && ['checkbox', 'radio'].includes(control.type))) control.click()
 }

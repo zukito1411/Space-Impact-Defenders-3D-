@@ -18,8 +18,8 @@ button, input, select, textarea { font: inherit; }
 button { cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 button:disabled { cursor: not-allowed; }
 button, a, input, select, textarea { outline-offset: 4px; }
-button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--ui-cyan); }
-button:focus:not(:focus-visible) { outline: none; }
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--ui-cyan); }
+:where(html[data-menu-input='pointer']) :is(button, a):focus { outline: none; }
 button svg { flex-shrink: 0; }
 img { -webkit-user-drag: none; }
 ::selection { background: #58dce642; color: #fff; }

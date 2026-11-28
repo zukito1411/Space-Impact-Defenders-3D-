@@ -4703,11 +4703,15 @@
 }
 #root .raid__launch-panel .raid__launch-primary {
   min-height: 50px;
-  border: 1px solid #e4b775;
-  border-left: 3px solid #ffc66a;
+  border: 1px solid #467d92;
+  border-left: 3px solid var(--ui-cyan);
   border-radius: 4px;
-  background: linear-gradient(110deg, #60431e, #172832 65%);
-  color: #ffe0a2;
+  border-image: none;
+  background: linear-gradient(110deg, #1b4554, #0b1824 65%);
+}
+#root .raid__launch-panel .raid__launch-primary:enabled:is(html:not([data-menu-input='pointer']) :focus-visible, html[data-menu-input='controller'] :focus) {
+  border-color: var(--ui-gold);
+  background: linear-gradient(110deg, #62451f, #172832 65%);
 }
 #root .raid__launch-panel--setup { width: min(540px, 100%); }
 #root .raid__launch-options .raid__menu-button--difficulty {

@@ -66,7 +66,7 @@ import { FlightViewControls } from '../../ui/FlightViewControls'
 import { GameDialog } from '../../ui/GameDialog'
 import { ControllerFlightHints } from '../../ui/GameMenuHints'
 import { ControllerButton, RaidControllerInput, controllerDirection, type RaidController } from '../../../controllers'
-import { ControllerMenuNavigation, confirmControllerControl, dismissControllerDialog, foregroundDialog, getMenuControls } from '../../ui/controllerMenu'
+import { ControllerMenuNavigation, confirmControllerControl, dismissControllerDialog, foregroundDialog, getMenuControls, markControllerMenuInput } from '../../ui/controllerMenu'
 import type { CSSProperties } from 'react'
 import { RAID_DEVIL_MASTER_PROJECTILE_FILTER, RAID_DEVIL_MASTER_PROJECTILE_GLOW_STOPS, RAID_OTHER_ASSET_PATHS, RAID_PLAYER_LASER_HEAD_STOPS, RAID_SNAKE_FANG_GLOW_STOPS, RAID_SQUID_BUBBLE_STOPS, RAID_SQUID_INK_STOPS, RAID_VENOM_SPIT_STOPS, drawCanvasSpriteContain, getEnemyCanvasSize, getDerelictWreckVariantData, getDevilMasterProjectileCanvasSprite } from './assets'
 import type { CanvasSpriteEntry } from './assets'
@@ -7875,6 +7875,7 @@ export function GradiusRaid({
       const remotePlayer = remotePlayerRef.current
       const localPlayer = session && !session.isHost ? remotePlayer : playerRef.current
       if ((menuPad.pressed & (ControllerButton.Start | ControllerButton.Back)) && (!session || session.isHost)) {
+        markControllerMenuInput()
         applyPilotMovement('p1', null, undefined)
         applyPilotMovement('p2', null, undefined)
         pauseGame()
@@ -7893,9 +7894,13 @@ export function GradiusRaid({
     if (!scope) return
     controllerNavigationRef.current.move(menuPad, time, scope)
     const { pressed } = menuPad
-    if (pressed & ControllerButton.Back) activateRaidBackControl()
-    else if ((pressed & ControllerButton.Start) && phaseRef.current === 'paused' && scope.classList.contains('raid__overlay')) resumeGame()
-    else if (pressed & (ControllerButton.Confirm | ControllerButton.Start)) {
+    if (pressed & ControllerButton.Back) {
+      markControllerMenuInput()
+      activateRaidBackControl()
+    } else if ((pressed & ControllerButton.Start) && phaseRef.current === 'paused' && scope.classList.contains('raid__overlay')) {
+      markControllerMenuInput()
+      resumeGame()
+    } else if (pressed & (ControllerButton.Confirm | ControllerButton.Start)) {
       confirmControllerControl(scope, '[data-dialog-initial-focus], .raid__launch-primary, .raid__carrier-advance, .raid__carrier-skip')
     }
   }, [activateNuke, activateRaidBackControl, getRaidMenuScope, pauseGame, resumeGame])
