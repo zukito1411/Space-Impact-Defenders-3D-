@@ -64,6 +64,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRaidFlightView } from './flightView'
 import { FlightViewControls } from '../../ui/FlightViewControls'
 import { GameDialog } from '../../ui/GameDialog'
+import { GameButton } from '../../ui/GameButton'
+import { ExitConfirmationDialog } from '../../ui/ExitConfirmationDialog'
 import { ControllerFlightHints } from '../../ui/GameMenuHints'
 import { ControllerButton, RaidControllerInput, controllerDirection, type RaidController } from '../../../controllers'
 import { ControllerMenuNavigation, confirmControllerControl, dismissControllerDialog, foregroundDialog, getMenuControls, markControllerMenuInput } from '../../ui/controllerMenu'
@@ -171,7 +173,7 @@ export function GradiusRaid({
   language = 'en',
   onRunComplete,
 }: {
-  onClose: () => void
+  onClose: (destination?: 'title') => void
   initialMode?: RaidMode
   multiplayerSession?: RaidMultiplayerSession | null
   sameScreenCoop?: boolean
@@ -179,7 +181,7 @@ export function GradiusRaid({
   initialShipKey?: string
   playerName: string
   language?: LanguageCode
-  onRunComplete?: (result: RunResult, retry?: () => void) => void
+  onRunComplete?: (result: RunResult, retry?: (onStarted: () => void) => void) => void
 }) {
   const initialRaidMode: RaidMode = multiplayerSession || sameScreenCoop ? 'campaign' : initialMode
   const initialShip = SHIP_OPTIONS.find(ship => ship.key === initialShipKey) ?? SHIP_OPTIONS[0]
@@ -1333,6 +1335,7 @@ export function GradiusRaid({
     socket.onmessage = null
 
     const handleSocketMessage = (event: MessageEvent) => {
+      if (multiplayerSessionRef.current !== session) return
       let message: RelayGameMessage
       try {
         message = JSON.parse(event.data) as RelayGameMessage
@@ -3436,6 +3439,7 @@ export function GradiusRaid({
 
   const prepareSortie = async (
     startStage: number = 1, fullyBuffed: boolean = false, mode: RaidMode = raidModeRef.current, launchDirectly = false,
+    onStarted?: () => void,
   ) => {
     const session = multiplayerSessionRef.current
     const sameScreen = sameScreenCoopRef.current
@@ -3495,6 +3499,7 @@ export function GradiusRaid({
       // clamp atlas, cockpit and enlarged hull before revealing the hangar.
       drawFxCanvas(performance.now())
       syncSnapshot()
+      onStarted?.()
       return
     }
     const stop = carrierStopRef.current
@@ -3528,7 +3533,7 @@ export function GradiusRaid({
 
     const isEndless = mode === 'endless'
     const isBossRush = mode === 'bossRush'
-    const stage = isEndless ? Math.max(1, Math.floor(startStage)) : isBossRush ? getBossRushStage(startStage) : clamp(startStage, 1, MAX_RAID_STAGE)
+    const stage = isEndless ? Math.max(1, Math.floor(startStage)) : isBossRush ? getBossRushStage(startStage) : clamp(startStage, 1, NORMAL_RAID_DEVIL_BONUS_STAGE)
     const hostRoomPlayer = session?.players.find((roomPlayer) => roomPlayer.host)
     const guestRoomPlayer = session?.players.find((roomPlayer) => !roomPlayer.host)
     const hostShip = getShipByKey(hostRoomPlayer?.shipKey, selectedShipRef.current)
@@ -3693,6 +3698,7 @@ export function GradiusRaid({
     stopBGM()
     startRaidBgm(stageRef.current, 'hangar')
     syncSnapshot()
+    onStarted?.()
   }
   const resetGame = useCarrierLaunchRequest(phaseRef, prepareSortie)
 
@@ -4766,6 +4772,8 @@ export function GradiusRaid({
 
     const session = multiplayerSessionRef.current
     const coOpRun = coOpRunRef.current
+    const stage = stageRef.current
+    const { startStage, fullyBuffed, mode } = pendingCarrierLaunchRef.current
     const sameScreenPilots = sameScreenCoopRef.current && remotePlayer
       ? [
           {
@@ -4799,7 +4807,7 @@ export function GradiusRaid({
       playerName: commanderName,
       score,
       teamScore: sameScreenPilots ? sameScreenPilots.reduce((total, pilot) => total + Math.max(0, pilot.score), 0) : undefined,
-      stage: stageRef.current,
+      stage,
       shipKey: selectedShipRef.current.key,
       visualShipKey: getRaidPlayerVisualShipKey(session && !session.isHost && remotePlayer ? remotePlayer : player, progressRef.current),
       pilots: sameScreenPilots,
@@ -4812,9 +4820,9 @@ export function GradiusRaid({
       difficulty: raidDifficultyRef.current,
       devilBossEncountered: devilBossEncounteredRef.current,
       devilBossDefeated: devilBossDefeatedRef.current,
-    }, status !== 'exit' && (!session || session.isHost) ? () => {
-      const { startStage, fullyBuffed, mode } = pendingCarrierLaunchRef.current
-      resetGame(startStage, fullyBuffed, mode, !coOpRun)
+    }, status !== 'exit' && (!session || session.isHost) ? (onStarted) => {
+      const defeated = status === 'gameover'
+      resetGame(defeated ? stage : startStage, fullyBuffed, mode, defeated || !coOpRun, onStarted)
     } : undefined)
   }, [onRunComplete, playerName, resetGame])
 
@@ -4829,10 +4837,11 @@ export function GradiusRaid({
 
   const exitRaid = useCallback(() => {
     const score = Math.max(playerRef.current.score, remotePlayerRef.current?.score ?? 0)
+    const defeated = phaseRef.current === 'gameover'
     if (phaseRef.current === 'victory' || carrierStopRef.current?.debrief) {
       submitRaidLeaderboardScore(score)
       reportRaidRunComplete('victory')
-    } else if (phaseRef.current === 'gameover') {
+    } else if (defeated) {
       submitRaidLeaderboardScore(score)
       reportRaidRunComplete('gameover')
     } else if (phaseRef.current === 'playing' || phaseRef.current === 'paused') {
@@ -4845,7 +4854,8 @@ export function GradiusRaid({
     }
     stopGameSounds()
     scenePresentation.stop()
-    onClose()
+    if (defeated) multiplayerSessionRef.current = null
+    onClose(defeated ? 'title' : undefined)
   }, [onClose, reportRaidRunComplete, scenePresentation, submitRaidLeaderboardScore])
 
   const damagePlayer = useCallback((amount: number, targetPlayer = playerRef.current, contact?: Vec) => {
@@ -7837,7 +7847,7 @@ export function GradiusRaid({
       syncSnapshot()
       return
     }
-    exitRaid()
+    if (phaseRef.current !== 'gameover') exitRaid()
   }, [exitRaid, pauseGame, resumeGame, syncSnapshot])
 
   const pollRaidGamepads = useCallback((time: number, transitionBusy = false) => {
@@ -8071,7 +8081,7 @@ export function GradiusRaid({
         event.preventDefault()
         if (!event.repeat) rootRef.current?.querySelector<HTMLButtonElement>('.raid__carrier-advance')?.click()
       }
-      else if (key === 'enter' && (phaseRef.current === 'select' || phaseRef.current === 'gameover')) {
+      else if (key === 'enter' && phaseRef.current === 'select') {
         if (!(event.target instanceof HTMLButtonElement) && !event.repeat) {
           event.preventDefault()
           rootRef.current?.querySelector<HTMLButtonElement>('.raid__launch-primary')?.click()
@@ -8089,7 +8099,7 @@ export function GradiusRaid({
           phaseRef.current = 'select'
           syncSnapshot()
         }
-        else exitRaid()
+        else if (phaseRef.current !== 'gameover') exitRaid()
       }
       if (sameScreenCoopRef.current && phaseRef.current === 'playing') {
         if (event.code === 'Space') {
@@ -8302,22 +8312,16 @@ export function GradiusRaid({
   const isBossRushRun = snapshot.raidMode === 'bossRush'
   const canControlOverlay = !isNetworkMultiplayer || Boolean(multiplayerSession?.isHost)
   const canUseCampaignStageTools = !isEndlessRun && !isBossRushRun && !isMultiplayer && completedCampaign && canControlOverlay
-  const canContinueCampaignCheckpoint = !isEndlessRun && !isBossRushRun && !isMultiplayer && (snapshot.phase === 'gameover' || snapshot.phase === 'select') && checkpointStage > 1
-  const showLaunchMenu = snapshot.phase === 'select' || snapshot.phase === 'gameover'
+  const canContinueCampaignCheckpoint = !isEndlessRun && !isBossRushRun && !isMultiplayer && checkpointStage > 1
+  const showLaunchMenu = snapshot.phase === 'select'
   useEffect(() => {
     if (!showLaunchMenu) setLaunchMenu(null)
   }, [showLaunchMenu])
   const modeText = getLanguageText(language).rocketMode
   const launchTitle = isMultiplayer ? modeText.coop : isBossRushRun ? modeText.bossRush : isEndlessRun ? modeText.endless : modeText.story
-  const primaryRaidMenuLabel = snapshot.phase === 'gameover'
-    ? isMultiplayer ? menuText.restartCoop : isBossRushRun ? menuText.restartBossRush : isEndlessRun ? menuText.restartEndless : menuText.restartStage1
-    : isBossRushRun ? menuText.startBossRushRaid : isEndlessRun ? menuText.startEndlessRaid : menuText.startRaid
+  const primaryRaidMenuLabel = isBossRushRun ? menuText.startBossRushRaid : isEndlessRun ? menuText.startEndlessRaid : menuText.startRaid
   const startCurrentRaidMode = () => {
     setLaunchMenu(null)
-    if (snapshot.phase === 'gameover') {
-      resetGame(isBossRushRun ? BOSS_RUSH_STAGES[0] : 1, isBossRushRun, isBossRushRun ? 'bossRush' : isEndlessRun ? 'endless' : 'campaign')
-      return
-    }
     if (isBossRushRun) {
       resetGame(BOSS_RUSH_STAGES[0], true, 'bossRush')
       return
@@ -8907,12 +8911,16 @@ export function GradiusRaid({
           </div>
         </GameDialog>
       )}
+      {snapshot.phase === 'gameover' && (!onRunComplete || !canControlOverlay) && (
+        <RaidDefeatFallback language={language} title={menuText.shipDestroyed} onExit={exitRaid}
+          onRestart={canControlOverlay ? () => resetGame(snapshot.stageTheme, pendingCarrierLaunchRef.current.fullyBuffed, snapshot.raidMode, true) : undefined} />
+      )}
       {showLaunchMenu && (
         <div className="raid__overlay raid__launch-overlay">
           <section className="raid__panel raid__launch-panel" aria-labelledby="raid-launch-title">
             <header className="raid__launch-heading">
               <div>
-                <span className="raid__kicker">{snapshot.phase === 'gameover' ? menuText.shipDestroyed : menuText.rocketRaid}</span>
+                <span className="raid__kicker">{menuText.rocketRaid}</span>
                 <h2 id="raid-launch-title">{launchTitle}</h2>
               </div>
               {canControlOverlay && <button type="button" className="raid__menu-button" onClick={exitRaid}>{menuText.back}</button>}
@@ -9010,4 +9018,27 @@ export function GradiusRaid({
   )
 }
 
+function RaidDefeatFallback({ language, title, onExit, onRestart }: {
+  language: LanguageCode
+  title: string
+  onExit: () => void
+  onRestart?: () => void
+}) {
+  const [confirmingExit, setConfirmingExit] = useState(false)
+  const text = getCommandText(language)
+  const askToExit = () => setConfirmingExit(true)
+  if (confirmingExit) return <ExitConfirmationDialog language={language} onConfirm={onExit} onCancel={() => setConfirmingExit(false)} />
+
+  return (
+    <GameDialog className="result-overlay result-overlay--gameover" aria-labelledby="raid-defeat-title" onDismiss={askToExit}>
+      <div className="result-overlay__panel result-overlay__dialog-panel">
+        <h2 id="raid-defeat-title">{title}</h2>
+        <div className="result-overlay__actions">
+          <GameButton aria-haspopup="dialog" data-dialog-dismiss onClick={askToExit}>{text.exit}</GameButton>
+          {onRestart && <GameButton tone="primary" data-dialog-initial-focus onClick={onRestart}>{text.restart}</GameButton>}
+        </div>
+      </div>
+    </GameDialog>
+  )
+}
 

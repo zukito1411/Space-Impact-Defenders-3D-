@@ -216,6 +216,7 @@ async function main() {
   const mobileChecks = [testCoopMenu, testCallsign, testNativeDownload]
   const checks = process.argv.includes('--protection-only') ? [() => testRaid(false, true), () => testRaid(true, true)]
     : process.argv.includes('--information-only') ? [testInformationLayouts]
+    : process.argv.includes('--defeat-only') ? [() => testRaid(true, false, true), () => testRaid(false, false, true)]
     : process.argv.includes('--controller-only') ? [testController]
     : process.argv.includes('--native-controller-only') ? [() => testController(true)]
     : process.argv.includes('--raid-only') || process.argv.includes('--scout-only') ? [testRaid]
@@ -670,7 +671,21 @@ async function verifyPilotProtection(page, landscape) {
     (landscape ? 'landscape' : 'portrait'))
 }
 
-async function testRaid(landscape = true, protectionOnly = false) {
+async function defeatRaid(page) {
+  await page.evaluate(() => {
+    const { refs, update, sync } = window.openingTest
+    for (let frame = 0; frame < 650 && refs.stageEntryRef.current > 0; frame++) update(1 / 60)
+    const player = refs.playerRef.current
+    Object.assign(player, { hp: 1, invuln: 0, shield: 0, forceField: 0 })
+    refs.enemyShotsRef.current = [{ id: -2, x: player.x, y: player.y, vx: 0, vy: 0, kind: 'enemy', damage: 3, radius: 3, life: 2 }]
+    update(1 / 60)
+    if (refs.phaseRef.current !== 'gameover') throw Error('The final shot did not end the run')
+    sync()
+  })
+  return page.getByRole('dialog', { name: 'Game Over', exact: true })
+}
+
+async function testRaid(landscape = true, protectionOnly = false, defeatOnly = false) {
   const viewport = landscape ? { width: 844, height: 470 } : { width: 393, height: 852 }
   const desktop = await browser.newPage({ viewport, reducedMotion: 'reduce' })
   try {
@@ -746,12 +761,13 @@ async function testRaid(landscape = true, protectionOnly = false) {
     await assertCompactCaption(desktop.locator('.raid__fleet-radio .fleet-radio'))
     await assertProjectileColors(desktop)
     await desktop.keyboard.down('ArrowUp')
-    await desktop.evaluate(() => {
+    await desktop.evaluate((landscape) => {
       const { refs, update } = window.openingTest
-      const before = refs.playerRef.current.x
+      const axis = landscape ? 'x' : 'y'
+      const before = refs.playerRef.current[axis]
       for (let frame = 0; frame < 30; frame++) update(1 / 60)
-      if (refs.playerRef.current.x === before) throw Error('The ship did not respond to steering')
-    })
+      if (refs.playerRef.current[axis] === before) throw Error('The ship did not respond to steering')
+    }, landscape)
     await desktop.keyboard.up('ArrowUp')
     await advanceToBossWarning(desktop)
     await desktop.getByText(/Move clear of the marked fire/).waitFor()
@@ -779,26 +795,68 @@ async function testRaid(landscape = true, protectionOnly = false) {
       sync()
     })
     assert.equal(await desktop.getByRole('dialog').count(), 0, 'Stage transition must not show a score screen')
-    await desktop.evaluate(() => {
-      const { refs, update, sync } = window.openingTest
-      for (let frame = 0; frame < 650 && refs.stageEntryRef.current > 0; frame++) update(1 / 60)
-      const player = refs.playerRef.current
-      Object.assign(player, { hp: 1, invuln: 0, shield: 0, forceField: 0 })
-      refs.enemyShotsRef.current = [{ id: -2, x: player.x, y: player.y, vx: 0, vy: 0, kind: 'enemy', damage: 3, radius: 3, life: 2 }]
-      update(1 / 60)
-      if (refs.phaseRef.current !== 'gameover') throw Error('The final shot did not end the run')
-      sync()
-    })
-    const runReport = desktop.locator('.result-overlay')
-    await runReport.getByRole('button', { name: 'Retry', exact: true }).click()
-    await desktop.getByText('Flight deck clear. You have the launch lane.').waitFor({ timeout: 30000 })
+    const runReport = await defeatRaid(desktop)
+    await runReport.waitFor()
+    const exit = runReport.getByRole('button', { name: 'Exit', exact: true })
+    const restart = runReport.getByRole('button', { name: 'Restart', exact: true })
+    const confirmation = desktop.getByRole('dialog', { name: 'Are you sure you want to exit?', exact: true })
+    assert.deepEqual((await runReport.locator('.result-overlay__actions button').allTextContents()).slice(-2), ['Exit', 'Restart'])
+    assert.equal(await runReport.getByRole('button', { name: 'Continue', exact: true }).count(), 0)
+    if (defeatOnly) await capture(desktop, `defeat-actions-${landscape ? 'landscape' : 'portrait'}`)
+    await exit.click()
+    await confirmation.waitFor()
+    assert.deepEqual(await confirmation.getByRole('button').allTextContents(), ['Yes', 'No'])
+    await desktop.waitForFunction(() => document.activeElement?.textContent === 'No')
+    await confirmation.getByRole('button', { name: 'No', exact: true }).click()
+    await runReport.waitFor()
+    assert.equal(await desktop.evaluate(() => window.openingTest.refs.phaseRef.current), 'gameover')
+    await restart.click()
+    await runReport.waitFor({ state: 'hidden', timeout: 30000 })
+    await desktop.locator('.space-door--idle').waitFor({ state: 'attached' })
     await takeSimulationControl(desktop)
-    assert.equal(await desktop.evaluate(() => window.openingTest.refs.stageRef.current), 1)
+    const attempt = await desktop.evaluate(() => {
+      const { stageRef, playerRef, journeyStageAgeRef } = window.openingTest.refs
+      return { stage: stageRef.current, score: playerRef.current.score, elapsed: journeyStageAgeRef.current }
+    })
+    assert.deepEqual(attempt, { stage: 2, score: 0, elapsed: 0 })
+    if (defeatOnly) {
+      // The bonus stage is outside the regular campaign stage picker.
+      if (landscape) {
+        await desktop.evaluate(() => {
+          const { refs } = window.openingTest
+          refs.stageRef.current = refs.waveRef.current = 16
+        })
+        await defeatRaid(desktop)
+        await restart.click()
+        await runReport.waitFor({ state: 'hidden', timeout: 30000 })
+        await desktop.locator('.space-door--idle').waitFor({ state: 'attached' })
+        await takeSimulationControl(desktop)
+        assert.equal(await desktop.evaluate(() => window.openingTest.refs.stageRef.current), 16)
+      }
+      await defeatRaid(desktop)
+      await runReport.waitFor()
+      await desktop.waitForFunction(() => document.activeElement?.textContent === 'Restart')
+      await desktop.keyboard.press('Escape')
+      await confirmation.waitFor()
+      if (!landscape) await capture(desktop, 'defeat-exit-confirmation-portrait')
+      await desktop.keyboard.press('Escape')
+      await runReport.waitFor()
+      assert.equal(await desktop.evaluate(() => window.openingTest.refs.phaseRef.current), 'gameover')
+      await exit.click()
+      await confirmation.getByRole('button', { name: 'Yes', exact: true }).click()
+      await desktop.getByRole('button', { name: 'Single Player', exact: true }).waitFor()
+      await desktop.locator('.space-door--idle').waitFor({ state: 'attached' })
+      assert.equal(await desktop.locator('.raid, .result-overlay').count(), 0)
+      assert.deepEqual(traffic, [])
+      assert.deepEqual(errors, [])
+      console.log(`Same-stage restart, exit cancellation, Escape and confirmed return to the main menu passed in ${landscape ? 'landscape' : 'portrait'}`)
+      return
+    }
     if (output) await desktop.emulateMedia({ reducedMotion: 'no-preference' })
     await desktop.evaluate(() => {
       const { refs, update, draw, sync } = window.openingTest
       for (let frame = 0; frame < 650 && refs.stageEntryRef.current > 0; frame++) update(1 / 60)
-      if (refs.initialLaunchRef.current) throw Error('Retry did not finish carrier launch')
+      if (refs.initialLaunchRef.current) throw Error('Restart did not finish carrier launch')
       // Scripted formation checks jump to the combat portion of the stage.
       refs.scoutCruiseRef.current.age = 10
       refs.scoutCruiseRef.current.nextWing = Infinity
@@ -1152,7 +1210,7 @@ async function testRaid(landscape = true, protectionOnly = false) {
     })
     assert.deepEqual(traffic, [], 'a guest run must not call the online profile or leaderboard APIs')
     assert.deepEqual(errors, [])
-    console.log('Desktop guest launch, stage advance, retry, sustained fighter combat, scout tail fire, crossfire, hull-shaped fighter and boss shields, phase, cloak, both elite tiers and crowded fighter recovery passed')
+    console.log('Desktop guest launch, stage advance, same-stage restart, sustained fighter combat, scout tail fire, crossfire, hull-shaped fighter and boss shields, phase, cloak, both elite tiers and crowded fighter recovery passed')
   } catch (error) {
     const visible = await desktop.locator('body').innerText({ timeout: 4000 }).catch(() => '')
     throw new Error(`Raid did not complete its opening check. Visible state: ${visible.slice(0, 1000)}`, { cause: error })
@@ -1396,7 +1454,7 @@ async function testInformationLayouts() {
           completedMissions: ['daily_nuke_strike'],
         }
         root.render(React.createElement(RunResultsOverlay, { key: String(expanded), result, update,
-          language: 'en', onRetry: () => root.render(null), onClose: () => root.render(null) }))
+          language: 'en', onRetry: () => root.render(null), onClose: () => root.render(null), onExit: () => root.render(null) }))
       }
     })
     for (const [width, height] of [[640, 320], [320, 568], [844, 390], [393, 852]]) {

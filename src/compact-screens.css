@@ -105,6 +105,15 @@
 .result-overlay__pilot-card dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 .result-overlay__actions { display: flex; gap: 6px; }
 #root .result-overlay__actions > button { flex: 1; min-width: 0; padding: 6px; letter-spacing: .025em; overflow-wrap: anywhere; }
+#root .result-overlay--confirm-exit { z-index: 81; background: #02060dc2; }
+#root .result-overlay .result-overlay__dialog-panel {
+  width: min(100%, 400px);
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  padding: 18px;
+  text-align: center;
+}
+.result-overlay__dialog-panel h2 { margin: 0; font-size: clamp(1.05rem, 5vmin, 1.35rem); }
 
 #root :is(.progress-panel, .leaderboards-screen__shell, .raid-hangar__panel) {
   max-height: 100%;

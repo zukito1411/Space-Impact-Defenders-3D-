@@ -184,7 +184,7 @@ function App() {
   const [recoveryCode, setRecoveryCode] = useState(getStoredRecoveryCode)
   const [recoveryCodeDraft, setRecoveryCodeDraft] = useState('')
   const [progress, setProgress] = useState<ProgressState>(() => loadProgress())
-  const [lastRunUpdate, setLastRunUpdate] = useState<{ result: RunResult; update: ProgressUpdate; retry?: () => void } | null>(null)
+  const [lastRunUpdate, setLastRunUpdate] = useState<{ result: RunResult; update: ProgressUpdate; retry?: (onStarted: () => void) => void } | null>(null)
   const [cloudSyncStatus, setCloudSyncStatus] = useState<'offline' | 'connected' | 'conflict'>('offline')
   const [homeSettingsOpen, setHomeSettingsOpen] = useState(false)
   useEffect(() => { restoreDisplayOrientation() }, [])
@@ -720,7 +720,7 @@ function App() {
     setScreen('raidStory')
   }
 
-  const handleRunComplete = (result: RunResult, retry?: () => void) => {
+  const handleRunComplete = (result: RunResult, retry?: (onStarted: () => void) => void) => {
     const update = recordRunResult(result)
     setProgress(update.progress)
     syncCloudProgress(update.progress)
@@ -841,14 +841,15 @@ function App() {
     </GameDialog>
   ) : null
 
-  const closeRocketRaid = () => {
+  const closeRocketRaid = (destination?: 'title') => {
     const nextProgress = loadProgress()
     setProgress(nextProgress)
     syncCloudProgress(nextProgress)
     raidMultiplayerSession?.socket.close()
     setRaidMultiplayerSession(null)
     setRaidSameScreenCoop(false)
-    setScreen(raidMultiplayerSession || raidSameScreenCoop ? 'raidCoopMode' : 'rocketMode')
+    if (destination === 'title') setLastRunUpdate(null)
+    setScreen(destination ?? (raidMultiplayerSession || raidSameScreenCoop ? 'raidCoopMode' : 'rocketMode'))
   }
 
   const runResultsOverlay = lastRunUpdate ? (
@@ -857,9 +858,9 @@ function App() {
       update={lastRunUpdate.update}
       language={language}
       onClose={() => setLastRunUpdate(null)}
+      onExit={() => closeRocketRaid('title')}
       onRetry={screen === 'game' && lastRunUpdate.retry ? () => {
-        setLastRunUpdate(null)
-        lastRunUpdate.retry?.()
+        lastRunUpdate.retry?.(() => setLastRunUpdate(null))
       } : undefined}
     />
   ) : null

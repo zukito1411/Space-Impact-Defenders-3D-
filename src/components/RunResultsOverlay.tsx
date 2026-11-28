@@ -3,6 +3,7 @@ import { getLanguageText, getRaidText, getReleaseText, type LanguageCode } from 
 import type { ProgressUpdate, RunResult } from '../progression'
 import { GameButton } from './ui/GameButton'
 import { GameDialog } from './ui/GameDialog'
+import { ExitConfirmationDialog } from './ui/ExitConfirmationDialog'
 import { getCommandText } from '../commandText'
 import { useState } from 'react'
 import { PagedItems } from './ui/PagedItems'
@@ -12,13 +13,18 @@ type RunResultsOverlayProps = {
   update: ProgressUpdate
   language: LanguageCode
   onClose: () => void
+  onExit: () => void
   onRetry?: () => void
 }
 
-export function RunResultsOverlay({ result, update, language, onClose, onRetry }: RunResultsOverlayProps) {
+export function RunResultsOverlay({ result, update, language, onClose, onExit, onRetry }: RunResultsOverlayProps) {
   const landscape = useLandscapeScreen()
   const [section, setSection] = useState<'summary' | 'pilots' | 'rewards'>('summary')
+  const [confirmingExit, setConfirmingExit] = useState(false)
   const text = getReleaseText(language)
+  const commands = getCommandText(language)
+  const defeated = result.status === 'gameover'
+  const dismiss = defeated ? () => setConfirmingExit(true) : onClose
   const modeText = getLanguageText(language).leaderboards.modes[result.mode]
   const raidText = getRaidText(language)
   const statusLabel = result.status === 'victory' ? text.victory : result.status === 'gameover' ? text.gameover : text.exit
@@ -38,8 +44,8 @@ export function RunResultsOverlay({ result, update, language, onClose, onRetry }
     missions: completedMissions.slice(page * 2, page * 2 + 2),
   }))
 
-  return (
-    <GameDialog className={`result-overlay result-overlay--${result.status}`} aria-labelledby="result-title" onDismiss={onClose}>
+  const report = (
+    <GameDialog className={`result-overlay result-overlay--${result.status}`} aria-labelledby="result-title" aria-hidden={confirmingExit || undefined} onDismiss={dismiss}>
       <div className="result-overlay__panel">
         <div className="result-overlay__hero">
           <RaidShipSprite className="result-overlay__ship" shipKey={result.visualShipKey ?? result.shipKey ?? 'dreadnought'} size={96} sideView={landscape} />
@@ -126,11 +132,27 @@ export function RunResultsOverlay({ result, update, language, onClose, onRetry }
               {section === 'rewards' ? text.compactSections.summary : text.compactSections.rewards}
             </GameButton>
           )}
-          {onRetry && <GameButton tone="primary" data-dialog-initial-focus onClick={onRetry}>{getCommandText(language).retry}</GameButton>}
-          <GameButton data-dialog-dismiss tone={onRetry ? 'secondary' : 'primary'} onClick={onClose}>{text.continue}</GameButton>
+          {defeated ? (
+            <>
+              <GameButton aria-haspopup="dialog" data-dialog-dismiss data-dialog-initial-focus={!onRetry || undefined} onClick={dismiss}>{commands.exit}</GameButton>
+              {onRetry && <GameButton tone="primary" data-dialog-initial-focus onClick={onRetry}>{commands.restart}</GameButton>}
+            </>
+          ) : (
+            <>
+              {onRetry && <GameButton tone="primary" data-dialog-initial-focus onClick={onRetry}>{commands.retry}</GameButton>}
+              <GameButton data-dialog-dismiss tone={onRetry ? 'secondary' : 'primary'} onClick={onClose}>{text.continue}</GameButton>
+            </>
+          )}
         </div>
       </div>
     </GameDialog>
+  )
+
+  return (
+    <>
+      {report}
+      {confirmingExit && <ExitConfirmationDialog language={language} onConfirm={onExit} onCancel={() => setConfirmingExit(false)} />}
+    </>
   )
 }
 
