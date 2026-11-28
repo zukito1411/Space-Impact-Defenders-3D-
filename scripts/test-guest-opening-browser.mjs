@@ -215,6 +215,7 @@ async function main() {
 
   const mobileChecks = [testCoopMenu, testCallsign, testNativeDownload]
   const checks = process.argv.includes('--protection-only') ? [() => testRaid(false, true), () => testRaid(true, true)]
+    : process.argv.includes('--information-only') ? [testInformationLayouts]
     : process.argv.includes('--controller-only') ? [testController]
     : process.argv.includes('--native-controller-only') ? [() => testController(true)]
     : process.argv.includes('--raid-only') || process.argv.includes('--scout-only') ? [testRaid]
@@ -788,7 +789,7 @@ async function testRaid(landscape = true, protectionOnly = false) {
       if (refs.phaseRef.current !== 'gameover') throw Error('The final shot did not end the run')
       sync()
     })
-    const runReport = desktop.getByRole('dialog').filter({ hasText: 'Combat Report' })
+    const runReport = desktop.locator('.result-overlay')
     await runReport.getByRole('button', { name: 'Retry', exact: true }).click()
     await desktop.getByText('Flight deck clear. You have the launch lane.').waitFor({ timeout: 30000 })
     await takeSimulationControl(desktop)
@@ -1158,6 +1159,165 @@ async function testRaid(landscape = true, protectionOnly = false) {
   } finally { await desktop.close() }
 }
 
+async function assertPanelFits(panel, name) {
+  await panel.waitFor()
+  const actual = await panel.evaluate(el => {
+    const { top, bottom, width } = el.getBoundingClientRect()
+    return { top, bottom, width, viewport: innerWidth, height: innerHeight, client: el.clientHeight, scroll: el.scrollHeight }
+  })
+  assert.ok(actual.top >= 0 && actual.bottom <= actual.height + 1 && actual.scroll <= actual.client + 1,
+    `${name} needs scrolling: ${JSON.stringify(actual)}`)
+}
+
+async function testInformationLayouts() {
+  const page = await browser.newPage({ hasTouch: true, isMobile: true, reducedMotion: 'reduce' })
+  try {
+    await setUp(page, true, [], false)
+    await page.addInitScript(() => {
+      localStorage.setItem('space-impact-release-progress', JSON.stringify({
+        bestStageByMode: { gradius_solo: 15 }, bestScoreByMode: { gradius_endless: 10000000 },
+        gradiusRaidEndlessUnlocked: true, codex: { devil_gundam: 'test' },
+      }))
+    })
+    await page.route('**/leaderboards', route => route.fulfill({
+      headers: { 'access-control-allow-origin': '*' },
+      json: { leaderboards: { gradius_solo: Array.from({ length: 17 }, (_, i) => ({
+        rank: i + 1, playerName: `Test Commander ${i + 1}`, score: 800000 - i * 40000, stage: 15, shipKey: 'spaceEt',
+      })) } },
+    }))
+    await title(page)
+    const overflow = []
+    const checkFits = async (panel, name) => {
+      try { await assertPanelFits(panel, name) } catch (error) { overflow.push(error.message) }
+    }
+    for (const [width, height] of [[640, 320], [320, 568], [844, 390], [393, 852]]) {
+      await page.setViewportSize({ width, height })
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+      const fits = (selector, name) => checkFits(page.locator(selector), `${name} at ${width}×${height}`)
+      const press = (name) => page.getByRole('button', { name, exact: true }).click()
+      const back = async () => {
+        await press('Back')
+        await page.locator('.start-screen__profile').waitFor()
+      }
+      await page.locator('.start-screen__profile').click()
+      await fits('.progress-panel', 'Profile account')
+      for (const section of ['Stats', 'Best Scores', 'Mastery']) {
+        await press(section)
+        await fits('.progress-panel', section)
+      }
+      await press('Previous')
+      await fits('.progress-panel', 'Last ship mastery page')
+      await back()
+
+      for (const name of ['Achievements', 'Missions', 'Codex', 'Almanac']) {
+        await press(name)
+        await fits('.progress-panel', name)
+        await press('Next')
+        await fits('.progress-panel', `${name} next page`)
+        if (name === 'Almanac') {
+          for (const section of ['Elite Hunters', 'Dedicated Boss Hulls', 'Stage Bosses']) {
+            await press(section)
+            await fits('.progress-panel', section)
+          }
+          const pages = Number((await page.locator('.paged-items__controls output').textContent()).split('/')[1])
+          for (let index = 1; index < (width === 640 ? pages : 2); index++) {
+            await press(width === 640 ? 'Next' : 'Previous')
+            await fits('.progress-panel', `Stage boss page ${index + 1}`)
+          }
+          if (width === 844) await capture(page, 'compact-almanac-landscape')
+        }
+        await back()
+      }
+      await press('Hangar')
+      for (const section of ['Mastery', 'Systems', 'Cosmetics']) {
+        await press(section)
+        await fits('.raid-hangar__panel', `Hangar ${section}`)
+        await fits('.raid-hangar__details', `Hangar ${section} details`)
+        await page.getByRole('button', { name: 'Start Raid', exact: true }).waitFor()
+      }
+      await back()
+      await press('Leaderboards')
+      await page.getByText('Test Commander 1', { exact: true }).waitFor()
+      await fits('.leaderboards-screen__shell', 'Leaderboard')
+      await fits('.leaderboards-screen__board', 'Leaderboard entries')
+      await press('Previous')
+      assert.ok(await page.getByText('Test Commander 17', { exact: true }).isVisible())
+      await back()
+    }
+
+    await page.getByRole('button', { name: 'Codex', exact: true }).click()
+    await page.getByRole('button', { name: 'Play All', exact: true }).click()
+    await page.locator('.raid-story__skip--launch').click()
+    await page.locator('.raid__ending-panel').waitFor()
+    for (const [width, height] of [[640, 320], [320, 568]]) {
+      await page.setViewportSize({ width, height })
+      await checkFits(page.locator('.raid__ending'), `Ending archive at ${width}×${height}`)
+    }
+    const lastScene = page.locator('.raid__ending-signal').last()
+    await lastScene.click()
+    await page.locator('.raid__ending-actions [data-dialog-dismiss]').click()
+    await page.locator('.progress-panel__back').click()
+    await page.locator('.start-screen__profile').waitFor()
+
+    await page.evaluate(async () => {
+      const [{ default: React }, { default: ReactDOM }, { RunResultsOverlay }, { loadProgress, RAID_ACHIEVEMENT_IDS, RAID_CODEX_IDS }] = await Promise.all([
+        import('/node_modules/.vite/deps/react.js'),
+        import('/node_modules/.vite/deps/react-dom_client.js'),
+        import('/src/components/RunResultsOverlay.tsx'),
+        import('/src/progression.ts'),
+      ])
+      const host = document.createElement('div')
+      document.querySelector('#root').append(host)
+      const root = ReactDOM.createRoot(host)
+      window.renderCompactReport = (expanded) => {
+        const result = {
+          mode: expanded ? 'gradius_multiplayer' : 'gradius_solo',
+          status: expanded ? 'victory' : 'gameover',
+          playerName: 'Flight Cadet', score: 6402, stage: 14, difficulty: 'normal', shipKey: 'spaceEt',
+          durationMs: 32000, enemiesDestroyed: 22, bossesDefeated: 0, pickupsCollected: 0,
+          ...(expanded ? {
+            teamScore: 124567890, wave: 15,
+            pilots: [
+              { label: 'P1', name: 'Test Commander Alpha', shipKey: 'coreLander', score: 72456789, hp: 3, maxHp: 7 },
+              { label: 'P2', name: 'Test Commander Bravo', shipKey: 'mesiah', score: 52111101, hp: 4, maxHp: 6 },
+            ],
+          } : {}),
+        }
+        const update = {
+          progress: loadProgress(), shipLevelUp: expanded, shipLevel: 4,
+          unlockedAchievements: expanded ? RAID_ACHIEVEMENT_IDS.slice(0, 5) : [],
+          unlockedCodex: expanded ? RAID_CODEX_IDS.slice(0, 5) : [],
+          completedMissions: ['daily_nuke_strike'],
+        }
+        root.render(React.createElement(RunResultsOverlay, { key: String(expanded), result, update,
+          language: 'en', onRetry: () => root.render(null), onClose: () => root.render(null) }))
+      }
+    })
+    for (const [width, height] of [[640, 320], [320, 568], [844, 390], [393, 852]]) {
+      await page.setViewportSize({ width, height })
+      await page.evaluate(() => window.renderCompactReport(false))
+      await page.getByRole('heading', { name: 'Game Over', exact: true }).waitFor()
+      const report = page.locator('.result-overlay__panel')
+      await checkFits(report, `Solo report at ${width}×${height}`)
+      assert.ok(await report.getByText('Nuke Authorization').isVisible())
+      if (width === 844 || width === 393) await capture(page, `compact-report-${width > height ? 'landscape' : 'portrait'}`)
+      await page.evaluate(() => window.renderCompactReport(true))
+      await page.getByRole('heading', { name: 'Victory', exact: true }).waitFor()
+      await checkFits(report, `Co-op report at ${width}×${height}`)
+      await report.getByRole('button', { name: 'Rewards', exact: true }).click()
+      await report.getByRole('button', { name: 'Previous', exact: true }).click()
+      await checkFits(report, `Last reward page at ${width}×${height}`)
+      await report.getByRole('button', { name: 'Pilot Breakdown', exact: true }).click()
+      await checkFits(report, `Pilot breakdown at ${width}×${height}`)
+      await report.getByRole('button', { name: 'Continue', exact: true }).click()
+    }
+    assert.deepEqual(overflow, [])
+    console.log('Combat reports and all seven information screens fit four portrait and landscape viewports, including populated pages')
+  } finally {
+    await page.close()
+  }
+}
+
 async function testCoopMenu() {
   const phone = await browser.newPage({ viewport: { width: 393, height: 852 }, hasTouch: true, isMobile: true })
   const traffic = []
@@ -1215,7 +1375,7 @@ async function testCallsign() {
     const homePhoto = profileButton.locator('img')
     const restoreAccount = phone.getByRole('button', { name: 'Restore an account' })
     await profileButton.tap()
-    await phone.locator('.progress-card--scores').waitFor()
+    await phone.locator('.progress-card--account').waitFor()
     const photo = await phone.evaluate(() => {
       const canvas = document.createElement('canvas')
       canvas.width = 240

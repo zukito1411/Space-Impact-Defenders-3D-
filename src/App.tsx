@@ -12,6 +12,7 @@ import { PlayerAvatar } from './components/ui/PlayerAvatar'
 import { getAvatarOwner, loadAvatar, saveAvatar } from './profileAvatar'
 import { GameDialog } from './components/ui/GameDialog'
 import { GameMenuHints } from './components/ui/GameMenuHints'
+import { ScreenSections } from './components/ui/PagedItems'
 import { ControllerButton, RaidControllerInput } from './controllers'
 import { ControllerMenuNavigation, confirmControllerControl, dismissControllerDialog, foregroundDialog, getMenuControls, markControllerMenuInput } from './components/ui/controllerMenu'
 import { HomeSettingsDialog } from './components/HomeSettingsDialog'
@@ -156,6 +157,7 @@ function App() {
   const [raidMultiplayerSession, setRaidMultiplayerSession] = useState<RaidMultiplayerSession | null>(null)
   const [raidSameScreenCoop, setRaidSameScreenCoop] = useState(false)
   const [sameScreenGuestShipKey, setSameScreenGuestShipKey] = useState('fast')
+  const [hangarSection, setHangarSection] = useState<'overview' | 'systems' | 'cosmetics'>('overview')
   const [hangarShipKey, setHangarShipKey] = useState('rocket')
   const [raidStoryIndex, setRaidStoryIndex] = useState(0)
   const [raidStoryFading, setRaidStoryFading] = useState(false)
@@ -1120,15 +1122,17 @@ function App() {
         <div className="raid-hangar">
           <div className="raid-hangar__stars" />
           <div className="raid-hangar__panel">
-            <GameButton tone="quiet" className="mode-screen__back" type="button" onClick={() => setScreen('title')}>
-              {text.rocketMode.back}
-            </GameButton>
-
-            <div className="raid-hangar__intro">
-              <span>{text.raidHangar.eyebrow}</span>
+            <header className="raid-hangar__intro">
               <h1>{text.raidHangar.title}</h1>
-              <p>{text.raidHangar.copy}</p>
-            </div>
+              <div className="raid-hangar__actions">
+                <GameButton tone="primary" className="raid-hangar__launch" disabled={!isSelectedUnlocked} onClick={() => startRocketRaidSingle('campaign')}>
+                  {text.rocketMode.start}
+                </GameButton>
+                <GameButton tone="quiet" className="mode-screen__back" onClick={() => setScreen('title')}>
+                  {text.rocketMode.back}
+                </GameButton>
+              </div>
+            </header>
 
             <div className="raid-hangar__layout">
               <div className="raid-hangar__preview">
@@ -1160,32 +1164,38 @@ function App() {
               </div>
 
               <div className="raid-hangar__details">
-                <span className={isSelectedUnlocked ? 'raid-hangar__status raid-hangar__status--ready' : 'raid-hangar__status'}>
-                  {unlockCopy}
-                </span>
-                <h2>{selectedShip.key === 'coreLander' ? getRaidGundamName(selectedSpriteKey) : selectedShipCopy.name}</h2>
-                <p>{selectedShipCopy.role}</p>
+                <ScreenSections active={hangarSection} label={text.raidHangar.title} labels={{
+                  overview: text.raidHangar.mastery, systems: releaseText.compactSections.systems,
+                  cosmetics: releaseText.compactSections.cosmetics,
+                }} onChange={setHangarSection} />
+                {hangarSection === 'overview' && <>
+                  <div className="raid-hangar__selected">
+                    <h2>{selectedShip.key === 'coreLander' ? getRaidGundamName(selectedSpriteKey) : selectedShipCopy.name}</h2>
+                    <span className={isSelectedUnlocked ? 'raid-hangar__status raid-hangar__status--ready' : 'raid-hangar__status'}>{unlockCopy}</span>
+                  </div>
+                  <p>{selectedShipCopy.role}</p>
 
-                <div className="raid-hangar__stats">
-                  <span>
-                    <small>{text.raidHangar.mastery}</small>
-                    <b>{text.raidHangar.level.replace('{level}', selectedMastery.level.toLocaleString())}</b>
-                  </span>
-                  <span>
-                    <small>{text.raidHangar.best}</small>
-                    <b>{selectedMastery.bestScore.toLocaleString()}</b>
-                  </span>
-                  <span>
-                    <small>{text.raidHangar.total}</small>
-                    <b>{selectedMastery.totalScore.toLocaleString()}</b>
-                  </span>
-                  <span>
-                    <small>{text.raidHangar.victories}</small>
-                    <b>{selectedMastery.victories.toLocaleString()}</b>
-                  </span>
-                </div>
+                  <div className="raid-hangar__stats">
+                    <span>
+                      <small>{text.raidHangar.mastery}</small>
+                      <b>{text.raidHangar.level.replace('{level}', selectedMastery.level.toLocaleString())}</b>
+                    </span>
+                    <span>
+                      <small>{text.raidHangar.best}</small>
+                      <b>{selectedMastery.bestScore.toLocaleString()}</b>
+                    </span>
+                    <span>
+                      <small>{text.raidHangar.total}</small>
+                      <b>{selectedMastery.totalScore.toLocaleString()}</b>
+                    </span>
+                    <span>
+                      <small>{text.raidHangar.victories}</small>
+                      <b>{selectedMastery.victories.toLocaleString()}</b>
+                    </span>
+                  </div>
+                </>}
 
-                <div className="raid-hangar__systems">
+                {hangarSection === 'systems' && <div className="raid-hangar__systems">
                   <div>
                     <span>{text.raidHangar.attackProfile}</span>
                     <p>{attackCopy}</p>
@@ -1194,47 +1204,45 @@ function App() {
                     <span>{text.raidHangar.specialSystems}</span>
                     <p>{specialCopy}</p>
                   </div>
-                </div>
+                </div>}
 
-                <GameButton tone="primary" className="raid-hangar__launch" disabled={!isSelectedUnlocked} onClick={() => startRocketRaidSingle('campaign')}>
-                  {text.rocketMode.start}
-                </GameButton>
-
-                <div className="raid-hangar__cosmetics">
-                  {RAID_HANGAR_COSMETICS.map((cosmetic) => {
-                    const unlocked = isShipCosmeticUnlocked(progress.shipMastery[selectedShip.key], cosmetic)
-                    const equipped = selectedCosmetics[cosmetic]
-                    const label = text.raidHangar.cosmetics[cosmetic]
-                    return (
-                      <span key={cosmetic} className={equipped ? 'raid-hangar__cosmetic raid-hangar__cosmetic--equipped' : 'raid-hangar__cosmetic'}>
-                        <b>{label}</b>
-                        <small>{unlocked ? equipped ? text.raidHangar.equipped : text.raidHangar.unlocked : cosmetic === 'trail' ? text.raidHangar.trailUnlock.replace('{score}', SHIP_COSMETIC_SINGLE_RUN_SCORE.toLocaleString()) : cosmetic === 'aura' ? text.raidHangar.auraUnlock : text.raidHangar.frameUnlock.replace('{score}', SHIP_COSMETIC_TOTAL_SCORE.toLocaleString())}</small>
-                      </span>
-                    )
-                  })}
-                </div>
-
-                {selectedShip.key === 'coreLander' && isSelectedUnlocked ? (
-                  <div className="progress-ship-color" aria-label={releaseText.coreLanderModel}>
-                    {(['godGundam', 'spiegel'] as const).map((model) => (
-                      <button
-                        key={model}
-                        type="button"
-                        className={selectedSpriteKey === model ? 'progress-ship-color__button progress-ship-color__button--active' : 'progress-ship-color__button'}
-                        aria-pressed={selectedSpriteKey === model}
-                        disabled={model === 'spiegel' && !isCoreLanderGodGundamUnlocked(progress)}
-                        onClick={() => setProgress(setCoreLanderModel(model))}
-                      >
-                        {getRaidGundamName(model)}
-                      </button>
-                    ))}
-                    {!isCoreLanderGodGundamUnlocked(progress) && (
-                      <p className="raid-hangar__model-note">
-                        {text.raidHangar.coreModelUnlock.replace('{score}', CORE_LANDER_GOD_GUNDAM_UNLOCK_SCORE.toLocaleString())}
-                      </p>
-                    )}
+                {hangarSection === 'cosmetics' && <>
+                  <div className="raid-hangar__cosmetics">
+                    {RAID_HANGAR_COSMETICS.map((cosmetic) => {
+                      const unlocked = isShipCosmeticUnlocked(progress.shipMastery[selectedShip.key], cosmetic)
+                      const equipped = selectedCosmetics[cosmetic]
+                      const label = text.raidHangar.cosmetics[cosmetic]
+                      return (
+                        <span key={cosmetic} className={equipped ? 'raid-hangar__cosmetic raid-hangar__cosmetic--equipped' : 'raid-hangar__cosmetic'}>
+                          <b>{label}</b>
+                          <small>{unlocked ? equipped ? text.raidHangar.equipped : text.raidHangar.unlocked : cosmetic === 'trail' ? text.raidHangar.trailUnlock.replace('{score}', SHIP_COSMETIC_SINGLE_RUN_SCORE.toLocaleString()) : cosmetic === 'aura' ? text.raidHangar.auraUnlock : text.raidHangar.frameUnlock.replace('{score}', SHIP_COSMETIC_TOTAL_SCORE.toLocaleString())}</small>
+                        </span>
+                      )
+                    })}
                   </div>
-                ) : null}
+
+                  {selectedShip.key === 'coreLander' && isSelectedUnlocked ? (
+                    <div className="progress-ship-color" aria-label={releaseText.coreLanderModel}>
+                      {(['godGundam', 'spiegel'] as const).map((model) => (
+                        <button
+                          key={model}
+                          type="button"
+                          className={selectedSpriteKey === model ? 'progress-ship-color__button progress-ship-color__button--active' : 'progress-ship-color__button'}
+                          aria-pressed={selectedSpriteKey === model}
+                          disabled={model === 'spiegel' && !isCoreLanderGodGundamUnlocked(progress)}
+                          onClick={() => setProgress(setCoreLanderModel(model))}
+                        >
+                          {getRaidGundamName(model)}
+                        </button>
+                      ))}
+                      {!isCoreLanderGodGundamUnlocked(progress) && (
+                        <p className="raid-hangar__model-note">
+                          {text.raidHangar.coreModelUnlock.replace('{score}', CORE_LANDER_GOD_GUNDAM_UNLOCK_SCORE.toLocaleString())}
+                        </p>
+                      )}
+                    </div>
+                  ) : null}
+                </>}
               </div>
             </div>
 

@@ -3,6 +3,7 @@ import { getDefaultPlayerVisualShipKey, getRaidGundamName } from './games/raid/s
 import { getRaidExhaustScale, getRaidShipBaseVisualKey, getRaidShipNozzles } from './games/raid/shipArtwork'
 import { LEGACY_FIGHTER_COUNT, RAID_FIGHTER_DEBUT_STAGES } from './games/raid/stageEncounters'
 import { GameButton } from './ui/GameButton'
+import { PagedItems, ScreenSections, useCompactScreen } from './ui/PagedItems'
 import { PlayerAvatar } from './ui/PlayerAvatar'
 import { prepareAvatar } from '../profileAvatar'
 import { getCommandText } from '../commandText'
@@ -29,7 +30,6 @@ import {
   isMissionComplete,
   type AchievementId,
   type CodexId,
-  type MissionDefinition,
   type MissionId,
   type ProgressState,
   type ShipMasteryRecord,
@@ -188,6 +188,7 @@ export function ProgressionScreen({
   const languageText = getLanguageText(language)
   const raidText = getRaidText(language)
   const title = getViewTitle(view, text)
+  const [profileSection, setProfileSection] = useState<'account' | 'stats' | 'scores' | 'mastery'>('account')
   const [previewCosmeticShip, setPreviewCosmeticShip] = useState<string | null>(null)
   const [showRecoveryCode, setShowRecoveryCode] = useState(false)
   const [photoError, setPhotoError] = useState('')
@@ -219,18 +220,19 @@ export function ProgressionScreen({
     <div className="progress-screen">
       <div className="progress-screen__stars" />
       <section className="progress-panel" aria-labelledby="progress-title">
-        <GameButton tone="quiet" className="progress-panel__back" onClick={onBack}>
-          {text.back}
-        </GameButton>
-
         <header className="progress-panel__header">
           <h1 id="progress-title">{title}</h1>
-          {view !== 'profile' && <p>{text.deckCopy} {text.commander}: {playerName}. {text.completion}: {getCompletionPercent(progress)}%</p>}
+          <GameButton tone="quiet" className="progress-panel__back" onClick={onBack}>{text.back}</GameButton>
         </header>
 
         {view === 'profile' && (
-          <div className="progress-grid">
-            <article className="progress-card progress-card--account">
+          <>
+          <ScreenSections active={profileSection} labels={{
+            account: text.compactSections.account, stats: text.compactSections.stats,
+            scores: text.bestScores, mastery: text.compactSections.mastery,
+          }} label={title} onChange={setProfileSection} />
+          <div className={`progress-grid progress-grid--${profileSection}`}>
+            {profileSection === 'account' && <article className="progress-card progress-card--account">
               <div className="progress-account__identity">
                 <div className="progress-account__pilot">
                   <PlayerAvatar picture={account.avatar} />
@@ -272,8 +274,8 @@ export function ProgressionScreen({
                   </div>
                 </>}
               </div>
-            </article>
-            {[
+            </article>}
+            {profileSection === 'stats' && [
               { label: text.totalRuns, value: progress.totalRuns },
               { label: text.totalScore, value: progress.totalScore.toLocaleString() },
               { label: text.playTime, value: formatTime(progress.totalPlaySeconds) },
@@ -288,7 +290,7 @@ export function ProgressionScreen({
                 <strong>{stat.value}</strong>
               </article>
             ))}
-            <article className="progress-card progress-card--wide progress-card--scores">
+            {profileSection === 'scores' && <article className="progress-card progress-card--wide progress-card--scores">
               <span>{text.bestScores}</span>
               <div className="progress-list">
                 {RAID_LEADERBOARD_MODES.map(({ key }) => {
@@ -301,11 +303,10 @@ export function ProgressionScreen({
                   )
                 })}
               </div>
-            </article>
-            <article className="progress-card progress-card--wide progress-card--mastery">
-              <span>{text.masteryCosmetics}</span>
-              <div className="progress-list">
-                {Object.entries(raidText.ships).map(([shipKey, ship]) => {
+            </article>}
+            {profileSection === 'mastery' && <article className="progress-card progress-card--wide progress-card--mastery">
+              <PagedItems items={Object.entries(raidText.ships)} size={1} copy={text.cutsceneArchive}>
+                {([[shipKey, ship]]) => {
                   const mastery = progress.shipMastery[shipKey]
                   const level = mastery?.level ?? 1
                   const mesiahColor = getMesiahShipColor(progress)
@@ -393,10 +394,11 @@ export function ProgressionScreen({
                       </div>
                     </div>
                   )
-                })}
-              </div>
-            </article>
+                }}
+              </PagedItems>
+            </article>}
           </div>
+          </>
         )}
 
         {view === 'achievements' && (
@@ -405,6 +407,7 @@ export function ProgressionScreen({
             ids={RAID_ACHIEVEMENT_IDS}
             unlockedMap={progress.achievements}
             copyMap={text.achievementsMap}
+            pageCopy={text.cutsceneArchive}
             unlockedLabel={text.unlocked}
             lockedLabel={text.locked}
           />
@@ -416,8 +419,6 @@ export function ProgressionScreen({
           <div className="codex-tab-content">
             <CodexCutsceneLauncher
               title={text.cutsceneArchive.raidTitle}
-              kicker={text.cutsceneArchive.kicker}
-              copy={text.cutsceneArchive.raidCopy}
               text={text}
               onPlay={onPlayCutscenes}
             />
@@ -426,6 +427,7 @@ export function ProgressionScreen({
               ids={RAID_CODEX_IDS}
               unlockedMap={progress.codex}
               copyMap={text.codexMap}
+              pageCopy={text.cutsceneArchive}
               unlockedLabel={text.unlocked}
               lockedLabel={text.locked}
             />
@@ -450,22 +452,24 @@ function EnemyAlmanac({
   stageBossEntries: StageBossEntry[]
 }) {
   const raidBestStage = getRaidBestStage(progress)
+  const [group, setGroup] = useState<'normal' | 'elite' | 'pool' | 'bosses'>('normal')
+  const landscape = useLandscapeScreen()
+  const pageSize = landscape ? 4 : 2
 
   return (
-    <section className="enemy-almanac" aria-labelledby="enemy-almanac-title">
-      <header className="enemy-almanac__header">
-        <span>{text.enemyAlmanac.kicker}</span>
-        <h2 id="enemy-almanac-title">{text.enemyAlmanac.title}</h2>
-        <p>{text.enemyAlmanac.copy}</p>
-      </header>
+    <section className="enemy-almanac" aria-label={text.enemyAlmanac.title}>
+      <ScreenSections active={group} label={text.enemyAlmanac.title} labels={{
+        normal: text.enemyAlmanac.normal, elite: text.enemyAlmanac.elite,
+        pool: text.enemyAlmanac.bossPool, bosses: text.enemyAlmanac.stageBosses,
+      }} onChange={setGroup} />
 
-      <section className="enemy-almanac__group">
+      {group === 'normal' && <section className="enemy-almanac__group">
         <header>
-          <span>{text.enemyAlmanac.normal}</span>
           <p>{text.enemyAlmanac.normalDesc}</p>
         </header>
-        <div className="enemy-almanac__grid">
-          {NORMAL_ALIEN_VARIANTS.map((variant) => {
+        <PagedItems items={NORMAL_ALIEN_VARIANTS} size={pageSize} copy={text.cutsceneArchive}>
+          {(visible) => <div className="enemy-almanac__grid">
+          {visible.map((variant) => {
             const fighterIndex = variant - LEGACY_FIGHTER_COUNT
             const unlockStage = NORMAL_ALIEN_UNLOCK_STAGES[variant] ?? RAID_FIGHTER_DEBUT_STAGES[fighterIndex] ?? 1
             const encountered = raidBestStage >= unlockStage
@@ -484,16 +488,17 @@ function EnemyAlmanac({
               </article>
             )
           })}
-        </div>
-      </section>
+          </div>}
+        </PagedItems>
+      </section>}
 
-      <section className="enemy-almanac__group">
+      {group === 'elite' && <section className="enemy-almanac__group">
         <header>
-          <span>{text.enemyAlmanac.elite}</span>
           <p>{text.enemyAlmanac.eliteDesc}</p>
         </header>
-        <div className="enemy-almanac__grid enemy-almanac__grid--elite">
-          {ELITE_ALIEN_VARIANTS.map((variant) => {
+        <PagedItems items={ELITE_ALIEN_VARIANTS} size={pageSize} copy={text.cutsceneArchive}>
+          {(visible) => <div className="enemy-almanac__grid enemy-almanac__grid--elite">
+          {visible.map((variant) => {
             const unlockStage = ELITE_ALIEN_UNLOCK_STAGES[variant] ?? 2
             const encountered = raidBestStage >= unlockStage
             return (
@@ -504,35 +509,35 @@ function EnemyAlmanac({
               </article>
             )
           })}
-        </div>
-      </section>
+          </div>}
+        </PagedItems>
+      </section>}
 
-      <section className="enemy-almanac__group">
+      {group === 'pool' && <section className="enemy-almanac__group">
         <header>
-          <span>{text.enemyAlmanac.bossPool}</span>
           <p>{text.enemyAlmanac.bossPoolDesc}</p>
           <p>{text.enemyAlmanac.phaseAdvice}</p>
         </header>
-        <div className="enemy-almanac__sprite-strip" aria-hidden="true">
-          {GENERIC_BOSS_KINDS.map((kind) => {
+        <PagedItems items={GENERIC_BOSS_KINDS} size={pageSize} copy={text.cutsceneArchive}>
+          {(visible) => <div className="enemy-almanac__sprite-strip">
+          {visible.map((kind) => {
             const art = getGenericBossArt(kind)!
             const encountered = raidBestStage >= (kind === 'super' ? 15 : art.stage)
             return (
-              <span key={kind} title={art.name} className={encountered ? 'enemy-almanac__pool-sprite' : 'enemy-almanac__pool-sprite enemy-almanac__pool-sprite--locked'}>
+              <span key={kind} title={encountered ? art.name : text.enemyAlmanac.unencountered} className={encountered ? 'enemy-almanac__pool-sprite' : 'enemy-almanac__pool-sprite enemy-almanac__pool-sprite--locked'}>
                 <img src={getPublicAssetUrl(art.assetPath)} alt="" loading="lazy" decoding="async" draggable={false} />
+                <small>{encountered ? art.name : text.enemyAlmanac.unencountered}</small>
               </span>
             )
           })}
-        </div>
-      </section>
+          </div>}
+        </PagedItems>
+      </section>}
 
-      <section className="enemy-almanac__group">
-        <header>
-          <span>{text.enemyAlmanac.stageBosses}</span>
-          <p>{text.enemyAlmanac.stageBossesDesc}</p>
-        </header>
-        <div className="enemy-almanac__boss-grid">
-          {stageBossEntries.map((boss) => {
+      {group === 'bosses' && <section className="enemy-almanac__group">
+        <PagedItems items={stageBossEntries} size={1} copy={text.cutsceneArchive}>
+          {(visible) => <div className="enemy-almanac__boss-grid">
+          {visible.map((boss) => {
             const encountered = boss.kind === 'devil'
               ? Boolean(progress.codex.devil_gundam) || hasProgressionUnlockOverride()
               : raidBestStage >= (boss.stageNumber ?? RAID_BOSS_STAGES[boss.kind] ?? Infinity)
@@ -551,34 +556,25 @@ function EnemyAlmanac({
               </article>
             )
           })}
-        </div>
-      </section>
+          </div>}
+        </PagedItems>
+      </section>}
     </section>
   )
 }
 
 function CodexCutsceneLauncher({
   title,
-  kicker,
-  copy,
   text,
   onPlay,
 }: {
   title: string
-  kicker: string
-  copy: string
   text: ReturnType<typeof getReleaseText>
   onPlay: () => void
 }) {
   return (
     <section className="codex-cutscene-launcher" aria-labelledby="raid-cutscene-launcher-title">
-      <header className="codex-cutscene-launcher__header">
-        <span>{kicker}</span>
-        <div>
-          <h2 id="raid-cutscene-launcher-title">{title}</h2>
-          <p>{copy}</p>
-        </div>
-      </header>
+      <h2 id="raid-cutscene-launcher-title">{title}</h2>
       <button className="codex-cutscene-launcher__button" type="button" onClick={onPlay}>
         {text.cutsceneArchive.play}
       </button>
@@ -588,41 +584,15 @@ function CodexCutsceneLauncher({
 
 function MissionBoard({ text, progress }: { text: ReturnType<typeof getReleaseText>; progress: ProgressState }) {
   const activeMissions = getActiveMissionDefinitions()
-  const dailyMissions = activeMissions.filter((mission) => mission.cadence === 'daily')
-  const weeklyMissions = activeMissions.filter((mission) => mission.cadence === 'weekly')
   const completedCount = activeMissions.filter((mission) => isMissionComplete(progress, mission.id)).length
+  const landscape = useLandscapeScreen()
+  const compact = useCompactScreen()
 
   return (
-    <section className="mission-board" aria-labelledby="mission-board-title">
-      <header className="mission-board__header">
-        <span>{text.missionsBoard.kicker}</span>
-        <h2 id="mission-board-title">{text.missionsBoard.title}</h2>
-        <p>{text.missionsBoard.copy}</p>
-        <b>{completedCount}/{activeMissions.length}</b>
-      </header>
-      <MissionGroup title={text.missionsBoard.daily} missions={dailyMissions} text={text} progress={progress} />
-      <MissionGroup title={text.missionsBoard.weekly} missions={weeklyMissions} text={text} progress={progress} />
-    </section>
-  )
-}
-
-function MissionGroup({
-  title,
-  missions,
-  text,
-  progress,
-}: {
-  title: string
-  missions: MissionDefinition[]
-  text: ReturnType<typeof getReleaseText>
-  progress: ProgressState
-}) {
-  return (
-    <section className="mission-board__group">
-      <header>
-        <span>{title}</span>
-      </header>
-      <div className="mission-board__grid">
+    <section className="mission-board" aria-label={text.missionsBoard.title}>
+      <div className="compact-record-count">{text.complete} · {completedCount}/{activeMissions.length}</div>
+      <PagedItems items={activeMissions} size={landscape ? compact ? 2 : 4 : compact ? 3 : 5} copy={text.cutsceneArchive}>
+        {(missions) => <div className="mission-board__grid">
         {missions.map((mission) => {
           const copy = text.missionsMap[mission.id]
           const complete = isMissionComplete(progress, mission.id)
@@ -640,7 +610,8 @@ function MissionGroup({
             </article>
           )
         })}
-      </div>
+        </div>}
+      </PagedItems>
     </section>
   )
 }
@@ -664,16 +635,20 @@ function UnlockSection<TId extends AchievementId | CodexId>({
   ids,
   unlockedMap,
   copyMap,
+  pageCopy,
   unlockedLabel,
   lockedLabel,
 }: {
   title: string
   ids: TId[]
   unlockedMap: Partial<Record<TId, string>>
+  pageCopy: ReturnType<typeof getReleaseText>['cutsceneArchive']
   copyMap: Record<TId, { title: string; desc: string }>
   unlockedLabel: string
   lockedLabel: string
 }) {
+  const landscape = useLandscapeScreen()
+  const compact = useCompactScreen()
   const unlockedCount = ids.filter((id) => unlockedMap[id]).length
   return (
     <section className="unlock-section">
@@ -681,8 +656,9 @@ function UnlockSection<TId extends AchievementId | CodexId>({
         <span>{title}</span>
         <b>{unlockedCount}/{ids.length}</b>
       </header>
-      <div className="unlock-grid unlock-grid--large">
-        {ids.map((id) => (
+      <PagedItems items={ids} size={landscape ? compact ? 2 : 4 : compact ? 3 : 4} copy={pageCopy}>
+        {(visibleIds) => <div className="unlock-grid unlock-grid--large">
+        {visibleIds.map((id) => (
           <UnlockCard
             key={id}
             id={id}
@@ -693,7 +669,8 @@ function UnlockSection<TId extends AchievementId | CodexId>({
             lockedLabel={lockedLabel}
           />
         ))}
-      </div>
+        </div>}
+      </PagedItems>
     </section>
   )
 }

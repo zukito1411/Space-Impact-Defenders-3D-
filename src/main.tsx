@@ -10,6 +10,7 @@ import './index.css'
 import './game-ui.css'
 import './landscape-ui.css'
 import './coop-ui.css'
+import './compact-screens.css'
 
 const root = document.getElementById('root')!
 

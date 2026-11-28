@@ -2071,6 +2071,7 @@ export const DEFENSE_TEXT = {
 export const RELEASE_TEXT = {
   en: {
     homeShortcuts: 'Pilot shortcuts',
+    compactSections: { account: 'Account', stats: 'Stats', mastery: 'Mastery', systems: 'Systems', cosmetics: 'Cosmetics', summary: 'Summary', rewards: 'Rewards' },
     profileAccount: {
       switchAccount: 'Switch account',
       uploadPhoto: 'Upload photo',
@@ -2417,6 +2418,7 @@ export const RELEASE_TEXT = {
   },
   zh: {
     homeShortcuts: '飞行员快捷入口',
+    compactSections: { account: '账号', stats: '统计', mastery: '熟练度', systems: '系统', cosmetics: '装饰', summary: '概要', rewards: '奖励' },
     profileAccount: {
       switchAccount: '切换账号',
       uploadPhoto: '上传照片',
@@ -2724,6 +2726,7 @@ export const RELEASE_TEXT = {
   },
   ja: {
     homeShortcuts: 'パイロットショートカット',
+    compactSections: { account: 'アカウント', stats: '戦績', mastery: '熟練度', systems: 'システム', cosmetics: 'コスメ', summary: '概要', rewards: '報酬' },
     profileAccount: {
       switchAccount: 'アカウントを切り替え',
       uploadPhoto: '写真を選択',
@@ -3031,6 +3034,7 @@ export const RELEASE_TEXT = {
   },
   ko: {
     homeShortcuts: '파일럿 바로가기',
+    compactSections: { account: '계정', stats: '전적', mastery: '숙련도', systems: '시스템', cosmetics: '꾸미기', summary: '요약', rewards: '보상' },
     profileAccount: {
       switchAccount: '계정 전환',
       uploadPhoto: '사진 올리기',

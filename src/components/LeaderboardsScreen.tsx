@@ -6,8 +6,10 @@ import {
   type LeaderboardMap,
   type LeaderboardMode,
 } from '../leaderboards'
-import { getLanguageText, type LanguageCode } from '../i18n'
+import { getLanguageText, getReleaseText, type LanguageCode } from '../i18n'
 import { GameButton } from './ui/GameButton'
+import { PagedItems, useCompactScreen } from './ui/PagedItems'
+import { useLandscapeScreen } from './games/RaidShipSprite'
 import { getCommandText } from '../commandText'
 
 type LeaderboardsScreenProps = {
@@ -19,6 +21,11 @@ type LeaderboardsScreenProps = {
 
 export function LeaderboardsScreen({ playerName, language, onBack, onChooseCallsign }: LeaderboardsScreenProps) {
   const text = getLanguageText(language).leaderboards
+  const compact = useCompactScreen()
+  const landscape = useLandscapeScreen()
+  const shortLandscape = useCompactScreen('(orientation: landscape) and (max-height: 360px)')
+  const landscapeSize = shortLandscape ? 2 : compact ? 3 : 7
+  const pageSize = landscape ? landscapeSize : compact ? 5 : 9
   const [activeMode, setActiveMode] = useState<LeaderboardMode>('gradius_solo')
   const [leaderboards, setLeaderboards] = useState<LeaderboardMap>({ ...EMPTY_LEADERBOARDS })
   const [loading, setLoading] = useState(true)
@@ -59,7 +66,6 @@ export function LeaderboardsScreen({ playerName, language, onBack, onChooseCalls
             {text.back}
           </GameButton>
           <div>
-            <span className="leaderboards-screen__eyebrow">{text.eyebrow}</span>
             <h1>{text.title}</h1>
             {playerName
               ? <p>{text.signedIn} <strong>{playerName}</strong></p>
@@ -79,20 +85,13 @@ export function LeaderboardsScreen({ playerName, language, onBack, onChooseCalls
               className={`leaderboards-screen__mode${activeMode === mode.key ? ' leaderboards-screen__mode--active' : ''}`}
               onClick={() => setActiveMode(mode.key)}
             >
-              <span>{text.modes[mode.key].title}</span>
               <strong>{text.modes[mode.key].label}</strong>
             </button>
           ))}
         </div>
 
         <section className="leaderboards-screen__board" aria-live="polite">
-          <div className="leaderboards-screen__board-header">
-            <div>
-              <span>{activeModeText.title}</span>
-              <h2>{activeModeText.label}</h2>
-            </div>
-            <p>{activeModeText.description}</p>
-          </div>
+          <p className="leaderboards-screen__description">{activeModeText.description}</p>
 
           {error ? (
             <div className="leaderboards-screen__empty">{error}</div>
@@ -101,13 +100,15 @@ export function LeaderboardsScreen({ playerName, language, onBack, onChooseCalls
           ) : activeEntries.length === 0 ? (
             <div className="leaderboards-screen__empty">{text.empty}</div>
           ) : (
-            <ol className="leaderboards-screen__list">
-              {activeEntries.map((entry) => {
+            <PagedItems key={activeMode} items={activeEntries} size={pageSize} copy={getReleaseText(language).cutsceneArchive}>
+              {(entries) => <ol className="leaderboards-screen__list" start={entries[0]?.rank ?? 1}>
+              {entries.map((entry) => {
                 const isPlayer = entry.playerName.trim().toLowerCase() === playerKey
 
                 return (
                   <li
                     key={`${entry.rank}-${entry.playerName}-${entry.score}-${entry.createdAt ?? ''}`}
+                    data-rank={entry.rank}
                     className={`leaderboards-screen__row${isPlayer ? ' leaderboards-screen__row--player' : ''}`}
                   >
                     <span className="leaderboards-screen__rank">#{entry.rank}</span>
@@ -122,7 +123,8 @@ export function LeaderboardsScreen({ playerName, language, onBack, onChooseCalls
                   </li>
                 )
               })}
-            </ol>
+              </ol>}
+            </PagedItems>
           )}
         </section>
       </div>

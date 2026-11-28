@@ -1,0 +1,348 @@
+/* Keep reports and records inside the viewport. Longer collections are paged. */
+.paged-items { display: grid; align-content: start; gap: 8px; min-width: 0; }
+.paged-items__controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+}
+.paged-items__controls output { color: var(--ui-muted); font: .75rem var(--ui-mono); }
+#root .paged-items__controls .game-button {
+  width: 44px;
+  min-height: 40px;
+  padding: 0;
+  font-size: 1.2rem;
+}
+.screen-sections {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: 6px;
+}
+#root .screen-sections .game-button {
+  min-width: 0;
+  min-height: 40px;
+  padding: 5px 4px;
+  font-size: .67rem;
+  letter-spacing: .025em;
+  overflow-wrap: anywhere;
+}
+
+#root .result-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: max(8px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+    max(8px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+}
+#root .result-overlay__panel {
+  width: min(100%, 860px);
+  max-height: 100%;
+  min-height: 0;
+  display: grid;
+  gap: 10px 14px;
+  padding: clamp(10px, 2.1vmin, 18px);
+  overflow: auto;
+  border: 1px solid var(--ui-line);
+  border-top: 2px solid var(--ui-cyan);
+  border-radius: 5px;
+  border-image: var(--ui-console-texture) 96 fill / 9px stretch;
+  background: #0b1520;
+}
+#root .result-overlay--victory .result-overlay__panel { border-top-color: var(--ui-gold); }
+#root .result-overlay--gameover .result-overlay__panel { border-top-color: var(--ui-danger); }
+.result-overlay__hero {
+  display: grid;
+  min-width: 0;
+  align-content: center;
+  justify-items: center;
+  gap: 4px 8px;
+  text-align: center;
+}
+.result-overlay__hero > span {
+  color: var(--ui-cyan);
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.result-overlay__hero h2 { margin: 0; font-size: clamp(1.12rem, 6vmin, 2.5rem); line-height: 1.05; }
+.result-overlay__ship { width: 56px; height: 44px; object-fit: contain; }
+.result-overlay__score { display: grid; gap: 2px; margin-top: 3px; }
+.result-overlay__score small,
+.result-overlay__stats b,
+.result-overlay__pilot-card dt { color: var(--ui-muted); font-size: .64rem; line-height: 1.2; }
+.result-overlay__score strong { color: var(--ui-gold); font: 700 clamp(1.25rem, 6.8vmin, 3rem)/1 var(--ui-mono); overflow-wrap: anywhere; }
+.result-overlay__report { display: grid; align-content: start; gap: 8px; min-width: 0; }
+.result-overlay__stats,
+.result-overlay__rewards,
+.result-overlay__pilot-grid { display: grid; gap: 5px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.result-overlay__stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.result-overlay__stats > div,
+.result-overlay__unlocks,
+.result-overlay__pilot-card {
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--ui-line-soft);
+  border-radius: 3px;
+  background: #0a1725;
+}
+.result-overlay__stats > div { display: grid; align-content: start; gap: 2px; }
+.result-overlay__stats strong { font-size: .84rem; line-height: 1.18; overflow-wrap: anywhere; }
+.result-overlay__unlocks:only-child { grid-column: 1 / -1; }
+.result-overlay__reward-count { margin: 0; font-size: .72rem; color: var(--ui-muted); }
+.result-overlay__report h3 { margin: 0 0 3px; color: var(--ui-cyan); font-size: .71rem; }
+.result-overlay__missions h3 { color: #f5c879; }
+.result-overlay__unlocks p,
+.result-overlay__unlocks ul { margin: 0; padding: 0; list-style: none; color: #c9deed; font-size: .73rem; line-height: 1.24; overflow-wrap: anywhere; }
+.result-overlay__unlocks li + li { margin-top: 3px; }
+.result-overlay__pilot-card > span { display: block; color: var(--ui-cyan); font-size: .7rem; }
+.result-overlay__pilot-card > strong { display: block; margin: 2px 0 6px; font-size: .9rem; overflow-wrap: anywhere; }
+.result-overlay__pilot-card dl { margin: 0; font-size: .75rem; }
+.result-overlay__pilot-card dl div { display: flex; justify-content: space-between; gap: 8px; margin: 3px 0; }
+.result-overlay__pilot-card dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+.result-overlay__actions { display: flex; gap: 6px; }
+#root .result-overlay__actions > button { flex: 1; min-width: 0; padding: 6px; letter-spacing: .025em; overflow-wrap: anywhere; }
+
+#root :is(.progress-panel, .leaderboards-screen__shell, .raid-hangar__panel) {
+  max-height: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: clamp(10px, 2vmin, 18px);
+}
+#root :is(.progress-screen, .leaderboards-screen, .raid-hangar) {
+  height: 100dvh;
+  min-height: 0;
+  padding: max(8px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right))
+    max(8px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+}
+#root .progress-panel {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+#root :is(.progress-panel__header, .raid-hangar__intro) {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0 0 6px;
+  border-bottom: 1px solid var(--ui-line-soft);
+}
+#root :is(.progress-panel__header h1, .raid-hangar__intro h1, .leaderboards-screen__header h1) {
+  margin: 0;
+  font-size: clamp(1.05rem, 5.5vmin, 1.8rem);
+  line-height: 1.1;
+}
+#root :is(.progress-panel__back, .raid-hangar__intro .mode-screen__back) {
+  position: static;
+  flex: 0 0 auto;
+  margin: 0;
+}
+#root .progress-grid { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+#root .progress-grid--stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#root :is(.progress-card, .unlock-card, .mission-card) { padding: 8px; }
+#root .progress-card { gap: 5px; }
+#root .progress-card > strong { font-size: clamp(.9rem, 4vmin, 1.45rem); line-height: 1.1; }
+#root .progress-card > span { font-size: .68rem; }
+#root .progress-card p { margin: 3px 0; font-size: .74rem; line-height: 1.25; }
+#root .progress-account__connection { gap: 4px 8px; margin-bottom: 5px; }
+.progress-account__connection > span { font-size: .74rem; }
+#root .progress-card__actions { margin-top: 5px; gap: 5px; }
+#root :is(.progress-card__actions button, .progress-account__connection .game-button, .progress-ship-color__button) {
+  min-height: 40px;
+  padding: 5px 8px;
+  font-size: .67rem;
+}
+#root .progress-account__identity .player-avatar { --avatar-size: 46px; }
+#root .progress-card--scores .progress-list { gap: 3px; margin: 0; }
+#root .progress-list > div { padding: 5px 7px; font-size: .78rem; }
+#root .progress-ship-mastery { gap: 7px; padding: 0; }
+#root .progress-ship-info { min-width: 0; gap: 2px; font-size: .77rem; line-height: 1.15; overflow-wrap: anywhere; }
+#root .progress-ship-info small { font-size: .67rem; }
+#root .progress-cosmetics { gap: 4px; }
+#root .progress-cosmetic { min-height: 38px; padding: 4px 5px; }
+#root .progress-cosmetic i { font-size: .65rem; }
+#root .progress-ship-color { margin: 0; gap: 4px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#root .progress-ship-color > span { grid-column: 1 / -1; }
+#root .progress-ship-color__button small { font-size: .62rem; }
+
+#root :is(.unlock-section, .mission-board, .enemy-almanac, .codex-tab-content) {
+  display: grid;
+  gap: 7px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+#root .unlock-section__header { flex-direction: row; align-items: center; padding: 0; margin: 0; }
+#root :is(.unlock-section__header span, .unlock-section__header b, .compact-record-count) { font-size: .69rem; color: var(--ui-muted); }
+#root :is(.unlock-grid, .mission-board__grid) { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+#root .unlock-grid--large .unlock-card { min-height: 0; grid-template-columns: 48px minmax(0, 1fr); gap: 8px; }
+#root .unlock-card__badge { width: 48px; height: 48px; min-width: 0; aspect-ratio: 1; }
+#root .unlock-card__badge-asset { max-width: 100%; max-height: 100%; object-fit: contain; }
+#root .unlock-card__badge svg { width: 66%; height: 66%; }
+#root .unlock-card__badge-chip { display: none; }
+#root .unlock-card__body > span { font-size: .57rem; }
+#root .unlock-grid--large .unlock-card strong { margin: 2px 0; font-size: .86rem; }
+#root .unlock-grid--large .unlock-card p { margin: 0; font-size: .73rem; line-height: 1.24; }
+#root .mission-card { grid-template-columns: 34px minmax(0, 1fr); gap: 3px 8px; }
+#root .mission-card__badge { width: 34px; height: 34px; }
+#root .mission-card__body strong { font-size: .86rem; }
+#root .mission-card__body p { font-size: .74rem; line-height: 1.25; }
+#root .mission-card > b { grid-column: 2; justify-self: start; padding: 2px 5px; font-size: .61rem; }
+#root .codex-cutscene-launcher { grid-template-columns: minmax(0, 1fr) auto; align-items: center; padding: 6px 8px; gap: 6px; }
+#root .codex-cutscene-launcher h2 { font-size: .85rem; }
+#root .codex-cutscene-launcher__button { width: auto; min-height: 40px; padding: 5px 8px; font-size: .68rem; }
+
+#root .enemy-almanac__group { padding: 7px; gap: 7px; }
+#root .enemy-almanac__group:has(.enemy-almanac__boss-grid) { padding: 0; border: 0; background: transparent; }
+#root .enemy-almanac__group p { margin: 0; font-size: .73rem; line-height: 1.28; }
+#root :is(.enemy-almanac__grid, .enemy-almanac__sprite-strip) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
+#root .enemy-almanac__entry { min-height: 0; padding: 6px; gap: 4px; overflow-wrap: anywhere; }
+#root .enemy-almanac__entry img { width: 57px; height: 45px; }
+#root .enemy-almanac__entry strong { font-size: .8rem; }
+#root .enemy-almanac__entry small { font-size: .67rem; line-height: 1.15; }
+#root .enemy-almanac__pool-sprite { width: auto; min-width: 0; height: auto; min-height: 0; padding: 5px; overflow-wrap: anywhere; font-size: .68rem; text-align: center; }
+#root .enemy-almanac__pool-sprite img { width: 100%; height: 64px; object-fit: contain; }
+#root .enemy-almanac__boss-grid { grid-template-columns: 1fr; gap: 5px; }
+#root .enemy-almanac__boss-card { width: 100%; grid-template-columns: minmax(0,1fr); grid-template-rows: auto auto auto; gap: 6px; padding: 7px; min-height: 0; }
+#root .enemy-almanac__boss-card-title { gap: 2px; padding: 5px 6px; }
+#root .enemy-almanac__boss-card-title h3 { font-size: .95rem; margin: 0; }
+#root .enemy-almanac__boss-art { min-height: 0; height: clamp(65px, 22vmin, 140px); }
+#root .enemy-almanac__boss-art .raid__boss-briefing-preview,
+#root .enemy-almanac__boss-locked { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+#root .enemy-almanac__boss-art .raid__boss-briefing-preview--ship { padding: 3px; }
+#root .enemy-almanac__boss-lore { min-height: 0; gap: 4px; padding: 0; }
+
+#root .leaderboards-screen__shell { height: auto; gap: 7px; grid-template-rows: auto auto auto; }
+#root .leaderboards-screen__header { grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6px; padding-bottom: 6px; }
+#root .leaderboards-screen__header p { margin: 2px 0 0; font-size: .68rem; }
+#root .leaderboards-screen__header > div { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; }
+#root .leaderboards-screen__header > div .game-button { min-height: 36px; padding: 3px 6px; font-size: .6rem; }
+#root :is(.leaderboards-screen__back,.leaderboards-screen__refresh) { padding: 5px 7px; }
+#root .leaderboards-screen__modes { grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 0; gap: 5px; }
+#root .leaderboards-screen__mode { min-height: 42px; min-width: 0; padding: 4px; }
+#root .leaderboards-screen__mode strong { font-size: .67rem; white-space: normal; overflow-wrap: anywhere; }
+#root .leaderboards-screen__board { padding: 6px; gap: 5px; }
+.leaderboards-screen__description { margin: 0; font-size: .7rem; color: var(--ui-muted); }
+#root .leaderboards-screen__list { gap: 3px; }
+#root .leaderboards-screen__row {
+  grid-template-columns: 26px minmax(0, 1fr) minmax(40px, auto) minmax(48px, auto);
+  grid-template-areas: 'rank pilot stage score';
+  min-height: 36px;
+  gap: 4px;
+  padding: 4px 6px;
+}
+#root .leaderboards-screen__rank { font-size: .85rem; }
+#root .leaderboards-screen__pilot { gap: 1px; line-height: 1.1; }
+#root .leaderboards-screen__pilot strong { font-size: .75rem; }
+#root .leaderboards-screen__pilot small,
+#root .leaderboards-screen__stage { font-size: .63rem; }
+#root .leaderboards-screen__score { font-size: .77rem; }
+
+#root .raid-hangar__panel { display: grid; height: auto; grid-template-rows: auto auto auto; gap: 7px; }
+#root .raid-hangar__layout { margin: 0; gap: 8px; }
+#root .raid-hangar__details { align-content: start; overflow: visible; margin-top: 0; padding: 7px; gap: 5px; }
+#root .raid-hangar__details h2 { margin: 0; font-size: 1.1rem; }
+#root .raid-hangar__details p { margin: 0; font-size: .72rem; line-height: 1.25; }
+#root .raid-hangar__stats { margin: 0; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 4px; }
+#root .raid-hangar__stats span { padding: 4px; min-height: 0; }
+#root :is(.raid-hangar__stats small,.raid-hangar__cosmetic small) { font-size: .61rem; overflow-wrap: anywhere; }
+#root :is(.raid-hangar__systems,.raid-hangar__cosmetics) { margin: 0; gap: 5px; }
+#root :is(.raid-hangar__systems > div,.raid-hangar__cosmetic) { padding: 6px; }
+#root .raid-hangar__roster { margin: 0; gap: 4px; padding: 4px; max-height: none; overflow: visible; }
+#root .raid-hangar__ship-button { min-height: 44px; padding: 3px; gap: 2px; }
+#root .raid-hangar__ship-thumb img { width: 32px !important; height: 22px !important; object-fit: contain; }
+#root .raid-hangar__ship-button b { font-size: .58rem; overflow-wrap: anywhere; }
+#root .raid-hangar__intro h1 { max-width: none; }
+#root .raid-hangar__intro .raid-hangar__launch { width: auto; margin: 0; padding: 5px 8px; min-height: 44px; font-size: .64rem; }
+.raid-hangar__actions,
+.raid-hangar__selected { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
+#root .raid-hangar__cosmetics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+#root .raid-hangar__systems { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#root .raid-hangar__stats small { letter-spacing: .04em; line-height: 1.12; }
+#root .raid-hangar__ship-thumb { width: 31px; height: 22px; aspect-ratio: auto; }
+
+@media (orientation: landscape) {
+  #root .result-overlay__panel { grid-template-columns: minmax(130px, .75fr) minmax(0, 2fr); }
+  .result-overlay__hero { grid-row: span 2; padding-right: 8px; border-right: 1px solid var(--ui-line-soft); }
+  .result-overlay__stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  #root .progress-grid--stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  #root .progress-card--account { grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 10px; }
+  #root :is(.unlock-grid, .mission-board__grid) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #root :is(.enemy-almanac__grid, .enemy-almanac__sprite-strip) { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  #root .enemy-almanac__boss-card { grid-template-columns: minmax(90px, .7fr) minmax(0, 2fr); grid-template-rows: auto auto; }
+  #root .enemy-almanac__boss-card-title { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px; }
+  #root .enemy-almanac__entry img { height: 36px; }
+  #root .enemy-almanac__entry { gap: 3px; }
+  #root .enemy-almanac__pool-sprite img { height: 34px; }
+  #root .enemy-almanac__group > header p { font-size: .68rem; line-height: 1.2; }
+  #root .raid-hangar__roster { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+  #root .enemy-almanac__boss-art { align-self: center; }
+}
+@media (orientation: portrait) {
+  #root .raid-hangar__layout { grid-template-columns: minmax(0, 1fr); }
+  #root .raid-hangar__preview { min-height: 0; height: clamp(68px, 19dvh, 170px); }
+  #root .raid-hangar__display { width: 108px; height: 100%; }
+  #root .raid-hangar__display img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  #root .raid-hangar__roster { grid-template-columns: repeat(3, minmax(0,1fr)); }
+}
+@media (orientation: landscape) and (max-height: 420px) {
+  #root .progress-panel, #root .enemy-almanac { gap: 5px; }
+  #root .progress-panel__header { padding-bottom: 3px; }
+  #root .enemy-almanac__group { padding: 5px; gap: 4px; }
+  #root .raid-hangar__preview { min-height: 85px; max-height: 132px; }
+  #root .raid-hangar__details { gap: 4px; padding: 5px; }
+  #root .raid-hangar__stats span { gap: 2px; }
+  #root .raid-hangar__stats span b { font-size: .78rem; }
+  #root .raid-hangar__status { padding: 3px 5px; }
+  #root .progress-ship-preview { min-height: 80px; padding: 0; }
+  #root :is(.progress-ship-preview__ship, .progress-ship-preview__canvas) { width: 70px; height: 80px; }
+  #root .progress-ship-mastery { grid-template-columns: 70px minmax(0,.9fr) minmax(0,1.5fr); }
+  #root .progress-cosmetics { grid-column: auto; grid-template-columns: repeat(3,minmax(0,1fr)); }
+}
+
+@media (orientation: landscape) and (max-height: 360px) {
+  #root .enemy-almanac__boss-card { grid-template-areas: 'title lore' 'art lore'; gap: 4px; padding: 3px; }
+  #root .enemy-almanac__boss-card-title { grid-area: title; padding: 3px 4px; }
+  #root .enemy-almanac__boss-art { grid-area: art; height: 46px; }
+  #root .enemy-almanac__boss-lore { grid-area: lore; }
+}
+@media (orientation: portrait) and (max-height: 600px) {
+  #root .raid-hangar__preview { height: 53px; }
+  #root .raid-hangar__panel { gap: 5px; }
+  #root .raid-hangar__roster { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+
+#root .raid__ending { grid-template-rows: minmax(0, 1fr) auto; }
+#root .raid__ending-scene { min-height: 0; }
+#root .raid__ending-panel {
+  width: min(920px, calc(100% - 24px));
+  margin: 0 auto max(8px, env(safe-area-inset-bottom));
+  padding: 8px 12px;
+  animation-name: compactEndingPanelReveal;
+}
+@keyframes compactEndingPanelReveal {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+#root .raid__ending-panel h2 { margin: 4px 0 0; font-size: clamp(1.15rem, 6vmin, 2.4rem); }
+#root .raid__ending-panel p,
+#root .raid__ending-log span { font-size: .74rem; line-height: 1.24; }
+#root .raid__ending-panel p,
+#root .raid__ending-log,
+#root .raid__ending-stats,
+#root .raid__ending-score,
+#root .raid__ending-actions { margin-top: 6px; }
+#root .raid__ending-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+#root .raid__ending-stats span { padding: 4px; gap: 2px; }
+#root .raid__ending-stats b { font-size: .92rem; }
+#root .raid__ending-score { padding: 4px 8px; gap: 2px; }
+#root .raid__ending-score strong { font-size: 1.45rem; }
+#root .raid__ending-log { gap: 4px; }
+#root .raid__ending-log span { padding: 4px 6px; }
+#root .raid__ending-medal { width: 32px; margin: 0; }
+#root .raid__ending-actions > button { margin: 0; }
