@@ -192,7 +192,6 @@ export function ProgressionScreen({
         </GameButton>
 
         <header className="progress-panel__header">
-          <span>{text.deckTitle}</span>
           <h1 id="progress-title">{title}</h1>
           <p>{text.deckCopy} {text.commander}: {playerName}. {text.completion}: {getCompletionPercent(progress)}%</p>
         </header>

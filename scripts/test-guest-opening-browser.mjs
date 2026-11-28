@@ -1224,19 +1224,22 @@ async function testCallsign() {
     console.log('Optional callsign registration preserved the guest save')
 
     await phone.locator('.leaderboards-screen__back').tap()
-    await phone.getByRole('button', { name: 'Command Deck', exact: true }).tap()
-    for (const [screen, selector] of [
-      ['Profile', '.progress-card--scores'],
-      ['Achievements', '.unlock-section'],
-      ['Codex', '.codex-cutscene-launcher'],
-      ['Almanac', '.enemy-almanac'],
+    const shortcuts = phone.getByRole('navigation', { name: 'Pilot shortcuts' })
+    for (const [name, selector, panel, back] of [
+      ['Profile', '.progress-card--scores', '.progress-panel', '.progress-panel__back'],
+      ['Achievements', '.unlock-section', '.progress-panel', '.progress-panel__back'],
+      ['Missions', '.mission-card', '.progress-panel', '.progress-panel__back'],
+      ['Hangar', '.raid-hangar__preview', '.raid-hangar__panel', '.mode-screen__back'],
+      ['Codex', '.codex-cutscene-launcher', '.progress-panel', '.progress-panel__back'],
+      ['Almanac', '.enemy-almanac', '.progress-panel', '.progress-panel__back'],
     ]) {
-      await phone.getByRole('button', { name: screen, exact: true }).tap()
-      await phone.locator(selector).waitFor()
-      assert.doesNotMatch(await phone.locator('.progress-panel').innerText(), /Ship Defense|Tower Defense|Endless Defense|Earth Defense Grid/)
-      await phone.locator('.progress-panel__back').tap()
+      await shortcuts.getByRole('button', { name, exact: true }).tap()
+      await phone.locator(selector).first().waitFor()
+      assert.doesNotMatch(await phone.locator(panel).innerText(), /Ship Defense|Tower Defense|Endless Defense|Earth Defense Grid/)
+      await phone.locator(back).tap()
+      await shortcuts.waitFor()
     }
-    console.log('Raid profile, achievements, Codex and enemy Almanac passed')
+    console.log('All six home shortcuts and return paths passed')
   } finally { await phone.close() }
 }
 

@@ -4709,7 +4709,7 @@
   border-image: none;
   background: linear-gradient(110deg, #1b4554, #0b1824 65%);
 }
-#root .raid__launch-panel .raid__launch-primary:enabled:is(html:not([data-menu-input='pointer']) :focus-visible, html[data-menu-input='controller'] :focus) {
+#root .raid__launch-panel .raid__launch-primary:enabled:is(html:not([data-menu-input='pointer']) :focus-visible, html[data-menu-input='navigation'] :focus) {
   border-color: var(--ui-gold);
   background: linear-gradient(110deg, #62451f, #172832 65%);
 }

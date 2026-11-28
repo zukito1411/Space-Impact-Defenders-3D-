@@ -526,39 +526,8 @@ body {
   justify-self: center;
 }
 
-.start-screen__command-deck {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 8px;
-}
 
-.start-screen__command-deck button {
-  min-height: 44px;
-  padding: 9px 10px;
-  border: 1px solid rgba(147, 197, 253, 0.26);
-  border-radius: 7px;
-  background: rgba(5, 13, 27, 0.72);
-  color: #dbeafe;
-  font: inherit;
-  font-size: 0.68rem;
-  font-weight: 900;
-  letter-spacing: 0.05rem;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition:
-    transform 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease,
-    background 0.15s ease;
-}
 
-.start-screen__command-deck button:hover,
-.start-screen__command-deck button:focus-visible {
-  transform: translateY(-1px);
-  border-color: rgba(110, 245, 203, 0.55);
-  background: rgba(10, 30, 52, 0.9);
-  color: #ffffff;
-}
 
 .start-screen__button {
   position: relative;
@@ -4026,14 +3995,7 @@ body {
     font-size: 0.8rem;
   }
 
-  .start-screen__command-deck {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 
-  .start-screen__command-deck button {
-    min-height: 40px;
-    font-size: 0.62rem;
-  }
 
   .result-overlay {
     padding: 10px;

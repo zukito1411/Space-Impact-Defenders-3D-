@@ -2070,7 +2070,7 @@ export const DEFENSE_TEXT = {
 
 export const RELEASE_TEXT = {
   en: {
-    deckTitle: 'Command Deck',
+    homeShortcuts: 'Pilot shortcuts',
     deckCopy: 'Track progress, unlock records, and launch special operations.',
     back: 'Back',
     close: 'Close',
@@ -2403,7 +2403,7 @@ export const RELEASE_TEXT = {
     },
   },
   zh: {
-    deckTitle: '指挥甲板',
+    homeShortcuts: '飞行员快捷入口',
     deckCopy: '追踪进度、解锁记录，并启动特殊行动。',
     back: '返回',
     close: '关闭',
@@ -2697,7 +2697,7 @@ export const RELEASE_TEXT = {
     },
   },
   ja: {
-    deckTitle: 'コマンドデッキ',
+    homeShortcuts: 'パイロットショートカット',
     deckCopy: '進行状況、解放記録、特殊作戦を管理します。',
     back: '戻る',
     close: '閉じる',
@@ -2991,7 +2991,7 @@ export const RELEASE_TEXT = {
     },
   },
   ko: {
-    deckTitle: '커맨드 덱',
+    homeShortcuts: '파일럿 바로가기',
     deckCopy: '진행도, 해금 기록, 특수 작전을 관리합니다.',
     back: '뒤로',
     close: '닫기',

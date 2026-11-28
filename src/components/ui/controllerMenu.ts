@@ -15,7 +15,7 @@ export function getMenuControls(scope: Document | HTMLElement) {
 }
 
 export function markControllerMenuInput() {
-  document.documentElement.dataset.menuInput = 'controller'
+  document.documentElement.dataset.menuInput = 'navigation'
 }
 
 export class ControllerMenuNavigation {

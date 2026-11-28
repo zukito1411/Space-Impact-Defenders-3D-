@@ -19,14 +19,16 @@ export function GameButton({ tone = 'secondary', className = '', children, type 
 type GameMenuActionProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> & {
   label: ReactNode
   detail?: ReactNode
+  icon?: ReactNode
 }
 
-export function GameMenuAction({ label, detail, className = '', onClick, ...props }: GameMenuActionProps) {
+export function GameMenuAction({ label, detail, icon, className = '', onClick, ...props }: GameMenuActionProps) {
   return (
-    <button type="button" className={`game-menu-action ${className}`} {...props} onClick={(event) => {
+    <button type="button" className={`game-menu-action${icon ? ' game-menu-action--icon' : ''} ${className}`} {...props} onClick={(event) => {
       playGameSound('select')
       onClick?.(event)
     }}>
+      {icon && <span className="game-menu-action__icon" aria-hidden="true">{icon}</span>}
       <span className="game-menu-action__copy">
         <strong>{label}</strong>
         {detail && <small>{detail}</small>}

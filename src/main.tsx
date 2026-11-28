@@ -13,12 +13,12 @@ import './coop-ui.css'
 
 const root = document.getElementById('root')!
 
-// Keep controller focus visible as dialogs and screens transfer DOM focus.
+// Keep keyboard and controller focus visible through programmatic focus changes.
 document.addEventListener('pointerdown', (event) => {
   if (event.isTrusted) document.documentElement.dataset.menuInput = 'pointer'
 }, true)
 document.addEventListener('keydown', (event) => {
-  if (event.isTrusted) delete document.documentElement.dataset.menuInput
+  if (event.isTrusted) document.documentElement.dataset.menuInput = 'navigation'
 }, true)
 
 // CSS image URLs must be absolute before insertion into a custom property.

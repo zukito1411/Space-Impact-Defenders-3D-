@@ -7,6 +7,7 @@ import { startStudioSplash } from './startupSplash'
 import { getCommandText } from './commandText'
 import './App.css'
 import { GameButton, GameMenuAction } from './components/ui/GameButton'
+import { HomeMenuIcon } from './components/ui/HomeMenuIcon'
 import { GameDialog } from './components/ui/GameDialog'
 import { GameMenuHints } from './components/ui/GameMenuHints'
 import { ControllerButton, RaidControllerInput } from './controllers'
@@ -35,7 +36,7 @@ import { CORE_LANDER_GOD_GUNDAM_UNLOCK_SCORE, CORE_LANDER_UNLOCK_GRADIUS_ENDLESS
 import { useEffect, useMemo, useState, useRef, type CSSProperties } from 'react'
 
 type ProgressionView = 'profile' | 'missions' | 'achievements' | 'codex' | 'stageMap'
-type ScreenState = 'title' | 'commandDeck' | 'game' | 'rocketMode' | 'raidHangar' | 'raidStory' | 'raidEndingArchive' | 'raidCoopMode' | 'raidSameScreenBriefing' | 'raidMultiplayer' | 'leaderboards' | ProgressionView
+type ScreenState = 'title' | 'game' | 'rocketMode' | 'raidHangar' | 'raidStory' | 'raidEndingArchive' | 'raidCoopMode' | 'raidSameScreenBriefing' | 'raidMultiplayer' | 'leaderboards' | ProgressionView
 type RaidLaunchMode = 'campaign' | 'endless' | 'bossRush'
 
 const PROGRESSION_VIEWS: ProgressionView[] = ['profile', 'missions', 'achievements', 'codex', 'stageMap']
@@ -815,6 +816,14 @@ function App() {
   ) : null
 
   if (screen === 'title') {
+    const shortcuts = [
+      { screen: 'profile', icon: 'profile', label: releaseText.profile },
+      { screen: 'achievements', icon: 'achievements', label: releaseText.achievements },
+      { screen: 'missions', icon: 'missions', label: releaseText.missions },
+      { screen: 'raidHangar', icon: 'hangar', label: text.rocketMode.hangar },
+      { screen: 'codex', icon: 'codex', label: releaseText.codex },
+      { screen: 'stageMap', icon: 'almanac', label: releaseText.stageMap },
+    ] as const
     const commander = guestPilot ? command.guest : playerName
     const syncLabel = guestPilot ? command.localSave : cloudSyncStatus === 'connected' ? 'Cloud connected' : cloudSyncStatus === 'conflict' ? 'Name conflict · local save safe' : 'Offline · local save'
     return (
@@ -850,15 +859,21 @@ function App() {
               <GameMenuAction
                 data-menu-default
                 label={text.rocketMode.single}
+                icon={<HomeMenuIcon name="single" />}
                 onClick={() => setScreen('rocketMode')}
               />
-              <GameMenuAction label={text.rocketMode.coop} onClick={() => setScreen('raidCoopMode')} />
-              <GameMenuAction className="start-screen__rankings" label={text.title.recordsTitle} onClick={() => setScreen('leaderboards')} />
+              <GameMenuAction icon={<HomeMenuIcon name="coop" />} label={text.rocketMode.coop} onClick={() => setScreen('raidCoopMode')} />
+              <GameMenuAction icon={<HomeMenuIcon name="leaderboards" />} label={text.title.recordsTitle} onClick={() => setScreen('leaderboards')} />
             </nav>
 
-            <div className="start-screen__command-deck">
-              <GameButton tone="quiet" onClick={() => setScreen('commandDeck')}>{releaseText.deckTitle}</GameButton>
-            </div>
+            <nav className="start-screen__shortcuts" aria-label={releaseText.homeShortcuts}>
+              {shortcuts.map(({ screen, icon, label }) => (
+                <GameButton key={screen} tone="quiet" aria-label={label} title={label} onClick={() => setScreen(screen)}>
+                  <HomeMenuIcon name={icon} />
+                  <span className="start-screen__shortcut-label" aria-hidden="true">{label}</span>
+                </GameButton>
+              ))}
+            </nav>
           </div>
 
           <GameMenuHints language={language} showBack={false} />
@@ -1072,7 +1087,7 @@ function App() {
         <div className="raid-hangar">
           <div className="raid-hangar__stars" />
           <div className="raid-hangar__panel">
-            <GameButton tone="quiet" className="mode-screen__back" type="button" onClick={() => setScreen('commandDeck')}>
+            <GameButton tone="quiet" className="mode-screen__back" type="button" onClick={() => setScreen('title')}>
               {text.rocketMode.back}
             </GameButton>
 
@@ -1223,10 +1238,9 @@ function App() {
     )
   }
 
-  if (screen === 'rocketMode' || screen === 'raidCoopMode' || screen === 'commandDeck') {
+  if (screen === 'rocketMode' || screen === 'raidCoopMode') {
     const solo = screen === 'rocketMode'
-    const deck = screen === 'commandDeck'
-    const title = deck ? releaseText.deckTitle : solo ? text.rocketMode.single : text.rocketMode.coop
+    const title = solo ? text.rocketMode.single : text.rocketMode.coop
 
     return (
       <div className="mode-screen mode-screen--menu">
@@ -1237,16 +1251,7 @@ function App() {
               {text.rocketMode.back}
             </GameButton>
           </header>
-          {deck ? (
-            <nav className="mode-screen__actions mode-screen__actions--deck" aria-label={title}>
-              <GameMenuAction data-menu-default label={releaseText.profile} onClick={() => setScreen('profile')} />
-              <GameMenuAction label={releaseText.achievements} onClick={() => setScreen('achievements')} />
-              <GameMenuAction label={releaseText.missions} onClick={() => setScreen('missions')} />
-              <GameMenuAction label={text.rocketMode.hangar} onClick={() => setScreen('raidHangar')} />
-              <GameMenuAction label={releaseText.codex} onClick={() => setScreen('codex')} />
-              <GameMenuAction label={releaseText.stageMap} onClick={() => setScreen('stageMap')} />
-            </nav>
-          ) : solo ? (
+          {solo ? (
             <nav className="mode-screen__actions mode-screen__actions--raid" aria-label={title}>
               <GameMenuAction data-menu-default label={text.rocketMode.story} onClick={() => startRocketRaidSingle('campaign')} />
               <GameMenuAction label={text.rocketMode.endless} detail={!canPlayGradiusEndless ? text.rocketMode.endlessLocked : undefined} disabled={!canPlayGradiusEndless} onClick={() => startRocketRaidSingle('endless')} />
@@ -1350,7 +1355,7 @@ function App() {
           language={language}
           playerName={playerName}
           recoveryCode={recoveryCode}
-          onBack={() => setScreen('commandDeck')}
+          onBack={() => setScreen('title')}
           onPlayCutscenes={startCodexCutscenePlayback}
           onProgressChange={(nextProgress) => {
             setProgress(nextProgress)

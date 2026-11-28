@@ -104,7 +104,6 @@ try{
    const menus = [
      ['Single Player', ['Story Mode', 'Endless Mode', 'Boss Rush']],
      ['Co-op', ['Same Wi-Fi', 'Online Co-op', 'Shared Screen']],
-     ['Command Deck', ['Profile', 'Achievements', 'Missions', 'Hangar', 'Codex', 'Almanac']],
    ]
    const checkBounds = async (locator, width, height) => {
      const boxes = await locator.evaluateAll(controls => controls.map(control => {
@@ -121,10 +120,30 @@ try{
    }
    for (const [width, height] of [[393, 852], [320, 568], [844, 390], [640, 320], [1536, 710]]) {
      await story.setViewportSize({ width, height })
+     await story.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
      const mainActions = story.locator('.start-screen__actions button')
      assert.deepEqual(await mainActions.allTextContents(), ['Single Player', 'Co-op', 'Leaderboards'])
-     const home = await checkBounds(story.locator('.start-screen__actions button, .start-screen__command-deck button'), width, height)
-     if (height > width) assert.ok(home[3].y >= home[2].y + home[2].height)
+     const home = await checkBounds(mainActions, width, height)
+     const shortcuts = story.getByRole('navigation', { name: 'Pilot shortcuts' })
+     const buttons = shortcuts.getByRole('button')
+     assert.deepEqual(await buttons.evaluateAll(items => items.map(button => button.getAttribute('aria-label'))),
+       ['Profile', 'Achievements', 'Missions', 'Hangar', 'Codex', 'Almanac'])
+     const dock = await checkBounds(buttons, width, height)
+     assert.ok(dock[0].y >= home[2].y + home[2].height,
+       `Dock overlaps actions at ${width}×${height}: ${JSON.stringify({ home, dock })}`)
+     assert.equal(new Set(dock.map(box => box.y)).size, width === 320 ? 2 : 1)
+     const navBounds = await shortcuts.boundingBox()
+     assert.ok(dock.every(box => box.x >= navBounds.x - .5 &&
+       box.x + box.width <= navBounds.x + navBounds.width + .5),
+       `Shortcut buttons spill outside the dock at ${width}×${height}`)
+     await story.locator('.start-screen__title-lockup h1').tap()
+     await story.waitForFunction(() => document.documentElement.dataset.menuInput === 'pointer')
+     assert.deepEqual(await mainActions.locator('svg').evaluateAll(icons => icons.map(icon => getComputedStyle(icon).fill)),
+       Array(3).fill('rgb(101, 223, 233)'))
+     await buttons.first().focus()
+     await story.keyboard.press('ArrowRight')
+     assert.ok(await buttons.nth(1).evaluate(button => button === document.activeElement))
+     await buttons.nth(1).locator('.start-screen__shortcut-label').waitFor({ timeout: 3000 })
      const header = story.locator('.start-screen__topbar')
      const [change, settings] = await checkBounds(header.getByRole('button'), width, height)
      const commander = header.getByText(callsign, { exact: true })
@@ -143,15 +162,13 @@ try{
        await nav.waitFor()
        assert.deepEqual(await nav.locator('button strong').allTextContents(), labels)
        const boxes = await checkBounds(nav.getByRole('button'), width, height)
-       if (title !== 'Command Deck') {
-         if (width > height) {
-           assert.ok(boxes.every(box => box.y === boxes[0].y && box.height === boxes[0].height),
-             `${title} cards are uneven at ${width}×${height} ${JSON.stringify(boxes)}`)
-           assert.ok(boxes[2].x > boxes[1].x && boxes[1].x > boxes[0].x)
-         } else {
-           assert.ok(boxes.every(box => box.x === boxes[0].x && box.width === boxes[0].width))
-           assert.ok(boxes[2].y > boxes[1].y && boxes[1].y > boxes[0].y)
-         }
+       if (width > height) {
+         assert.ok(boxes.every(box => box.y === boxes[0].y && box.height === boxes[0].height),
+           `${title} cards are uneven at ${width}×${height} ${JSON.stringify(boxes)}`)
+         assert.ok(boxes[2].x > boxes[1].x && boxes[1].x > boxes[0].x)
+       } else {
+         assert.ok(boxes.every(box => box.x === boxes[0].x && box.width === boxes[0].width))
+         assert.ok(boxes[2].y > boxes[1].y && boxes[1].y > boxes[0].y)
        }
        await story.getByRole('button', { name: 'Back', exact: true }).click()
        await mainActions.first().waitFor()
@@ -190,7 +207,7 @@ try{
    await next.click()
    await story.locator('.raid-story--scene-2').waitFor()
    assert.deepEqual(storyErrors, [])
-   if (production) console.log('Production menus and commander header fit five viewports. Settings language changes persist after reload.')
+   if (production) console.log('Production menus, home shortcut grids and commander header fit five viewports. Settings language changes persist after reload.')
    console.log('Raid story controls fit the reported Android aspect ratio, compact landscape, and portrait')
  } finally {
    await story.close()

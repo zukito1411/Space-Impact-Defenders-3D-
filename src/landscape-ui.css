@@ -40,9 +40,6 @@
   #root .start-screen .game-menu-action__copy { gap: 3px; }
   #root .start-screen .game-menu-action__copy strong { font-size: clamp(.9rem, 2.1vw, 1.15rem); }
   #root .start-screen .game-menu-action__copy small { font-size: .68rem; line-height: 1.25; }
-  #root .start-screen__command-deck { grid-area: deck; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; width: 100%; max-width: none; margin: 0; }
-  #root .start-screen__command-deck button,
-  #root .start-screen__command-deck button:first-child { grid-column: auto; min-width: 0; min-height: 44px; flex-direction: row; padding: 6px; font-size: .58rem; letter-spacing: 0; overflow-wrap: anywhere; }
   #root .start-screen__footer { grid-area: footer; max-width: none; margin: 0; gap: 4px 12px; font-size: .48rem; line-height: 1.2; }
   #root .start-screen .game-menu-hints { display: none; }
   /* The disabled Raid launch already reports the same loading percentage. */
@@ -203,7 +200,6 @@
   #root .start-screen__actions .game-menu-action { min-height: 72px; max-height: 112px; padding: 14px 20px; }
   #root .start-screen .game-menu-action__copy strong { font-size: clamp(1.1rem, 2.1vw, 1.5rem); }
   #root .start-screen .game-menu-action__copy small { font-size: .82rem; }
-  #root .start-screen__command-deck button { min-height: 48px; font-size: .72rem; }
   #root .start-screen__footer { font-size: .6rem; }
   #root .mode-screen__panel { padding: 60px 24px 20px; }
   #root .mode-screen__panel h1 { font-size: 2.1rem; }
@@ -263,8 +259,6 @@
   #root .start-screen .game-menu-action__copy { gap: 2px; }
   #root .start-screen .game-menu-action__copy strong { font-size: .83rem; line-height: 1.1; }
   #root .start-screen .game-menu-action__copy small { font-size: .64rem; line-height: 1.15; }
-  #root .start-screen__command-deck { width: 100%; max-width: none; margin: 0; gap: 4px; }
-  #root .start-screen__command-deck button { min-height: 44px; padding: 5px; font-size: .56rem; }
   #root .start-screen__footer { max-width: none; margin: 0; gap: 2px 8px; font-size: .48rem; line-height: 1.15; }
   #root .start-screen .game-menu-hints { display: none; }
 }
@@ -347,28 +341,6 @@
   }
   #root .start-screen .game-menu-action__copy strong { font-size: clamp(.85rem, 2dvh, 1.05rem); letter-spacing: .07em; }
   #root .start-screen .game-menu-action__copy small { font-size: .64rem; color: #b7cbd7; }
-  #root .start-screen__command-deck {
-    grid-area: deck;
-    display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    gap: 5px;
-  }
-  #root .start-screen__command-deck button,
-  #root .start-screen__command-deck button:first-child {
-    grid-column: span 2;
-    min-width: 0;
-    min-height: 44px;
-    padding: 5px 3px;
-    border-image: none;
-    border: 1px solid #45677c;
-    border-radius: 4px;
-    background: #0b1d2be8;
-    color: #d6eaf3;
-    font-size: .55rem;
-    line-height: 1.15;
-    letter-spacing: .01em;
-    overflow-wrap: anywhere;
-  }
   #root .start-screen__footer {
     grid-area: footer;
     justify-content: center;
@@ -460,7 +432,7 @@
   background: linear-gradient(110deg, #1b4554ed 0%, #0a1b2bec 48%, #07121eee 100%);
   box-shadow: inset 0 1px #c9faff2b, inset 0 -1px #0009, 0 4px 15px #0008;
 }
-#root :is(.start-screen__actions, .mode-screen__actions) .game-menu-action:enabled:is(html:not([data-menu-input='pointer']) :focus-visible, html[data-menu-input='controller'] :focus) {
+#root :is(.start-screen__actions, .mode-screen__actions) .game-menu-action:enabled:is(html:not([data-menu-input='pointer']) :focus-visible, html[data-menu-input='navigation'] :focus) {
   --mission-accent: var(--ui-gold);
   border-color: #bb9257;
   border-left-color: var(--mission-accent);
@@ -504,9 +476,8 @@
   color: #f0faff;
   letter-spacing: .07em;
 }
-#root :is(.start-screen__actions, .mode-screen__actions) .game-menu-action:enabled:is(html:not([data-menu-input='pointer']) :focus-visible, html[data-menu-input='controller'] :focus) strong { color: #ffe0a2; }
+#root :is(.start-screen__actions, .mode-screen__actions) .game-menu-action:enabled:is(html:not([data-menu-input='pointer']) :focus-visible, html[data-menu-input='navigation'] :focus) strong { color: #ffe0a2; }
 #root :is(.start-screen__actions, .mode-screen__actions) .game-menu-action__copy small { color: #bcd2dc; opacity: .86; }
-#root .start-screen__command-deck button,
 #root .start-screen__topbar .start-screen__settings {
   border: 1px solid #426b7b;
   border-image: none;
@@ -515,7 +486,6 @@
   color: #d7edf4;
   box-shadow: inset 0 1px #c3f4ff20, 0 3px 9px #0008;
 }
-#root .start-screen__command-deck button:enabled:hover,
 #root .start-screen__topbar .start-screen__settings:enabled:hover { border-color: #85eaf1; color: #fff; }
 #root :is(.mode-screen__panel, .progress-panel, .raid-hangar__panel, .leaderboards-screen__shell) {
   border-top-color: #73e5eeb3;
@@ -642,22 +612,6 @@
 }
 
 /* Menu cards share one grid, with one consistent reading order in both orientations. */
-#root .start-screen__command-deck { display: flex; }
-#root .start-screen__command-deck .game-button { min-width: 126px; font-size: .72rem; }
-#root .start-screen__actions .start-screen__rankings::before {
-  width: 22px;
-  height: 20px;
-  transform: translateY(-50%);
-  border: 0;
-  border-bottom: 1px solid var(--mission-accent);
-  border-radius: 0;
-  background:
-    linear-gradient(var(--mission-accent), var(--mission-accent)) left bottom / 5px 45%,
-    linear-gradient(var(--mission-accent), var(--mission-accent)) center bottom / 5px 90%,
-    linear-gradient(var(--mission-accent), var(--mission-accent)) right bottom / 5px 65%;
-  background-repeat: no-repeat;
-  box-shadow: none;
-}
 #root .mode-screen--menu .mode-screen__panel {
   width: min(920px, 100%);
   padding: clamp(14px, 3.5vw, 30px);
@@ -689,7 +643,6 @@
   gap: clamp(8px, 1.5vw, 14px);
   margin-top: clamp(12px, 3dvh, 22px);
 }
-#root .mode-screen--menu .mode-screen__actions--deck { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 #root .mode-screen--menu .game-menu-action {
   min-width: 0;
   min-height: 62px;
@@ -703,25 +656,19 @@
   font-size: clamp(.73rem, 1.6vw, .86rem);
   line-height: 1.35;
 }
-#root .mode-screen--menu .mode-screen__actions--deck .game-menu-action {
-  min-height: 52px;
-  padding-inline: 12px 22px;
-}
-#root .mode-screen--menu .mode-screen__actions--deck .game-menu-action::before { content: none; }
-#root .mode-screen--menu .mode-screen__actions--deck .game-menu-action::after { right: 10px; }
 
 @media (orientation: portrait) {
   #root .start-screen__content {
-    grid-template-rows: repeat(5, auto);
-    align-content: center;
-    row-gap: clamp(7px, 1.6dvh, 14px);
+    grid-template-areas: '.' 'brand' 'title' 'actions' '.' 'deck' 'footer';
+    grid-template-rows: minmax(0, 1fr) auto auto auto minmax(0, .65fr) auto auto;
+    align-content: stretch;
+    row-gap: clamp(5px, 1.2dvh, 10px);
   }
   #root .start-screen__actions .game-menu-action { flex-shrink: 0; }
-  #root .start-screen__command-deck .game-button { width: 100%; }
 }
 @media (orientation: landscape) and (min-width: 560px) {
   #root .start-screen__content {
-    grid-template-areas: 'brand actions' 'title actions' 'deck actions' 'footer footer';
+    grid-template-areas: 'brand actions' 'title actions' 'deck deck' 'footer footer';
     row-gap: clamp(5px, 1.4dvh, 13px);
   }
   #root .start-screen__actions .game-menu-action { flex-basis: clamp(50px, 13dvh, 94px); max-height: 94px; }
@@ -738,12 +685,6 @@
     height: 15px;
   }
   #root .mode-screen--menu .game-menu-action::after { top: auto; bottom: 15px; right: 13px; }
-  #root .mode-screen--menu .mode-screen__actions--deck .game-menu-action {
-    min-height: 52px;
-    align-items: center;
-    padding-block: 8px;
-  }
-  #root .mode-screen--menu .mode-screen__actions--deck .game-menu-action::after { top: 50%; bottom: auto; }
 }
 @media (pointer: coarse) {
   #root .mode-screen--menu .game-menu-hints { display: none; }
@@ -768,4 +709,76 @@
   mask-size: cover; mask-position: center; mask-repeat: no-repeat;
   transform: translate3d(var(--carrier-shift-x, 0px), var(--carrier-shift-y, 0px), 0);
   will-change: transform;
+}
+
+/* Home modes and shortcuts share the same solid, two-tone icon family. */
+.home-menu-icon {
+  display: block;
+  width: 24px;
+  height: 24px;
+}
+#root .start-screen__actions .game-menu-action--icon::before { content: none; }
+#root .start-screen__actions .game-menu-action__icon {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  transform: translateY(-50%);
+  color: var(--mission-accent);
+  pointer-events: none;
+}
+#root .start-screen__actions .home-menu-icon {
+  width: clamp(20px, 3vw, 27px);
+  height: auto;
+}
+#root .start-screen__shortcuts {
+  grid-area: deck;
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(44px, 1fr));
+  gap: 6px;
+  width: min(338px, 100%);
+}
+#root .start-screen__shortcuts > .game-button {
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 1px solid #426b7b;
+  border-radius: 4px;
+  border-image: none;
+  background: linear-gradient(155deg, #163446ee, #091721f2);
+  color: #65dfe9;
+  box-shadow: inset 0 1px #c3f4ff20, 0 3px 9px #0008;
+}
+.start-screen__shortcut-label {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  max-width: 100%;
+  padding: 4px 9px;
+  border: 1px solid #927447;
+  border-radius: 3px;
+  background: #08131e;
+  color: #ffe0a2;
+  font-size: .7rem;
+  white-space: nowrap;
+  visibility: hidden;
+  pointer-events: none;
+}
+#root .start-screen__shortcuts .game-button:is(html:not([data-menu-input='pointer']) :focus-visible, html[data-menu-input='navigation'] :focus) {
+  border-color: var(--ui-gold);
+  color: #ffe0a2;
+}
+.start-screen__shortcuts button:is(html:not([data-menu-input='pointer']) :focus-visible, html[data-menu-input='navigation'] :focus) .start-screen__shortcut-label { visibility: visible; }
+@media (orientation: portrait) {
+  #root .start-screen__shortcuts { justify-self: center; }
+}
+@media (orientation: portrait) and (max-width: 359px) {
+  #root .start-screen__shortcuts {
+    grid-template-columns: repeat(3, minmax(44px, 1fr));
+    width: min(190px, 100%);
+  }
 }
